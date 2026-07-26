@@ -521,7 +521,7 @@ user agents*).
 
 ### Learning-goals roadmap (staged, non-blocking)
 
-the user is using this project to build production-engineering skills. These are **layered on
+The user is using this project to build production-engineering skills. These are **layered on
 after** the core loop works — none gate the MVP:
 
 1. **JWT auth** — arrives with going-online (multi-user); NextAuth or a custom JWT flow.

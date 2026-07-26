@@ -7,8 +7,8 @@ first implementation plan exists and is under review. This file is the map.
 ## ⏸️ Resume point (next session starts here)
 
 We are walking `plans/01-core-loop-implementation-plan.md` **section by section** with
-the user before any code is written — explaining each part, flagging decisions that need his
-input rather than guessing. Pace is deliberately one-at-a-time, not a batch dump.
+the user before any code is written — explaining each part, flagging decisions that need
+their input rather than guessing. Pace is deliberately one-at-a-time, not a batch dump.
 
 **Reviewed and accepted:** §0 (Ambiguities resolved, R1–R8) · §1 (Guiding constraints) ·
 §2 (File creation order / the 4 build phases).
