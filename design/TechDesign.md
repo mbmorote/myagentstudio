@@ -60,7 +60,7 @@ doc; **AI guardrail** rules belong in the relevant `design/system-agents/*.md` f
 | 4 | Frontmatter parsed string-preserving (no YAML scalar coercion); comments explicitly lost | Parsing (deterministic) | `TechDesign.md` § Draft B | ✅ Locked | Review 1d |
 | 5 | Stage 2 AI output = labels only, `{blockId → sectionKey}` — never content | AI guardrail (converter) | `system-agents/import-converter.md` § Guardrails #1 | ✅ Locked | Review 2 |
 | 6 | Merges are `{blockIds → label}`, never rewritten text | AI guardrail (converter) | `system-agents/import-converter.md` § Guardrails #2 | ✅ Locked | Review 2 |
-| 7 | Mediator scoped to one server-chosen `sectionId`; no tools | AI guardrail (mediator) | `system-agents/chat-mediator.md` § Guardrails #1, #3 | ✅ Locked | Review 7 |
+| 7 | Mediator scoped to one server-chosen **agent** (may rewrite any number of its sections in one turn); no tools | AI guardrail (mediator) | `system-agents/chat-mediator.md` § Guardrails #1, #3 | ✅ Locked (superseded 2026-07-26 — was "scoped to one `sectionId`"; see below) | Review 7; re-scoped Plan 01 review, 2026-07-26 |
 | 8a | All DB access goes through a repository layer, conservative column types | Infra/stack | `TechDesign.md` § Draft C | ✅ Locked | Review 3 |
 | 8b | Storage target dialect (Postgres vs. Azure SQL) | Infra/stack | `TechDesign.md` § Draft C | 🟡 Deferred — no code impact until migration is real | Review 3 |
 | 9 | Blueprint = one module exporting data **and** rule functions (name validation, heading render) | Architecture | `TechDesign.md` § Blueprint | 🟢 No debate — apply when `lib/blueprint` is written | Review 4 |
@@ -70,6 +70,30 @@ doc; **AI guardrail** rules belong in the relevant `design/system-agents/*.md` f
 | 14 | Does every manual save append a `SectionRevision`, or debounce to meaningful edit boundaries only | Product/UX | *(not yet added)* | ⬜ Deferred — decide when building the manual-edit save flow | New (not from review) |
 | 12 | Missing `description` on import = placeholder + validation flag | Schema/validation | `TechDesign.md` § Entity `Agent` | ✅ Locked | Review 7 |
 | 13 | Catalog evolution: distinguish "never known" vs. "was known, catalog changed" | Validation | *(not yet added)* | ⬜ Deferred — needs catalog versioning, doesn't exist yet | Review 7 |
+| 15 | `AgentSnapshot`: whole-agent (not per-section) exported-markdown capture on import — `pre-import`/`post-import`, soft-ref to `agentId`, never cascade-deleted | Schema | `TechDesign.md` § Entity `AgentSnapshot`; `plans/01-core-loop-implementation-plan.md` § 3 | ✅ Locked | Plan 01 review, 2026-07-26 |
+| 16 | `AgentSnapshot(kind:'export')` capture point + the diff-view UI that reads pre/post snapshots | Product/UX | *(not yet added)* | ⬜ Deferred — needs the export route (later plan); schema already supports it, no migration needed | Plan 01 review, 2026-07-26 |
+| 17 | `Agent.platform`: open catalog (`PlatformDefs`), not a DB enum; only `'claude'` exists now | Schema | `TechDesign.md` § Entity `Agent`; `plans/01-core-loop-implementation-plan.md` § 3/§4 | ✅ Locked | Plan 01 review, 2026-07-26 |
+| 18 | `ConfigDef` platform-scoping (a `model`/`tools` catalog per platform, not one global catalog) | Schema | *(not yet added)* | ⬜ Deferred — `ConfigDef` stays implicitly Claude-shaped until a second platform's import/create is actually built | Plan 01 review, 2026-07-26 |
+| 19 | `model.allowedValues` = full model IDs only, no short aliases; `'inherit'` kept for now | Schema/seed | `plans/01-core-loop-implementation-plan.md` § 4 (D4) | ✅ Locked (list itself); ⬜ `'inherit'`'s membership in the list is flagged for revisit | Plan 01 review, 2026-07-26 |
+| 20 | UI displays a short label ("Opus") instead of the raw full model ID — display-only, storage stays the full ID | Product/UX | *(not yet added)* | ⬜ Deferred — not built in this plan; UI renders the full ID verbatim until this lands | Plan 01 review, 2026-07-26 |
+| 21 | `SectionRevision.author` gets a fifth value, `'scaffold'`, for platform-created (not imported) section revision #0 — distinct from `import`/`reimport`/`user`/`ai` | Schema | `TechDesign.md` § Entity `SectionRevision`; `plans/01-core-loop-implementation-plan.md` § 3/§4 (D5) | ✅ Locked | Plan 01 review, 2026-07-26 |
+| 22 | Chat and manual raw-edit are mutually exclusive per agent, client-enforced (interaction lock) — UI-level prevention only; the per-section version check remains the real backstop | Product/UX | `plans/01-core-loop-implementation-plan.md` § 6 rule 12, § 7 | ✅ Locked | Plan 01 review, 2026-07-26 |
+| 23 | Cancellation token for an in-flight mediator call: client `AbortController`, `request.signal` propagated to the Anthropic SDK call. Safe by construction (apply-then-history means nothing is written until the mediator fully responds) | Product/UX | `plans/01-core-loop-implementation-plan.md` § 7, Phase 4.4/4.7 | ✅ Locked | Plan 01 review, 2026-07-26 |
+| 24 | Propose-preview: show the mediator's proposed section changes and require explicit "Apply" before the write lands (formalizes D1's original "addable later" note) | Product/UX | *(not yet added)* | ⬜ Deferred — not built in this plan; no schema change needed when it lands | Plan 01 review, 2026-07-26 |
+| 25 | Prompt-file source of truth: `design/system-agents/*.md` is the only copy of a system agent's rules, ever. `scripts/build-prompts.ts` compiles both into plain string constants at **build time** (`predev`/`prebuild`), strips title/blockquote; the running server never reads `design/` at all — no `.txt` duplicate, no runtime filesystem access, output gitignored and always regenerated | Architecture | `plans/01-core-loop-implementation-plan.md` § 9 (D6), Phase 0.1/0.3/0.7 | ✅ Locked | Plan 01 review, 2026-07-26 |
+
+**Note on #7's supersession:** the original rule (Review 7, `DesignReview.md` finding 7,
+"Injection surface") scoped the mediator to exactly one `sectionId` chosen by the server.
+Rereading that finding's own reasoning: the rule was never about section-level granularity
+being correct — it's blast-radius containment, and the finding's own words already accept
+"worst case, the model corrupts the user's own agent" as tolerable for local single-user,
+recoverable via `SectionRevision`. Widening the scope from one section to the whole agent
+(so `SectionRevision` stays purely a per-section *log*, not the edit *boundary* — see D2,
+Plan 01 review) doesn't cross a line that finding didn't already accept; the two guardrails
+that actually bound the risk — **no tools**, **never fabricate a split-level heading** —
+are unchanged. `DesignReview.md` itself is left untouched as the historical record of the
+original, narrower reasoning; re-audit still applies when sharing/forking (build-order #5)
+makes imported foreign agents untrusted input to system prompts.
 
 ## Data model
 
@@ -105,6 +129,7 @@ constraints + fast queries; everything else lives in the value tables.
 | `description` | text | not null | Config `description`. **Missing on import → placeholder + a `descriptionMissing` validation flag** (review finding 12) — same flag-don't-block pattern as `name`, never a hard block. |
 | `createdAt` / `updatedAt` | timestamp | not null | |
 | `source` | enum | not null | `created` / `imported` — provenance |
+| `platform` | string | not null, default `'claude'` | **Not a closed enum** — its allowed values live in the `PlatformDefs` catalog (plan §4), the same openness pattern as `propKey`/`sectionKey`. Only `'claude'` exists as a catalog entry today; Copilot/other platforms are added later as a catalog entry + export serializer, not a migration. Exists so "which platform is this agent's canonical shape modeled on" is queryable, distinct from *export* (translating to a different platform at export time — see Deferred: Export adapters, below). |
 | `rawSourceSnapshot` | text \| null | | The **entire original `.md`** (frontmatter + body), byte-for-byte, captured once at import — independent of how Stage 2 sliced/labeled it into sections. This is the concrete home for Draft A's "the raw original is retained with the import" — previously a sentence with no schema behind it. Lets you always see literally what was imported, even if a Stage-2 mapping decision turns out wrong. `null` for agents created directly in the platform (no import to snapshot). |
 
 ---
@@ -236,14 +261,18 @@ that appends a new row. Nothing about a section's content ever changes without a
 | `id` | uuid | PK | |
 | `sectionId` | uuid | not null | **references `AgentSection.id`, but not as a cascading FK.** If the section is later deleted (e.g. removed on re-import, below), its revision rows are *not* deleted with it — the log outlives the live row on purpose. Same "soft reference" pattern already used for `propKey`/`sectionKey` elsewhere in this doc. |
 | `content` | text (markdown) | not null | the section's **full content** at this point in time — always the whole text, never a diff. This is what makes the log self-sufficient: no row depends on any other row to be readable. |
-| `author` | enum | not null | `import` \| `reimport` \| `user` \| `ai` — who produced this revision |
+| `author` | enum | not null | `import` \| `reimport` \| `scaffold` \| `user` \| `ai` — who produced this revision |
 | `createdAt` | timestamp | not null | |
 
-**How the four authors populate it:**
+**How the five authors populate it:**
 - **`import`** — the moment Stage 2 labels a block and the server creates the
   `AgentSection` row (see Draft A), it also writes revision #0 for that section:
   `author: "import"`, content = exactly what Stage 1 captured. This is the anchor every
   later diff/revert compares against — "what did this look like on day one."
+- **`scaffold`** — a section created directly in the platform (not imported) gets its
+  revision #0 written with `author: "scaffold"`, content = the `SectionDef.template` text.
+  Kept distinct from `import` (no file was involved) and from `user` (no human typed this —
+  it's platform-generated starter text) — Rules Index #21.
 - **`user`** — every manual save from the structured view appends a row, `author: "user"`.
 - **`ai`** — every mediator rewrite appends a row, `author: "ai"`, *before* (or atomically
   with) overwriting `AgentSection.content`.
@@ -263,6 +292,38 @@ new `user`-authored revision (a revert is just an edit whose new content happens
 an old one; no special "revert" author needed for the MVP). No revert UI required yet —
 the table existing is what matters; "restore this version" is a thin read + write on top,
 addable anytime without a schema change.
+
+### Entity: `AgentSnapshot` (whole-agent import/export capture — Rules Index #15/#16)
+
+**Why it exists — separate from `SectionRevision`:** `SectionRevision` is per-section and
+answers "what did this one section look like before." It doesn't cheaply answer "what did
+the *whole agent* look like right before this re-import landed, vs. right after" — that
+would mean reconstructing every section's state at two points in time from an interleaved
+per-section log. `AgentSnapshot` answers that directly: one row, one point in time, the
+whole agent as exported markdown text.
+
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| `id` | uuid | PK | |
+| `agentId` | uuid | not null | **soft reference, not a cascading FK** — same pattern as `SectionRevision.sectionId`. Deleting the agent does not delete its snapshots. |
+| `kind` | enum | not null | `pre-import` \| `post-import` \| `export` |
+| `content` | text (markdown) | not null | the **full exported `.md`** for the whole agent at this point in time (reuses the existing deterministic `export()` function — not a separate serialization) |
+| `createdAt` | timestamp | not null | |
+
+**When it's written (Plan 01 scope):**
+- **Re-import of an existing agent** — `export()` the agent's *current* state, write
+  `kind: "pre-import"`, **before** applying any change from the incoming file.
+- **Every import (first-time or re-import)** — after `repository.upsertAgentFromImport`
+  completes, `export()` the *new* state, write `kind: "post-import"`.
+- First-time import of a brand-new agent has no prior state, so it only ever gets a
+  `post-import` snapshot.
+
+**Deferred (Rules Index #16):** `kind: "export"` — written when a user explicitly exports
+an agent to a file — has no capture point yet because Plan 01 has no export route (export
+is currently only an internal function used for the round-trip test). The enum value
+already exists so wiring this in later is one write call, not a migration. Likewise, a
+diff view that reads a `pre-import`/`post-import` (or future `export`) pair and shows what
+changed is an explicitly future feature — out of scope for Plan 01.
 
 ### Entity: `Group`
 
@@ -289,6 +350,9 @@ this table.
 The valid model/tool values are **not** separate `ModelCatalog`/`ToolCatalog` tables —
 they're absorbed into `ConfigDef.allowedValues` (the `model` def's list of models, the
 `tools` def's list of tools). One catalog drives every dropdown and every validation.
+`Agent.platform`'s allowed values are the one exception: a small standalone `PlatformDefs`
+array (Rules Index #17), not folded into `ConfigDef`, since it describes the agent record
+itself rather than a config/section value on it.
 
 ### Deferred (not in the data model yet, noted so we don't design them out)
 
@@ -320,7 +384,8 @@ the basis of validation.
 
 Two AI behaviors are **infrastructure**, not user content:
 - **the import converter** — maps a raw `.md` onto the Blueprint (Draft A, Stage 2);
-- **the chat mediator** — the agent-aware chat that edits sections in place.
+- **the chat mediator** — the agent-aware chat that edits the agent in place (any of its
+  sections, per instruction — see Rules Index #7).
 
 These are **system agents**: owned by the platform, seeded at startup, never editable by
 end users. They are distinct from **user agents** (the user's own `dev`, `Zara`, … — fully
@@ -546,6 +611,11 @@ memory, before assuming something was decided.
 | 8b | Storage target dialect (Postgres vs. Azure SQL) | The Azure step of the learning-goals roadmap (above), when the migration is actually happening |
 | 13 | Catalog evolution: distinguish "never known" vs. "was known, catalog changed" | Catalog versioning infrastructure exists (post-MVP) |
 | 14 | Manual-edit save frequency: every save logs a `SectionRevision`, or debounced to meaningful edit boundaries | Building the structured-view manual-edit save flow |
+| 16 | `AgentSnapshot(kind:'export')` capture + the import/export diff-view UI | The export route is built (later plan) |
+| 18 | `ConfigDef` platform-scoping (per-platform `model`/`tools`/etc. catalogs, since fields/allowedValues differ by platform) | A second platform's import/create support is actually being built |
+| 19 | Whether `'inherit'` should be an `allowedValues` member of `model` at all, vs. modeled as "no value set" | Next time the `model` catalog or validation logic is touched |
+| 20 | Display-label lookup for `model` (short name in UI, full ID in storage) | Building any UI surface that renders `model` (later plan) |
+| 24 | Propose-preview before applying a mediator rewrite | If apply-then-history ever feels too abrupt in real dogfooding use |
 
 **8a is final, not deferred:** the repository layer over Drizzle is locked and needed
 starting now (it's how the app talks to the DB from day one, independent of which future

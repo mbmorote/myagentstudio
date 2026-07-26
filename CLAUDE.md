@@ -2,34 +2,63 @@
 
 A workbench for building and managing AI agents: an **agent-aware AI chat** next to an
 **always-visible structured view** of the agent it's editing. Design is complete; the
-first implementation plan exists and is under review. This file is the map.
+first implementation plan has been reviewed section-by-section and confirmed (2026-07-26) —
+ready for `@dev` to execute. This file is the map.
 
-## ⏸️ Resume point (next session starts here)
+## ✅ Plan 01 review — complete (2026-07-26)
 
-We are walking `plans/01-core-loop-implementation-plan.md` **section by section** with
-the user before any code is written — explaining each part, flagging decisions that need
-their input rather than guessing. Pace is deliberately one-at-a-time, not a batch dump.
+`plans/01-core-loop-implementation-plan.md` was walked **section by section** with the user
+before any code was written (§0 through the Appendix), and all six §9 decisions (D1–D6) are
+resolved. The plan file itself is the source of truth for the resulting design — this entry
+is just a pointer to what changed *during* review, so a future session doesn't need to
+re-derive it from scratch.
 
-**Reviewed and accepted:** §0 (Ambiguities resolved, R1–R8) · §1 (Guiding constraints) ·
-§2 (File creation order / the 4 build phases).
+**Real design changes that came out of review** (beyond just confirming the original draft):
+- **`AgentSnapshot`** — new whole-agent (not per-section) table capturing full exported
+  markdown at `pre-import`/`post-import`. Future diff-view feature; `export`-kind capture is
+  deferred (Rules Index #16) until a later plan adds the export route. Plan §3.
+- **`Agent.platform`** — open catalog (`PLATFORM_DEFS`), not a DB enum; only `'claude'`
+  exists today. Platform is tracked *on the agent*, not just translated at export time.
+  `ConfigDef` deliberately stays un-scoped per-platform for now (Rules Index #18). Plan §3/§4.
+- **D4/D5 resolved** — `model.allowedValues` = full model IDs only, `'inherit'` kept but
+  flagged (#19); a future display-label lookup is noted, not built (#20).
+  `SectionRevision.author` gained a 5th value, `'scaffold'`, for platform-created (not
+  imported) sections (#21). Plan §4.
+- **Import route moved**: `POST /api/import` → `POST /api/agents/import` (organizational).
+  `AgentDTO` gained the `platform` field. Plan §5.
+- **D2 reopened Rules Index #7** (previously "✅ Locked"): the mediator is no longer scoped
+  to one `sectionId` — it's scoped to the **whole agent**, may rewrite any number of
+  sections one instruction genuinely requires. `SectionRevision` is a per-section *log*, not
+  the edit *boundary*. Rewrote `design/system-agents/chat-mediator.md` in full. Per-section
+  optimistic concurrency preserved (baseline version per section, conflicts reported
+  per-section with fresh `content`, one conflicting section doesn't block others). See
+  `TechDesign.md` Rules Index #7's supersession note for why this didn't cross a line the
+  original design review hadn't already accepted. Plan §5/§6/§7/§8, Phase 4.4/4.5/4.7.
+- **Interaction lock** (#22) — chat and manual raw-edit are mutually exclusive per agent,
+  client-enforced; the per-section version check remains the real backstop. Built now.
+- **Cancellation** (#23) — `ChatPanel`'s `AbortController` + `request.signal` propagated to
+  the Anthropic SDK call. Built now (safe by construction: apply-then-history means nothing
+  is written until the mediator fully responds). Propose-preview (#24) remains the one
+  deferred future feature.
+- **D6 resolved, compile-time not runtime** (#25): no `lib/ai/prompts/*.txt` copy, no
+  runtime file read either. `scripts/build-prompts.ts` (**Phase 0.7** — moved there from an
+  initial Phase 3.3 placement after a real sequencing bug surfaced during §11 review: Phase
+  0.1's `predev`/`prebuild` needs the script to already exist) compiles both
+  `design/system-agents/*.md` files into string constants at build time. The running server
+  never touches `design/` at all. `design/system-agents/*.md` remains the **one and only
+  place** system-agent rules are ever reviewed or edited.
+- **New business rule** (§6 rule 7): every `/api/agents/import` call writes exactly one
+  `AgentSnapshot(post-import)`, plus `pre-import` iff the agent already existed.
+- **§10** gained two rows: the mediator's widened blast radius (an accepted tradeoff, not a
+  new hole — matches the original review's own worst-case framing) and the interaction lock
+  named as primary defense against concurrent-edit clobbers.
 
-**§3 (Exact Drizzle schema) was presented and explained, but the user had not yet confirmed
-it before pausing — do NOT treat it as accepted. Next session: re-present §3, get an
-actual reaction, then continue.**
+Full detail for all of the above lives in the plan itself and in `TechDesign.md`'s Rules
+Index (all 25 entries, cross-checked complete and consistent with the plan's Appendix).
 
-**After §3 is actually confirmed, next up: §4 — Seed data shape.** This section touches
-two of the six open decisions (§9 of the plan): **D4** (the authoritative `model`
-allowed-values list) and **D5** (which `SectionRevision.author` a platform-created — not
-imported — section gets).
-
-**Remaining sections after §4, in order:** §5 API route contracts (touches **D1**/**D2**,
-the mediator UX depth + multi-section-edit questions) · §6 Business rules · §7 Draft D
-(mediator↔UI contract — also D1/D2) · §8 Testing approach · **§9 Decisions needed — all
-six (D1–D6) confirmed together here** · §10 Risks per phase · §11 Parallelization ·
-Appendix (Rules Index traceability).
-
-**Do not start writing code until this review finishes and D1–D6 are answered** — that's
-the whole point of reviewing the plan before `@dev` executes it.
+**Next session starts here:** the review is done — nothing left to confirm in Plan 01
+itself. Start Phase 0 (`@dev` executes the plan), or do a final skim if picking this back up
+after a gap.
 
 ## Folders
 
@@ -59,15 +88,16 @@ the whole point of reviewing the plan before `@dev` executes it.
 - **`design/system-agents/import-converter.md`** — the import-converter's actual
   Role/Behavior/Guardrails/Output rule-set (Stage 2: labels-only, never content).
 - **`design/system-agents/chat-mediator.md`** — the chat-mediator's actual rule-set
-  (server-scoped to one section, no tools, split-level heading guard).
+  (server-scoped to the whole agent — may rewrite any number of its sections per
+  instruction — no tools, split-level heading guard).
 - **`design/layout/Layout-Workbench.html`** — the *look*. Interactive, self-contained
   mockup of the settled 4-pane UI. Demos the `dev` agent across the panels.
 - **`design/layout/LayoutModel1.png`** — the original hand-annotated layout sketch.
 - **`plans/01-core-loop-implementation-plan.md`** — written by `@architect`. Turns the
   settled design into an ordered, file-by-file build: Phase 0 scaffold → Phase 1 the
   golden-file round-trip proof (no DB, no UI) → Phase 2 persistence → Phase 3 import
-  pipeline → Phase 4 the core loop (UI + chat). Currently **under section-by-section
-  review with the user** — see Resume point above.
+  pipeline → Phase 4 the core loop (UI + chat). **Reviewed section-by-section and confirmed
+  2026-07-26** — see the resume point above for what changed during that review.
 
 ## Where things stand
 
@@ -76,9 +106,10 @@ Index — locked items are implemented in the plan; genuinely deferred items (DB
 choice, catalog versioning, manual-save frequency) are tracked in the Deferred Decisions
 table with a trigger for when to revisit, not forgotten.
 
-- **Data model** — `Agent` · `ConfigDef`/`AgentConfig` · `SectionDef`/`AgentSection` ·
-  `Group`/`Membership` · `SectionRevision` (append-only edit log, `author: import |
-  reimport | user | ai`, starts at import — not just at the first AI edit).
+- **Data model** — `Agent` (incl. `platform`) · `ConfigDef`/`AgentConfig` ·
+  `SectionDef`/`AgentSection` · `Group`/`Membership` · `SectionRevision` (append-only edit
+  log, `author: import | reimport | scaffold | user | ai`, starts at creation — not just at
+  the first AI edit) · `AgentSnapshot` (whole-agent pre/post-import capture).
 - **Agent Blueprint** — one module (`lib/blueprint`, per the plan) exporting catalog data
   **and** rule functions, so import/UI/export can never drift into three implementations.
 - **Import/Export** — two-stage AI-assisted import (Stage 2 is labels-only, `{blockId →
