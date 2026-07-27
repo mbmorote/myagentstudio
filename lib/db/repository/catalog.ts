@@ -11,11 +11,11 @@ import { db } from '../client.js';
 import * as schema from '../schema.js';
 
 export function getConfigDefs() {
-  return db.select().from(schema.configDef).orderBy(schema.configDef.id);
+  return db.select().from(schema.configDef).orderBy(schema.configDef.id).all();
 }
 
 export function getSectionDefs() {
-  return db.select().from(schema.sectionDef).orderBy(schema.sectionDef.defaultOrder);
+  return db.select().from(schema.sectionDef).orderBy(schema.sectionDef.defaultOrder).all();
 }
 
 export type ConfigDefRow = ReturnType<typeof getConfigDefs>[number];

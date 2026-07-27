@@ -23,6 +23,8 @@ import { eq, inArray } from 'drizzle-orm';
 import { db } from '../client.js';
 import * as schema from '../schema.js';
 import { computeValidation } from '../../blueprint/rules.js';
+import { exportAgent } from '../../serialize/index.js';
+import type { StructuredAgent, FrontmatterEntry, BodyBlock } from '../../serialize/types.js';
 
 // ─────────────────────────────  DTO types  ─────────────────────────────────
 
@@ -530,27 +532,48 @@ export function deleteAgent(agentId: string): void {
 // ─────────────────────────────  Internal helpers  ──────────────────────────
 
 /**
- * Minimal snapshot serialization for AgentSnapshot rows.
- * Phase 3 will wire the real export() from lib/serialize for proper round-trip fidelity.
+ * Serializes an agent row + its sections into a full exported markdown string
+ * using the real lib/serialize exportAgent() (wired in Phase 3).
+ *
+ * Config rows are read from the DB here so the snapshot includes all frontmatter.
+ * The resulting string is what an `.md` export of this agent looks like at this
+ * instant — used for AgentSnapshot(pre-import) and AgentSnapshot(post-import) rows.
  */
 function serializeAgentSnapshot(
   agentRow: typeof schema.agent.$inferSelect,
   sections: (typeof schema.agentSection.$inferSelect)[],
 ): string {
-  const lines: string[] = [
-    `---`,
-    `name: ${agentRow.name}`,
-    `description: ${agentRow.description}`,
-    `platform: ${agentRow.platform}`,
-    `---`,
-    '',
+  // Read config rows for this agent (ordered by propKey for determinism).
+  const configRows = db
+    .select()
+    .from(schema.agentConfig)
+    .where(eq(schema.agentConfig.agentId, agentRow.id))
+    .all();
+
+  // Build frontmatter: name, description, then config entries in DB row order.
+  const frontmatter: FrontmatterEntry[] = [
+    { key: 'name', rawValue: agentRow.name },
+    { key: 'description', rawValue: agentRow.description },
+    ...configRows.map((c) => ({
+      key: c.propKey,
+      rawValue: typeof c.value === 'string' ? c.value : JSON.stringify(c.value),
+    })),
   ];
 
-  for (const s of sections.sort((a, b) => a.order - b.order)) {
-    if (s.heading) lines.push(s.heading);
-    if (s.content) lines.push(s.content);
-    lines.push('');
-  }
+  // Build blocks from sections (sorted by order).
+  const sortedSections = [...sections].sort((a, b) => a.order - b.order);
+  const blocks: BodyBlock[] = sortedSections.map((s) => ({
+    blockId: `block-${s.order}`,
+    heading: s.heading ?? null,
+    content: s.content,
+    order: s.order,
+  }));
 
-  return lines.join('\n');
+  const structured: StructuredAgent = {
+    frontmatter,
+    splitLevel: agentRow.splitLevel,
+    blocks,
+  };
+
+  return exportAgent(structured);
 }

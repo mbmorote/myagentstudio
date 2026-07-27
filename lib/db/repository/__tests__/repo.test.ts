@@ -43,6 +43,8 @@ import {
   VersionConflictError,
 } from '../agents.js';
 
+import { getConfigDefs, getSectionDefs } from '../catalog.js';
+
 // ── Seed catalog tables before any test runs ──────────────────────────────
 beforeAll(() => {
   for (const def of CONFIG_DEFS) {
@@ -410,5 +412,46 @@ describe('upsertAgentFromImport', () => {
       .where(eq(schema.sectionRevision.sectionId, outputSectionId))
       .all();
     expect(orphanRevisions.length).toBeGreaterThan(0);
+  });
+});
+
+describe('getConfigDefs / getSectionDefs (catalog.ts)', () => {
+  it('getConfigDefs returns a real array of rows matching CONFIG_DEFS', () => {
+    const rows = getConfigDefs();
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBe(CONFIG_DEFS.length);
+    // Every row must have the expected fields
+    for (const row of rows) {
+      expect(typeof row.key).toBe('string');
+      expect(typeof row.label).toBe('string');
+      expect(typeof row.datatype).toBe('string');
+    }
+    // Keys must match the catalog exactly
+    const rowKeys = rows.map((r) => r.key).sort();
+    const defKeys = CONFIG_DEFS.map((d) => d.key).sort();
+    expect(rowKeys).toEqual(defKeys);
+  });
+
+  it('getSectionDefs returns a real array of rows matching SECTION_DEFS', () => {
+    const rows = getSectionDefs();
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBe(SECTION_DEFS.length);
+    // Every row must have the expected fields
+    for (const row of rows) {
+      expect(typeof row.key).toBe('string');
+      expect(typeof row.label).toBe('string');
+      expect(typeof row.defaultOrder).toBe('number');
+    }
+    // Keys must match the catalog exactly
+    const rowKeys = rows.map((r) => r.key).sort();
+    const defKeys = SECTION_DEFS.map((d) => d.key).sort();
+    expect(rowKeys).toEqual(defKeys);
+  });
+
+  it('getSectionDefs returns rows ordered by defaultOrder ascending', () => {
+    const rows = getSectionDefs();
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i].defaultOrder).toBeGreaterThanOrEqual(rows[i - 1].defaultOrder);
+    }
   });
 });
