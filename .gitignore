@@ -23,6 +23,9 @@ drizzle/
 # Build artifacts — generated every predev/prebuild from design/system-agents/*.md, never committed
 lib/ai/prompts/generated/
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 # OS / editor
 .DS_Store
 Thumbs.db
