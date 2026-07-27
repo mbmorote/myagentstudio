@@ -3,8 +3,9 @@ import 'server-only';
 /**
  * lib/ai/importConverter.ts
  *
- * Stage-2 import caller. Sends Stage-1 blockIds + the Agent Blueprint +
- * the compiled IMPORT_CONVERTER_PROMPT to Claude and parses the labels-only JSON.
+ * Stage-2 import caller. Sends each Stage-1 block's blockId + heading text (never
+ * content) + the Agent Blueprint + the compiled IMPORT_CONVERTER_PROMPT to Claude
+ * and parses the labels-only JSON.
  *
  * Hard rule (Rules Index #5): the AI response must NEVER contain a `content` or `text`
  * field at the top level or inside any mapping entry. If it does, we throw
@@ -13,16 +14,14 @@ import 'server-only';
  */
 
 import { getClient, getModel } from './client.js';
-import { IMPORT_CONVERTER_PROMPT } from './prompts/generated/import-converter.js';
+import { IMPORT_CONVERTER_PROMPT } from './prompts/generated/import-instructions.js';
 import { renderBlueprintForPrompt } from '../blueprint/index.js';
 
 // ─────────────────────────────  Types  ────────────────────────────────────────
 
 export type Stage2Mapping =
   | { blockId: string; sectionKey: string }
-  | { blockIds: string[]; sectionKey: string }
-  | { blockId: string; propKey: string }
-  | { blockIds: string[]; propKey: string };
+  | { blockIds: string[]; sectionKey: string };
 
 export type Stage2Labels = {
   mappings: Stage2Mapping[];
@@ -52,23 +51,32 @@ export class ImportConverterInvalidResponseError extends Error {
 
 // ─────────────────────────────  Caller  ────────────────────────────────────────
 
+/** The only per-block data Stage 2 ever receives: id + heading, never content. */
+export type Stage2BlockRef = {
+  blockId: string;
+  heading: string | null;
+};
+
 /**
- * Sends the blockIds from Stage 1 to Claude and returns the Stage-2 label map.
+ * Sends each block's id + heading text (never content) from Stage 1 to Claude and
+ * returns the Stage-2 label map.
  *
- * @param blockIds  Stable block identifiers from Stage-1 parse ("block-0", "block-1", …)
- * @returns         Parsed and validated Stage2Labels
- * @throws          ImportConverterUpstreamError   on API failure
- * @throws          ImportConverterInvalidResponseError  on bad/content-bearing AI output
+ * @param blocks  Stable block identifiers + heading text from Stage-1 parse
+ * @returns       Parsed and validated Stage2Labels
+ * @throws        ImportConverterUpstreamError   on API failure
+ * @throws        ImportConverterInvalidResponseError  on bad/content-bearing AI output
  */
-export async function callImportConverter(blockIds: string[]): Promise<Stage2Labels> {
-  const blueprint = renderBlueprintForPrompt();
+export async function callImportConverter(blocks: Stage2BlockRef[]): Promise<Stage2Labels> {
+  // Stage 2 never classifies config data (Rules Index #28) — omit it from the prompt.
+  const blueprint = renderBlueprintForPrompt({ includeConfig: false });
 
   const userMessage = [
-    'Classify the following Stage-1 block IDs according to the Agent Blueprint.',
+    'Classify the following Stage-1 blocks according to the Agent Blueprint.',
+    'Each block is given by its blockId and heading text only — never its content.',
     'Return only the JSON labels object — no prose, no code fences.',
     '',
-    'Block IDs to classify:',
-    JSON.stringify(blockIds, null, 2),
+    'Blocks to classify:',
+    JSON.stringify(blocks, null, 2),
     '',
     blueprint,
   ].join('\n');
@@ -161,13 +169,11 @@ function parseAndValidateLabels(responseText: string): Stage2Labels {
       );
     }
 
-    // Must have sectionKey or propKey.
+    // Must have sectionKey. (propKey removed 2026-07-26 — config mapping is fully
+    // deterministic from frontmatter; see TechDesign.md Rules Index #28.)
     const hasSectionKey = 'sectionKey' in m && typeof m.sectionKey === 'string';
-    const hasPropKey = 'propKey' in m && typeof m.propKey === 'string';
-    if (!hasSectionKey && !hasPropKey) {
-      throw new ImportConverterInvalidResponseError(
-        'Mapping entry missing "sectionKey" or "propKey"',
-      );
+    if (!hasSectionKey) {
+      throw new ImportConverterInvalidResponseError('Mapping entry missing "sectionKey"');
     }
   }
 

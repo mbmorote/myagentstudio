@@ -85,7 +85,7 @@ after a gap.
   outstanding from it.** Kept as the historical record of *why* each rule exists.
 - **`design/Fable-Audit-Brief.md`** — the reusable prompt that produced the review. Kept
   so future audits (post-build, pre-online) can reuse the same brief.
-- **`design/system-agents/import-converter.md`** — the import-converter's actual
+- **`design/system-agents/import-instructions.md`** — the import-converter's actual
   Role/Behavior/Guardrails/Output rule-set (Stage 2: labels-only, never content).
 - **`design/system-agents/chat-mediator.md`** — the chat-mediator's actual rule-set
   (server-scoped to the whole agent — may rewrite any number of its sections per

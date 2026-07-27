@@ -58,8 +58,8 @@ doc; **AI guardrail** rules belong in the relevant `design/system-agents/*.md` f
 | 2 | `AgentSection.heading` nullable — represents the headingless preamble | Schema | `TechDesign.md` § Entity `AgentSection` | ✅ Locked | Review 1b |
 | 3 | Section content must never contain a heading at the agent's split level | AI guardrail (mediator) | `system-agents/chat-mediator.md` § Guardrails #2 | ✅ Locked | Review 1a |
 | 4 | Frontmatter parsed string-preserving (no YAML scalar coercion); comments explicitly lost | Parsing (deterministic) | `TechDesign.md` § Draft B | ✅ Locked | Review 1d |
-| 5 | Stage 2 AI output = labels only, `{blockId → sectionKey}` — never content | AI guardrail (converter) | `system-agents/import-converter.md` § Guardrails #1 | ✅ Locked | Review 2 |
-| 6 | Merges are `{blockIds → label}`, never rewritten text | AI guardrail (converter) | `system-agents/import-converter.md` § Guardrails #2 | ✅ Locked | Review 2 |
+| 5 | Stage 2 AI output = labels only, `{blockId → sectionKey}` — never content | AI guardrail (converter) | `system-agents/import-instructions.md` § Guardrails #1 | ✅ Locked | Review 2 |
+| 6 | Merges are `{blockIds → label}`, never rewritten text | AI guardrail (converter) | `system-agents/import-instructions.md` § Guardrails #2 | ✅ Locked | Review 2 |
 | 7 | Mediator scoped to one server-chosen **agent** (may rewrite any number of its sections in one turn); no tools | AI guardrail (mediator) | `system-agents/chat-mediator.md` § Guardrails #1, #3 | ✅ Locked (superseded 2026-07-26 — was "scoped to one `sectionId`"; see below) | Review 7; re-scoped Plan 01 review, 2026-07-26 |
 | 8a | All DB access goes through a repository layer, conservative column types | Infra/stack | `TechDesign.md` § Draft C | ✅ Locked | Review 3 |
 | 8b | Storage target dialect (Postgres vs. Azure SQL) | Infra/stack | `TechDesign.md` § Draft C | 🟡 Deferred — no code impact until migration is real | Review 3 |
@@ -82,6 +82,10 @@ doc; **AI guardrail** rules belong in the relevant `design/system-agents/*.md` f
 | 24 | Propose-preview: show the mediator's proposed section changes and require explicit "Apply" before the write lands (formalizes D1's original "addable later" note) | Product/UX | *(not yet added)* | ⬜ Deferred — not built in this plan; no schema change needed when it lands | Plan 01 review, 2026-07-26 |
 | 25 | Prompt-file source of truth: `design/system-agents/*.md` is the only copy of a system agent's rules, ever. `scripts/build-prompts.ts` compiles both into plain string constants at **build time** (`predev`/`prebuild`), strips title/blockquote; the running server never reads `design/` at all — no `.txt` duplicate, no runtime filesystem access, output gitignored and always regenerated | Architecture | `plans/01-core-loop-implementation-plan.md` § 9 (D6), Phase 0.1/0.3/0.7 | ✅ Locked | Plan 01 review, 2026-07-26 |
 | 26 | **[HIGH PRIORITY]** `lib/ai/prompts/generated/*.ts` should be human-readable, not a single-line escaped string. Confirmed as a real problem in the built Phase 0 output (2026-07-26): `scripts/build-prompts.ts` currently emits `export const X = "## ROLE\n\nYou are...";` — one giant line, unreadable if anyone opens the generated file to sanity-check what actually compiled. Fix: emit a template literal (backticks) with the source's real line breaks preserved, so the generated `.ts` reads like the original `.md`'s Role/Behavior/Guardrails/Output structure, not an escaped blob. Still auto-generated/gitignored — this is a formatting fix to the generator, not a reversal of #25's compile-time approach | Architecture | `scripts/build-prompts.ts` | ⬜ Deferred — not fixed yet, tracked as a high-priority backlog item, not built into the initial Phase 0 pass | Found during Phase 2 kickoff, 2026-07-26 |
+| 27 | **Future feature — a separate "convert/fix agent" mode**, distinct from the standard two-stage import: for agents too malformed/nonstandard for the deterministic Stage-1 split + labels-only Stage-2 to handle well, offer an alternate path where the AI receives fuller content and does more of the restructuring itself, governed by its **own, more permissive blueprint/rule-set** — not a relaxation of the standard importer's guardrails. Explicitly a **second, opt-in tool**, not a replacement: the standard import stays two-stage, content-never-touches-AI, deterministic-round-trip-provable (Rules Index #5/#6, Gate 1). This repair mode trades that provable-safety guarantee for flexibility on the specific class of files the strict importer can't cleanly classify | Product/Architecture | *(not yet added — no design doc, no rule-set file)* | ⬜ Deferred — real design work needed before this is buildable: what "more permissive" means concretely, how it's triggered (manual opt-in only, never automatic fallback), what safety net replaces content-never-touches-AI for this path | Raised during live Stage-2 testing prep, 2026-07-26 |
+| 28 | **Removed** — Stage 2 never classifies config/frontmatter data, only body-block sectionKey. The `propKey` mapping capability (`{blockId, propKey}`) was found to be dead code: `assemble.ts` never read it, config values were already 100% deterministic from Stage 1's frontmatter parse. Frontmatter keys are already exact, unambiguous strings — there was never a genuine classification problem there for AI to solve, unlike section headings (which vary unpredictably across real agent files). Removed from `Stage2Mapping`'s type, `importConverter.ts`'s validation, `assemble.ts`'s handling, and `import-instructions.md`'s OUTPUT FORMAT | Schema/Architecture | `lib/ai/importConverter.ts`, `lib/import/assemble.ts`, `design/system-agents/import-instructions.md` | ✅ Locked (removal) | Live Stage-2 testing prep, 2026-07-26 |
+| 29 | `renderBlueprintForPrompt()` takes `{ includeConfig?: boolean }`, default `true`. The import converter now calls it with `includeConfig: false` — following #28, sending the config-fields catalog to Stage 2 was pure dead-weight tokens for a decision it's never asked to make. The chat mediator (Phase 4, not yet built) keeps the default `true` — it needs full agent context, config included | Architecture | `lib/blueprint/prompt.ts`, `lib/ai/importConverter.ts` | ✅ Locked | Live Stage-2 testing, 2026-07-26 |
+| 30 | **Future flag — reconsider AI-assisted config-key mapping.** #28 removed `propKey` because it was dead code, not because the underlying idea (a messy/nonstandard frontmatter key like `tool_list` getting recognized as the canonical `tools`) is necessarily wrong forever. Today an unrecognized key just stores openly as unknown — safe, but a human still has to notice and manually fix it. A "middle way" was discussed and set aside 2026-07-26 (same safe pattern as section classification — AI labels the *key*, never touches the *value*) — worth revisiting if messy frontmatter keys turn out to be a real recurring papercut once real imports are happening | Product | *(not yet added)* | ⬜ Deferred — revisit only if real-world imports show this is an actual recurring problem, not speculative | Live Stage-2 testing, 2026-07-26 |
 
 **Note on #7's supersession:** the original rule (Review 7, `DesignReview.md` finding 7,
 "Injection surface") scoped the mediator to exactly one `sectionId` chosen by the server.
@@ -422,6 +426,33 @@ format.
 - **Never** put the mediator in the user's editable library — reliability + prompt-injection
   + tool-access control all demand it stay platform-owned.
 
+**Why `design/system-agents/*.md` use a Role/Behavior/Guardrails/Output structure:** same
+reason any user agent gets that shape — rules you (a human) can read, test, and adapt
+without re-deriving them from paragraphs of prose. These files are reviewable and testable
+on their own, not buried in this document.
+
+**Policy, locked 2026-07-26 (applies to every file under `design/system-agents/`, present
+and future):** these files are **compiled ~1:1 into the actual system prompt** sent to the
+model (`scripts/build-prompts.ts` strips only the leading title/blockquote before the first
+`##` — everything else goes verbatim). Because of that, **every sentence in the compiled
+portion must be a literal, model-facing instruction or fact about what the model actually
+receives — never a note addressed to a human reader.** Concretely:
+- No design rationale ("this exists because…", "same reason as…") — that belongs here, in
+  `TechDesign.md`, not in the prompt the model reads.
+- No cross-references to other files ("see `chat-mediator.md`", "see `TechDesign.md` →
+  Draft A") — the model cannot open another file; a sentence that only makes sense to a
+  human holding the repo open doesn't belong in a prompt.
+- No claims about what's provided that aren't literally true of that exact request — e.g.
+  don't say "you are given the blocks" when only a `blockId` + heading are actually sent;
+  say precisely what's sent.
+- The **only** place human-readable framing belongs in these files is the file's own
+  structural formatting (the `## ROLE` / `## BEHAVIOR` / `## GUARDRAILS` / `## OUTPUT
+  FORMAT` headings themselves) — not explanatory prose layered on top of it.
+- Rationale that used to live inline in these files (why the split-level guardrail matters,
+  why a corrupted agent is recoverable, why import and mediator divide the split-level
+  concern the way they do) now lives here: split-level policy is in Draft A above; the
+  recoverability/blast-radius reasoning is in Rules Index #7's supersession note below.
+
 ## Serialization contract (import ↔ export)
 
 - **Export (Claude):** `name` + `description` (columns) and every `AgentConfig` row →
@@ -450,7 +481,7 @@ Import is **AI-assisted conversion toward the Agent Blueprint**, not a dumb pars
 built so loss/rewording is impossible (Principles #3, #10). Two stages:
 
 > **The system agent's actual rule-set (Stage 2's exact behavior/guardrails/output schema)
-> lives in `design/system-agents/import-converter.md`** — a reviewable, testable file, not
+> lives in `design/system-agents/import-instructions.md`** — a reviewable, testable file, not
 > prose buried in this doc. This section covers only what belongs here: the *architecture*
 > (the two-stage split, what data each stage owns). The write-time guard that keeps section
 > *content* from breaking the split-level rule lives in
@@ -459,12 +490,35 @@ built so loss/rewording is impossible (Principles #3, #10). Two stages:
 
 **Stage 1 — deterministic lossless capture (the safety net).**
 Split the raw `.md` into frontmatter + raw body blocks, byte-for-byte. No intelligence, no
-loss. Handles the real-world mess deterministically:
-- **Split on the *shallowest heading level present*** — `#`-based agents split on `#`,
-  `orchestrator` (top level `##`) splits on `##`. One robust rule.
-- **Respect code fences** — a `#` inside a ``` block or a `~~~` block is never a heading.
-  An unclosed fence = the rest of the file is one block (stated rule, not an edge case).
-- **Pre-heading prose** → a block at `order 0`, **`heading: null`** (see `AgentSection`).
+loss. Implemented in `lib/serialize/splitBody.ts`; the exact algorithm, precisely (moved
+here 2026-07-26 — this is documentation for humans reviewing how the platform works, not
+model-facing prompt content, so it doesn't belong inside the import-instructions rule-set
+the AI actually receives):
+
+- **A heading** is any line matching one to six `#` characters followed by a space (e.g.
+  `# ROLE`, `## Mode A`) — **except** a line inside a fenced code block (opened by 3+
+  backticks or 3+ tildes, closed by a matching-or-longer fence of the same character). A
+  `#` inside a fence is never a heading. **An unclosed fence** means everything from the
+  fence-open to end-of-body is content — no further headings are detected past that point
+  (a stated rule, not an edge case that falls out by accident).
+- **The split level is chosen per file, dynamically.** Stage 1 scans the whole body first,
+  collects every heading level actually present, and splits on the **shallowest** one.
+  Most agents split on `#` (level 1). A file whose shallowest heading is `##` (e.g.
+  `orchestrator`, which never uses a bare `#`) splits on `##` instead — and in that case a
+  `###` inside one of those sections is **not** a further split, it's just content inside
+  that block, exactly like a bullet list or a code block would be.
+- **Only headings at that one split level become block boundaries.** A block's content is
+  everything from just after its heading line up to (but not including) the next
+  split-level heading — anything nested deeper, however it's formatted, is part of that
+  block's content, not a separate block.
+- **Pre-heading prose** → a block at `order: 0`, **`heading: null`** (see `AgentSection`) —
+  but only if it has real (non-whitespace) content; a purely blank preamble produces no
+  block at all.
+- **No headings anywhere in the body** → the entire body is one block (`heading: null`), or
+  zero blocks if the body is itself empty/whitespace-only.
+- Every block carries a stable **`blockId`** (`"block-0"`, `"block-1"`, … assigned in
+  document order) and its heading text (or `null`) — the heading is structural metadata,
+  distinct from the block's body content.
 - The **raw original is retained** with the import, so Stage 2 is reviewable + reversible.
 - **Split-level policy (review finding 1a) — the rule, briefly:** each agent has one
   shallowest-heading-level used for splitting (`#` normally, `##` for `orchestrator`-style
@@ -475,7 +529,10 @@ loss. Handles the real-world mess deterministically:
 
 **Stage 2 — AI labels blocks; the server reassembles content.** The full rule-set (exact
 response schema, guardrails, output format) lives in
-`design/system-agents/import-converter.md`. The one architectural fact that belongs here:
+`design/system-agents/import-instructions.md`. That file is deliberately kept concise and
+model-facing only — it tells the AI *what it receives and what to do with it*, not a
+human-oriented explanation of Stage 1's internals (that's the bullet list above). The one
+architectural fact that belongs here:
 **content never enters the AI's output.** The AI classifies each Stage-1 block by id
 against the Blueprint; the server — deterministic code, not the model — copies `content`
 byte-for-byte from Stage 1's capture into the row the AI labeled. This is what makes
@@ -618,6 +675,8 @@ memory, before assuming something was decided.
 | 20 | Display-label lookup for `model` (short name in UI, full ID in storage) | Building any UI surface that renders `model` (later plan) |
 | 24 | Propose-preview before applying a mediator rewrite | If apply-then-history ever feels too abrupt in real dogfooding use |
 | 26 | **[HIGH PRIORITY]** `scripts/build-prompts.ts` should emit readable template-literal output, not an escaped single-line string | Next time anyone touches `scripts/build-prompts.ts`, or before relying heavily on chat-mediator/import-converter debugging |
+| 27 | A separate, opt-in "convert/fix agent" mode with its own more-permissive blueprint/rules for malformed agents the strict two-stage importer can't cleanly classify | When a real agent is found that the standard importer genuinely can't handle well, and the standard importer's guardrails (Rules Index #5/#6) are confirmed as the reason, not a bug in Stage 2's classification signal (e.g. the missing-heading bug found 2026-07-26) |
+| 30 | AI-assisted config-key mapping (labels a messy frontmatter key to its canonical propKey, same content-never-touched pattern as sections) — removed as dead code in #28, not ruled out forever | Real-world imports show messy/nonstandard frontmatter keys are an actual recurring problem, not speculative |
 
 **8a is final, not deferred:** the repository layer over Drizzle is locked and needed
 starting now (it's how the app talks to the DB from day one, independent of which future

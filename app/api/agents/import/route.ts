@@ -5,7 +5,7 @@
  *
  * Orchestrates the two-stage import pipeline:
  *   Stage 1: parse(md) — deterministic, no AI (lib/serialize)
- *   Stage 2: callImportConverter(blockIds) — labels-only AI call (lib/ai/importConverter)
+ *   Stage 2: callImportConverter(blockRefs) — labels-only AI call, blockId+heading only (lib/ai/importConverter)
  *   Assemble: assemble(structured, labels, rawMd) — bytes from Stage 1 only (lib/import/assemble)
  *   Persist:  upsertAgentFromImport(data) — creates/updates agent + writes revisions + snapshots
  *
@@ -64,10 +64,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   // ── Stage 2: AI labels-only call ─────────────────────────────────────────
-  const blockIds = structured.blocks.map((b) => b.blockId);
+  // Only blockId + heading go to the model — never content (Rules Index #5).
+  const blockRefs = structured.blocks.map((b) => ({ blockId: b.blockId, heading: b.heading }));
   let labels;
   try {
-    labels = await callImportConverter(blockIds);
+    labels = await callImportConverter(blockRefs);
   } catch (err) {
     if (err instanceof ImportConverterInvalidResponseError) {
       console.error('[import] Stage-2 invalid AI labels:', err.message);

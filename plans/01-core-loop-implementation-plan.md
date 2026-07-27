@@ -603,7 +603,7 @@ whole agent, exactly as described above.
   `'claude'` by default.
 - `lib/import/assemble`: with a mocked Stage-2 label map, assembled `dev` exports to a form
   that round-trips; re-import changed/added/removed section behavior (Rules Index #11).
-- `scripts/build-prompts`: **D6/Rules Index #25 test** — for both `import-converter.md` and
+- `scripts/build-prompts`: **D6/Rules Index #25 test** — for both `import-instructions.md` and
   `chat-mediator.md`, asserts the build script finds the first `##` heading, strips
   everything before it, and the generated constant contains that file's locked guardrail
   lines verbatim — catches a doc restructure silently breaking the compiled prompt before

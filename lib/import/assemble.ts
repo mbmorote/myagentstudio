@@ -10,9 +10,11 @@
  * - The AI's labels only determine sectionKey assignment — never content.
  * - Unmapped / low-confidence blocks → sectionKey: "custom".
  * - The order-0 headingless block (heading: null) passes through as sectionKey: "custom",
- *   heading: null (per import-converter guardrail #3 — the AI never assigns it a key).
- * - propKey-mapped body blocks (rare edge case) are stored as custom sections; config
- *   values come from the deterministically-parsed frontmatter only.
+ *   heading: null (per import-instructions guardrail #3 — the AI never assigns it a key).
+ * - Config values come from the deterministically-parsed frontmatter only — Stage 2 never
+ *   classifies config data (Rules Index #28, 2026-07-26: the propKey mapping capability
+ *   was removed — frontmatter keys are already exact, unambiguous strings, so there was
+ *   never a classification problem there for AI to solve).
  *
  * Name/description handling:
  * - name stored verbatim — never normalised (Rules Index #1, flag-don't-block).
@@ -68,7 +70,6 @@ export function assemble(
 
   // ── Build assignment map: blockId → { sectionKey, allBlockIds } ──────────
   // All blockIds in a merge group point to the same entry.
-  // propKey-mapped body blocks are treated as "custom" sections.
   const assignmentMap = new Map<string, { sectionKey: string; blockIds: string[] }>();
 
   for (const mapping of labels.mappings) {
@@ -175,12 +176,7 @@ function getBlockIds(mapping: Stage2Mapping): string[] {
   return [(mapping as { blockId: string }).blockId];
 }
 
-/**
- * Extracts the sectionKey from a mapping.
- * propKey-mapped body blocks are treated as "custom" sections (config values come
- * from the deterministically-parsed frontmatter only — not from body block labels).
- */
+/** Extracts the sectionKey from a mapping (the only label kind Stage 2 produces). */
 function getSectionKey(mapping: Stage2Mapping): string {
-  if ('sectionKey' in mapping) return mapping.sectionKey;
-  return 'custom';
+  return mapping.sectionKey;
 }

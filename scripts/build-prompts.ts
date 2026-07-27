@@ -26,7 +26,7 @@ interface AgentSpec {
 }
 
 const AGENTS: AgentSpec[] = [
-  { file: 'import-converter', constName: 'IMPORT_CONVERTER_PROMPT' },
+  { file: 'import-instructions', constName: 'IMPORT_CONVERTER_PROMPT' },
   { file: 'chat-mediator',    constName: 'CHAT_MEDIATOR_PROMPT' },
 ];
 
