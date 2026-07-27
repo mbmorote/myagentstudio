@@ -14,6 +14,14 @@ dist/
 *.sqlite
 *.sqlite3
 *.db
+*.db-shm
+*.db-wal
+
+# Drizzle temporary / generated migration files
+drizzle/
+
+# Build artifacts — generated every predev/prebuild from design/system-agents/*.md, never committed
+lib/ai/prompts/generated/
 
 # OS / editor
 .DS_Store
