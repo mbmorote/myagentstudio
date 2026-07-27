@@ -10,6 +10,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('.', import.meta.url)),
+      // server-only throws when imported outside a Next.js server context.
+      // In the Vitest/Node environment, alias it to a no-op so server-only
+      // DB/env modules can be imported in tests without blowing up.
+      'server-only': fileURLToPath(new URL('./lib/__mocks__/server-only.ts', import.meta.url)),
     },
   },
 });
