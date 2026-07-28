@@ -9,6 +9,26 @@ but never built). Plan 02's non-code parts (rule-set adoption, doc sync) are don
 phases (A1–A4, B2/B3/B5/B6) are **ready for `@dev` to execute** — see the Plan 02 pointer
 below. This file is the map.
 
+## Standing project rules
+
+These apply to **every** session and every subagent (`@dev`, `@architect`, etc.) working in
+this repo — not just the session that set them. If you're a subagent picking up work here,
+follow these even though you have no memory of when they were agreed:
+
+1. **Never commit without explicit ask.** Don't run `git commit` (or delegate one) just
+   because a phase/gate/milestone completed — report status and wait for the user to say
+   "commit this."
+2. **Never make a real Anthropic API call without explicit ask, first.** This project's
+   import pipeline (Strict + Structural) and chat mediator all call the real Anthropic API
+   and spend the user's money. During implementation, testing, or verification work in this
+   repo: keep all automated tests mocked (already the existing pattern — see
+   `vi.mock('.../ai/*.js', ...)` in the test suites), and if a task would require an actual
+   API call — seeding the real local DB via `/api/agents/import`, running
+   `scripts/test-structural-import.ts`, manually exercising `/api/chat` against the running
+   dev server, etc. — **stop and ask the user before making that call**, even if the task
+   description seems to imply it should happen automatically. Say what call you'd make and
+   roughly what it costs; don't just do it.
+
 ## ✅ Plan 01 review — complete (2026-07-26)
 
 `plans/01-core-loop-implementation-plan.md` was walked **section by section** with the user

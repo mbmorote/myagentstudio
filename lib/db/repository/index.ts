@@ -12,6 +12,7 @@ export {
   getAgentSnapshotInfo,
   listAgents,
   updateSectionContent,
+  updateAgent,
   upsertAgentFromImport,
   deleteAgent,
   VersionConflictError,

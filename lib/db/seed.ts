@@ -1,18 +1,22 @@
 /**
  * lib/db/seed.ts
  *
- * Idempotent seed: writes ConfigDef + SectionDef rows from lib/blueprint/catalog.ts.
+ * Self-healing upsert seed: writes ConfigDef + SectionDef rows from
+ * lib/blueprint/catalog.ts.  Uses INSERT … ON CONFLICT DO UPDATE so that if
+ * catalog.ts is ever edited after the first seed, the DB rows stay in sync on
+ * the next `npm run db:seed` run — never silently stale (prerequisite fix,
+ * decided before Phase 4 build).
+ *
  * The catalog arrays in catalog.ts are the single source — no duplication here.
  *
  * Run via: npm run db:seed
- * Running twice is a no-op (no duplicate rows, no error on collision).
+ * Running twice is a no-op (upsert with identical values is idempotent, still safe).
  */
 
 import path from 'path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { eq } from 'drizzle-orm';
 import { CONFIG_DEFS, SECTION_DEFS } from '../blueprint/catalog.js';
 import * as schema from './schema.js';
 
@@ -30,15 +34,11 @@ async function seed() {
 
   console.log('Running seed...');
 
-  // ── ConfigDef rows ──────────────────────────────────────────────────────────
+  // ── ConfigDef rows — upsert so catalog edits heal the DB on next seed ────────
   for (const def of CONFIG_DEFS) {
-    const existing = await db
-      .select({ id: schema.configDef.id })
-      .from(schema.configDef)
-      .where(eq(schema.configDef.key, def.key));
-
-    if (existing.length === 0) {
-      await db.insert(schema.configDef).values({
+    await db
+      .insert(schema.configDef)
+      .values({
         key: def.key,
         label: def.label,
         datatype: def.datatype,
@@ -46,22 +46,26 @@ async function seed() {
         required: def.required,
         isCore: def.isCore,
         exportable: true,
+      })
+      .onConflictDoUpdate({
+        target: schema.configDef.key,
+        set: {
+          label: def.label,
+          datatype: def.datatype,
+          allowedValues: def.allowedValues as string[] | null,
+          required: def.required,
+          isCore: def.isCore,
+          exportable: true,
+        },
       });
-      console.log(`  + config_def: ${def.key}`);
-    } else {
-      console.log(`  = config_def: ${def.key} (already exists)`);
-    }
+    console.log(`  ~ config_def: ${def.key} (upserted)`);
   }
 
-  // ── SectionDef rows ─────────────────────────────────────────────────────────
+  // ── SectionDef rows — upsert so catalog edits heal the DB on next seed ───────
   for (const def of SECTION_DEFS) {
-    const existing = await db
-      .select({ id: schema.sectionDef.id })
-      .from(schema.sectionDef)
-      .where(eq(schema.sectionDef.key, def.key));
-
-    if (existing.length === 0) {
-      await db.insert(schema.sectionDef).values({
+    await db
+      .insert(schema.sectionDef)
+      .values({
         key: def.key,
         label: def.label,
         defaultHeading: def.defaultHeading,
@@ -69,11 +73,19 @@ async function seed() {
         defaultOrder: def.defaultOrder,
         template: def.template,
         helpText: def.helpText,
+      })
+      .onConflictDoUpdate({
+        target: schema.sectionDef.key,
+        set: {
+          label: def.label,
+          defaultHeading: def.defaultHeading,
+          isCore: def.isCore,
+          defaultOrder: def.defaultOrder,
+          template: def.template,
+          helpText: def.helpText,
+        },
       });
-      console.log(`  + section_def: ${def.key}`);
-    } else {
-      console.log(`  = section_def: ${def.key} (already exists)`);
-    }
+    console.log(`  ~ section_def: ${def.key} (upserted)`);
   }
 
   console.log('Seed complete.');

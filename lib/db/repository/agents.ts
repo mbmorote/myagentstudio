@@ -78,10 +78,15 @@ export type AgentDTO = {
 /** Error thrown when an optimistic version check fails (R4). */
 export class VersionConflictError extends Error {
   readonly current: number;
-  constructor(current: number) {
+  /** The section's actual current content at the time of the conflict.
+   *  Included so /api/chat can return `{conflict:true, current, content}` in
+   *  one round trip without a follow-up GET (§5, Draft D). */
+  readonly currentContent: string;
+  constructor(current: number, currentContent: string) {
     super(`Version conflict: expected version does not match current (${current})`);
     this.name = 'VersionConflictError';
     this.current = current;
+    this.currentContent = currentContent;
   }
 }
 
@@ -297,7 +302,7 @@ export function updateSectionContent(
 
   // Optimistic concurrency check (R4)
   if (section.version !== expectedVersion) {
-    throw new VersionConflictError(section.version);
+    throw new VersionConflictError(section.version, section.content);
   }
 
   const newVersion = section.version + 1;
@@ -577,6 +582,81 @@ export function deleteAgent(agentId: string): void {
     tx.delete(schema.agent).where(eq(schema.agent.id, agentId)).run();
     // sectionRevision and agentSnapshot rows are NOT deleted (soft ref — rule 4)
   });
+}
+
+// ─────────────────────────────  Update (PATCH)  ────────────────────────────
+
+/**
+ * Updates an agent's name, description, and/or config rows.
+ * Returns the updated AgentDTO, or null if the agent was not found.
+ *
+ * Throws with name 'NameExistsError' if the new name collides with another agent.
+ * name stored verbatim — flag-don't-block (Rules Index #1).
+ */
+export function updateAgent(
+  agentId: string,
+  updates: {
+    name?: string;
+    description?: string;
+    config?: { propKey: string; value: unknown }[];
+  },
+): AgentDTO | null {
+  const existing = db
+    .select()
+    .from(schema.agent)
+    .where(eq(schema.agent.id, agentId))
+    .get();
+
+  if (!existing) return null;
+
+  // Name collision check (only if name is actually changing)
+  if (updates.name !== undefined && updates.name !== existing.name) {
+    const collision = db
+      .select({ id: schema.agent.id })
+      .from(schema.agent)
+      .where(eq(schema.agent.name, updates.name))
+      .get();
+    if (collision) {
+      const err = new Error('name_exists');
+      err.name = 'NameExistsError';
+      throw err;
+    }
+  }
+
+  db.transaction((tx) => {
+    // Build the set payload for agent row fields being updated
+    const agentSet: Partial<typeof schema.agent.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+    if (updates.name !== undefined) agentSet.name = updates.name;
+    if (updates.description !== undefined) agentSet.description = updates.description;
+
+    tx
+      .update(schema.agent)
+      .set(agentSet)
+      .where(eq(schema.agent.id, agentId))
+      .run();
+
+    // Replace all config rows if config is supplied
+    if (updates.config !== undefined) {
+      tx.delete(schema.agentConfig).where(eq(schema.agentConfig.agentId, agentId)).run();
+      if (updates.config.length > 0) {
+        tx
+          .insert(schema.agentConfig)
+          .values(updates.config.map((c) => ({ agentId, propKey: c.propKey, value: c.value })))
+          .run();
+      }
+    }
+  });
+
+  const updatedRow = db
+    .select()
+    .from(schema.agent)
+    .where(eq(schema.agent.id, agentId))
+    .get();
+
+  if (!updatedRow) return null;
+  return buildAgentDTO(updatedRow);
 }
 
 // ─────────────────────────────  Internal helpers  ──────────────────────────
