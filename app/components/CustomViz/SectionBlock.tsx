@@ -3,25 +3,21 @@
 /**
  * app/components/CustomViz/SectionBlock.tsx
  *
- * Phase 4.3 — One section in the CustomViz pane.
+ * Plan 03 Phase B, B.8 — Added chevron expand/collapse (R14).
  *
- * Renders:
- *   - Heading (from section.heading, or the sectionKey as a fallback)
- *   - Content in read mode (pre-formatted markdown text)
- *   - Raw-edit toggle button (disabled when interaction lock is 'chat')
- *   - In edit mode: a <textarea> with the current content + Save / Cancel buttons
- *
- * Interaction lock (§6 rule 12, §7, Rules Index #22):
- *   - Opening raw-edit with any change in the textarea calls onEditStart() →
- *     WorkbenchShell sets interactionLock to 'edit', disabling chat.
- *   - Saving or cancelling raw-edit calls onEditEnd() → lock released.
- *   - While interactionLock === 'chat', the "Edit" button is disabled.
+ * Renders one section in the CustomViz pane. Matches the mockup's .sec/.sec-h/.sec-b:
+ *   - Chevron (▾ expanded / ▸ collapsed) wrapping the existing content.
+ *   - Collapse state is local useState, default expanded, resets on navigation (R15).
+ *   - Existing raw-edit/interaction-lock behavior is unchanged — just gated behind expanded.
  *
  * Save path: PATCH /api/agents/[id]/sections/[sectionId] with {content, expectedVersion}.
- *   On 409 version_conflict, shows an inline conflict notice without losing the user's edit.
- *   On success, calls onSaved(content, newVersion) to propagate the new version up.
+ *   On 409 version_conflict: inline conflict notice, edit mode stays open.
+ *   On success: onSaved(content, newVersion) propagates the new version up.
  *
- * No section-selection for chat (D2 removed that — chat is agent-scoped, §4.3 spec).
+ * Interaction lock (§6 rule 12, Rules Index #22):
+ *   - Opening raw-edit with any change calls onEditStart() → lock='edit', chat disabled.
+ *   - Saving or cancelling calls onEditEnd() → lock released.
+ *   - While lock='chat', the "Edit" button is disabled.
  */
 
 import { useState, useRef } from 'react';
@@ -47,6 +43,9 @@ export function SectionBlock({
   onEditEnd,
   onSaved,
 }: SectionBlockProps) {
+  // R14: chevron expand/collapse, default expanded, local state only (R15)
+  const [expanded, setExpanded] = useState(true);
+
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(section.content);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -54,26 +53,28 @@ export function SectionBlock({
   const [conflictNotice, setConflictNotice] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const displayHeading =
-    section.heading ?? `# ${section.sectionKey.toUpperCase()}`;
-
-  // The section key label from the def, or a formatted fallback
+  const displayHeading = section.heading ?? `# ${section.sectionKey.toUpperCase()}`;
   const sectionLabel = section.def?.label ?? section.sectionKey;
+  const isCore = section.def?.isCore ?? false;
+
+  function handleChevronClick() {
+    if (isEditing) return; // don't collapse while editing
+    setExpanded((v) => !v);
+  }
 
   function handleEditToggle() {
-    if (isEditing) return; // already editing
+    if (isEditing) return;
     setEditContent(section.content);
     setHasUnsavedChanges(false);
     setConflictNotice(null);
     setIsEditing(true);
-    // Lock is engaged only when the user actually makes a change (below)
   }
 
   function handleContentChange(value: string) {
     setEditContent(value);
     if (!hasUnsavedChanges) {
       setHasUnsavedChanges(true);
-      onEditStart(); // Engage interaction lock (Rules Index #22)
+      onEditStart();
     }
   }
 
@@ -83,7 +84,7 @@ export function SectionBlock({
     setHasUnsavedChanges(false);
     setConflictNotice(null);
     if (hasUnsavedChanges) {
-      onEditEnd(); // Release lock only if we had engaged it
+      onEditEnd();
     }
   }
 
@@ -110,14 +111,13 @@ export function SectionBlock({
         onSaved(result.content, result.version);
         setIsEditing(false);
         setHasUnsavedChanges(false);
-        onEditEnd(); // Release interaction lock
+        onEditEnd();
       } else if (response.status === 409) {
         const err = (await response.json()) as { error: string; current: number };
         setConflictNotice(
           `Version conflict (current version: ${err.current}). ` +
             'Another edit was saved while you were editing. Reload and try again.',
         );
-        // Keep edit mode open so the user can decide
       } else {
         setConflictNotice('Save failed. Please try again.');
       }
@@ -131,71 +131,89 @@ export function SectionBlock({
   const canEdit = interactionLock !== 'chat';
 
   return (
-    <div className="rounded-md border border-border bg-background">
-      {/* ── Section header ─────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-2">
-        <div className="flex items-baseline gap-2">
-          <span className="font-mono text-xs font-semibold uppercase text-muted-foreground">
-            {sectionLabel}
+    /* .sec — matches mockup's section block */
+    <div className="border border-[var(--border)] rounded-[9px] mb-[9px] bg-[var(--elev)] overflow-hidden">
+      {/* .sec-h — header with chevron */}
+      <div
+        className="flex items-center gap-2 px-3 py-[9px] cursor-pointer"
+        onClick={handleChevronClick}
+      >
+        <span className="text-[var(--faint)] text-[10px]">
+          {expanded ? '▾' : '▸'}
+        </span>
+        <span className="font-semibold text-[12px] tracking-[.02em] text-[var(--text)]">
+          {sectionLabel.toUpperCase()}
+        </span>
+        {isCore && (
+          <span className="ml-auto text-[9px] text-[var(--faint)] uppercase tracking-[.06em]">
+            core
           </span>
-          <span className="text-xs text-muted-foreground/60">{displayHeading}</span>
-          <span className="text-xs text-muted-foreground/40">v{section.version}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {!isEditing && (
-            <button
-              onClick={handleEditToggle}
-              disabled={!canEdit}
-              title={
-                !canEdit ? 'Chat is in progress — raw edit disabled' : 'Edit raw content'
-              }
-              className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Edit
-            </button>
-          )}
-        </div>
+        )}
+        {hasUnsavedChanges && (
+          <span className="ml-auto text-[9.5px] text-[var(--accent-ink)] bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[5px] px-[7px] py-[1px] tracking-[.02em]">
+            edited
+          </span>
+        )}
+        {/* Edit button — shown in header when collapsed or when not editing */}
+        {!isEditing && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!expanded) setExpanded(true);
+              handleEditToggle();
+            }}
+            disabled={!canEdit}
+            title={!canEdit ? 'Chat is in progress — raw edit disabled' : 'Edit raw content'}
+            className="ml-2 rounded px-2 py-0.5 text-[11px] text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Edit
+          </button>
+        )}
       </div>
 
-      {/* ── Content area ───────────────────────────────────────────────── */}
-      {isEditing ? (
-        <div className="p-3">
-          <textarea
-            ref={textareaRef}
-            value={editContent}
-            onChange={(e) => handleContentChange(e.target.value)}
-            rows={Math.max(6, editContent.split('\n').length + 2)}
-            className="w-full resize-y rounded border border-border bg-muted/20 p-2 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-            placeholder="Section content…"
-          />
-          {conflictNotice && (
-            <p className="mt-1 rounded bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-400">
-              {conflictNotice}
-            </p>
+      {/* .sec-b — body, shown only when expanded */}
+      {expanded && (
+        <div>
+          {isEditing ? (
+            <div className="px-3 pb-3 pl-[30px]">
+              <textarea
+                ref={textareaRef}
+                value={editContent}
+                onChange={(e) => handleContentChange(e.target.value)}
+                rows={Math.max(6, editContent.split('\n').length + 2)}
+                className="w-full resize-y rounded border border-[var(--border)] bg-[var(--bg)] p-2 font-mono text-[12px] text-[var(--text)] focus:outline-none focus:border-[var(--accent)]"
+                placeholder="Section content…"
+              />
+              {conflictNotice && (
+                <p className="mt-1 rounded px-2 py-1 text-[12px] text-[var(--err)] bg-[var(--elev)] border border-[var(--err)]">
+                  {conflictNotice}
+                </p>
+              )}
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving || !hasUnsavedChanges}
+                  className="rounded bg-[var(--accent)] px-3 py-1 text-[12px] font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSaving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={handleCancel}
+                  disabled={isSaving}
+                  className="rounded px-3 py-1 text-[12px] text-[var(--muted)] hover:bg-[var(--bg)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <pre className="whitespace-pre-wrap px-3 pb-3 pl-[30px] font-mono text-[12px] leading-[1.5] text-[var(--muted)]">
+              {section.content || (
+                <span className="italic text-[var(--faint)]">(empty)</span>
+              )}
+            </pre>
           )}
-          <div className="mt-2 flex items-center gap-2">
-            <button
-              onClick={handleSave}
-              disabled={isSaving || !hasUnsavedChanges}
-              className="rounded bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSaving ? 'Saving…' : 'Save'}
-            </button>
-            <button
-              onClick={handleCancel}
-              disabled={isSaving}
-              className="rounded px-3 py-1 text-xs text-muted-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Cancel
-            </button>
-          </div>
         </div>
-      ) : (
-        <pre className="whitespace-pre-wrap px-4 py-3 font-mono text-xs leading-relaxed text-foreground">
-          {section.content || (
-            <span className="text-muted-foreground italic">(empty)</span>
-          )}
-        </pre>
       )}
     </div>
   );

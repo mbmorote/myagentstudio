@@ -3,22 +3,35 @@
 /**
  * app/components/WorkbenchShell.tsx
  *
- * Client component — the root of all interactive workbench state.
+ * Plan 03 Phase B, B.6 — Rewritten around the fixed Example-A grid.
  *
- * Responsibilities:
- *   - Holds the current AgentDTO in React state (initialized from the Server Component).
- *   - Owns the interaction lock: 'chat' (a chat request is in flight) or 'edit'
- *     (a section raw-edit has unsaved changes) or null (idle). Chat and manual raw-edit
- *     are mutually exclusive per agent (Rules Index #22, §6 rule 12).
- *   - Provides onSectionsUpdated callback to ChatPanel so it can update the agent state
- *     after a successful /api/chat response.
- *   - Renders the 3-pane grid: Library placeholder · CustomViz · Chat.
+ * Layout (Example A — the only layout, R10):
+ *   Topbar on top.
+ *   Below: Left=Library (Panel, foldable+resizable) · gutter ·
+ *          Center (col: Viz Panel over gutter over Chat Panel) · gutter ·
+ *          Right=Raw (Panel, foldable+resizable)
+ *
+ * Fold/resize state is local useState only (R15 — no persistence).
+ * key={agent.id} is set by the parent page so switching agents resets all local
+ * state (fold positions, resize sizes, chat history) on route navigation.
+ *
+ * Library panel body is empty in Phase B — filled by Phase C's LibraryPanel.
+ *
+ * Interaction lock invariants (§6 rule 12, Rules Index #22):
+ *   - 'chat' lock: a /api/chat request is in flight
+ *   - 'edit' lock: a section raw-edit has unsaved changes
+ *   - null: idle
  */
 
 import { useState, useCallback } from 'react';
-import type { AgentDTO } from '@/lib/db/repository';
+import type { AgentDTO, AgentLiteDTO, GroupDTO } from '@/lib/db/repository';
 import { AgentView } from '@/app/components/CustomViz/AgentView';
 import { ChatPanel } from '@/app/components/Chat/ChatPanel';
+import { Topbar } from '@/app/components/shell/Topbar';
+import { Panel } from '@/app/components/shell/Panel';
+import { Rail } from '@/app/components/shell/Rail';
+import { Gutter } from '@/app/components/shell/Gutter';
+import { RawAgentView } from '@/app/components/Raw/RawAgentView';
 
 export type InteractionLock = 'chat' | 'edit' | null;
 
@@ -28,18 +41,33 @@ export type SectionUpdateResult =
 
 interface WorkbenchShellProps {
   initialAgent: AgentDTO | null;
+  /** Flat list of all agents for the Library panel */
+  agents?: AgentLiteDTO[];
+  /** All groups (for Library panel and config pills) */
+  groups?: GroupDTO[];
+  /** Body content to render inside the Library panel (Phase C provides LibraryPanel) */
+  libraryContent?: React.ReactNode;
 }
 
-export function WorkbenchShell({ initialAgent }: WorkbenchShellProps) {
+export function WorkbenchShell({
+  initialAgent,
+  agents = [],
+  groups = [],
+  libraryContent,
+}: WorkbenchShellProps) {
   const [agent, setAgent] = useState<AgentDTO | null>(initialAgent);
   const [interactionLock, setInteractionLock] = useState<InteractionLock>(null);
 
-  /**
-   * Called by ChatPanel after a successful /api/chat response.
-   * Updates each section in the agent state based on the server's result map.
-   * Both success and conflict cases update the content (conflict carries the current
-   * server content), so the viz always reflects the real DB state.
-   */
+  // ── Fold state (R15 — local only) ──────────────────────────────────────────
+  const [leftFolded, setLeftFolded] = useState(false);
+  const [rightFolded, setRightFolded] = useState(false);
+
+  // ── Resize state (R15 — local only, same initial values as mockup) ─────────
+  const [leftWidth, setLeftWidth] = useState(218);    // matches mockup .left { flex: 0 0 218px }
+  const [rightWidth, setRightWidth] = useState(340);  // matches mockup .right { flex: 0 0 340px }
+  const [chatHeight, setChatHeight] = useState(240);  // matches mockup .center-bottom { flex: 0 0 240px }
+
+  // ── Section update callback (from ChatPanel) ───────────────────────────────
   const onSectionsUpdated = useCallback(
     (updates: Record<string, SectionUpdateResult>) => {
       setAgent((prev) => {
@@ -50,10 +78,8 @@ export function WorkbenchShell({ initialAgent }: WorkbenchShellProps) {
             const update = updates[s.sectionKey];
             if (!update) return s;
             if ('conflict' in update) {
-              // Conflict: show the current server content; version is `current`
               return { ...s, content: update.content, version: update.current };
             }
-            // Success
             return { ...s, content: update.content, version: update.version };
           }),
         };
@@ -63,71 +89,150 @@ export function WorkbenchShell({ initialAgent }: WorkbenchShellProps) {
   );
 
   return (
-    <div className="grid h-screen overflow-hidden" style={{ gridTemplateColumns: '220px 1fr 380px' }}>
-      {/* ── Left pane: Library placeholder ─────────────────────────────────── */}
-      <aside className="flex flex-col gap-2 border-r border-border bg-muted/30 p-4 overflow-y-auto">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Library
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Agent library is coming in a later plan.
-        </p>
-        {agent && (
-          <div className="mt-2 rounded-md bg-background px-3 py-2 text-sm font-medium text-foreground ring-1 ring-border">
-            {agent.name}
-          </div>
-        )}
-      </aside>
+    <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg)]">
+      {/* ── Topbar ──────────────────────────────────────────────────────── */}
+      <Topbar />
 
-      {/* ── Center pane: CustomViz ──────────────────────────────────────────── */}
-      <main className="overflow-y-auto p-6">
-        {agent ? (
-          <AgentView
-            agent={agent}
-            interactionLock={interactionLock}
-            onEditStart={() => setInteractionLock('edit')}
-            onEditEnd={() => setInteractionLock(null)}
-            onSectionSaved={(sectionId, content, newVersion) => {
-              setAgent((prev) => {
-                if (!prev) return prev;
-                return {
-                  ...prev,
-                  sections: prev.sections.map((s) =>
-                    s.id === sectionId ? { ...s, content, version: newVersion } : s,
-                  ),
-                };
-              });
-            }}
-          />
+      {/* ── Workbench grid ──────────────────────────────────────────────── */}
+      <div className="flex flex-1 min-h-0 p-[9px] gap-0">
+
+        {/* ── Left: Library panel (foldable + resizable) ───────────────── */}
+        {leftFolded ? (
+          <Rail glyph="▤" label="Library ▸" onUnfold={() => setLeftFolded(false)} />
         ) : (
-          <div className="flex h-full items-center justify-center text-muted-foreground">
-            <div className="text-center">
-              <p className="text-lg font-medium">No agent loaded</p>
-              <p className="mt-1 text-sm">
-                Import an agent via <code className="rounded bg-muted px-1 py-0.5 text-xs">POST /api/agents/import</code> to get started.
-              </p>
+          <>
+            <Panel
+              glyph="▤"
+              label="Library"
+              role="agents · groups"
+              foldable
+              foldDirection="left"
+              onFold={() => setLeftFolded(true)}
+              className="flex-none"
+              style={{ width: leftWidth }}
+            >
+              {libraryContent ?? (
+                <div className="p-4 text-[12px] text-[var(--faint)]">
+                  Library coming in Phase C…
+                </div>
+              )}
+            </Panel>
+            <Gutter
+              orientation="vertical"
+              size={leftWidth}
+              setSize={setLeftWidth}
+              invert={false}
+            />
+          </>
+        )}
+
+        {/* ── Center: Viz (top) + Gutter + Chat (bottom) ───────────────── */}
+        <div className="flex flex-col flex-1 min-w-0 min-h-0">
+          {/* Custom Viz — center-top */}
+          <Panel
+            glyph="◈"
+            label="Custom Visualization"
+            role="platform main view"
+            className="flex-1 min-h-0"
+          >
+            <div className="overflow-auto h-full">
+              {agent ? (
+                <AgentView
+                  agent={agent}
+                  groups={groups}
+                  interactionLock={interactionLock}
+                  onEditStart={() => setInteractionLock('edit')}
+                  onEditEnd={() => setInteractionLock(null)}
+                  onSectionSaved={(sectionId, content, newVersion) => {
+                    setAgent((prev) => {
+                      if (!prev) return prev;
+                      return {
+                        ...prev,
+                        sections: prev.sections.map((s) =>
+                          s.id === sectionId ? { ...s, content, version: newVersion } : s,
+                        ),
+                      };
+                    });
+                  }}
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-[var(--faint)] p-6">
+                  <div className="text-center">
+                    <p className="text-[16px] font-medium text-[var(--muted)]">No agent loaded</p>
+                    <p className="mt-1 text-[12px]">
+                      Import an agent via <code className="font-mono text-[var(--accent-ink)]">⇪ Import .md</code> to get started.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
-      </main>
+          </Panel>
 
-      {/* ── Right pane: Chat ────────────────────────────────────────────────── */}
-      <aside className="flex flex-col border-l border-border">
-        {agent ? (
-          <ChatPanel
-            agentId={agent.id}
-            agentName={agent.name}
-            interactionLock={interactionLock}
-            onChatStart={() => setInteractionLock('chat')}
-            onChatEnd={() => setInteractionLock(null)}
-            onSectionsUpdated={onSectionsUpdated}
+          {/* Horizontal gutter between Viz and Chat */}
+          <Gutter
+            orientation="horizontal"
+            size={chatHeight}
+            setSize={setChatHeight}
+            invert={true}
           />
+
+          {/* Chat panel — center-bottom */}
+          <Panel
+            glyph="✦"
+            label="AI Chat"
+            role="agent-aware · edits sections in place"
+            className="flex-none"
+            style={{ height: chatHeight }}
+          >
+            {agent ? (
+              <ChatPanel
+                agentId={agent.id}
+                agentName={agent.name}
+                interactionLock={interactionLock}
+                onChatStart={() => setInteractionLock('chat')}
+                onChatEnd={() => setInteractionLock(null)}
+                onSectionsUpdated={onSectionsUpdated}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center p-4 text-center text-[12px] text-[var(--faint)]">
+                Import an agent to start chatting.
+              </div>
+            )}
+          </Panel>
+        </div>
+
+        {/* ── Right: Raw panel (foldable + resizable) ──────────────────── */}
+        {rightFolded ? (
+          <Rail glyph="≡" label="◂ Raw" onUnfold={() => setRightFolded(false)} />
         ) : (
-          <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
-            Import an agent to start chatting.
-          </div>
+          <>
+            <Gutter
+              orientation="vertical"
+              size={rightWidth}
+              setSize={setRightWidth}
+              invert={true}
+            />
+            <Panel
+              glyph="≡"
+              label="Raw agent"
+              role={agent ? `${agent.name}.md · export preview` : 'export preview'}
+              foldable
+              foldDirection="right"
+              onFold={() => setRightFolded(true)}
+              className="flex-none"
+              style={{ width: rightWidth }}
+            >
+              {agent ? (
+                <RawAgentView agentId={agent.id} agentName={agent.name} />
+              ) : (
+                <div className="p-4 text-[12px] text-[var(--faint)]">
+                  No agent loaded.
+                </div>
+              )}
+            </Panel>
+          </>
         )}
-      </aside>
+      </div>
     </div>
   );
 }

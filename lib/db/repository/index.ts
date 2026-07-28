@@ -15,11 +15,13 @@ export {
   updateAgent,
   upsertAgentFromImport,
   deleteAgent,
+  exportAgentMarkdown,
   VersionConflictError,
 } from './agents.js';
 
 export type {
   AgentDTO,
+  AgentLiteDTO,
   ConfigDefLite,
   SectionDefLite,
   ImportedAgentData,
@@ -27,3 +29,6 @@ export type {
 
 export { getConfigDefs, getSectionDefs } from './catalog.js';
 export type { ConfigDefRow, SectionDefRow } from './catalog.js';
+
+export { createGroup, listGroups, deleteGroup, addMembership, removeMembership } from './groups.js';
+export type { GroupDTO } from './groups.js';

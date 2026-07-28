@@ -3,27 +3,23 @@
 /**
  * app/components/Chat/ChatPanel.tsx
  *
- * Phase 4.4 — Agent-aware chat panel.
+ * Plan 03 Phase B, B.10 — Restyled with message bubbles and section target chips.
  *
- * Sends { agentId, instruction } to POST /api/chat via a client-side AbortController
- * (Rules Index #23). The server loads all section content from the DB — no section
- * selection, no content from the client (§7 Draft D, Rules Index #7).
+ * Matches the mockup's .msg/.bubble/.who layout:
+ *   - User messages: right-aligned, accent background
+ *   - Assistant messages: left-aligned, elev background with border
  *
- * Interaction lock (§6 rule 12, §7, Rules Index #22):
- *   - While a request is in flight: calls onChatStart() → WorkbenchShell sets lock
- *     to 'chat', disabling every section's raw-edit toggle and the send button.
- *   - On response (success, conflict, or error): calls onChatEnd() → lock released.
- *   - "Cancel" button calls controller.abort() → lock released immediately, no DB writes
- *     (safe by construction — apply-then-history means nothing is written until the
- *     mediator fully resolves, Rules Index #23).
- *   - While interactionLock === 'edit', the send button is disabled.
+ * Target chips (R13): each section the mediator actually changed gets a
+ * `◆ section · <sectionKey>` chip. Only section changes are chipped — never
+ * config, regardless of what the mockup's demo dialogue shows. (The real
+ * mediator doesn't edit config; this plan does not add that capability.)
  *
- * Ephemeral in-memory history: messages are stored in component state only (no
- * persistence — TechDesign "Deferred"). Each turn shows the instruction sent and
- * the sections that changed (or conflict notices).
- *
- * On response, calls onSectionsUpdated() with the server's result map so the
- * CustomViz pane re-renders only the changed blocks.
+ * Sends { agentId, instruction } to POST /api/chat via AbortController (Rules Index #23).
+ * Interaction lock (§6 rule 12, Rules Index #22):
+ *   - In flight: onChatStart() → lock='chat', edit disabled.
+ *   - Done: onChatEnd() → lock released.
+ *   - Cancel: abort() → lock released immediately.
+ *   - lock='edit': send disabled.
  */
 
 import { useState, useRef, useCallback } from 'react';
@@ -32,8 +28,8 @@ import type { InteractionLock, SectionUpdateResult } from '@/app/components/Work
 interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
-  /** Sections updated in this turn (for display purposes) */
-  sections?: Record<string, SectionUpdateResult>;
+  /** Sections that were actually changed in this turn */
+  changedSectionKeys?: string[];
 }
 
 interface ChatPanelProps {
@@ -71,11 +67,10 @@ export function ChatPanel({
     const trimmed = instruction.trim();
     if (!trimmed) return;
 
-    // Add user message to history
     setMessages((prev) => [...prev, { role: 'user', text: trimmed }]);
     setInstruction('');
     setIsInFlight(true);
-    onChatStart(); // Engage interaction lock
+    onChatStart();
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -88,10 +83,7 @@ export function ChatPanel({
         signal: controller.signal,
       });
 
-      if (response.status === 499) {
-        // Cancelled by user — already handled in handleCancel; just clean up
-        return;
-      }
+      if (response.status === 499) return;
 
       if (!response.ok) {
         const err = (await response.json().catch(() => ({ error: 'unknown' }))) as {
@@ -99,10 +91,7 @@ export function ChatPanel({
         };
         setMessages((prev) => [
           ...prev,
-          {
-            role: 'assistant',
-            text: `Error: ${err.error ?? response.statusText}`,
-          },
+          { role: 'assistant', text: `Error: ${err.error ?? response.statusText}` },
         ]);
         return;
       }
@@ -111,21 +100,16 @@ export function ChatPanel({
         sections: Record<string, SectionUpdateResult>;
       };
 
-      // Build a summary for the assistant message
       const changedKeys = Object.keys(result.sections);
-      const successKeys = changedKeys.filter(
-        (k) => !('conflict' in result.sections[k]),
-      );
-      const conflictKeys = changedKeys.filter(
-        (k) => 'conflict' in result.sections[k],
-      );
+      const successKeys = changedKeys.filter((k) => !('conflict' in result.sections[k]));
+      const conflictKeys = changedKeys.filter((k) => 'conflict' in result.sections[k]);
 
       let summary = '';
       if (successKeys.length > 0) {
         summary += `Updated: ${successKeys.join(', ')}.`;
       }
       if (conflictKeys.length > 0) {
-        summary += ` Conflict on: ${conflictKeys.join(', ')} (another edit landed mid-turn — showing current server content).`;
+        summary += ` Conflict on: ${conflictKeys.join(', ')} (showing current server content).`;
       }
       if (changedKeys.length === 0) {
         summary = 'No sections changed.';
@@ -133,17 +117,18 @@ export function ChatPanel({
 
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', text: summary, sections: result.sections },
+        {
+          role: 'assistant',
+          text: summary,
+          // R13: only section keys go in chips — never config
+          changedSectionKeys: successKeys,
+        },
       ]);
 
-      // Propagate section updates to the CustomViz pane
       onSectionsUpdated(result.sections);
       setTimeout(scrollToBottom, 50);
     } catch (err) {
-      // Abort error from handleCancel — suppress (cancel already handled the UI)
-      if (err instanceof Error && err.name === 'AbortError') {
-        return;
-      }
+      if (err instanceof Error && err.name === 'AbortError') return;
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', text: 'Network error. Please try again.' },
@@ -151,17 +136,13 @@ export function ChatPanel({
     } finally {
       abortControllerRef.current = null;
       setIsInFlight(false);
-      onChatEnd(); // Release interaction lock
+      onChatEnd();
     }
   }
 
   function handleCancel() {
     if (!abortControllerRef.current) return;
     abortControllerRef.current.abort();
-    // Don't wait for the fetch to settle — release the lock immediately
-    // (safe by construction: apply-then-history means nothing is written
-    // until the mediator fully resolves, so cancelling at any point is safe,
-    // Rules Index #23).
     abortControllerRef.current = null;
     setIsInFlight(false);
     onChatEnd();
@@ -171,87 +152,116 @@ export function ChatPanel({
     ]);
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   }
 
   return (
-    <div className="flex h-full flex-col">
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="border-b border-border px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Chat
-        </p>
-        <p className="text-sm font-medium">{agentName}</p>
-      </div>
-
-      {/* ── Message history ──────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+    /* .chat */
+    <div className="flex flex-col h-full">
+      {/* Message scroll area — .chat-scroll */}
+      <div className="flex-1 min-h-0 overflow-auto px-[14px] pt-[14px] pb-[6px] flex flex-col gap-3">
         {messages.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center pt-8">
-            Type an instruction to edit this agent.
+          <p className="text-[12px] text-[var(--faint)] text-center pt-8">
+            Edit {agentName}…
             <br />
-            <span className="text-muted-foreground/60">(⌘↩ or Ctrl↩ to send)</span>
+            <span className="opacity-60">(↵ to send)</span>
           </p>
         )}
+
         {messages.map((msg, i) => (
+          /* .msg */
           <div
             key={i}
-            className={`rounded-md px-3 py-2 text-sm ${
-              msg.role === 'user'
-                ? 'ml-8 bg-primary text-primary-foreground'
-                : 'mr-8 bg-muted text-foreground'
+            className={`flex flex-col gap-1 max-w-[92%] ${
+              msg.role === 'user' ? 'self-end items-end' : 'self-start items-start'
             }`}
           >
-            {msg.text}
+            {/* .who */}
+            <span className="text-[10px] text-[var(--faint)] tracking-[.04em] flex items-center gap-[6px]">
+              {msg.role === 'user' ? 'You' : '✦ Mediator'}
+            </span>
+
+            {/* .bubble */}
+            <div
+              className={`px-[11px] py-[8px] rounded-[10px] text-[12px] leading-[1.5] ${
+                msg.role === 'user'
+                  ? 'bg-[var(--accent)] text-white rounded-br-[3px]'
+                  : 'bg-[var(--elev)] border border-[var(--border)] text-[var(--text)] rounded-bl-[3px]'
+              }`}
+            >
+              {msg.text}
+
+              {/* R13: target chips — sections only, never config */}
+              {msg.role === 'assistant' && msg.changedSectionKeys && msg.changedSectionKeys.length > 0 && (
+                <div className="flex flex-wrap gap-[4px] mt-[6px]">
+                  {msg.changedSectionKeys.map((key) => (
+                    <span
+                      key={key}
+                      className="inline-flex items-center gap-[5px] text-[10.5px] text-[var(--accent-ink)] bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[6px] px-[7px] py-[2px]"
+                    >
+                      ◆ section · {key}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         ))}
+
         {isInFlight && (
-          <div className="mr-8 animate-pulse rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
-            Thinking…
+          <div className="self-start max-w-[92%]">
+            <div className="animate-pulse px-[11px] py-[8px] rounded-[10px] bg-[var(--elev)] border border-[var(--border)] text-[12px] text-[var(--faint)] rounded-bl-[3px]">
+              Thinking…
+            </div>
           </div>
         )}
+
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ── Input area ───────────────────────────────────────────────────── */}
-      <div className="border-t border-border p-3 space-y-2">
+      {/* Prompt bar — .prompt */}
+      <div className="flex-none border-t border-[var(--border)] p-[10px] bg-[var(--elev)]">
         {interactionLock === 'edit' && (
-          <p className="text-xs text-amber-600 dark:text-amber-400">
+          <p className="text-[11px] text-[var(--warn)] mb-[6px]">
             Chat disabled — a section has unsaved edits.
           </p>
         )}
-        <textarea
-          value={instruction}
-          onChange={(e) => setInstruction(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={isInFlight || interactionLock === 'edit'}
-          rows={3}
-          placeholder="Give an instruction to edit this agent…"
-          className="w-full resize-none rounded border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-        />
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-muted-foreground/60">⌘↩ to send</span>
-          <div className="flex gap-2">
-            {canCancel && (
-              <button
-                onClick={handleCancel}
-                className="rounded px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted"
-              >
-                Cancel
-              </button>
-            )}
+        <div
+          className="flex items-center gap-2 bg-[var(--bg)] border border-[var(--border)] rounded-[9px] px-[10px] py-[8px] focus-within:border-[var(--accent)] focus-within:[box-shadow:0_0_0_3px_var(--accent-wash)]"
+        >
+          <input
+            value={instruction}
+            onChange={(e) => setInstruction(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={isInFlight || interactionLock === 'edit'}
+            placeholder={`Edit ${agentName}…  e.g. "make Mode B stricter about scope"`}
+            className="flex-1 border-0 bg-transparent text-[var(--text)] font-[inherit] text-[12px] outline-none placeholder:text-[var(--faint)] disabled:cursor-not-allowed disabled:opacity-50"
+          />
+          {canCancel ? (
+            <button
+              onClick={handleCancel}
+              className="w-[26px] h-[26px] rounded-[7px] border-0 bg-[var(--err)] text-white cursor-pointer grid place-items-center flex-none text-[12px]"
+              title="Cancel"
+            >
+              ✕
+            </button>
+          ) : (
             <button
               onClick={handleSend}
               disabled={!canSend}
-              className="rounded bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-[26px] h-[26px] rounded-[7px] border-0 bg-[var(--accent)] text-white cursor-pointer grid place-items-center flex-none disabled:cursor-not-allowed disabled:opacity-50"
+              title="Send"
             >
-              Send
+              →
             </button>
-          </div>
+          )}
+        </div>
+        <div className="mt-[6px] text-[var(--faint)] text-[10px] pl-[2px]">
+          Targets the selected agent · changes land in the panels above
         </div>
       </div>
     </div>

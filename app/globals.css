@@ -2,75 +2,135 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
+/*
+ * app/globals.css
+ *
+ * Design tokens ported verbatim from design/layout/Layout-Workbench.html (Plan 03 B.1, R12).
+ * Same variable names, same values, same light/dark/[data-theme] override structure.
+ *
+ * Consumed via Tailwind's arbitrary-value syntax: bg-[var(--panel)], text-[var(--muted)],
+ * border-[var(--border)], rounded-[9px], etc. — no tailwind.config.ts theme extension.
+ */
+
+:root {
+  /* light (slight cool bias toward the teal accent) */
+  --bg: #e9edf2;
+  --panel: #f6f8fb;
+  --elev: #ffffff;
+  --border: #d2dae4;
+  --text: #1b2430;
+  --muted: #5b6879;
+  --faint: #8996a6;
+  --accent: #0e9d8e;
+  --accent-ink: #0a5f57;
+  --accent-wash: rgba(14, 157, 142, 0.10);
+  --ok: #2f9e5f;
+  --warn: #b3801c;
+  --err: #cf4b41;
+  --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace;
+  --ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --grip: #c3ccd8;
+
+  /* shadcn/ui compatibility tokens (kept for any shadcn components used) */
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted-shadcn: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent-shadcn: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border-shadcn: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
+  --radius: 0.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
+    --bg: #12151a;
+    --panel: #191d23;
+    --elev: #20252d;
+    --border: #2a3039;
+    --text: #e6ebf2;
+    --muted: #8b95a5;
+    --faint: #616c7c;
+    --accent: #3fb6a8;
+    --accent-ink: #8fe0d5;
+    --accent-wash: rgba(63, 182, 168, 0.12);
+    --ok: #5fb87a;
+    --warn: #d9a441;
+    --err: #e0685f;
+    --grip: #39414c;
   }
+}
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+:root[data-theme="light"] {
+  --bg: #e9edf2;
+  --panel: #f6f8fb;
+  --elev: #ffffff;
+  --border: #d2dae4;
+  --text: #1b2430;
+  --muted: #5b6879;
+  --faint: #8996a6;
+  --accent: #0e9d8e;
+  --accent-ink: #0a5f57;
+  --accent-wash: rgba(14, 157, 142, 0.10);
+  --ok: #2f9e5f;
+  --warn: #b3801c;
+  --err: #cf4b41;
+  --grip: #c3ccd8;
+}
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-  }
+:root[data-theme="dark"] {
+  --bg: #12151a;
+  --panel: #191d23;
+  --elev: #20252d;
+  --border: #2a3039;
+  --text: #e6ebf2;
+  --muted: #8b95a5;
+  --faint: #616c7c;
+  --accent: #3fb6a8;
+  --accent-ink: #8fe0d5;
+  --accent-wash: rgba(63, 182, 168, 0.12);
+  --ok: #5fb87a;
+  --warn: #d9a441;
+  --err: #e0685f;
+  --grip: #39414c;
 }
 
 @layer base {
   * {
-    @apply border-border;
+    box-sizing: border-box;
+  }
+  html, body {
+    height: 100%;
   }
   body {
-    @apply bg-background text-foreground;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--ui);
+    font-size: 13px;
+    line-height: 1.5;
+    overflow: hidden;
+  }
+  /* Scrollbar styling to match the mockup */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--grip);
+    border-radius: 6px;
+    border: 3px solid var(--panel);
   }
 }

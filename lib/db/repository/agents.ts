@@ -266,10 +266,32 @@ export function getAgentSnapshotInfo(
 }
 
 /**
- * Returns a lite list of all agents (agent row fields only, no sections/config).
+ * Lite DTO shape returned by listAgents(). Same as AgentDTO minus heavy fields,
+ * plus groupIds[] which lists every group this agent belongs to (Plan 03 A.3).
  */
-export function listAgents(): Omit<AgentDTO, 'sections' | 'config' | 'validation'>[] {
+export type AgentLiteDTO = Omit<AgentDTO, 'sections' | 'config' | 'validation'> & {
+  groupIds: string[];
+};
+
+/**
+ * Returns a lite list of all agents (agent row fields + groupIds; no sections/config/validation).
+ * groupIds is populated via a join against membership (Plan 03 A.3).
+ */
+export function listAgents(): AgentLiteDTO[] {
   const rows = db.select().from(schema.agent).orderBy(schema.agent.name).all();
+  const memberships = db.select().from(schema.membership).all();
+
+  // Build agentId → groupId[] map
+  const groupIdsByAgent = new Map<string, string[]>();
+  for (const m of memberships) {
+    const list = groupIdsByAgent.get(m.agentId);
+    if (list) {
+      list.push(m.groupId);
+    } else {
+      groupIdsByAgent.set(m.agentId, [m.groupId]);
+    }
+  }
+
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
@@ -277,6 +299,7 @@ export function listAgents(): Omit<AgentDTO, 'sections' | 'config' | 'validation
     source: r.source,
     platform: r.platform,
     splitLevel: r.splitLevel,
+    groupIds: groupIdsByAgent.get(r.id) ?? [],
   }));
 }
 
@@ -572,13 +595,18 @@ export function upsertAgentFromImport(data: ImportedAgentData): AgentDTO {
 // ─────────────────────────────  Delete  ────────────────────────────────────
 
 /**
- * Deletes an agent and its config/sections.
+ * Deletes an agent and its config/sections/memberships.
  * SectionRevision and AgentSnapshot rows are intentionally retained (rule 4).
+ *
+ * R3 (Plan 03): membership rows are NOT historical — they are a pure index.
+ * Deleting an agent must also delete its membership rows so group queries
+ * never return ghost agents (Plan 03 §0 R3 / §5 rule 4).
  */
 export function deleteAgent(agentId: string): void {
   db.transaction((tx) => {
     tx.delete(schema.agentConfig).where(eq(schema.agentConfig.agentId, agentId)).run();
     tx.delete(schema.agentSection).where(eq(schema.agentSection.agentId, agentId)).run();
+    tx.delete(schema.membership).where(eq(schema.membership.agentId, agentId)).run();
     tx.delete(schema.agent).where(eq(schema.agent.id, agentId)).run();
     // sectionRevision and agentSnapshot rows are NOT deleted (soft ref — rule 4)
   });
@@ -657,6 +685,33 @@ export function updateAgent(
 
   if (!updatedRow) return null;
   return buildAgentDTO(updatedRow);
+}
+
+// ─────────────────────────────  Read-only export helper  ──────────────────
+
+/**
+ * Returns the current exported .md text for an agent — read-only, no snapshot
+ * row written. Used by GET /api/agents/[id]/export (R11, Plan 03 A.4).
+ *
+ * Returns null if the agent does not exist.
+ * config.value handling mirrors serializeAgentSnapshot (A3 fix — arrays passed through).
+ */
+export function exportAgentMarkdown(agentId: string): string | null {
+  const agentRow = db
+    .select()
+    .from(schema.agent)
+    .where(eq(schema.agent.id, agentId))
+    .get();
+  if (!agentRow) return null;
+
+  const sections = db
+    .select()
+    .from(schema.agentSection)
+    .where(eq(schema.agentSection.agentId, agentId))
+    .orderBy(schema.agentSection.order)
+    .all();
+
+  return serializeAgentSnapshot(agentRow, sections);
 }
 
 // ─────────────────────────────  Internal helpers  ──────────────────────────

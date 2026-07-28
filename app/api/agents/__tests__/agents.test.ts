@@ -35,6 +35,8 @@ import { getAgentFull } from '../../../../lib/db/repository/agents.js';
 import { GET as listAgentsGET, POST as createAgentPOST } from '../route.js';
 import { GET as getAgentGET, PATCH as patchAgentPATCH, DELETE as deleteAgentDELETE } from '../[id]/route.js';
 import { PATCH as patchSectionPATCH } from '../[id]/sections/[sectionId]/route.js';
+import { POST as addMembershipPOST } from '../[id]/groups/route.js';
+import { POST as createGroupPOST } from '../../groups/route.js';
 
 // ── Seed catalog tables ────────────────────────────────────────────────────────
 beforeAll(() => {
@@ -322,6 +324,102 @@ describe('DELETE /api/agents/[id]', () => {
   });
 });
 
+// ── Plan 03 A.12: R3 regression + groupIds in listAgents ─────────────────────
+
+describe('DELETE /api/agents/[id] — R3: membership rows deleted (Plan 03)', () => {
+  it('deletes membership rows along with the agent (no orphan rows)', async () => {
+    // Create agent
+    const agentRes = await createAgentPOST(
+      new Request('http://localhost/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'r3-route-orphan-agent', description: 'R3 orphan test' }),
+      }),
+    );
+    const { id: agentId } = await agentRes.json() as { id: string };
+
+    // Create group
+    const groupRes = await createGroupPOST(
+      new Request('http://localhost/api/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'r3-route-orphan-group' }),
+      }),
+    );
+    const { id: groupId } = await groupRes.json() as { id: string };
+
+    // Add membership
+    await addMembershipPOST(
+      new Request(`http://localhost/api/agents/${agentId}/groups`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupId }),
+      }),
+      makeParamsContext({ id: agentId }),
+    );
+
+    // Verify membership exists
+    const beforeRows = testDb
+      .select()
+      .from(schema.membership)
+      .where(eq(schema.membership.agentId, agentId))
+      .all();
+    expect(beforeRows).toHaveLength(1);
+
+    // Delete agent
+    await deleteAgentDELETE(
+      new Request(`http://localhost/api/agents/${agentId}`, { method: 'DELETE' }),
+      makeParamsContext({ id: agentId }),
+    );
+
+    // Membership rows must be gone (no orphans)
+    const afterRows = testDb
+      .select()
+      .from(schema.membership)
+      .where(eq(schema.membership.agentId, agentId))
+      .all();
+    expect(afterRows).toHaveLength(0);
+  });
+});
+
+describe('GET /api/agents — groupIds in lite DTO (Plan 03 A.3)', () => {
+  it('includes groupIds for agents that have memberships', async () => {
+    const agentRes = await createAgentPOST(
+      new Request('http://localhost/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'groupids-lite-agent', description: 'groupIds test' }),
+      }),
+    );
+    const { id: agentId } = await agentRes.json() as { id: string };
+
+    const groupRes = await createGroupPOST(
+      new Request('http://localhost/api/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'groupids-lite-group' }),
+      }),
+    );
+    const { id: groupId } = await groupRes.json() as { id: string };
+
+    await addMembershipPOST(
+      new Request(`http://localhost/api/agents/${agentId}/groups`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupId }),
+      }),
+      makeParamsContext({ id: agentId }),
+    );
+
+    const listRes = await listAgentsGET();
+    const agents = await listRes.json() as { id: string; groupIds: string[] }[];
+    const found = agents.find((a) => a.id === agentId);
+    expect(found).toBeDefined();
+    expect(found!.groupIds).toContain(groupId);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 describe('PATCH /api/agents/[id]/sections/[sectionId]', () => {
   it('updates section content and returns new version', async () => {
     const createResponse = await createAgentPOST(

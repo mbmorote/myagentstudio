@@ -18,7 +18,11 @@ const config: Config = {
     },
     extend: {
       colors: {
-        border: 'hsl(var(--border))',
+        // --border/--muted/--accent were repurposed in globals.css (Plan 03 B.1/R12) to hold
+        // the design-token hex values from the layout mockup; the original shadcn HSL triplets
+        // live under the -shadcn suffix instead, so shadcn's own semantic classes (bg-accent,
+        // border-border, bg-muted) still resolve to valid HSL colors instead of hsl(#hexvalue).
+        border: 'hsl(var(--border-shadcn))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
         background: 'hsl(var(--background))',
@@ -36,11 +40,11 @@ const config: Config = {
           foreground: 'hsl(var(--destructive-foreground))',
         },
         muted: {
-          DEFAULT: 'hsl(var(--muted))',
+          DEFAULT: 'hsl(var(--muted-shadcn))',
           foreground: 'hsl(var(--muted-foreground))',
         },
         accent: {
-          DEFAULT: 'hsl(var(--accent))',
+          DEFAULT: 'hsl(var(--accent-shadcn))',
           foreground: 'hsl(var(--accent-foreground))',
         },
         popover: {
