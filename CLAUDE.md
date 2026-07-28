@@ -1,9 +1,13 @@
 # MyAgent — Agent Workbench (folder map)
 
 A workbench for building and managing AI agents: an **agent-aware AI chat** next to an
-**always-visible structured view** of the agent it's editing. Design is complete; the
-first implementation plan has been reviewed section-by-section and confirmed (2026-07-26) —
-ready for `@dev` to execute. This file is the map.
+**always-visible structured view** of the agent it's editing. Design is complete; Plan 01
+(Phases 1–3: round-trip proof, persistence, Strict import pipeline) is built and committed.
+A follow-up audit (Fable Review 1, 2026-07-28) found real bugs in the built import pipeline
+and produced Plan 02, which also finishes and wires up Structural Import (designed earlier
+but never built). Plan 02's non-code parts (rule-set adoption, doc sync) are done; its code
+phases (A1–A4, B2/B3/B5/B6) are **ready for `@dev` to execute** — see the Plan 02 pointer
+below. This file is the map.
 
 ## ✅ Plan 01 review — complete (2026-07-26)
 
@@ -60,13 +64,49 @@ Index (all 25 entries, cross-checked complete and consistent with the plan's App
 itself. Start Phase 0 (`@dev` executes the plan), or do a final skim if picking this back up
 after a gap.
 
+## 🟡 Plan 02 — ready for `@dev` (2026-07-28)
+
+`plans/02-import-hardening-structural.md` is the execution spec produced from
+`design/Fable-Review-1.md` (a Fable 5 audit of the built Phase 1–3 code + a head-to-head
+comparison of two competing Structural Import rule-set drafts) plus a follow-up strategy
+discussion with the user. It bundles two things: **hardening real bugs found in the
+already-built Strict import pipeline** (Phase A) and **finishing Structural Import**
+(Phase B — designed in TechDesign.md Rules Index #27/#31/#32 back on 2026-07-28 morning,
+but never built). Structural Import becomes the **primary/default** import mode once built;
+Strict stays as the secondary verbatim option.
+
+**Already done (non-code parts, this session):**
+- **B1** — adopted the merged best-of-both rule-set drafts: `import-instructions.md` and
+  `import-instructions-structural.md` now hold the final text; the `-copilot` and `-merged`
+  draft files are deleted (git history keeps them). `scripts/build-prompts.ts` compiles all
+  three prompts now (strict, structural, mediator) — verified via a manual run.
+- **Phase C** — `TechDesign.md` Rules Index #27/#31/#32 updated to reflect
+  rule-set-finalized-but-code-pending status; new entries #33–#36 added for the Phase A
+  bugs + the B3 short-circuit; the Draft A "two import modes" paragraph flipped to
+  structural-first; the two stale doc references the audit found (`design/AI behavior.txt`,
+  which never existed, and the project-layout sketch's `import/route.ts`) are fixed.
+
+**Still pending — handed to `@dev`:** Phase A (A1 re-import reconciliation bug — the most
+severe finding, sectionKey-only matching collapses distinct `custom` rows; A2 silently
+discarded malformed frontmatter; A3 `String(value)` destroying non-scalar frontmatter; A4
+transaction scope + validator hardening) and Phase B's code (B2 `structuralConverter.ts`,
+B3 the route's `mode` field + short-circuit + coverage wiring, B5 `lib/import/coverage.ts`,
+B6 tests + the live rule-refinement harness script). The plan file has full bug repro
+detail, exact fix shape, and a phase-by-phase acceptance checklist — read it before
+starting, not this summary.
+
+Phase D of the plan (catalog seed drift, Strict-mode merged-heading instability, UI mode
+picker, adversarial-file re-audit, `__raw` frontmatter escape hatch) is **intentionally not
+in scope** — each item has its own revisit trigger in the plan's Phase D table.
+
 ## Folders
 
 - **`design/`** — all design docs (see below).
 - **`design/system-agents/`** — the actual AI-facing rule-sets for the two system agents.
 - **`design/layout/`** — the layout mockup + its source sketch.
 - **`plans/`** — build-sequence plans (distinct from `design/`'s stable architecture docs).
-  One file per plan, numbered. `01-core-loop-implementation-plan.md` is the first.
+  One file per plan, numbered. `01-core-loop-implementation-plan.md` is the first;
+  `02-import-hardening-structural.md` is the second (see the Plan 02 pointer above).
 
 ## Files
 
@@ -85,8 +125,18 @@ after a gap.
   outstanding from it.** Kept as the historical record of *why* each rule exists.
 - **`design/Fable-Audit-Brief.md`** — the reusable prompt that produced the review. Kept
   so future audits (post-build, pre-online) can reuse the same brief.
+- **`design/Fable-Review-1.md`** / **`design/Fable-Review-1-Findings.md`** — the audit
+  prompt and its results (2026-07-28): a current-state audit of the built Phase 1–3 code
+  plus a head-to-head comparison of two Structural Import rule-set drafts. Source of
+  Plan 02; kept as the historical record of *why* each Phase A/B fix exists, same role
+  `DesignReview.md` plays for Plan 01.
 - **`design/system-agents/import-instructions.md`** — the import-converter's actual
-  Role/Behavior/Guardrails/Output rule-set (Stage 2: labels-only, never content).
+  Role/Behavior/Guardrails/Output rule-set (Stage 2: labels-only, never content). Final
+  merged text adopted 2026-07-28 (Plan 02 Phase B1).
+- **`design/system-agents/import-instructions-structural.md`** — the Structural Import
+  (Stage 2b) rule-set: the AI sees full content and returns one restructured document
+  body, not a mapping. Final merged text adopted 2026-07-28 (Plan 02 Phase B1); the code
+  path that calls it is still pending (Plan 02 Phase B2/B3).
 - **`design/system-agents/chat-mediator.md`** — the chat-mediator's actual rule-set
   (server-scoped to the whole agent — may rewrite any number of its sections per
   instruction — no tools, split-level heading guard).
@@ -101,10 +151,12 @@ after a gap.
 
 ## Where things stand
 
-**Design is complete.** Every review finding is folded into `TechDesign.md`'s Rules
-Index — locked items are implemented in the plan; genuinely deferred items (DB dialect
-choice, catalog versioning, manual-save frequency) are tracked in the Deferred Decisions
-table with a trigger for when to revisit, not forgotten.
+**Design is complete; Plan 01's Phases 1–3 are built and committed.** Every review
+finding is folded into `TechDesign.md`'s Rules Index — locked items are implemented in the
+plan; genuinely deferred items (DB dialect choice, catalog versioning, manual-save
+frequency) are tracked in the Deferred Decisions table with a trigger for when to revisit,
+not forgotten. **Plan 02 (see pointer above) hardens the built import pipeline and finishes
+Structural Import** — its non-code parts are done, its code parts are queued for `@dev`.
 
 - **Data model** — `Agent` (incl. `platform`) · `ConfigDef`/`AgentConfig` ·
   `SectionDef`/`AgentSection` · `Group`/`Membership` · `SectionRevision` (append-only edit
@@ -112,12 +164,18 @@ table with a trigger for when to revisit, not forgotten.
   the first AI edit) · `AgentSnapshot` (whole-agent pre/post-import capture).
 - **Agent Blueprint** — one module (`lib/blueprint`, per the plan) exporting catalog data
   **and** rule functions, so import/UI/export can never drift into three implementations.
-- **Import/Export** — two-stage AI-assisted import (Stage 2 is labels-only, `{blockId →
-  key}`, content never passes through the model — the server reassembles bytes from
-  Stage 1). Export is deterministic, semantic-not-byte fidelity. Re-import of an existing
-  agent = always update-in-place (never duplicate/error); a section absent from the
-  incoming file is simply deleted (its revision history isn't cascade-deleted, so nothing
-  is actually lost).
+- **Import/Export** — two user-chosen import modes sharing deterministic Stage 1. **Strict
+  Import** (built, being hardened by Plan 02 Phase A): Stage 2 is labels-only, `{blockId →
+  sectionKey}`, content never passes through the model — the server reassembles bytes from
+  Stage 1. **Structural Import** (rule-set final, code pending — Plan 02 Phase B): the AI
+  sees full raw text and returns one restructured document body; the server re-parses it
+  deterministically and maps headings → sectionKeys, backed by a coverage check rather than
+  code-enforced content copying. Structural is the primary/default mode once built; Strict
+  is the secondary verbatim option. Export is deterministic, semantic-not-byte fidelity.
+  Re-import of an existing agent = always update-in-place (never duplicate/error); a section
+  absent from the incoming file is simply deleted (its revision history isn't
+  cascade-deleted, so nothing is actually lost) — Plan 02 Phase A1 fixes a real bug in how
+  that reconciliation currently matches sections.
 - **System agents** (import-converter, chat-mediator) — platform-owned, rule-sets live in
   `design/system-agents/*.md`, not buried in `TechDesign.md` prose.
 - **Layout** — settled 4-pane IDE layout. See `design/layout/Layout-Workbench.html`.

@@ -9,6 +9,7 @@
 export {
   createAgent,
   getAgentFull,
+  getAgentSnapshotInfo,
   listAgents,
   updateSectionContent,
   upsertAgentFromImport,

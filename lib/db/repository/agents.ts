@@ -243,6 +243,24 @@ export function getAgentFull(agentId: string): AgentDTO | null {
 }
 
 /**
+ * Looks up an agent by its unique name and returns its ID + rawSourceSnapshot.
+ * Used by the import route's short-circuit check (Rules Index #36 — B3).
+ * Returns null if no agent with that name exists.
+ */
+export function getAgentSnapshotInfo(
+  name: string,
+): { id: string; rawSourceSnapshot: string | null } | null {
+  const row = db
+    .select()
+    .from(schema.agent)
+    .where(eq(schema.agent.name, name))
+    .get();
+
+  if (!row) return null;
+  return { id: row.id, rawSourceSnapshot: row.rawSourceSnapshot ?? null };
+}
+
+/**
  * Returns a lite list of all agents (agent row fields only, no sections/config).
  */
 export function listAgents(): Omit<AgentDTO, 'sections' | 'config' | 'validation'>[] {
@@ -327,18 +345,27 @@ export type ImportedAgentData = {
 };
 
 /**
- * Creates or updates an agent from import data (Rules Index #11a/#11b).
+ * Creates or updates an agent from import data (Rules Index #11a/#11b/#33).
  *
  * First-time import: creates agent (source:'imported') + writes AgentSnapshot(post-import).
  * Re-import of existing name:
  *   - writes AgentSnapshot(pre-import) of the current state
- *   - updates agent row + config rows (full replace)
- *   - changed sections → overwrite content + append reimport revision
- *   - new sections → create + reimport revision #0
+ *   - updates agent row + config rows + section reconciliation — all in one db.transaction (A4)
+ *   - section reconciliation uses (sectionKey, heading) identity in document order (A1)
+ *   - changed/new sections → create/update content + append reimport revision
  *   - deleted sections → delete row; revisions retained (rule 4)
  *   - writes AgentSnapshot(post-import) of the final state
+ *
+ * Throws with message 'missing_name' when data.name is empty or whitespace-only (A2).
  */
 export function upsertAgentFromImport(data: ImportedAgentData): AgentDTO {
+  // A2: reject empty/whitespace-only name — flag-don't-block (#1) covers format, not absence.
+  if (!data.name || data.name.trim().length === 0) {
+    const err = new Error('missing_name');
+    err.name = 'MissingNameError';
+    throw err;
+  }
+
   const existing = db
     .select()
     .from(schema.agent)
@@ -349,59 +376,82 @@ export function upsertAgentFromImport(data: ImportedAgentData): AgentDTO {
   const agentId = isUpdate ? existing.id : crypto.randomUUID();
 
   if (isUpdate) {
-    // Capture pre-import snapshot (rule 7)
-    const currentSections = db
-      .select()
-      .from(schema.agentSection)
-      .where(eq(schema.agentSection.agentId, agentId))
-      .orderBy(schema.agentSection.order)
-      .all();
-
-    const preSnapshotContent = serializeAgentSnapshot(existing, currentSections);
-
-    db.insert(schema.agentSnapshot).values({
-      id: crypto.randomUUID(),
-      agentId,
-      kind: 'pre-import',
-      content: preSnapshotContent,
-    }).run();
-
-    db
-      .update(schema.agent)
-      .set({
-        description: data.description,
-        platform: data.platform,
-        splitLevel: data.splitLevel,
-        rawSourceSnapshot: data.rawSourceSnapshot,
-        source: 'imported',
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.agent.id, agentId))
-      .run();
-
-    // Replace all config rows
-    db.delete(schema.agentConfig).where(eq(schema.agentConfig.agentId, agentId)).run();
-    if (data.config.length > 0) {
-      db.insert(schema.agentConfig).values(
-        data.config.map((c) => ({ agentId, propKey: c.propKey, value: c.value })),
-      ).run();
-    }
-
-    // Reconcile sections
-    const dbSections = db
-      .select()
-      .from(schema.agentSection)
-      .where(eq(schema.agentSection.agentId, agentId))
-      .all();
-
-    const dbSectionsByKey = new Map(dbSections.map((s) => [s.sectionKey, s]));
-    const importKeys = new Set(data.sections.map((s) => s.sectionKey));
-
+    // A4: wrap the entire update path (pre-import snapshot, agent update, config replace,
+    // section reconcile) in one db.transaction.
     db.transaction((tx) => {
+      // Capture pre-import snapshot (rule 7)
+      const currentSections = tx
+        .select()
+        .from(schema.agentSection)
+        .where(eq(schema.agentSection.agentId, agentId))
+        .orderBy(schema.agentSection.order)
+        .all();
+
+      const preSnapshotContent = serializeAgentSnapshot(existing, currentSections);
+
+      tx.insert(schema.agentSnapshot).values({
+        id: crypto.randomUUID(),
+        agentId,
+        kind: 'pre-import',
+        content: preSnapshotContent,
+      }).run();
+
+      tx
+        .update(schema.agent)
+        .set({
+          description: data.description,
+          platform: data.platform,
+          splitLevel: data.splitLevel,
+          rawSourceSnapshot: data.rawSourceSnapshot,
+          source: 'imported',
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.agent.id, agentId))
+        .run();
+
+      // Replace all config rows
+      tx.delete(schema.agentConfig).where(eq(schema.agentConfig.agentId, agentId)).run();
+      if (data.config.length > 0) {
+        tx.insert(schema.agentConfig).values(
+          data.config.map((c) => ({ agentId, propKey: c.propKey, value: c.value })),
+        ).run();
+      }
+
+      // Reconcile sections by (sectionKey, heading) identity in document order (A1).
+      // Rules Index #33: sectionKey alone is not unique per agent — multiple 'custom' rows
+      // are routine. Using a sectionKey-only Map collapses distinct rows on re-import.
+      //
+      // Algorithm: build a multimap keyed by (sectionKey, heading). Walk incoming sections
+      // in document order; for each, pop the first unmatched db section with the same
+      // (sectionKey, heading) → update. No match → create fresh. Db sections never matched
+      // → delete (revisions retained — rule 4).
+      const dbSections = tx
+        .select()
+        .from(schema.agentSection)
+        .where(eq(schema.agentSection.agentId, agentId))
+        .all();
+
+      // Multimap: composite key → queue of db rows (in their original DB order, FIFO match).
+      const dbByIdentity = new Map<string, (typeof dbSections[number])[]>();
+      for (const row of dbSections) {
+        const key = `${row.sectionKey}\0${row.heading ?? ''}`;
+        const bucket = dbByIdentity.get(key);
+        if (bucket) {
+          bucket.push(row);
+        } else {
+          dbByIdentity.set(key, [row]);
+        }
+      }
+
+      const matchedDbIds = new Set<string>();
+
       for (const imported of data.sections) {
-        const dbRow = dbSectionsByKey.get(imported.sectionKey);
+        const identityKey = `${imported.sectionKey}\0${imported.heading ?? ''}`;
+        const bucket = dbByIdentity.get(identityKey);
+        const dbRow = bucket && bucket.length > 0 ? bucket.shift() : undefined;
 
         if (dbRow) {
+          matchedDbIds.add(dbRow.id);
           const newVersion = dbRow.version + 1;
           tx
             .update(schema.agentSection)
@@ -441,7 +491,7 @@ export function upsertAgentFromImport(data: ImportedAgentData): AgentDTO {
       }
 
       // Delete sections absent from the incoming import (revisions retained — rule 4)
-      const toDelete = dbSections.filter((s) => !importKeys.has(s.sectionKey));
+      const toDelete = dbSections.filter((s) => !matchedDbIds.has(s.id));
       if (toDelete.length > 0) {
         tx.delete(schema.agentSection).where(
           inArray(schema.agentSection.id, toDelete.map((s) => s.id)),
@@ -551,12 +601,22 @@ function serializeAgentSnapshot(
     .all();
 
   // Build frontmatter: name, description, then config entries in DB row order.
+  // config.value may be a string scalar or a string[] list (A3 — pass arrays through
+  // as string[] rather than JSON.stringifying them, so exportAgent emits proper YAML).
   const frontmatter: FrontmatterEntry[] = [
     { key: 'name', rawValue: agentRow.name },
     { key: 'description', rawValue: agentRow.description },
     ...configRows.map((c) => ({
       key: c.propKey,
-      rawValue: typeof c.value === 'string' ? c.value : JSON.stringify(c.value),
+      rawValue: ((): string | string[] => {
+        const v = c.value;
+        if (typeof v === 'string') return v;
+        if (Array.isArray(v) && (v as unknown[]).every((x) => typeof x === 'string')) {
+          return v as string[];
+        }
+        // Fallback for any other stored shape (e.g. numbers stored as JSON) — stringify.
+        return JSON.stringify(v);
+      })(),
     })),
   ];
 

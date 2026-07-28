@@ -87,7 +87,7 @@ export async function callImportConverter(blocks: Stage2BlockRef[]): Promise<Sta
     const model = getModel();
     const response = await client.messages.create({
       model,
-      max_tokens: 1024,
+      max_tokens: 4096,
       system: IMPORT_CONVERTER_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     });
@@ -174,6 +174,21 @@ function parseAndValidateLabels(responseText: string): Stage2Labels {
     const hasSectionKey = 'sectionKey' in m && typeof m.sectionKey === 'string';
     if (!hasSectionKey) {
       throw new ImportConverterInvalidResponseError('Mapping entry missing "sectionKey"');
+    }
+  }
+
+  // A4: reject any response where a blockId appears in more than one mapping entry.
+  // Overlapping merge groups silently drop a block in assemble() (audit finding 2).
+  const seenBlockIds = new Set<string>();
+  for (const entry of obj.mappings as Stage2Mapping[]) {
+    const ids = 'blockIds' in entry ? entry.blockIds : [entry.blockId];
+    for (const id of ids) {
+      if (seenBlockIds.has(id)) {
+        throw new ImportConverterInvalidResponseError(
+          `blockId "${id}" appears in more than one mapping entry (overlapping groups)`,
+        );
+      }
+      seenBlockIds.add(id);
     }
   }
 

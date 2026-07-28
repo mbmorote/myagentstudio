@@ -44,11 +44,17 @@ export function assemble(
   // ── Extract name + description from frontmatter ───────────────────────────
   const fmMap = new Map(structured.frontmatter.map((e) => [e.key, e.rawValue]));
 
+  // name and description are expected to be scalar strings. If a file somehow has a
+  // list value for 'name'/'description', coerce to a joined string (edge case — a
+  // well-formed agent file will always have scalar name/description).
+  const toScalar = (v: string | string[] | undefined): string | undefined =>
+    v === undefined ? undefined : Array.isArray(v) ? v.join(', ') : v;
+
   // name: verbatim (Rules Index #1 — flag-don't-block)
-  const name = fmMap.get('name') ?? '';
+  const name = toScalar(fmMap.get('name')) ?? '';
 
   // description: placeholder if missing (Rules Index #12)
-  const descriptionRaw = fmMap.get('description');
+  const descriptionRaw = toScalar(fmMap.get('description'));
   const description =
     descriptionRaw !== undefined && descriptionRaw.trim().length > 0
       ? descriptionRaw
@@ -58,8 +64,8 @@ export function assemble(
   const config: { propKey: string; value: unknown }[] = [];
   for (const entry of structured.frontmatter) {
     if (entry.key === 'name' || entry.key === 'description') continue;
-    // Store the rawValue string verbatim as the config value.
-    // computeValidation handles both string and array forms for lists (rules.ts).
+    // Store rawValue (string | string[]) verbatim as the config value (A3).
+    // computeValidation handles both scalar and array forms for lists (rules.ts).
     config.push({ propKey: entry.key, value: entry.rawValue });
   }
 
@@ -154,6 +160,20 @@ export function assemble(
 
     for (const b of mergeBlocks) {
       processedIds.add(b.blockId);
+    }
+  }
+
+  // A4: belt-and-braces fallback — any input block not yet emitted becomes 'custom'.
+  // Defends against overlapping mappings or other edge cases where processedIds misses a block.
+  for (const block of sortedBlocks) {
+    if (!processedIds.has(block.blockId)) {
+      sections.push({
+        sectionKey: 'custom',
+        heading: block.heading,
+        content: block.content,
+        order: block.order,
+      });
+      processedIds.add(block.blockId);
     }
   }
 

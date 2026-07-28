@@ -17,8 +17,14 @@
 export type FrontmatterEntry = {
   /** The YAML key, e.g. "model" */
   key: string;
-  /** The scalar value preserved as a string — no type coercion (Rules Index #4) */
-  rawValue: string;
+  /**
+   * The value preserved from YAML — no type coercion (Rules Index #4, #35).
+   * - string: a scalar value (all plain scalars under FAILSAFE_SCHEMA are already strings).
+   * - string[]: a flat list of scalars (e.g. `tools: [Read, Write]` or block-list style).
+   * Nested maps or lists-of-non-scalars are rejected by parseFrontmatter with a
+   * FrontmatterParseError('unsupported_frontmatter') before they ever reach this type.
+   */
+  rawValue: string | string[];
 };
 
 export type BodyBlock = {
