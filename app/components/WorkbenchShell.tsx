@@ -154,6 +154,12 @@ export function WorkbenchShell({
                       };
                     });
                   }}
+                  onNameSaved={(name) => {
+                    setAgent((prev) => (prev ? { ...prev, name } : prev));
+                  }}
+                  onAgentUpdated={(newAgent) => {
+                    setAgent(newAgent);
+                  }}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-[var(--faint)] p-6">

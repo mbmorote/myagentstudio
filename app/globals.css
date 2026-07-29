@@ -31,6 +31,26 @@
   --ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --grip: #c3ccd8;
 
+  /* Config pill category colors — defined but no longer used for pill coloring
+     per design decision item 4 (2026-07-29): category hue coloring was removed
+     in the editable config zone redesign. Only --warn (yellow) and dashed border
+     (disallowedTools) remain as meaningful pill states. Variables kept here for
+     potential future use; the old PILL_GROUPS/PILL_GROUP_CLASSES mappings in
+     AgentView.tsx were removed in the same redesign.
+     cap = capability, ctl = control, res = resources, prs = presentation. */
+  --cap: #7c5cc2;
+  --cap-ink: #4a2d8f;
+  --cap-wash: rgba(124, 92, 194, 0.09);
+  --ctl: #3e72c4;
+  --ctl-ink: #1a4585;
+  --ctl-wash: rgba(62, 114, 196, 0.09);
+  --res: #b09228;
+  --res-ink: #6b5500;
+  --res-wash: rgba(176, 146, 40, 0.09);
+  --prs: #b54870;
+  --prs-ink: #7a1d40;
+  --prs-wash: rgba(181, 72, 112, 0.09);
+
   /* shadcn/ui compatibility tokens (kept for any shadcn components used) */
   --background: 0 0% 100%;
   --foreground: 222.2 84% 4.9%;
@@ -70,6 +90,19 @@
     --warn: #d9a441;
     --err: #e0685f;
     --grip: #39414c;
+
+    --cap: #a98ae8;
+    --cap-ink: #ccb8fb;
+    --cap-wash: rgba(169, 138, 232, 0.12);
+    --ctl: #75a8e8;
+    --ctl-ink: #a8c8fc;
+    --ctl-wash: rgba(117, 168, 232, 0.12);
+    --res: #d4b45e;
+    --res-ink: #eed98e;
+    --res-wash: rgba(212, 180, 94, 0.12);
+    --prs: #e0809f;
+    --prs-ink: #f5b0c8;
+    --prs-wash: rgba(224, 128, 159, 0.12);
   }
 }
 
@@ -88,6 +121,19 @@
   --warn: #b3801c;
   --err: #cf4b41;
   --grip: #c3ccd8;
+
+  --cap: #7c5cc2;
+  --cap-ink: #4a2d8f;
+  --cap-wash: rgba(124, 92, 194, 0.09);
+  --ctl: #3e72c4;
+  --ctl-ink: #1a4585;
+  --ctl-wash: rgba(62, 114, 196, 0.09);
+  --res: #b09228;
+  --res-ink: #6b5500;
+  --res-wash: rgba(176, 146, 40, 0.09);
+  --prs: #b54870;
+  --prs-ink: #7a1d40;
+  --prs-wash: rgba(181, 72, 112, 0.09);
 }
 
 :root[data-theme="dark"] {
@@ -105,6 +151,19 @@
   --warn: #d9a441;
   --err: #e0685f;
   --grip: #39414c;
+
+  --cap: #a98ae8;
+  --cap-ink: #ccb8fb;
+  --cap-wash: rgba(169, 138, 232, 0.12);
+  --ctl: #75a8e8;
+  --ctl-ink: #a8c8fc;
+  --ctl-wash: rgba(117, 168, 232, 0.12);
+  --res: #d4b45e;
+  --res-ink: #eed98e;
+  --res-wash: rgba(212, 180, 94, 0.12);
+  --prs: #e0809f;
+  --prs-ink: #f5b0c8;
+  --prs-wash: rgba(224, 128, 159, 0.12);
 }
 
 @layer base {

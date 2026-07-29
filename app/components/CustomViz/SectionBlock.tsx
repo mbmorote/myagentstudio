@@ -4,6 +4,13 @@
  * app/components/CustomViz/SectionBlock.tsx
  *
  * Plan 03 Phase B, B.8 — Added chevron expand/collapse (R14).
+ * 2026-07-29 — Editable zone redesign additions:
+ *   - Click body text to enter edit mode (item 15).
+ *   - Outside-click-confirm: silently exits if unchanged; confirm-dialog if
+ *     changed (item 15). Uses a stable handler ref so the effect never goes stale.
+ *   - Cross-editor coordination via resolveEditorRef (item 16): before opening,
+ *     resolves whichever editor is currently registered in the shared ref.
+ *     Registers its own resolve function when entering edit mode; unregisters on exit.
  *
  * Renders one section in the CustomViz pane. Matches the mockup's .sec/.sec-h/.sec-b:
  *   - Chevron (▾ expanded / ▸ collapsed) wrapping the existing content.
@@ -20,7 +27,7 @@
  *   - While lock='chat', the "Edit" button is disabled.
  */
 
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { AgentDTO } from '@/lib/db/repository';
 import type { InteractionLock } from '@/app/components/WorkbenchShell';
 
@@ -33,6 +40,12 @@ interface SectionBlockProps {
   onEditStart: () => void;
   onEditEnd: () => void;
   onSaved: (content: string, newVersion: number) => void;
+  /** Shared mutable ref for cross-editor coordination (item 16).
+   *  AgentView creates one ref and passes it to all SectionBlocks and the config
+   *  zone. Before opening its own editor, each block calls whatever is currently
+   *  stored here (to resolve the previously open editor), then stores its own
+   *  resolve function so the next caller can do the same. */
+  resolveEditorRef: React.MutableRefObject<(() => void) | null>;
 }
 
 export function SectionBlock({
@@ -42,6 +55,7 @@ export function SectionBlock({
   onEditStart,
   onEditEnd,
   onSaved,
+  resolveEditorRef,
 }: SectionBlockProps) {
   // R14: chevron expand/collapse, default expanded, local state only (R15)
   const [expanded, setExpanded] = useState(true);
@@ -52,10 +66,47 @@ export function SectionBlock({
   const [isSaving, setIsSaving] = useState(false);
   const [conflictNotice, setConflictNotice] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const blockRef = useRef<HTMLDivElement>(null);
 
   const displayHeading = section.heading ?? `# ${section.sectionKey.toUpperCase()}`;
   const sectionLabel = section.def?.label ?? section.sectionKey;
   const isCore = section.def?.isCore ?? false;
+
+  // ── Stable "resolve" function (item 16) ─────────────────────────────────────
+  // Stable handler ref: updated every render with the latest state values, but the
+  // Effect and resolveEditorRef.current always call a single stable wrapper that
+  // delegates to the latest version, avoiding stale-closure issues.
+  const resolveHandlerRef = useRef<() => void>(() => {});
+  resolveHandlerRef.current = () => {
+    if (!isEditing) return;
+    if (!hasUnsavedChanges) {
+      setIsEditing(false);
+      return;
+    }
+    if (window.confirm(`Save changes to ${sectionLabel.toUpperCase()}?`)) {
+      // Fire-and-forget: the save completes in the background
+      void doSave(editContent);
+    } else {
+      doCancel();
+    }
+  };
+
+  // ── Outside-click-confirm handler (item 15) ────────────────────────────────
+  // Also a stable handler ref: always uses the latest state values.
+  const outsideClickHandlerRef = useRef<(e: MouseEvent) => void>(() => {});
+  outsideClickHandlerRef.current = (e: MouseEvent) => {
+    if (!isEditing) return;
+    if (blockRef.current?.contains(e.target as Node)) return;
+    resolveHandlerRef.current();
+  };
+
+  // Register the mousedown listener only while this block is in edit mode.
+  useEffect(() => {
+    if (!isEditing) return;
+    const handler = (e: MouseEvent) => outsideClickHandlerRef.current(e);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isEditing]);
 
   function handleChevronClick() {
     if (isEditing) return; // don't collapse while editing
@@ -64,6 +115,12 @@ export function SectionBlock({
 
   function handleEditToggle() {
     if (isEditing) return;
+    // Item 16: resolve whichever other editor is currently open.
+    if (resolveEditorRef.current) {
+      resolveEditorRef.current();
+    }
+    // Register our own resolve so the next editor can resolve us.
+    resolveEditorRef.current = () => resolveHandlerRef.current();
     setEditContent(section.content);
     setHasUnsavedChanges(false);
     setConflictNotice(null);
@@ -78,7 +135,7 @@ export function SectionBlock({
     }
   }
 
-  function handleCancel() {
+  function doCancel() {
     setIsEditing(false);
     setEditContent(section.content);
     setHasUnsavedChanges(false);
@@ -86,9 +143,17 @@ export function SectionBlock({
     if (hasUnsavedChanges) {
       onEditEnd();
     }
+    // Unregister from resolveEditorRef if we're still the registered resolver.
+    // (Check by value is unreliable, so always null it — the next editor will
+    // overwrite it anyway, and if no editor is open null is the correct state.)
+    resolveEditorRef.current = null;
   }
 
-  async function handleSave() {
+  function handleCancel() {
+    doCancel();
+  }
+
+  async function doSave(content: string) {
     if (isSaving) return;
     setIsSaving(true);
     setConflictNotice(null);
@@ -100,7 +165,7 @@ export function SectionBlock({
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            content: editContent,
+            content,
             expectedVersion: section.version,
           }),
         },
@@ -112,6 +177,7 @@ export function SectionBlock({
         setIsEditing(false);
         setHasUnsavedChanges(false);
         onEditEnd();
+        resolveEditorRef.current = null;
       } else if (response.status === 409) {
         const err = (await response.json()) as { error: string; current: number };
         setConflictNotice(
@@ -128,11 +194,15 @@ export function SectionBlock({
     }
   }
 
+  async function handleSave() {
+    await doSave(editContent);
+  }
+
   const canEdit = interactionLock !== 'chat';
 
   return (
     /* .sec — matches mockup's section block */
-    <div className="border border-[var(--border)] rounded-[9px] mb-[9px] bg-[var(--elev)] overflow-hidden">
+    <div ref={blockRef} className="border border-[var(--border)] rounded-[9px] mb-[9px] bg-[var(--elev)] overflow-hidden">
       {/* .sec-h — header with chevron */}
       <div
         className="flex items-center gap-2 px-3 py-[9px] cursor-pointer"
@@ -154,7 +224,7 @@ export function SectionBlock({
             edited
           </span>
         )}
-        {/* Edit button — shown in header when collapsed or when not editing */}
+        {/* Edit button — shown in header when not editing */}
         {!isEditing && (
           <button
             onClick={(e) => {
@@ -207,7 +277,17 @@ export function SectionBlock({
               </div>
             </div>
           ) : (
-            <pre className="whitespace-pre-wrap px-3 pb-3 pl-[30px] font-mono text-[12px] leading-[1.5] text-[var(--muted)]">
+            /* Item 15: clicking the body text enters edit mode */
+            <pre
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!canEdit) return;
+                if (!expanded) setExpanded(true);
+                handleEditToggle();
+              }}
+              title={canEdit ? 'Click to edit' : undefined}
+              className={`whitespace-pre-wrap px-3 pb-3 pl-[30px] font-mono text-[12px] leading-[1.5] text-[var(--muted)] ${canEdit ? 'cursor-text hover:text-[var(--text)]' : ''}`}
+            >
               {section.content || (
                 <span className="italic text-[var(--faint)]">(empty)</span>
               )}

@@ -124,7 +124,6 @@ describe('getAgentFull round-trip', () => {
 
     // Validation block shape (§5)
     expect(dto!.validation).toBeDefined();
-    expect(typeof dto!.validation.nameSpecViolation).toBe('boolean');
     expect(typeof dto!.validation.descriptionMissing).toBe('boolean');
     expect(Array.isArray(dto!.validation.unknownConfigKeys)).toBe(true);
     expect(Array.isArray(dto!.validation.outdatedOrUnknownValues)).toBe(true);
@@ -133,12 +132,6 @@ describe('getAgentFull round-trip', () => {
   it('returns null for a non-existent agentId', () => {
     const dto = getAgentFull('00000000-0000-0000-0000-000000000000');
     expect(dto).toBeNull();
-  });
-
-  it('nameSpecViolation is true for a non-lowercase-hyphen name', () => {
-    const dto = createAgent('ValidName', 'description');
-    const full = getAgentFull(dto.id);
-    expect(full!.validation.nameSpecViolation).toBe(true);
   });
 });
 

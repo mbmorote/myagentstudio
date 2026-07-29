@@ -22,7 +22,7 @@
 import { eq, inArray } from 'drizzle-orm';
 import { db } from '../client.js';
 import * as schema from '../schema.js';
-import { computeValidation } from '../../blueprint/rules.js';
+import { Rules } from '../../blueprint/rules.js';
 import { exportAgent } from '../../serialize/index.js';
 import type { StructuredAgent, FrontmatterEntry, BodyBlock } from '../../serialize/types.js';
 
@@ -68,7 +68,6 @@ export type AgentDTO = {
     def: SectionDefLite | null;
   }[];
   validation: {
-    nameSpecViolation: boolean;
     descriptionMissing: boolean;
     unknownConfigKeys: string[];
     outdatedOrUnknownValues: { propKey: string; value: unknown }[];
@@ -152,7 +151,7 @@ function buildAgentDTO(
     };
   });
 
-  const validation = computeValidation({
+  const validation = Rules.computeValidation({
     name: agentRow.name,
     description: agentRow.description,
     config: config.map((c) => ({ propKey: c.propKey, value: c.value })),

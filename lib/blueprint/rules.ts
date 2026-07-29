@@ -3,6 +3,14 @@
  *
  * Pure rule functions derived from the catalog. No I/O.
  * All validation flags are derived, never stored (R2).
+ *
+ * All rule functions are grouped under the single exported `Rules` object so
+ * callers reference one thing (`Rules.computeValidation(...)`) instead of a
+ * handful of separate named imports — kept as plain functions (no `class`),
+ * matching the rest of the codebase's functional style.
+ *
+ * Name-spec validation (lowercase-hyphen) was removed per user request —
+ * agent names are no longer flagged for not matching that spec.
  */
 
 import { CONFIG_DEFS, SECTION_DEFS } from './catalog.js';
@@ -10,7 +18,6 @@ import { CONFIG_DEFS, SECTION_DEFS } from './catalog.js';
 // ─────────────────────────────  Types  ────────────────────────────────────────
 
 export type ValidationResult = {
-  nameSpecViolation: boolean;
   descriptionMissing: boolean;
   unknownConfigKeys: string[];
   outdatedOrUnknownValues: { propKey: string; value: unknown }[];
@@ -25,17 +32,6 @@ export type AgentForValidation = {
 // ─────────────────────────────  Rule functions  ────────────────────────────────
 
 /**
- * Returns true if the name satisfies the lowercase-hyphen spec.
- * Spec: one or more characters, all lowercase ASCII letters, digits, or hyphens,
- * must start with a letter or digit (not a hyphen).
- *
- * nameSpecViolation = !validateName(name)
- */
-export function validateName(name: string): boolean {
-  return /^[a-z0-9][a-z0-9-]*$/.test(name);
-}
-
-/**
  * Given a sectionKey (e.g. "role") or a raw heading string (e.g. "# ROLE"),
  * returns the heading string to emit.
  *
@@ -43,7 +39,7 @@ export function validateName(name: string): boolean {
  * - If it matches a known sectionKey, returns that def's defaultHeading.
  * - Otherwise, synthesizes a heading: "# " + key.toUpperCase().
  */
-export function renderHeading(sectionKeyOrHeading: string): string {
+function renderHeading(sectionKeyOrHeading: string): string {
   if (sectionKeyOrHeading.startsWith('#')) {
     return sectionKeyOrHeading;
   }
@@ -55,7 +51,7 @@ export function renderHeading(sectionKeyOrHeading: string): string {
 /**
  * Returns the datatype for a given propKey, or 'any' if not in the catalog.
  */
-export function configDatatypeFor(propKey: string): string {
+function configDatatypeFor(propKey: string): string {
   const def = CONFIG_DEFS.find((d) => d.key === propKey);
   return def ? def.datatype : 'any';
 }
@@ -63,7 +59,7 @@ export function configDatatypeFor(propKey: string): string {
 /**
  * Returns the SectionDef entry for a given sectionKey, or undefined if unknown.
  */
-export function sectionDefFor(sectionKey: string): (typeof SECTION_DEFS)[number] | undefined {
+function sectionDefFor(sectionKey: string): (typeof SECTION_DEFS)[number] | undefined {
   return SECTION_DEFS.find((d) => d.key === sectionKey);
 }
 
@@ -71,8 +67,7 @@ export function sectionDefFor(sectionKey: string): (typeof SECTION_DEFS)[number]
  * Computes all validation flags for an agent. Pure — reads only the live data
  * passed in + the in-code catalog. (R2: derived, never stored.)
  */
-export function computeValidation(agent: AgentForValidation): ValidationResult {
-  const nameSpecViolation = !validateName(agent.name);
+function computeValidation(agent: AgentForValidation): ValidationResult {
   const descriptionMissing =
     agent.description === null ||
     agent.description === undefined ||
@@ -110,5 +105,14 @@ export function computeValidation(agent: AgentForValidation): ValidationResult {
     }
   }
 
-  return { nameSpecViolation, descriptionMissing, unknownConfigKeys, outdatedOrUnknownValues };
+  return { descriptionMissing, unknownConfigKeys, outdatedOrUnknownValues };
 }
+
+// ─────────────────────────────  Grouped export  ───────────────────────────────
+
+export const Rules = {
+  renderHeading,
+  configDatatypeFor,
+  sectionDefFor,
+  computeValidation,
+};

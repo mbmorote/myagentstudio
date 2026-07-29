@@ -4,10 +4,12 @@ A workbench for building and managing AI agents: an **agent-aware AI chat** next
 **always-visible structured view** of the agent it's editing. Design is complete; Plan 01
 (core loop), Plan 02 (import hardening + Structural Import), and Plan 03 (visual-shell
 alignment + Library/groups + import UI) are all built and committed. The Blueprint catalog
-was refreshed against the real Claude Code subagent docs. Current work is a hands-on UI
-punch-list from the user's own testing — 2 of 8 items fixed, 6 pending, no code plan
-written yet. See the punch-list pointer below for exactly where to resume. This file is the
-map.
+was refreshed against the real Claude Code subagent docs. The hands-on UI punch-list from
+the user's own testing is now fully resolved (see pointer below); one new item (#7,
+dedicated group-management view) is logged as future scope, not started. `README.md`,
+`docs/user-guide.md`, and per-flow `CLAUDE.md` files (`lib/import/`, `lib/ai/`,
+`lib/serialize/`) were also written this session — see the Documentation pointer below.
+This file is the map.
 
 ## Standing project rules
 
@@ -92,79 +94,115 @@ Index (all 25 entries, cross-checked complete and consistent with the plan's App
 itself. Start Phase 0 (`@dev` executes the plan), or do a final skim if picking this back up
 after a gap.
 
-## 🟡 Plan 02 — ready for `@dev` (2026-07-28)
+## ✅ Plan 02 — complete (2026-07-28)
+
+*(Corrected 2026-07-29 — this section previously said "ready for `@dev`" / "still pending"
+after the work had actually already landed. The file's own opening paragraph already said
+"built and committed" the whole time; this section just never got updated to match. Caught
+during an MVP-readiness review — verified directly against `git log`, not assumed.)*
 
 `plans/02-import-hardening-structural.md` is the execution spec produced from
 `design/Fable-Review-1.md` (a Fable 5 audit of the built Phase 1–3 code + a head-to-head
 comparison of two competing Structural Import rule-set drafts) plus a follow-up strategy
-discussion with the user. It bundles two things: **hardening real bugs found in the
+discussion with the user. It bundled two things: **hardening real bugs found in the
 already-built Strict import pipeline** (Phase A) and **finishing Structural Import**
-(Phase B — designed in TechDesign.md Rules Index #27/#31/#32 back on 2026-07-28 morning,
-but never built). Structural Import becomes the **primary/default** import mode once built;
-Strict stays as the secondary verbatim option.
+(Phase B — designed in TechDesign.md Rules Index #27/#31/#32, previously rule-set-only).
+Structural Import is the **primary/default** import mode; Strict is the secondary verbatim
+option — both selectable via `ImportDialog.tsx`'s mode radio (Structural default).
 
-**Already done (non-code parts, this session):**
-- **B1** — adopted the merged best-of-both rule-set drafts: `import-instructions.md` and
-  `import-instructions-structural.md` now hold the final text; the `-copilot` and `-merged`
-  draft files are deleted (git history keeps them). `scripts/build-prompts.ts` compiles all
-  three prompts now (strict, structural, mediator) — verified via a manual run.
-- **Phase C** — `TechDesign.md` Rules Index #27/#31/#32 updated to reflect
-  rule-set-finalized-but-code-pending status; new entries #33–#36 added for the Phase A
-  bugs + the B3 short-circuit; the Draft A "two import modes" paragraph flipped to
-  structural-first; the two stale doc references the audit found (`design/AI behavior.txt`,
-  which never existed, and the project-layout sketch's `import/route.ts`) are fixed.
+**All landed in commit `b5da391` ("Import hardening + Structural Import (Plan 02)"),
+2026-07-28:**
+- **B1** — merged best-of-both rule-set drafts adopted: `import-instructions.md` and
+  `import-instructions-structural.md` hold the final text; the `-copilot`/`-merged` drafts
+  deleted (git history keeps them). `scripts/build-prompts.ts` compiles all three prompts
+  (strict, structural, mediator).
+- **Phase A** (shared correctness fixes) — A1: re-import reconciliation now matches by
+  `(sectionKey, heading)` identity, not a sectionKey-only `Map` (fixed the most severe
+  finding — distinct `custom` rows no longer collapse on re-import). A2: malformed YAML
+  frontmatter throws `FrontmatterParseError` instead of silently returning `[]`; empty/
+  whitespace names rejected with 400. A3: `FrontmatterEntry.rawValue` is `string | string[]`
+  so flat YAML lists survive parse→export→parse; nested maps/non-scalar arrays fail loudly
+  (400) instead of being destroyed into `"[object Object]"`. A4: the full re-import update
+  runs in one transaction; overlapping `blockId` mappings rejected; strict Stage-2
+  `max_tokens` raised 1024→4096.
+- **Phase B** (Structural Import, code) — `lib/ai/structuralConverter.ts` (streaming Stage-2b
+  caller), `POST /api/agents/import`'s `mode` field (default `'structural'`) + unchanged-
+  `rawSourceSnapshot` short-circuit, `lib/import/coverage.ts` (deterministic line-coverage
+  check → warnings, never a hard block; a truncated/`max_tokens` response is a hard 422
+  reject), plus a real bug found during review fixed in the same commit: the structural
+  prompt wrapped raw agent text in a ` ``` ` fence, which broke on fixtures containing their
+  own fenced code blocks — switched to XML-style delimiters. Tests: `structural.test.ts` (9),
+  `coverage.test.ts` (6), both passing.
+- **Phase C** — `TechDesign.md` Rules Index #27/#31/#32 updated to locked/built status; new
+  entries #33–#36 for the Phase A bugs + the B3 short-circuit; the Draft A "two import
+  modes" paragraph flipped to structural-first; two stale doc references fixed
+  (`design/AI behavior.txt`, which never existed, and the layout sketch's `import/route.ts`).
 
-**Still pending — handed to `@dev`:** Phase A (A1 re-import reconciliation bug — the most
-severe finding, sectionKey-only matching collapses distinct `custom` rows; A2 silently
-discarded malformed frontmatter; A3 `String(value)` destroying non-scalar frontmatter; A4
-transaction scope + validator hardening) and Phase B's code (B2 `structuralConverter.ts`,
-B3 the route's `mode` field + short-circuit + coverage wiring, B5 `lib/import/coverage.ts`,
-B6 tests + the live rule-refinement harness script). The plan file has full bug repro
-detail, exact fix shape, and a phase-by-phase acceptance checklist — read it before
-starting, not this summary.
+**Phase D — status corrected 2026-07-29, was listed as entirely "not in scope"; one item is
+actually done:**
+- ✅ **UI mode picker** — built (`ImportDialog.tsx`: Structural/Strict radio, Structural
+  default). This item should never have been listed as deferred.
+- 🔴 **Catalog seed drift — still genuinely open.** `lib/db/seed.ts` has upsert logic that
+  would heal the DB's `configDef`/`sectionDef` rows on next seed, but that seed script
+  (`npm run db:seed`) isn't wired into `predev`/`prebuild` — only `build-prompts.ts` runs
+  automatically. Editing `catalog.ts` does NOT auto-propagate to the DB. Current mitigation
+  is `AgentView.tsx` reading live in-code `CONFIG_DEFS` for validation instead of trusting
+  the DB-embedded `ConfigDefLite` — a workaround, not a fix.
+- 🔴 **`__raw` frontmatter escape hatch — still not built.** A real `mcpServers` file with an
+  inline nested server-config object still hits A3's loud `unsupported_frontmatter` 400 on
+  import (confirmed real via the Blueprint catalog refresh session, not hypothetical).
+- ⬜ **Strict-mode merged-heading instability, adversarial-file re-audit** — not re-verified
+  this pass; no evidence either way, presume still open until checked.
 
-Phase D of the plan (catalog seed drift, Strict-mode merged-heading instability, UI mode
-picker, adversarial-file re-audit, `__raw` frontmatter escape hatch) is **intentionally not
-in scope** — each item has its own revisit trigger in the plan's Phase D table.
-
-## 🟡 UI punch-list — 2 of 8 fixed, next session starts here (2026-07-28)
+## ✅ UI punch-list — 6 of 7 fixed, item 7 logged as future scope (2026-07-28)
 
 After Plan 03 landed, the user did a hands-on pass and flagged a punch-list of small
-bugs/polish items. **Two real bugs fixed and verified live this session:**
+bugs/polish items. Two real bugs (stray dev-server SQLite lock, "imported from imported"
+label) were fixed and verified live earlier in the same day; the remaining six items were
+implemented and visually verified live (dev server + Chrome) in a later session, no
+pipeline agents — done directly plus one `@ux` consult (item 2's color scheme) and one
+`@scribe` dispatch (unrelated docs work run in parallel, see the Documentation pointer
+below):
 
-- **Raw pane stuck on "Loading…"** — not an app bug. Four stray `next dev` processes had
-  accumulated across sessions (ports 3000–3003, all pointing at the same SQLite file); the
-  one the browser was using hung mid-compile on the `/export` route (SQLite lock
-  contention). Killed all four, started one clean instance. See standing rule 3 above —
-  this is exactly the failure mode it now guards against.
-- **"imported from imported" label** — `app/components/CustomViz/AgentView.tsx` was
-  templating the DB enum `Agent.source: 'created' | 'imported'` into an "imported from X"
-  sentence assuming X was a filename; no filename field exists anywhere in the schema.
-  Fixed to just say "imported into platform" / "created in platform".
+1. **Tools/skills/mcpServers as one pill per item** — done, `AgentView.tsx`. Also handles
+   list values stored as a plain comma-separated string (not a real JSON array) via a new
+   `listItemsOf()` helper — some imported agents have this shape, and the original
+   `Array.isArray` check silently missed them, falling through to the old collapsed-blob
+   rendering. Per-item badness is checked against the **live in-code `CONFIG_DEFS`
+   catalog**, not the row's DB-embedded `ConfigDefLite` def — the DB's seeded `configDef`
+   table can lag the catalog after a refresh (this is the "catalog seed drift" issue,
+   Plan 02 Phase D — confirmed live during verification: `dev.md`'s `Create`/`mcp` tool
+   entries only rendered as unrecognized once the check stopped trusting the stale
+   DB-seeded def).
+2. **Pill color + hint system** — done. Four semantic color groups (capability/control/
+   resources/presentation — `--cap`/`--ctl`/`--res`/`--prs` token triads in `globals.css`,
+   light+dark), designed via an `@ux` consult; status (warn) always fully overrides
+   category color rather than layering. `title` tooltips added throughout (datatype +
+   description for valid pills, reason + recognized values for warn pills).
+3. **Model moved to top-right as its own dropdown** — done, top-right of `AgentView`'s
+   header row (not the global Topbar — model is per-agent). Saves via the existing
+   `PATCH /api/agents/[id]` config array (full-replace semantics, so the handler rebuilds
+   the whole config array, not just the one field).
+4. **Groups collapse/expand for "All agents"/"Ungrouped"** — done, same local
+   `useState`-per-section pattern `GroupSection.tsx` already used for real groups.
+5. **Agent name editable in place** — done. Click the `<h1>` in `AgentView.tsx`, same
+   interaction-lock pattern (`onEditStart`/`onEditEnd`) `SectionBlock.tsx` uses, saves via
+   `PATCH /api/agents/[id]` `{name}`, 409 → inline "name already exists" error.
+6. **Lowercase-hyphen name validation** — removed entirely, per explicit user decision (not
+   just left as a soft warning). `validateName`/`nameSpecViolation` deleted from
+   `lib/blueprint/rules.ts`, `ValidationResult`, the `AgentDTO.validation` shape, and the
+   one test that asserted it. Rules Index's name-spec entries in `TechDesign.md` are now
+   stale and unreviewed this session — revisit if anything else references them.
+   Separately, all of `rules.ts`'s exported functions were regrouped under one exported
+   `Rules` object (`Rules.computeValidation(...)` etc.) per explicit user decision — plain
+   object, not a literal `class`, to match the rest of the codebase's functional style.
+   Callers (`lib/blueprint/index.ts`, `lib/db/repository/agents.ts`) updated accordingly.
+7. **Dedicated group-management view** — still not started, genuinely new scope, not
+   researched.
 
-**Still pending — not started, no plan file written yet:**
-1. **Tools/skills/mcpServers as one pill per item**, not a collapsed `[N entries]` blob —
-   `AgentView.tsx` around the list-type config rendering.
-2. **Pill color + hint system** — outdated/unrecognized values already get a warn-colored
-   pill with the reason baked into the text; valid pills are all flat gray (no color
-   coding at all), and there's no hover-tooltip alternative to inline text. Needs a color
-   scheme decision before building.
-3. **Model moved to top-right as its own dropdown** — currently sits inline in the same
-   pill row as everything else. Needs a decision on exactly where "top right" means before
-   building.
-4. **Groups collapse/expand for "All agents"/"Ungrouped"** — real user groups already
-   collapse (`GroupSection.tsx`), the two pseudo-groups are hardcoded open
-   (`LibraryPanel.tsx`).
-5. **Agent name editable in place** (click the `<h1>` in `AgentView.tsx` to rename) — not
-   implemented, currently static text.
-6. **Lowercase-hyphen name validation** — user doesn't like it, wants it reviewed. Note:
-   it's already just a soft validator warning (`lib/blueprint/rules.ts:35`,
-   `isValidNameSpec`), not blocking/enforced — non-conforming names save fine today. May
-   need nothing more than confirming that's the wanted behavior.
-7. **Dedicated group-management view** — genuinely new scope, not in Plan 03. Not
-   researched yet.
-
-Description-under-title was checked and is already correct, no action needed.
+All six were typechecked (`npx tsc --noEmit`) and test-suite-checked (`npm test`, 132/132 —
+down from 133 after removing the name-spec test) after every step, then visually verified
+together in a live dev-server + Chrome session before shutdown (standing rule 3).
 
 ## ✅ Blueprint catalog refresh — complete (2026-07-28)
 
@@ -198,6 +236,105 @@ mirroring its props/config/import/export, for `SKILL.md` files
 Output sections, sometimes a whole directory of supporting files). Added as build-order
 item 6 in `design/Concept.md`; field-level detail and revisit trigger in `TechDesign.md`'s
 Deferred Decisions table.
+
+## ✅ Documentation — README, user guide, dev-flow docs (2026-07-28)
+
+The README deferral noted in this file's own Notes section ("until there's a first
+genuinely testable version") was satisfied once Plan 01 + Plan 03 landed, so this was
+picked up: `@scribe` wrote five files in parallel with the UI punch-list work above (fresh
+agent, no prior context — briefed with the exact folders/files to read).
+
+- **`README.md`** (root, new) — quick-start, env vars, 4-pane layout summary, links out.
+- **`docs/user-guide.md`** (new) — task-oriented end-user guide: import (both modes),
+  AI-chat edit, manual raw edit, groups, export. Deliberately not named `CLAUDE.md` — that
+  name is reserved for internal folder-map docs per the global convention; this one is
+  user-facing.
+- **`lib/import/CLAUDE.md`**, **`lib/ai/CLAUDE.md`**, **`lib/serialize/CLAUDE.md`** (new) —
+  per-flow developer docs for the import pipeline, the two system agents + build-time
+  prompt compilation, and the serialization round-trip contract, respectively. Each folder
+  earned its own file per the global "only when it warrants it" rule — none were padded out.
+
+Spot-checked after delivery (env var names against `lib/env.ts`, the import-mode-picker
+claim against `ImportDialog.tsx`, the gitignore claim against `.gitignore`) — all held up.
+One stale claim was caught and fixed: `lib/serialize/CLAUDE.md` originally said "the
+workbench flags but never normalizes names," which was true when scribe wrote it but was
+made stale by this same session's item-6 fix above (removed the flag too, not just
+normalization) — corrected to "never normalizes names."
+
+## 🟡 Tier 1 Config zone redesign — migrated, one item deferred (2026-07-29)
+
+*(Transient session-handoff note — **remove this whole section once the Library panel item
+below is also done**, don't let it linger as permanent documentation.)*
+
+**Committed 2026-07-29.** Verified working (typecheck clean, 132/132 tests, live-browser-
+tested including real DB persistence) before commit.
+
+An extended session iterated a full redesign of the editable Config zone (and a matching
+pass on Tier 2 sections) entirely in `design/layout/Layout-Workbench.html` — category-hue
+pill coloring removed, two-column scalar grid, collapsible `[Config] Keys` / `[Sections]
+Body` zone-labels, hover-reveal remove-× with confirm + a `required`-badge alternative,
+list-item pills split into select-vs-remove, `tools`/`disallowedTools` validation extended
+for `mcp__*`/`Agent(...)` shapes, bool/enum scalars now open a custom popover (not a native
+`<select>` — fixed a real stuck-open bug in the process), one unified "+" add-key button
+(top of the Keys zone, not bottom), `model`+`effort` merged into one header popover (real
+catalog values, not shortened), and a `hint` tooltip per `CONFIG_DEFS` field sourced from
+`design/Agent-Full-Reference.md`. The mockup file itself is the authoritative behavior spec
+if any detail needs re-checking.
+
+**Migrated into the real app by `@dev` (2026-07-29) — 16 of 17 items done.** Touched
+`lib/blueprint/catalog.ts`, `app/globals.css`, `WorkbenchShell.tsx`, and rewrote
+`SectionBlock.tsx` + `AgentView.tsx`. `npx tsc --noEmit` clean, `npm test` 132/132 passing.
+`hint` was added directly to `CONFIG_DEFS` in-code (no schema/DB change) — resolved as
+recommended, matching how `allowedValues` already avoids the DB's laggy seeded copy.
+
+**One item deferred, needs a product decision — not a missing UI piece:** the "+ custom
+key…" arbitrary-name creation (part of item 11). If a user-created key with no matching
+`ConfigDef` gets written to `AgentConfig`, `Rules.computeValidation` immediately flags it as
+`unknownConfigKeys` — a yellow ⚠ warn pill right next to the field the user just
+intentionally created. Needs something like a "user-acknowledged custom key" concept (new DB
+column, or a separate key-status mechanism) before this can be built without that
+self-contradiction. The catalog-key picker (standard keys only) works fine; just this one
+option is absent from the "+" menu. **Deviation, not a problem:** `onModelSaved` was dropped
+in favor of a more general `onAgentUpdated(newAgent)` callback (receives the full DTO back
+from the PATCH) — no other callers referenced the old one.
+
+**Also queued, not started:** a Library (left panel) redesign — collapse the current four
+simultaneous agent-list sections (named groups + a redundant flat "All agents" + "Ungrouped")
+into one togglable Flat/Grouped list, plus a "Manage" zone-label-style separator above
+＋New agent/⇪Import/＋New group. Logged as a TODO comment directly above
+`<section class="panel left" id="left">` in `Layout-Workbench.html`, and as a memory note.
+One open question deliberately left unresolved — confirm with the user before implementing:
+does selecting an agent auto-switch the view to Flat, or is Flat just the toggle's own
+independent state?
+
+**Also queued, not started (design agreed, not yet built anywhere):** split the single
+"warn"/yellow severity into two tiers, confirmed with the user 2026-07-29. **Yellow =
+outdated** — a well-formed value just not in the current recognized set (renamed/removed
+tool, old model ID, unlisted enum value) — this is what `.pill.warn` already does today, no
+change. **Red = invalid** — the value is actually malformed, not just unrecognized (e.g.
+`maxTurns` holding a non-number, unparseable JSON in `hooks`/`mcpServers`/a custom key,
+anything structurally broken) — new tier, doesn't exist yet anywhere. Both get a leading
+icon before the pill text (not color-only signaling) — ⚠ for yellow/outdated (already
+built), a distinct *different* icon for red/invalid (not yet chosen — proposed ✕ or ❗, not
+confirmed) — plus a hover tooltip naming the specific problem. Applies to result-value pills
+only; the earlier "remove all colors" decision still stands for everything else (the
+value's own color-when-valid, category hues, row dots — all still gone). Not implemented in
+the mockup yet — next step is prototyping the red/invalid tier in `Layout-Workbench.html`
+before this goes to `@dev`.
+
+**Also queued, not started — confirmed as a real gap via live browser verification
+2026-07-29** (not hypothetical): list rows (`tools` especially) need a cap + "+N more"
+expand affordance. Right now every item renders unconditionally — verified live against the
+real `dev` agent, whose actual `tools` list is 40+ entries (the 8 base tools plus ~40
+`atlassian-mcp-server-*` MCP tools) and renders as an unbroken multi-row wrap of pills with
+no cap at all. This *was* already designed once, early in the session, in the very first
+throwaway claude.ai prototype (before the Tier 1 zone got rebuilt into its current form) —
+that version capped at 14 visible items, showed a `+N more ▾` pill to expand, and `show less
+▴` to re-collapse — but that behavior never carried over into the current
+`Layout-Workbench.html` version or the real `AgentView.tsx`. Re-check whether `disallowedTools`
+/`skills`/`mcpServers` need the same cap (lower priority — `tools` via MCP servers is the
+concrete case that actually gets long) before building. `dev`'s real config in the local DB
+is a ready-made test fixture for this — no need to fabricate a 40-item list to verify against.
 
 ## Folders
 
@@ -236,7 +373,7 @@ Deferred Decisions table.
 - **`design/system-agents/import-instructions-structural.md`** — the Structural Import
   (Stage 2b) rule-set: the AI sees full content and returns one restructured document
   body, not a mapping. Final merged text adopted 2026-07-28 (Plan 02 Phase B1); the code
-  path that calls it is still pending (Plan 02 Phase B2/B3).
+  path that calls it (`lib/ai/structuralConverter.ts`) is built (Plan 02 Phase B2/B3).
 - **`design/system-agents/chat-mediator.md`** — the chat-mediator's actual rule-set
   (server-scoped to the whole agent — may rewrite any number of its sections per
   instruction — no tools, split-level heading guard).
@@ -251,12 +388,13 @@ Deferred Decisions table.
 
 ## Where things stand
 
-**Design is complete; Plan 01's Phases 1–3 are built and committed.** Every review
-finding is folded into `TechDesign.md`'s Rules Index — locked items are implemented in the
-plan; genuinely deferred items (DB dialect choice, catalog versioning, manual-save
+**Design is complete; Plan 01 and Plan 02 are both built, tested, and committed.** Every
+review finding is folded into `TechDesign.md`'s Rules Index — locked items are implemented
+in the plan; genuinely deferred items (DB dialect choice, catalog versioning, manual-save
 frequency) are tracked in the Deferred Decisions table with a trigger for when to revisit,
-not forgotten. **Plan 02 (see pointer above) hardens the built import pipeline and finishes
-Structural Import** — its non-code parts are done, its code parts are queued for `@dev`.
+not forgotten. **Plan 02 (see pointer above) hardened the import pipeline and finished
+Structural Import** — done, including the UI mode picker; catalog seed drift and the
+`__raw` escape hatch remain the two genuinely open Phase D items.
 
 - **Data model** — `Agent` (incl. `platform`) · `ConfigDef`/`AgentConfig` ·
   `SectionDef`/`AgentSection` · `Group`/`Membership` · `SectionRevision` (append-only edit
@@ -266,18 +404,18 @@ Structural Import** — its non-code parts are done, its code parts are queued f
   **and** rule functions, so import/UI/export can never drift into three implementations.
   Catalog data refreshed 2026-07-28 against the real Claude Code subagent schema (see the
   Blueprint catalog refresh pointer above).
-- **Import/Export** — two user-chosen import modes sharing deterministic Stage 1. **Strict
-  Import** (built, being hardened by Plan 02 Phase A): Stage 2 is labels-only, `{blockId →
-  sectionKey}`, content never passes through the model — the server reassembles bytes from
-  Stage 1. **Structural Import** (rule-set final, code pending — Plan 02 Phase B): the AI
-  sees full raw text and returns one restructured document body; the server re-parses it
-  deterministically and maps headings → sectionKeys, backed by a coverage check rather than
-  code-enforced content copying. Structural is the primary/default mode once built; Strict
-  is the secondary verbatim option. Export is deterministic, semantic-not-byte fidelity.
-  Re-import of an existing agent = always update-in-place (never duplicate/error); a section
-  absent from the incoming file is simply deleted (its revision history isn't
-  cascade-deleted, so nothing is actually lost) — Plan 02 Phase A1 fixes a real bug in how
-  that reconciliation currently matches sections.
+- **Import/Export** — two user-chosen import modes (radio picker in `ImportDialog.tsx`)
+  sharing deterministic Stage 1. **Strict Import** (built, hardened by Plan 02 Phase A):
+  Stage 2 is labels-only, `{blockId → sectionKey}`, content never passes through the model —
+  the server reassembles bytes from Stage 1. **Structural Import** (built, Plan 02 Phase B —
+  primary/default mode): the AI sees full raw text and returns one restructured document
+  body; the server re-parses it deterministically and maps headings → sectionKeys, backed by
+  a coverage check (warnings, not a hard block) rather than code-enforced content copying.
+  Export is deterministic, semantic-not-byte fidelity. Re-import of an existing agent =
+  always update-in-place (never duplicate/error); a section absent from the incoming file is
+  simply deleted (its revision history isn't cascade-deleted, so nothing is actually lost) —
+  reconciliation matches sections by `(sectionKey, heading)` identity (Plan 02 Phase A1
+  fixed a real bug where sectionKey-only matching collapsed distinct `custom` rows).
 - **System agents** (import-converter, chat-mediator) — platform-owned, rule-sets live in
   `design/system-agents/*.md`, not buried in `TechDesign.md` prose.
 - **Layout** — settled 4-pane IDE layout. See `design/layout/Layout-Workbench.html`.
@@ -290,9 +428,8 @@ platform-is-master with `.md` as an export target.
 
 ## Notes
 
-- `README.md` is deferred until there's a first genuinely testable version (core loop +
-  library/groups) — writing user-facing docs before the UX is real would be pure rewrite
-  risk. Internal docs (via `@scribe`) fire per-slice, right after each feature passes QA —
-  not batched to the end. See conversation history for the reasoning if this needs
-  revisiting.
+- `README.md` was deferred until there was a first genuinely testable version (core loop +
+  library/groups), to avoid rewrite risk from writing user-facing docs before the UX was
+  real. That condition was met once Plan 01 + Plan 03 landed — see the Documentation
+  pointer above for what was written.
 - Reference: the real agent library that seeded the design lives in `~/.claude/agents/`.

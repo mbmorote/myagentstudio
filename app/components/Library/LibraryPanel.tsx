@@ -56,6 +56,8 @@ export function LibraryPanel({
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [showNewGroup, setShowNewGroup] = useState(false);
+  const [allAgentsCollapsed, setAllAgentsCollapsed] = useState(false);
+  const [ungroupedCollapsed, setUngroupedCollapsed] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -209,10 +211,13 @@ export function LibraryPanel({
         {groups.length > 0 && <div className="h-px bg-[var(--border)] mx-[10px] my-2" />}
 
         {/* Pseudo-group: All agents */}
-        <div className="px-2 pt-[6px] pb-[2px] text-[var(--faint)] text-[10px] font-bold tracking-[.08em] uppercase">
-          ▾ All agents
+        <div
+          onClick={() => setAllAgentsCollapsed((v) => !v)}
+          className="px-2 pt-[6px] pb-[2px] text-[var(--faint)] text-[10px] font-bold tracking-[.08em] uppercase cursor-pointer"
+        >
+          {allAgentsCollapsed ? '▸' : '▾'} All agents
         </div>
-        {agents.map((agent) => (
+        {!allAgentsCollapsed && agents.map((agent) => (
           <AgentListItem
             key={`all-${agent.id}`}
             agent={agent}
@@ -222,26 +227,27 @@ export function LibraryPanel({
         ))}
 
         {/* Pseudo-group: Ungrouped */}
-        {ungroupedAgents.length >= 0 && (
-          <>
-            <div className="px-2 pt-[6px] pb-[2px] text-[var(--faint)] text-[10px] font-bold tracking-[.08em] uppercase">
-              ▾ Ungrouped
+        <div
+          onClick={() => setUngroupedCollapsed((v) => !v)}
+          className="px-2 pt-[6px] pb-[2px] text-[var(--faint)] text-[10px] font-bold tracking-[.08em] uppercase cursor-pointer"
+        >
+          {ungroupedCollapsed ? '▸' : '▾'} Ungrouped
+        </div>
+        {!ungroupedCollapsed && (
+          ungroupedAgents.length === 0 ? (
+            <div className="px-[10px] py-[4px] text-[11px] text-[var(--faint)] italic">
+              — all agents are in groups
             </div>
-            {ungroupedAgents.length === 0 ? (
-              <div className="px-[10px] py-[4px] text-[11px] text-[var(--faint)] italic">
-                — all agents are in groups
-              </div>
-            ) : (
-              ungroupedAgents.map((agent) => (
-                <AgentListItem
-                  key={`ung-${agent.id}`}
-                  agent={agent}
-                  isCurrent={agent.id === currentAgentId}
-                  onDeleted={handleAgentDeleted}
-                />
-              ))
-            )}
-          </>
+          ) : (
+            ungroupedAgents.map((agent) => (
+              <AgentListItem
+                key={`ung-${agent.id}`}
+                agent={agent}
+                isCurrent={agent.id === currentAgentId}
+                onDeleted={handleAgentDeleted}
+              />
+            ))
+          )
         )}
 
         {/* Separator before actions */}

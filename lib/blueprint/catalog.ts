@@ -34,6 +34,7 @@ export const CONFIG_DEFS = [
     datatype: 'enum' as const,
     isCore: true,
     required: false,
+    hint: '',  // shown in the model+effort header control, not in the config grid
     allowedValues: [
       'sonnet',
       'opus',
@@ -58,6 +59,7 @@ export const CONFIG_DEFS = [
     datatype: 'list' as const,
     isCore: true,
     required: false,
+    hint: 'Omit to inherit the full available tool set. MCP tools use mcp__<server> (whole server) or mcp__<server>__<tool> (one tool). Agent(worker, researcher) restricts which subagent types THIS agent may spawn — only meaningful when this agent runs as the main thread via claude --agent.',
     allowedValues: [
       'Agent',
       'Artifact',
@@ -110,6 +112,7 @@ export const CONFIG_DEFS = [
     datatype: 'list' as const,
     isCore: false,
     required: false,
+    hint: "Denylist, applied BEFORE tools is resolved. A tool in both lists is removed. Useful for 'read-only reviewer' style agents.",
     allowedValues: null,
   },
   {
@@ -119,6 +122,7 @@ export const CONFIG_DEFS = [
     datatype: 'enum' as const,
     isCore: false,
     required: false,
+    hint: "default = normal prompting · acceptEdits = auto-accept file edits · auto = AI classifier auto-approves · dontAsk = auto-deny (explicit allows still work) · bypassPermissions = skip prompts entirely · plan = read-only exploration. If the parent session is already in bypassPermissions/acceptEdits/auto, this field is ignored and the parent's mode wins.",
     allowedValues: [
       'default',
       'acceptEdits',
@@ -135,6 +139,7 @@ export const CONFIG_DEFS = [
     datatype: 'int' as const,
     isCore: false,
     required: false,
+    hint: 'Hard cap on agentic turns before the subagent is forced to stop and return whatever it has. Omit for unlimited.',
     allowedValues: null,
   },
   {
@@ -147,6 +152,7 @@ export const CONFIG_DEFS = [
     datatype: 'list' as const,
     isCore: false,
     required: false,
+    hint: "Preloads the FULL content of these skills into the agent's context at startup, not just their one-line description. The agent can still invoke other, unlisted skills on demand via the Skill tool.",
     allowedValues: null,
   },
   {
@@ -159,11 +165,14 @@ export const CONFIG_DEFS = [
     // but this means importing a real file with an inline mcpServers definition
     // fails loudly today. Deferred until the __raw escape hatch exists (Plan 02
     // Phase D); tracked here since it's now a confirmed-real gap, not spectulative.
+    // Rendered as a custom JSON block (not a structured list) because entries
+    // can be either a plain string or an inline nested server-config object.
     key: 'mcpServers',
     label: 'MCP servers',
     datatype: 'list' as const,
     isCore: false,
     required: false,
+    hint: 'String form reuses an MCP server already configured for this project/user. Inline object form defines a server scoped ONLY to this agent — connected at startup, disconnected when the agent finishes. Same schema as .mcp.json.',
     allowedValues: null,
   },
   {
@@ -172,6 +181,7 @@ export const CONFIG_DEFS = [
     datatype: 'enum' as const,
     isCore: false,
     required: false,
+    hint: "user → ~/.claude/agent-memory/<name>/ (shared across all your projects). project → .claude/agent-memory/<name>/ (checked into this repo's VCS). local → .claude/agent-memory-local/<name>/ (this project only, gitignored). When set, Read/Write/Edit are auto-enabled and MEMORY.md is auto-loaded.",
     allowedValues: ['user', 'project', 'local'],
   },
   {
@@ -180,6 +190,7 @@ export const CONFIG_DEFS = [
     datatype: 'enum' as const,
     isCore: false,
     required: false,
+    hint: '',  // shown in the model+effort header control, not in the config grid
     allowedValues: ['low', 'medium', 'high', 'xhigh', 'max'],
   },
   {
@@ -188,6 +199,7 @@ export const CONFIG_DEFS = [
     datatype: 'bool' as const,
     isCore: false,
     required: false,
+    hint: 'true forces this agent to always run as a non-blocking background task. false forces foreground (blocking) execution. Omit to let Claude decide per-invocation.',
     allowedValues: null,
   },
   {
@@ -201,6 +213,7 @@ export const CONFIG_DEFS = [
     datatype: 'any' as const,
     isCore: false,
     required: false,
+    hint: 'Supported events: PreToolUse, PostToolUse, Stop (auto-mapped to SubagentStop at runtime). Same schema as project-level hooks in settings.json. Receives JSON on stdin; exit code 0 = allow, 2 = block.',
     allowedValues: null,
   },
   {
@@ -209,6 +222,7 @@ export const CONFIG_DEFS = [
     datatype: 'enum' as const,
     isCore: false,
     required: false,
+    hint: "Runs this agent in a temporary git worktree (auto-cleaned up if it makes no changes) instead of the caller's checkout. Omit for normal in-place execution — the far more common case.",
     allowedValues: ['worktree'],
   },
   {
@@ -217,6 +231,7 @@ export const CONFIG_DEFS = [
     datatype: 'enum' as const,
     isCore: false,
     required: false,
+    hint: 'Cosmetic only — how this agent is color-tagged in the task list/transcript UI.',
     allowedValues: [
       'red',
       'blue',
@@ -234,6 +249,7 @@ export const CONFIG_DEFS = [
     datatype: 'string' as const,
     isCore: false,
     required: false,
+    hint: 'Only used when this agent is run as the MAIN session agent (claude --agent <name>), auto-submitted as the first turn. Ignored when invoked as a subagent — the far more common case here.',
     allowedValues: null,
   },
 ] as const;

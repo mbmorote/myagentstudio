@@ -1,4 +1,5 @@
-<title>Agent Workbench — Layout A/B</title>
+<meta charset="utf-8">
+<title>Agent Workbench — Layout</title>
 <style>
   :root{
     /* light (picked, slight cool bias toward the teal accent) */
@@ -9,6 +10,11 @@
     --mono:ui-monospace,"Cascadia Code","SF Mono",Consolas,"Liberation Mono",monospace;
     --ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     --grip:#c3ccd8;
+    /* config-pill category colors (punch-list item 2 — see app/globals.css) */
+    --cap:#7c5cc2; --cap-ink:#4a2d8f; --cap-wash:rgba(124,92,194,.09);
+    --ctl:#3e72c4; --ctl-ink:#1a4585; --ctl-wash:rgba(62,114,196,.09);
+    --res:#b09228; --res-ink:#6b5500; --res-wash:rgba(176,146,40,.09);
+    --prs:#b54870; --prs-ink:#7a1d40; --prs-wash:rgba(181,72,112,.09);
   }
   @media (prefers-color-scheme:dark){
     :root{
@@ -16,6 +22,10 @@
       --text:#e6ebf2; --muted:#8b95a5; --faint:#616c7c;
       --accent:#3fb6a8; --accent-ink:#8fe0d5; --accent-wash:rgba(63,182,168,.12);
       --ok:#5fb87a; --warn:#d9a441; --err:#e0685f; --grip:#39414c;
+      --cap:#a98ae8; --cap-ink:#ccb8fb; --cap-wash:rgba(169,138,232,.12);
+      --ctl:#75a8e8; --ctl-ink:#a8c8fc; --ctl-wash:rgba(117,168,232,.12);
+      --res:#d4b45e; --res-ink:#eed98e; --res-wash:rgba(212,180,94,.12);
+      --prs:#e0809f; --prs-ink:#f5b0c8; --prs-wash:rgba(224,128,159,.12);
     }
   }
   :root[data-theme="light"]{
@@ -23,12 +33,20 @@
     --text:#1b2430; --muted:#5b6879; --faint:#8996a6;
     --accent:#0e9d8e; --accent-ink:#0a5f57; --accent-wash:rgba(14,157,142,.10);
     --ok:#2f9e5f; --warn:#b3801c; --err:#cf4b41; --grip:#c3ccd8;
+    --cap:#7c5cc2; --cap-ink:#4a2d8f; --cap-wash:rgba(124,92,194,.09);
+    --ctl:#3e72c4; --ctl-ink:#1a4585; --ctl-wash:rgba(62,114,196,.09);
+    --res:#b09228; --res-ink:#6b5500; --res-wash:rgba(176,146,40,.09);
+    --prs:#b54870; --prs-ink:#7a1d40; --prs-wash:rgba(181,72,112,.09);
   }
   :root[data-theme="dark"]{
     --bg:#12151a; --panel:#191d23; --elev:#20252d; --border:#2a3039;
     --text:#e6ebf2; --muted:#8b95a5; --faint:#616c7c;
     --accent:#3fb6a8; --accent-ink:#8fe0d5; --accent-wash:rgba(63,182,168,.12);
     --ok:#5fb87a; --warn:#d9a441; --err:#e0685f; --grip:#39414c;
+    --cap:#a98ae8; --cap-ink:#ccb8fb; --cap-wash:rgba(169,138,232,.12);
+    --ctl:#75a8e8; --ctl-ink:#a8c8fc; --ctl-wash:rgba(117,168,232,.12);
+    --res:#d4b45e; --res-ink:#eed98e; --res-wash:rgba(212,180,94,.12);
+    --prs:#e0809f; --prs-ink:#f5b0c8; --prs-wash:rgba(224,128,159,.12);
   }
 
   *{box-sizing:border-box}
@@ -48,18 +66,6 @@
   .brand .dot{width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 0 3px var(--accent-wash)}
   .brand small{color:var(--faint); font-weight:400; letter-spacing:.04em; text-transform:uppercase; font-size:10px}
 
-  .seg{display:flex; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:3px; gap:2px}
-  .seg button{
-    font:inherit; font-size:12px; font-weight:500; color:var(--muted);
-    background:none; border:0; padding:5px 13px; border-radius:6px; cursor:pointer;
-    display:flex; align-items:center; gap:7px;
-  }
-  .seg button .k{font-size:10px; color:var(--faint); border:1px solid var(--border); border-radius:4px; padding:0 5px; line-height:16px}
-  .seg button[aria-pressed="true"]{background:var(--elev); color:var(--text); box-shadow:0 1px 2px rgba(0,0,0,.18)}
-  .seg button[aria-pressed="true"] .k{color:var(--accent-ink); border-color:var(--accent)}
-
-  .caption{margin-left:auto; color:var(--muted); font-size:12px; max-width:46ch; text-align:right}
-  .caption b{color:var(--text); font-weight:600}
   .theme{
     font:inherit; font-size:12px; color:var(--muted); background:var(--bg);
     border:1px solid var(--border); border-radius:7px; padding:5px 11px; cursor:pointer;
@@ -139,16 +145,121 @@
   .agentcard-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
   .bigav{width:40px;height:40px;border-radius:9px;background:var(--accent);color:#fff;
          display:grid;place-items:center;font-weight:700;font-size:17px;flex:0 0 auto}
-  .agentcard-head h1{margin:0;font-size:19px;letter-spacing:-.02em}
+  .agentcard-head h1{margin:0;font-size:19px;letter-spacing:-.02em;cursor:text;border-radius:6px;padding:1px 6px;margin-left:-6px}
+  .agentcard-head h1:hover{background:var(--bg)}
   .agentcard-head .sub{color:var(--muted);font-size:12px;margin-top:2px}
+  .agentcard-head .model-dd{margin-left:auto;flex:0 0 auto;position:relative}
+
+  /* ---- model + effort header control ---- */
+  .me-trigger{display:flex;align-items:center;gap:8px;font:inherit;font-size:11px;font-family:var(--mono);
+    border:1px solid var(--border);border-radius:7px;padding:5px 10px;background:var(--elev);color:var(--text);
+    cursor:pointer;appearance:none}
+  .me-trigger.warn{border-color:var(--warn);color:var(--warn)}
+  .me-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .me-trigger .me-effort-tag{font-family:var(--ui);color:var(--faint);font-size:10px}
+  .me-trigger .me-chev{color:var(--faint);font-size:9px;margin-left:2px}
+  .me-panel{position:absolute;z-index:30;top:100%;right:0;margin-top:6px;width:260px;background:var(--elev);
+    border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);text-align:left}
+  .me-panel > .me-search{border-radius:10px 10px 0 0}
+  .me-panel > .me-effort-row{border-radius:0 0 10px 10px}
+  .me-search{width:100%;box-sizing:border-box;font:inherit;font-size:12px;padding:9px 12px;border:none;
+    border-bottom:1px solid var(--border);background:transparent;color:var(--text);outline:none}
+  .me-list{max-height:220px;overflow-y:auto;padding:4px 0}
+  .me-opt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 12px;font-size:12px;
+    font-family:var(--mono);cursor:pointer;color:var(--text)}
+  .me-opt:hover{background:var(--accent-wash)}
+  .me-opt .ck{color:var(--accent);font-weight:700;font-family:var(--ui);flex:none}
+  .me-empty{padding:10px 12px;font-size:11.5px;color:var(--faint);font-style:italic}
+  .me-effort-row{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;
+    border-top:1px solid var(--border);font-size:11px;cursor:pointer;color:var(--text);background:var(--bg)}
+  .me-effort-row .lbl{font-weight:700;font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint)}
+  .me-effort-row .val{display:flex;align-items:center;gap:5px;color:var(--muted);font-family:var(--ui)}
+  .me-effort-panel{position:absolute;z-index:31;right:100%;bottom:0;margin-right:6px;width:230px;
+    background:var(--elev);border:1px solid var(--border);border-radius:10px;
+    box-shadow:0 10px 30px rgba(0,0,0,.18)}
+  .me-effort-desc{padding:10px 12px 4px;font-size:11px;color:var(--faint);line-height:1.4}
   .pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
-  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:3px 9px;border-radius:999px;
-        background:var(--elev);border:1px solid var(--border);color:var(--muted)}
-  .pill .pk{color:var(--faint)}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-family:var(--mono);font-size:10.5px;
+        padding:3px 9px;border-radius:999px;background:var(--elev);border:1px solid var(--border);color:var(--text)}
+  .pill .pk{color:var(--faint);font-size:10px}
   .pill .pv{color:var(--text);font-weight:500;font-family:var(--mono);font-size:10.5px}
-  .pill.grp{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-wash)}
-  .pill.warn{border-color:var(--warn);color:var(--warn)}
+  .pill.grp{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-wash);font-family:var(--ui);font-size:11px}
+  .pill.warn{border-color:var(--warn);color:var(--warn);background:var(--elev)}
   .pill.warn::before{content:"⚠";font-size:10px}
+  .pill.more{cursor:pointer;font-family:var(--ui);font-weight:600;color:var(--accent-ink);
+    border-color:var(--accent);background:var(--accent-wash)}
+  .key-label{font-size:10px;color:var(--faint);margin-right:2px}
+
+  /* ================= Tier 1 config — editable two-tier zone ================= */
+  .pill[onclick]{cursor:pointer}
+  .pill.unset{color:var(--faint);border-style:dashed;font-style:italic;cursor:default}
+  .pill.dashed{border-style:dashed}
+  .pill.add{font-family:var(--ui);font-weight:600;color:var(--accent-ink);border-color:var(--accent);background:var(--accent-wash)}
+  .pill .x{margin-left:2px;opacity:.55;font-weight:700}
+  .pill .x:hover{opacity:1}
+  .pill.selected{border-color:var(--text)}
+  .swatch{width:9px;height:9px;border-radius:50%;flex:none;border:1px solid rgba(0,0,0,.15);display:inline-block;margin-right:4px}
+
+  .scalar-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 18px;margin-bottom:10px}
+  .list-rows{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+  .list-row{display:flex;align-items:flex-start;gap:8px;border-radius:8px;margin:0 -6px;padding:4px 6px;transition:background .12s}
+  .list-row:hover{background:var(--warn-wash,rgba(179,128,28,.09))}
+  .row-label{flex:none;width:104px;text-align:right;font-size:10px;color:var(--faint);padding-top:4px;
+             display:flex;align-items:center;justify-content:flex-end;gap:5px}
+  .row-pills{flex:1;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+  .row-remove{opacity:0;transition:opacity .12s;flex:none;width:16px;height:16px;border-radius:4px;
+    border:1px solid var(--border);background:var(--elev);color:var(--faint);font-size:11px;line-height:1;
+    display:grid;place-items:center;cursor:pointer;margin-top:2px;padding:0}
+  .list-row:hover .row-remove{opacity:1}
+  .row-remove:hover{color:var(--err);border-color:var(--err)}
+  .badge.required{color:var(--muted);background:var(--bg);border:1px solid var(--border);flex:none;margin-top:2px}
+
+  .inline-input{font:inherit;font-size:10.5px;font-family:var(--mono);border:1px solid var(--accent);
+    border-radius:999px;padding:3px 9px;background:var(--bg);color:var(--text);outline:none;width:130px}
+  .inline-input.wide{width:220px}
+
+  /* scalar bool/enum popover — same look as the model+effort control's .me-list/.me-opt,
+     just anchored to a small inline pill instead of the header, no search box */
+  .pill-pick{position:relative;display:inline-block}
+  .opt-panel{position:absolute;z-index:30;top:100%;left:0;margin-top:6px;min-width:150px;background:var(--elev);
+    border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);overflow:hidden}
+
+  .badge{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;letter-spacing:.03em;
+         text-transform:uppercase;padding:2px 7px;border-radius:5px;flex:none}
+  .badge.main-only{color:var(--muted);background:var(--bg);border:1px solid var(--border)}
+
+  .initial-prompt-block,.custom-json-block{margin-top:14px;border:1px solid var(--border);border-radius:9px;
+    background:var(--elev);padding:9px 12px;cursor:pointer}
+  .initial-prompt-block .ipk,.custom-json-block .ipk{font-size:10px;color:var(--faint);text-transform:uppercase;
+    letter-spacing:.06em;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:7px}
+  .initial-prompt-block .ipk .expandhint,.custom-json-block .ipk .expandhint{margin-left:auto;color:var(--accent-ink);
+    font-weight:600;text-transform:none;letter-spacing:0}
+  .initial-prompt-block p,.custom-json-block p{margin:0;color:var(--muted);font-size:12px;font-family:var(--mono)}
+  .initial-prompt-block textarea,.custom-json-block textarea{width:100%;min-height:90px;font-family:var(--mono);
+    font-size:11.5px;border:1px solid var(--accent);border-radius:7px;padding:8px;background:var(--bg);
+    color:var(--text);outline:none;resize:vertical}
+  .custom-json-block textarea{min-height:130px}
+  .ip-actions{margin-top:7px;display:flex;gap:8px;align-items:center}
+  .ip-actions button{font:inherit;font-size:11px;border-radius:6px;padding:5px 11px;cursor:pointer;border:none}
+  .ip-actions .save{background:var(--accent);color:#fff;font-weight:600}
+  .ip-actions .cancel{background:transparent;color:var(--muted)}
+  .ip-actions .jerr{color:var(--err);font-size:11px}
+
+  .add-key-btn{width:16px;height:16px;border-radius:5px;border:1px solid var(--border);background:var(--elev);
+    color:var(--faint);font-size:12px;font-weight:700;line-height:1;cursor:pointer;display:grid;place-items:center;
+    padding:0;font-family:var(--ui);text-transform:none;letter-spacing:0}
+  .add-key-btn:hover{color:var(--text);border-color:var(--text)}
+
+  .add-anchor{position:relative;display:inline-block}
+  .tool-picker{position:absolute;z-index:20;top:100%;left:0;margin-top:4px;background:var(--elev);
+    border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.15);width:230px}
+  .tool-picker input{width:100%;box-sizing:border-box;font:inherit;font-size:11.5px;padding:7px 9px;
+    border:none;border-bottom:1px solid var(--border);background:transparent;color:var(--text);outline:none}
+  .tool-picker .hint{padding:6px 9px 0;font-size:10px;color:var(--faint)}
+  .tool-picker .opts{max-height:170px;overflow-y:auto}
+  .tool-picker .opt{padding:6px 9px;font-size:11.5px;font-family:var(--mono);cursor:pointer;color:var(--text)}
+  .tool-picker .opt:hover{background:var(--accent-wash)}
+  .tool-picker .empty{padding:8px 9px;font-size:11px;color:var(--faint);font-style:italic}
 
   .zone-label{display:flex;align-items:center;gap:8px;margin:18px 0 9px;color:var(--faint);
               font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
@@ -164,6 +275,9 @@
   .sec-h .edited{margin-left:auto;font-size:9.5px;color:var(--accent-ink);background:var(--accent-wash);
                  border:1px solid var(--accent);border-radius:5px;padding:1px 7px;letter-spacing:.02em}
   .sec-b{padding:0 12px 12px 30px;color:var(--muted);font-size:12px}
+  .sec-b[onclick]{cursor:pointer}
+  .sec-b textarea{width:100%;min-height:110px;font-family:var(--ui);font-size:12px;border:1px solid var(--accent);
+    border-radius:7px;padding:8px;background:var(--bg);color:var(--text);outline:none;resize:vertical;box-sizing:border-box}
   .sec-b p{margin:0 0 6px}
   .sec-b ol{margin:2px 0;padding-left:18px}
   .sec-b li{margin:2px 0}
@@ -208,17 +322,18 @@
         color:var(--faint);font-size:11px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
   .foot .chip{display:inline-flex;align-items:center;gap:6px}
   .foot .sw{width:9px;height:9px;border-radius:3px}
-  @media (max-width:760px){.caption{display:none}}
 </style>
 
+<!--
+  Example B (chat as the tall right column, raw under the visualization) was explored
+  and rejected — R10 locked Example A (chat as a prompt bar under the viz, raw on the
+  right) as the only layout. This file used to have a live A/B toggle; trimmed down to
+  just the settled layout so it stays in sync with the real Topbar.tsx (brand + theme
+  toggle only, no layout switcher). See design/DesignReview.md for the rejected B option.
+-->
 <div class="topbar">
-  <div class="brand"><span class="dot"></span> Agent Workbench <small>layout study</small></div>
-  <div class="seg" role="group" aria-label="Layout example">
-    <button id="btnA" aria-pressed="true">Example A <span class="k">chat ↓</span></button>
-    <button id="btnB" aria-pressed="false">Example B <span class="k">chat →</span></button>
-  </div>
-  <div class="caption" id="cap"></div>
-  <button class="theme" id="themeBtn">◐ Theme</button>
+  <div class="brand"><span class="dot"></span> Agent Workbench</div>
+  <button class="theme" id="themeBtn" style="margin-left:auto">◐ Theme</button>
 </div>
 
 <div class="workbench" id="wb">
@@ -228,6 +343,27 @@
   </div>
 
   <!-- LEFT: agent list -->
+  <!--
+    TODO (next session — not implemented yet, logged 2026-07-29): redesign this whole
+    Library panel body. Currently shows FOUR sections at once (named groups like Personal/
+    Pipeline, then a redundant flat "All agents", then "Ungrouped") — cluttered, and "All
+    agents" duplicates rows already shown under the named groups above it.
+
+    Wanted instead: ONE toggleable list, driven by a single clickable label.
+      - Flat mode: every agent, no group headers at all.
+      - Grouped mode: bucketed by real Group entities, with a trailing synthetic
+        "Ungrouped" bucket for agents with no group membership. (Click again to flip back
+        to Flat.)
+    OPEN QUESTION to resolve before building: does selecting a specific agent auto-switch
+    the view to Flat (i.e. selection forces flat, independent of the toggle), or is Flat
+    just the toggle's own default/off state with no relation to what's selected? Confirm
+    this with the user first — don't guess it into the implementation.
+
+    Also: the bottom actions (＋ New agent / ⇪ Import .md / ＋ New group) should move under
+    a "Manage" label styled like the .zone-label pattern already built for the Config/
+    Sections zones (badge-or-text + trailing horizontal line via ::after), replacing the
+    current plain .lsep divider above them.
+  -->
   <section class="panel left" id="left">
     <div class="phead"><span class="glyph">▤</span> Library <span class="role">agents · groups</span><button class="foldbtn" data-fold="left" title="Collapse">⟨</button></div>
     <div class="pbody">
@@ -237,16 +373,20 @@
       <div class="arow"><span class="av">Ad</span><span class="nm">Ada</span></div>
       <div class="lgroup">▾ Pipeline</div>
       <div class="arow"><span class="av">an</span><span class="nm">analyst</span></div>
-      <div class="arow sel"><span class="av">de</span><span class="nm">dev</span><span class="tag">imported</span></div>
+      <div class="arow"><span class="av">de</span><span class="nm">dev</span><span class="tag">imported</span></div>
       <div class="arow"><span class="av">qa</span><span class="nm">qa</span></div>
       <div class="arow"><span class="av">ar</span><span class="nm">architect</span></div>
+      <div class="arow sel"><span class="av">sc</span><span class="nm">secure-code-auditor</span><span class="tag">reference</span></div>
       <div class="lsep"></div>
-      <div class="arow muted"><span class="av">▦</span><span class="nm">All agents</span><span class="tag">15</span></div>
-      <div class="arow muted"><span class="av">◌</span><span class="nm">Ungrouped</span><span class="tag">2</span></div>
+      <div class="lgroup">▾ All agents</div>
+      <div class="arow muted"><span class="av">Z</span><span class="nm">Zara</span></div>
+      <div class="arow sel"><span class="av">sc</span><span class="nm">secure-code-auditor</span><span class="tag">reference</span></div>
+      <div class="lgroup">▾ Ungrouped</div>
+      <div class="arow muted"><span class="av">sc</span><span class="nm">scribe</span></div>
       <div class="lsep"></div>
       <div class="laction">＋ New agent</div>
       <div class="laction">⇪ Import .md</div>
-      <div class="laction">⚙ Settings</div>
+      <div class="laction">＋ New group</div>
     </div>
   </section>
 
@@ -265,8 +405,8 @@
   <section class="panel right" id="right"></section>
 
   <!-- collapsed rail for RIGHT -->
-  <div class="rail" id="railRight" hidden title="Show panel">
-    <span class="rico">▤</span><span class="rlabel" id="railRightLabel">◂ Raw</span>
+  <div class="rail" id="railRight" hidden title="Show Raw agent">
+    <span class="rico">≡</span><span class="rlabel">◂ Raw</span>
   </div>
 </div>
 
@@ -282,62 +422,25 @@
   <div class="phead"><span class="glyph">◈</span> Custom Visualization <span class="role">platform main view</span></div>
   <div class="pbody"><div class="viz">
     <div class="agentcard-head">
-      <div class="bigav">de</div>
-      <div style="min-width:0">
-        <h1>dev</h1>
-        <div class="sub">Implementation agent · imported from <code>~/.claude/agents/</code></div>
+      <div class="bigav" style="background:#e05252">sc</div>
+      <div style="min-width:0;flex:1">
+        <h1 title="Click to rename">secure-code-auditor</h1>
+        <div class="sub">Security and performance auditor for code changes. Use PROACTIVELY after new code is written or modified to catch vulnerabilities, performance issues, and best-practice violations before they ship. · created in platform</div>
         <div class="pills">
-          <span class="pill grp">◆ Pipeline</span>
+          <span class="pill grp">◆ Reference examples</span>
         </div>
       </div>
+      <div class="model-dd" id="modelEffortArea"><!-- rendered by buildModelEffort() --></div>
     </div>
 
-    <div class="zone-label"><span class="tier">Tier 1</span> Config · frontmatter</div>
-    <div class="pills">
-      <span class="pill warn">model <b style="font-family:var(--mono);margin:0 3px">claude‑sonnet‑4‑6</b> is outdated</span>
-      <span class="pill warn">tool <b style="font-family:var(--mono);margin:0 3px">Create</b> not recognized</span>
-      <span class="pill warn">tools: 40+ entries — Atlassian dump</span>
-      <span class="pill"><span class="pk">permissionMode</span><span class="pv">default</span></span>
-    </div>
+    <div id="configArea"><!-- zone-label + rendered by buildConfig() --></div>
 
-    <div class="zone-label"><span class="tier">Tier 2</span> Sections · body</div>
-
-    <div class="sec">
-      <div class="sec-h"><span class="chev">▾</span><span class="h">ROLE</span><span class="core">core</span></div>
-      <div class="sec-b"><p>You are a senior <span class="hl">implementation engineer</span> specializing in building exactly what an approved plan defines — no more, no less.</p><p><span class="hl">STOP:</span> never expand scope beyond the plan or the flagged feedback.</p></div>
-    </div>
-    <div class="sec">
-      <div class="sec-h"><span class="chev">▾</span><span class="h">BEHAVIOR</span><span class="core">core</span></div>
-      <div class="sec-b"><ol>
-        <li>Read the approved plan (and any <span class="hl">@codeauditor / @qa</span> feedback).</li>
-        <li>Implement precisely what it defines.</li>
-        <li>Run a sanity check (build / tests) before reporting.</li>
-        <li>On feedback: apply <span class="hl">only the flagged changes</span>, nothing else.</li>
-      </ol></div>
-    </div>
-    <div class="sec">
-      <div class="sec-h"><span class="chev">▾</span><span class="h">RULES</span><span class="core">core</span></div>
-      <div class="sec-b"><ol>
-        <li>No more, no less than the plan.</li>
-        <li>On feedback, touch only the flagged items.</li>
-        <li>Never skip the pre‑report sanity check.</li>
-      </ol></div>
-    </div>
-    <div class="sec">
-      <div class="sec-h"><span class="chev">▾</span><span class="h">MODES</span><span class="core">optional · on</span></div>
-      <div class="sec-b"><ol>
-        <li><span class="hl">Mode A</span> — fresh implementation from an approved plan.</li>
-        <li><span class="hl">Mode B</span> — feedback fixes: change only what’s flagged.</li>
-      </ol></div>
-    </div>
-    <div class="sec">
-      <div class="sec-h"><span class="chev">▸</span><span class="h">OUTPUT FORMAT</span><span class="core">core</span></div>
-    </div>
+    <div id="sectionsArea"><!-- zone-label + rendered by buildSections() --></div>
   </div></div>
 </template>
 
 <template id="tpl-raw">
-  <div class="phead"><span class="glyph">≡</span> Raw agent <span class="role">dev.md · export preview</span></div>
+  <div class="phead"><span class="glyph">≡</span> Raw agent <span class="role">secure-code-auditor.md · export preview</span></div>
   <div class="rband">Markdown · UTF‑8 · read reference</div>
   <div class="pbody"><div class="raw" id="rawlines"></div></div>
 </template>
@@ -346,15 +449,15 @@
   <div class="phead"><span class="glyph">✦</span> AI Chat <span class="role">agent‑aware · edits sections in place</span></div>
   <div class="chat">
     <div class="chat-scroll">
-      <div class="msg ai"><span class="who">✦ Mediator</span><div class="bubble">Editing <b>dev</b>. I can see all his sections. Heads‑up: 3 validation flags open.</div></div>
-      <div class="msg you"><span class="who">You</span><div class="bubble">his model’s outdated — bump to sonnet‑5</div></div>
-      <div class="msg ai"><span class="who">✦ Mediator</span><div class="bubble">Set <code>model: claude‑sonnet‑5</code> (was <code>claude‑sonnet‑4‑6</code>). Clears the outdated‑model flag.<span class="target">◆ config · model</span></div></div>
-      <div class="msg you"><span class="who">You</span><div class="bubble">and “Create” isn’t a real tool — drop it</div></div>
-      <div class="msg ai"><span class="who">✦ Mediator</span><div class="bubble">Removed <code>Create</code>. 8 tools remain, all recognized.<span class="target">◆ config · tools</span></div></div>
+      <div class="msg ai"><span class="who">✦ Mediator</span><div class="bubble">Editing <b>secure-code-auditor</b>. I can see all its sections.</div></div>
+      <div class="msg you"><span class="who">You</span><div class="bubble">make PROCESS call out secret leaks specifically, not just "common vulnerabilities"</div></div>
+      <div class="msg ai"><span class="who">✦ Mediator</span><div class="bubble">Split step 3 into injection/XSS/auth-bypass and a dedicated secret-leak check.<span class="target">◆ process</span></div></div>
+      <div class="msg you"><span class="who">You</span><div class="bubble">tighten OUTPUT FORMAT — same structure, fewer words</div></div>
+      <div class="msg ai"><span class="who">✦ Mediator</span><div class="bubble">Trimmed OUTPUT FORMAT to one sentence.<span class="target">◆ output</span></div></div>
     </div>
     <div class="prompt">
       <div class="box">
-        <input placeholder="Edit dev…  e.g. “make Mode B stricter about scope”" />
+        <input placeholder="Edit secure-code-auditor…  e.g. “make PROCESS check for hardcoded secrets”" />
         <button class="send" title="Send">→</button>
       </div>
       <div class="hint">Targets the selected agent · changes land in the panels above</div>
@@ -366,35 +469,36 @@
   // ---------- raw markdown content ----------
   const RAW = [
     ['fm','---'],
-    ['','name: ','k','dev'],
-    ['','description: ','', 'Use AFTER @architect has produced an approved plan.'],
-    ['','tools: ','','Read, Edit, Write, Create, Bash, Grep, Glob, mcp,'],
-    ['','       ','','atlassian-mcp-server-… (40+ entries)'],
-    ['','model: ','','claude-sonnet-4-6'],
+    ['','name: ','k','secure-code-auditor'],
+    ['','description: ','', 'Security and performance auditor for code changes. Use PROACTIVELY…'],
+    ['','model: ','','opus'],
+    ['','effort: ','','high'],
+    ['','tools: ','','Read, Grep, Glob, Bash'],
+    ['','disallowedTools: ','','[Edit, Write]'],
+    ['','permissionMode: ','','auto'],
+    ['','isolation: ','','worktree'],
+    ['','maxTurns: ','','10'],
+    ['','memory: ','','project'],
+    ['','skills: ','','[security-checklist, performance-patterns]'],
+    ['','mcpServers: ','','[github, playwright: {inline config}]'],
+    ['','hooks: ','','{PreToolUse, Stop}'],
+    ['','color: ','','red'],
     ['fm','---'],
     ['',''],
     ['h1','# ROLE'],
-    ['','You are a senior implementation engineer specializing in'],
-    ['','building exactly what an approved plan defines.'],
-    ['','STOP: never expand scope beyond the plan.'],
+    ['','You are a senior, security-focused code auditor with expertise in'],
+    ['','vulnerability detection, secure coding practices, and performance'],
+    ['','optimization. Read-only access — you flag issues, never fix them.'],
     ['',''],
-    ['h1','# BEHAVIOR'],
-    ['','1. Read the approved plan (and any @codeauditor/@qa feedback).'],
-    ['','2. Implement precisely what it defines.'],
-    ['','3. Run a sanity check before reporting.'],
-    ['','4. On feedback: apply only the flagged changes.'],
-    ['',''],
-    ['h1','# RULES'],
-    ['','- No more, no less than the plan.'],
-    ['','- On feedback, touch only the flagged items.'],
-    ['','- Never skip the pre-report sanity check.'],
-    ['',''],
-    ['h1','# MODES'],
-    ['','- Mode A — fresh implementation from an approved plan.'],
-    ['','- Mode B — feedback fixes: change only what’s flagged.'],
+    ['h1','# PROCESS'],
+    ['','1. Run git diff to see recent changes.'],
+    ['','2. Focus analysis on modified files and newly added code paths.'],
+    ['','3. Check for common vulnerabilities (injection, XSS, auth bypass, secret leaks).'],
+    ['','4. Review error handling, logging, and performance-critical sections.'],
     ['',''],
     ['h1','# OUTPUT FORMAT'],
-    ['','Summary | files touched | sanity-check result.'],
+    ['','Group findings by severity — Critical/High/Medium/Low — issue,'],
+    ['','why it matters, file:line, and the fix.'],
   ];
   function buildRaw(host){
     const box = host.querySelector('#rawlines'); if(!box) return;
@@ -412,31 +516,588 @@
     });
   }
 
+  // ---------- Tier 1 config zone (editable) ----------
+  // TODO (tracked, not yet decided): every confirm()/alert()/prompt() in this file — row
+  // removal, unsaved-changes-on-outside-click for the block editors and sections, the
+  // custom-key name prompt/duplicate warning — uses the native browser dialog for now.
+  // Revisit and replace with a proper in-app component once one's picked; do not add more
+  // native dialogs beyond these without flagging it again here.
+  // Fixed = structured per-field UI. Custom = raw JSON, saved as-is (hooks, mcpServers —
+  // both genuinely nested; deferred rather than building per-field editors for them now).
+  // No category-hue coloring anymore (dropped per review — the cap/ctl/res/prs pill/dot
+  // colors read as noise once rows had their own labels). `required` mirrors the real
+  // catalog's field (lib/blueprint/catalog.ts CONFIG_DEFS) — currently false everywhere
+  // there too, so every row shows the hover-to-remove X for now; the required-badge path
+  // is wired and ready for whenever a field's `required` actually flips to true.
+  // `hint` text is sourced from design/Agent-Full-Reference.md's field-by-field annotations
+  // (trimmed to tooltip length) — shown on hover over the row LABEL (the key), separate
+  // from the pill's own title (which covers the value/validation, not the field itself).
+  // TODO: this `hint` prop only exists in this mockup's CFG_CATALOG right now — it needs
+  // to be added to the real schema (lib/blueprint/catalog.ts CONFIG_DEFS), not just here.
+  const CFG_CATALOG = {
+    permissionMode: { label: 'Permission mode', datatype: 'enum', tier: 'fixed', required: false,
+      allowed: ['default', 'acceptEdits', 'auto', 'dontAsk', 'bypassPermissions', 'plan', 'manual'],
+      hint: 'default = normal prompting · acceptEdits = auto-accept file edits · auto = AI classifier auto-approves · dontAsk = auto-deny (explicit allows still work) · bypassPermissions = skip prompts entirely · plan = read-only exploration. If the parent session is already in bypassPermissions/acceptEdits/auto, this field is ignored and the parent’s mode wins.' },
+    maxTurns:    { label: 'Max turns', datatype: 'int',  tier: 'fixed', required: false, allowed: null,
+      hint: 'Hard cap on agentic turns before the subagent is forced to stop and return whatever it has. Omit for unlimited.' },
+    background:  { label: 'Background', datatype: 'bool', tier: 'fixed', required: false, allowed: null,
+      hint: 'true forces this agent to always run as a non-blocking background task. false forces foreground (blocking) execution. Omit to let Claude decide per-invocation.' },
+    memory:      { label: 'Memory', datatype: 'enum', tier: 'fixed', required: false, allowed: ['user', 'project', 'local'],
+      hint: 'user → ~/.claude/agent-memory/<name>/ (shared across all your projects). project → .claude/agent-memory/<name>/ (checked into this repo’s VCS). local → .claude/agent-memory-local/<name>/ (this project only, gitignored). When set, Read/Write/Edit are auto-enabled and MEMORY.md is auto-loaded.' },
+    isolation:   { label: 'Isolation', datatype: 'enum', tier: 'fixed', required: false, allowed: ['worktree'],
+      hint: 'Runs this agent in a temporary git worktree (auto-cleaned up if it makes no changes) instead of the caller’s checkout. Omit for normal in-place execution — the far more common case.' },
+    color:       { label: 'Color', datatype: 'enum', tier: 'fixed', required: false, allowed: ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan'],
+      hint: 'Cosmetic only — how this agent is color-tagged in the task list/transcript UI.' },
+    tools:            { label: 'Tools', datatype: 'list', tier: 'fixed', required: false, allowed: null,
+      hint: 'Omit to inherit the full available tool set. MCP tools use mcp__<server> (whole server) or mcp__<server>__<tool> (one tool). Agent(worker, researcher) restricts which subagent types THIS agent may spawn — only meaningful when this agent runs as the main thread via claude --agent.' },
+    disallowedTools:  { label: 'Disallowed tools', datatype: 'list', tier: 'fixed', required: false, allowed: null,
+      hint: 'Denylist, applied BEFORE tools is resolved. A tool in both lists is removed. Useful for ‘read-only reviewer’ style agents.' },
+    skills:           { label: 'Skills', datatype: 'list', tier: 'fixed', required: false, allowed: null,
+      hint: 'Preloads the FULL content of these skills into the agent’s context at startup, not just their one-line description. The agent can still invoke other, unlisted skills on demand via the Skill tool.' },
+    initialPrompt: { label: 'Initial prompt', datatype: 'string', tier: 'fixed', required: false, allowed: null, mainAgentOnly: true,
+      hint: 'Only used when this agent is run as the MAIN session agent (claude --agent <name>), auto-submitted as the first turn. Ignored when invoked as a subagent — the far more common case here.' },
+    hooks:       { label: 'Hooks', datatype: 'any', tier: 'custom', required: false, allowed: null,
+      hint: 'Supported events: PreToolUse, PostToolUse, Stop (auto-mapped to SubagentStop at runtime). Same schema as project-level hooks in settings.json. Receives JSON on stdin; exit code 0 = allow, 2 = block.' },
+    mcpServers:  { label: 'MCP servers', datatype: 'list', tier: 'custom', required: false, allowed: null,
+      hint: 'String form reuses an MCP server already configured for this project/user. Inline object form defines a server scoped ONLY to this agent — connected at startup, disconnected when the agent finishes. Same schema as .mcp.json.' },
+  };
+  const CFG_SCALAR_KEYS = ['permissionMode', 'maxTurns', 'memory', 'background', 'isolation', 'color'];
+  const CFG_LIST_KEYS = ['tools', 'disallowedTools', 'skills'];
+  const CFG_CUSTOM_KEYS = ['hooks', 'mcpServers'];
+  const CFG_IMPORTANT_UNSET = ['tools']; // scalar rows now always render (two-column grid), so this only matters for list keys
+  const CFG_COLOR_HEX = { red: '#e05252', blue: '#4c8bf5', green: '#43a047', yellow: '#d4b106', purple: '#9b59b6', orange: '#e08b2f', pink: '#e0629c', cyan: '#29b6c6' };
+
+  // tools/disallowedTools share one vocabulary: the 43 built-ins, PLUS the two documented
+  // extensions the closed-list catalog was missing — mcp__server / mcp__server__tool (MCP
+  // tools can't be a fixed list, servers are per-project), and Agent(type, type) (restricts
+  // which subagent types THIS agent may itself spawn — only meaningful if it runs as the
+  // MAIN session agent, same caveat as initialPrompt below).
+  const CFG_BUILTIN_TOOLS = new Set(["Agent","Artifact","AskUserQuestion","Bash","CronCreate","CronDelete",
+    "CronList","Edit","EndConversation","EnterPlanMode","EnterWorktree","ExitPlanMode","ExitWorktree",
+    "Glob","Grep","ListMcpResourcesTool","LSP","Monitor","NotebookEdit","PowerShell","PushNotification",
+    "Read","ReadMcpResourceTool","RemoteTrigger","ReportFindings","ScheduleWakeup","SendMessage",
+    "SendUserFile","ShareOnboardingGuide","Skill","TaskCreate","TaskGet","TaskList","TaskOutput",
+    "TaskStop","TaskUpdate","TodoWrite","ToolSearch","WaitForMcpServers","WebFetch","WebSearch",
+    "Workflow","Write"]);
+  const CFG_AGENT_RESTRICT_RE = /^Agent\([^)]*\)$/;
+  const CFG_MCP_TOOL_RE = /^mcp__[\w.-]+(__[\w.-]+)?$/;
+  function cfgIsRecognizedTool(item) {
+    return CFG_BUILTIN_TOOLS.has(item) || CFG_AGENT_RESTRICT_RE.test(item) || CFG_MCP_TOOL_RE.test(item);
+  }
+  function cfgIsBadListItem(key, item) {
+    if (key === 'tools' || key === 'disallowedTools') return !cfgIsRecognizedTool(item);
+    return false; // skills — open vocabulary, no closed catalog to check against
+  }
+  function cfgEsc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  // design/Agent-Full-Reference.md's fully-annotated secure-code-auditor example, verbatim —
+  // exercises every Tier 1 key, including mcpServers' mixed string + inline-object form.
+  // Swapped from the earlier "dev" demo (2026-07-28) specifically because dev's real config
+  // doesn't populate most of these keys — secure-code-auditor is the stress test.
+  const CFG_AGENT = {
+    model: 'opus', effort: 'high',
+    permissionMode: 'auto', maxTurns: 10, memory: 'project',
+    background: false, isolation: 'worktree', color: 'red',
+    tools: ["Read","Grep","Glob","Bash"],
+    disallowedTools: ["Edit","Write"],
+    skills: ["security-checklist","performance-patterns"],
+    initialPrompt: "Start by running `git diff` against the default branch and summarize scope before doing anything else.",
+    hooks: {
+      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "./scripts/validate-audit-command.sh" }] }],
+      Stop: [{ hooks: [{ type: "command", command: "echo 'audit pass complete' >> ./audit.log" }] }],
+    },
+    mcpServers: [
+      "github",
+      { playwright: { type: "stdio", command: "npx", args: ["-y", "@playwright/mcp@latest"] } },
+    ],
+  };
+
+  const cfgState = { editing: null, addingItem: null, toolPickerOpen: false, toolPickerFilter: '',
+                      editingRestriction: false, expandedCustom: null, expandedPrompt: false, addKeyMenuOpen: false,
+                      editingSection: null, keysCollapsed: false, sectionsCollapsed: false, selectedItem: null };
+  function cfgRerender(){ buildConfig(document.getElementById('centerTop')); }
+  // Resolves (confirm-save/discard, then exits) whichever block-style editor is currently
+  // open, if any — called before opening a different one so switching directly between
+  // editable blocks can't silently discard an unsaved edit (clicking a sibling's own open
+  // trigger bypasses the generic outside-click listener via stopPropagation, so that
+  // listener alone isn't enough).
+  function cfgResolveAnyOpenEditor() {
+    if (cfgState.expandedPrompt) window.__cfgOutsideClosePrompt();
+    if (cfgState.expandedCustom) window.__cfgOutsideCloseCustom();
+    if (cfgState.editingSection) window.__cfgOutsideCloseSection();
+  }
+
+  // ---- scalar rows (two-column grid; same row-label + pill shape as the list rows below,
+  // pill shows only the selected value now — the label already carries the key name).
+  // Trailing element: a hover-reveal × to unset the field, or a "required" badge in its
+  // place for fields that can't be removed (none in the catalog are required:true today —
+  // the mechanism is just wired ahead of that). ----
+  // Shared trailing element for ANY config row (scalar or list): a required badge when the
+  // field can't be removed, otherwise a hover-reveal × that unsets the whole key. Distinct
+  // from a list item's own × (which removes just that one entry, not the whole key).
+  function cfgRowTrailing(key, isSet) {
+    const def = CFG_CATALOG[key];
+    if (def.required) return `<span class="badge required" title="${def.label} is required">required</span>`;
+    if (!isSet) return '';
+    return `<button type="button" class="row-remove" title="Remove ${def.label}" onclick="window.__cfgRemoveConfigKey('${key}')">×</button>`;
+  }
+  window.__cfgRemoveConfigKey = function (key) {
+    if (!confirm(`Remove ${CFG_CATALOG[key].label} from this agent?`)) return;
+    delete CFG_AGENT[key];
+    cfgRerender();
+  };
+  // Only renders for a key that's actually set on the agent — an unset scalar key has no
+  // row at all, same as an unset list key, and is set (for the first time) via
+  // "+ add config key" rather than a permanent "not set" placeholder row.
+  function cfgScalarRow(key) {
+    const def = CFG_CATALOG[key];
+    return `<div class="list-row"><span class="row-label" title="${cfgEsc(def.hint || '')}">${def.label}</span><div class="row-pills">${cfgScalarValuePill(key)}</div>${cfgRowTrailing(key, true)}</div>`;
+  }
+  // bool/enum fields (permissionMode, memory, isolation, color, background) open a popover
+  // styled like the model+effort header control — same .me-list/.me-opt/checkmark pattern —
+  // just without the search box (these lists are short, 2-7 items). maxTurns (int) is the
+  // only scalar that still swaps to an inline text input, since there's no fixed option list
+  // to pick from.
+  function cfgScalarValuePill(key) {
+    const def = CFG_CATALOG[key], value = CFG_AGENT[key];
+    if (def.datatype === 'int') {
+      if (cfgState.editing === key) return cfgEditControl(key);
+      return `<span class="pill" onclick="window.__cfgEdit('${key}')">${value}</span>`;
+    }
+    let label = cfgEsc(value), extra = '';
+    if (key === 'background') label = value ? 'true' : 'false';
+    if (key === 'color') extra = CFG_COLOR_HEX[value] ? `<span class="swatch" style="background:${CFG_COLOR_HEX[value]}"></span>` : '';
+    const bad = def.datatype === 'enum' && def.allowed && !def.allowed.includes(value);
+    const title = bad ? `'${cfgEsc(value)}' is not a recognized ${key} value.` : `${key} · ${def.datatype}`;
+    const pillHtml = `<span class="pill ${bad ? 'warn' : ''}" onclick="window.__cfgPickOpen(event,'${key}')" title="${title}">${extra}${label}</span>`;
+    const popover = cfgState.editing === key ? cfgOptPopover(key) : '';
+    return `<span class="pill-pick" data-key="${key}">${pillHtml}${popover}</span>`;
+  }
+  function cfgOptPopover(key) {
+    const def = CFG_CATALOG[key];
+    const opts = def.datatype === 'bool' ? [{ value: true, label: 'true' }, { value: false, label: 'false' }] : def.allowed.map(v => ({ value: v, label: v }));
+    const current = CFG_AGENT[key];
+    return `<div class="opt-panel" onclick="event.stopPropagation()"><div class="me-list">` +
+      opts.map(o => `<div class="me-opt" onclick="window.__cfgSaveScalar('${key}', ${typeof o.value === 'boolean' ? o.value : `'${cfgEsc(o.value)}'`})">` +
+        `${key === 'color' ? '● ' : ''}${cfgEsc(o.label)}${o.value === current ? '<span class="ck">✓</span>' : ''}</div>`).join('') +
+      `</div></div>`;
+  }
+  function cfgEditControl(key) {
+    // int only now — bool/enum use cfgOptPopover instead
+    return `<input class="inline-input" type="number" value="${CFG_AGENT[key]}" autofocus ` +
+      `onkeydown="if(event.key==='Enter')window.__cfgSaveInt('${key}',this.value); if(event.key==='Escape')window.__cfgCancelEdit();" ` +
+      `onblur="window.__cfgSaveInt('${key}',this.value)">`;
+  }
+  window.__cfgEdit = function (key) { cfgState.editing = key; cfgRerender(); };
+  window.__cfgPickOpen = function (e, key) { e.stopPropagation(); cfgState.editing = (cfgState.editing === key ? null : key); cfgRerender(); };
+  window.__cfgCancelEdit = function () { cfgState.editing = null; cfgRerender(); };
+  window.__cfgSaveScalar = function (key, value) { CFG_AGENT[key] = value; cfgState.editing = null; cfgRerender(); };
+  window.__cfgSaveInt = function (key, raw) {
+    const n = parseInt(raw, 10);
+    if (Number.isFinite(n) && n > 0) CFG_AGENT[key] = n;
+    cfgState.editing = null; cfgRerender();
+  };
+  document.addEventListener('click', (e) => {
+    if (!cfgState.editing) return;
+    const def = CFG_CATALOG[cfgState.editing];
+    if (!def || (def.datatype !== 'bool' && def.datatype !== 'enum')) return; // int (maxTurns) closes via its own input blur
+    if (!e.target.closest(`.pill-pick[data-key="${cfgState.editing}"]`)) window.__cfgCancelEdit();
+  });
+
+  // ---- list rows (tools / disallowedTools / skills) ----
+  function cfgAgentPill(item) {
+    const restriction = item.startsWith('Agent(') ? item.slice(6, -1) : '';
+    if (cfgState.editingRestriction) {
+      return `<span class="add-anchor"><input class="inline-input wide" value="${cfgEsc(restriction)}" placeholder="worker, researcher (blank = unrestricted)" autofocus ` +
+        `onkeydown="if(event.key==='Enter')window.__cfgSaveRestriction(this.value); if(event.key==='Escape')window.__cfgCancelRestriction();" ` +
+        `onblur="window.__cfgSaveRestriction(this.value)"></span>`;
+    }
+    return `<span class="pill" title="Agent tool · restricts which subagent types this agent may spawn — only when THIS agent runs as the MAIN session agent, no effect when invoked as a subagent" onclick="window.__cfgEditRestriction(event)">` +
+      `${cfgEsc(item)}<span class="badge main-only" title="Only takes effect via claude --agent, not @-mention/Agent-tool invocation">⌘ main-agent only</span>` +
+      `<span class="x" onclick="event.stopPropagation();window.__cfgRemoveItem('tools', ${JSON.stringify(item)})">×</span></span>`;
+  }
+  window.__cfgEditRestriction = function (e) { e.stopPropagation(); cfgState.editingRestriction = true; cfgRerender(); };
+  window.__cfgCancelRestriction = function () { cfgState.editingRestriction = false; cfgRerender(); };
+  window.__cfgSaveRestriction = function (raw) {
+    const trimmed = raw.trim();
+    const idx = CFG_AGENT.tools.findIndex(t => t === 'Agent' || t.startsWith('Agent('));
+    if (idx >= 0) CFG_AGENT.tools[idx] = trimmed ? `Agent(${trimmed})` : 'Agent';
+    cfgState.editingRestriction = false; cfgRerender();
+  };
+  // Clicking a list-item pill's body only *selects* it (a harmless highlight) — it does
+  // NOT remove it. Only the × removes. Clicking outside a selected pill deselects it, like
+  // a cancel — previously the whole pill (body included) triggered removal on any click,
+  // which was one accidental click away from silently deleting an entry.
+  function cfgItemPill(key, item) {
+    if (key === 'tools' && (item === 'Agent' || item.startsWith('Agent('))) return cfgAgentPill(item);
+    const bad = cfgIsBadListItem(key, item);
+    const dashed = key === 'disallowedTools' ? ' dashed' : '';
+    const selected = cfgState.selectedItem && cfgState.selectedItem.key === key && cfgState.selectedItem.item === item;
+    const cls = (bad ? 'warn' : '') + (selected ? ' selected' : '');
+    const title = bad ? `'${cfgEsc(item)}' is not a recognized ${key} value.` : `${key} · list`;
+    return `<span class="pill ${cls}${dashed}" title="${title}" onclick="event.stopPropagation();window.__cfgSelectItem('${key}', ${JSON.stringify(item)})">${cfgEsc(item)}` +
+      `<span class="x" onclick="event.stopPropagation();window.__cfgRemoveItem('${key}', ${JSON.stringify(item)})">×</span></span>`;
+  }
+  window.__cfgSelectItem = function (key, item) { cfgState.selectedItem = { key, item }; cfgRerender(); };
+  document.addEventListener('click', () => {
+    if (cfgState.selectedItem) { cfgState.selectedItem = null; cfgRerender(); }
+  });
+  window.__cfgRemoveItem = function (key, item) { CFG_AGENT[key] = CFG_AGENT[key].filter(i => i !== item); cfgState.selectedItem = null; cfgRerender(); };
+  function cfgListRowPills(key) {
+    const items = CFG_AGENT[key] || [];
+    let inner = items.map(it => cfgItemPill(key, it)).join('');
+    if (key === 'tools') {
+      const remaining = [...CFG_BUILTIN_TOOLS].filter(t => !items.includes(t));
+      inner += `<span class="add-anchor"><span class="pill add" onclick="window.__cfgOpenToolPicker(event)">+ add</span>` +
+        (cfgState.toolPickerOpen ? cfgToolPicker(remaining) : '') + `</span>`;
+    } else if (cfgState.addingItem === key) {
+      inner += `<input class="inline-input" id="cfgAddInput" placeholder="type, Enter to add" onkeydown="window.__cfgAddInputKey(event,'${key}')" onblur="window.__cfgCancelAdd()">`;
+    } else {
+      inner += `<span class="pill add" onclick="window.__cfgStartAdd('${key}')">+ add</span>`;
+    }
+    return inner;
+  }
+  window.__cfgStartAdd = function (key) { cfgState.addingItem = key; cfgRerender(); setTimeout(() => document.getElementById('cfgAddInput')?.focus(), 0); };
+  window.__cfgCancelAdd = function () { cfgState.addingItem = null; cfgRerender(); };
+  window.__cfgAddInputKey = function (e, key) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const v = e.target.value.trim().replace(/,$/, '');
+      if (v) CFG_AGENT[key] = [...(CFG_AGENT[key] || []), v];
+      cfgState.addingItem = null; cfgRerender();
+    } else if (e.key === 'Escape') { cfgState.addingItem = null; cfgRerender(); }
+  };
+  window.__cfgOpenToolPicker = function (e) { e.stopPropagation(); cfgState.toolPickerOpen = true; cfgState.toolPickerFilter = ''; cfgRerender(); setTimeout(() => document.getElementById('cfgToolPickerInput')?.focus(), 0); };
+  window.__cfgPickTool = function (t) { const v = (t || '').trim(); if (v) CFG_AGENT.tools = [...(CFG_AGENT.tools || []), v]; cfgState.toolPickerOpen = false; cfgRerender(); };
+  window.__cfgFilterToolPicker = function (v) { cfgState.toolPickerFilter = v; cfgRerender(); };
+  function cfgToolPicker(remaining) {
+    const q = cfgState.toolPickerFilter.toLowerCase();
+    const filtered = remaining.filter(t => t.toLowerCase().includes(q));
+    return `<div class="tool-picker" onclick="event.stopPropagation()">` +
+      `<input id="cfgToolPickerInput" placeholder="Filter, or type mcp__… / Agent(…)" value="${cfgEsc(cfgState.toolPickerFilter)}" ` +
+      `oninput="window.__cfgFilterToolPicker(this.value)" onkeydown="if(event.key==='Enter')window.__cfgPickTool(this.value);">` +
+      `<div class="hint">Built-ins below, or type a custom mcp__server / mcp__server__tool / Agent(types) value and press Enter</div>` +
+      `<div class="opts">${filtered.length ? filtered.map(t => `<div class="opt" onclick="window.__cfgPickTool('${t}')">${t}</div>`).join('') : '<div class="empty">No built-in matches — Enter adds it as typed</div>'}</div>` +
+      `</div>`;
+  }
+  document.addEventListener('click', (e) => {
+    if (cfgState.toolPickerOpen && !e.target.closest('.add-anchor')) { cfgState.toolPickerOpen = false; cfgRerender(); }
+  });
+
+  // ---- initialPrompt block ----
+  function cfgInitialPrompt() {
+    const def = CFG_CATALOG.initialPrompt;
+    const set = Object.prototype.hasOwnProperty.call(CFG_AGENT, 'initialPrompt');
+    if (!set && !cfgState.expandedPrompt) return '';
+    const value = CFG_AGENT.initialPrompt || '';
+    const badge = `<span class="badge main-only" title="Only used when this agent runs as the MAIN session agent (claude --agent &lt;name&gt;) — ignored when invoked as a subagent via @-mention or the Agent tool, which is the common case here">⌘ main-agent only</span>`;
+    const labelHtml = `<span title="${cfgEsc(def.hint || '')}">${def.label}</span>`;
+    if (!cfgState.expandedPrompt) {
+      const truncated = value.length > 110 ? value.slice(0, 110) + '…' : value;
+      return `<div class="initial-prompt-block" onclick="window.__cfgExpandPrompt(event)">` +
+        `<div class="ipk">${labelHtml} ${badge}<span class="expandhint">⌯ expand</span></div>` +
+        `<p>${cfgEsc(truncated) || '<i>(empty)</i>'}</p></div>`;
+    }
+    return `<div class="initial-prompt-block" style="cursor:default" onclick="event.stopPropagation()">` +
+      `<div class="ipk">${labelHtml} ${badge}</div>` +
+      `<textarea id="cfgIpTextarea">${cfgEsc(value)}</textarea>` +
+      `<div class="ip-actions"><button class="save" onclick="window.__cfgSavePrompt()">Save</button><button class="cancel" onclick="window.__cfgCancelPrompt()">Cancel</button></div></div>`;
+  }
+  window.__cfgExpandPrompt = function (e) { e && e.stopPropagation(); cfgResolveAnyOpenEditor(); cfgState.expandedPrompt = true; cfgRerender(); document.getElementById('cfgIpTextarea')?.focus(); };
+  window.__cfgSavePrompt = function () { CFG_AGENT.initialPrompt = document.getElementById('cfgIpTextarea').value; cfgState.expandedPrompt = false; cfgRerender(); };
+  window.__cfgCancelPrompt = function () { cfgState.expandedPrompt = false; cfgRerender(); };
+  // Click outside an expanded initialPrompt block: silently exit if unchanged, otherwise
+  // confirm save/discard, then always exit edit mode either way.
+  window.__cfgOutsideClosePrompt = function () {
+    const ta = document.getElementById('cfgIpTextarea');
+    if (!ta) { cfgState.expandedPrompt = false; cfgRerender(); return; }
+    const original = CFG_AGENT.initialPrompt || '';
+    if (ta.value !== original) {
+      if (confirm('Save changes to Initial prompt?')) CFG_AGENT.initialPrompt = ta.value;
+    }
+    cfgState.expandedPrompt = false;
+    cfgRerender();
+  };
+  document.addEventListener('click', (e) => {
+    if (cfgState.expandedPrompt && !e.target.closest('.initial-prompt-block')) window.__cfgOutsideClosePrompt();
+  });
+
+  // ---- custom-JSON blocks (hooks, mcpServers) ----
+  function cfgCustomBlock(key) {
+    const def = CFG_CATALOG[key];
+    const set = Object.prototype.hasOwnProperty.call(CFG_AGENT, key);
+    if (!set && cfgState.expandedCustom !== key) return '';
+    const value = CFG_AGENT[key];
+    const summary = key === 'hooks'
+      ? Object.keys(value || {}).length + ' event' + (Object.keys(value || {}).length === 1 ? '' : 's') + ' configured'
+      : (Array.isArray(value) ? value.length : Object.keys(value || {}).length) + ' entries';
+    const labelHtml = `<span title="${cfgEsc(def.hint || '')}">${def.label}</span>`;
+    if (cfgState.expandedCustom !== key) {
+      return `<div class="custom-json-block" data-key="${key}" onclick="window.__cfgExpandCustom(event,'${key}')">` +
+        `<div class="ipk">${labelHtml} <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--faint)">· custom · saved as-is</span><span class="expandhint">⌯ view / edit JSON</span></div>` +
+        `<p>${cfgEsc(summary)}</p></div>`;
+    }
+    return `<div class="custom-json-block" data-key="${key}" style="cursor:default" onclick="event.stopPropagation()">` +
+      `<div class="ipk">${labelHtml} <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--faint)">· custom · saved as-is</span></div>` +
+      `<textarea id="cfgCustomTextarea">${cfgEsc(JSON.stringify(value, null, 2))}</textarea>` +
+      `<div class="ip-actions"><button class="save" onclick="window.__cfgSaveCustom('${key}')">Save</button>` +
+      `<button class="cancel" onclick="window.__cfgCancelCustom()">Cancel</button><span class="jerr" id="cfgCustomErr"></span></div></div>`;
+  }
+  window.__cfgExpandCustom = function (e, key) { e && e.stopPropagation(); cfgResolveAnyOpenEditor(); cfgState.expandedCustom = key; cfgRerender(); setTimeout(() => document.getElementById('cfgCustomTextarea')?.focus(), 0); };
+  window.__cfgCancelCustom = function () { cfgState.expandedCustom = null; cfgRerender(); };
+  window.__cfgSaveCustom = function (key) {
+    try {
+      CFG_AGENT[key] = JSON.parse(document.getElementById('cfgCustomTextarea').value);
+      cfgState.expandedCustom = null; cfgRerender();
+    } catch (err) { document.getElementById('cfgCustomErr').textContent = 'Invalid JSON: ' + err.message; }
+  };
+  // Click outside an expanded custom-JSON block: silently exit if unchanged. If changed,
+  // confirm save/discard — but if the confirmed save is invalid JSON, stay open with the
+  // error shown rather than silently discarding a typo the user asked to keep.
+  window.__cfgOutsideCloseCustom = function () {
+    const key = cfgState.expandedCustom;
+    const ta = document.getElementById('cfgCustomTextarea');
+    if (!ta) { cfgState.expandedCustom = null; cfgRerender(); return; }
+    const original = JSON.stringify(CFG_AGENT[key], null, 2);
+    if (ta.value === original) { cfgState.expandedCustom = null; cfgRerender(); return; }
+    if (confirm(`Save changes to ${CFG_CATALOG[key].label}?`)) {
+      try {
+        CFG_AGENT[key] = JSON.parse(ta.value);
+      } catch (err) {
+        document.getElementById('cfgCustomErr').textContent = 'Invalid JSON: ' + err.message;
+        return; // stay open, don't lose their edit
+      }
+    }
+    cfgState.expandedCustom = null;
+    cfgRerender();
+  };
+  document.addEventListener('click', (e) => {
+    if (cfgState.expandedCustom && !e.target.closest(`.custom-json-block[data-key="${cfgState.expandedCustom}"]`)) window.__cfgOutsideCloseCustom();
+  });
+
+  // ---- "+" add-key button, on the Keys header line (covers fixed AND custom keys) ----
+  // Always ends with "+ custom key…" regardless of how many catalog keys remain — the
+  // catalog (permissionMode..mcpServers) can run out, but a genuinely nonstandard key
+  // (unknown to CONFIG_DEFS, saved as raw JSON) should still be addable.
+  function cfgAddKeyButton() {
+    const unset = Object.keys(CFG_CATALOG).filter(k => !Object.prototype.hasOwnProperty.call(CFG_AGENT, k));
+    const menu = !cfgState.addKeyMenuOpen ? '' : `<div class="opt-panel" onclick="event.stopPropagation()"><div class="me-list">` +
+      (unset.length ? unset.map(k => `<div class="me-opt" onclick="window.__cfgAddKey('${k}')">${CFG_CATALOG[k].label}${CFG_CATALOG[k].tier === 'custom' ? '<span style="color:var(--faint);font-size:10px;margin-left:6px">custom</span>' : ''}</div>`).join('') : '<div class="me-empty">All catalog keys are set</div>') +
+      `<div class="me-opt" style="border-top:1px solid var(--border)" onclick="window.__cfgAddCustomKey()">+ custom key…<span style="color:var(--faint);font-size:10px;margin-left:6px">arbitrary, raw JSON</span></div>` +
+      `</div></div>`;
+    return `<span class="pill-pick add-key-anchor"><button type="button" class="add-key-btn" title="Add a config key" onclick="event.stopPropagation();window.__cfgToggleAddKeyMenu()">+</button>${menu}</span>`;
+  }
+  window.__cfgToggleAddKeyMenu = function () { cfgState.addKeyMenuOpen = !cfgState.addKeyMenuOpen; cfgRerender(); };
+  document.addEventListener('click', (e) => {
+    if (cfgState.addKeyMenuOpen && !e.target.closest('.add-key-anchor')) { cfgState.addKeyMenuOpen = false; cfgRerender(); }
+  });
+  window.__cfgAddKey = function (key) {
+    const def = CFG_CATALOG[key];
+    if (def.datatype === 'list') CFG_AGENT[key] = [];
+    else if (def.datatype === 'bool') CFG_AGENT[key] = false;
+    else if (def.datatype === 'int') CFG_AGENT[key] = 10;
+    else if (def.datatype === 'enum') CFG_AGENT[key] = def.allowed[0];
+    else if (def.datatype === 'string') CFG_AGENT[key] = '';
+    else CFG_AGENT[key] = {};
+    cfgState.addKeyMenuOpen = false;
+    if (def.tier === 'custom') cfgState.expandedCustom = key;
+    else if (key === 'initialPrompt') cfgState.expandedPrompt = true;
+    else if (def.datatype === 'list') cfgState.addingItem = key;
+    cfgRerender();
+  };
+  // A genuinely nonstandard key — not in CONFIG_DEFS at all. Synthesizes a minimal
+  // catalog entry (datatype 'any', tier 'custom') so it renders through the exact same
+  // raw-JSON block machinery as hooks/mcpServers, then opens straight into that editor.
+  window.__cfgAddCustomKey = function () {
+    const raw = prompt('Custom key name (a nonstandard config field, saved as raw JSON):');
+    const name = raw && raw.trim();
+    if (!name) return;
+    if (CFG_CATALOG[name] && Object.prototype.hasOwnProperty.call(CFG_AGENT, name)) {
+      alert(`'${name}' already exists on this agent.`);
+      return;
+    }
+    if (!CFG_CATALOG[name]) {
+      CFG_CATALOG[name] = { label: name, datatype: 'any', tier: 'custom', required: false, allowed: null };
+      CFG_CUSTOM_KEYS.push(name);
+    }
+    CFG_AGENT[name] = {};
+    cfgState.addKeyMenuOpen = false;
+    cfgState.expandedCustom = name;
+    cfgRerender();
+  };
+
+  window.__cfgToggleKeysCollapse = function () { cfgState.keysCollapsed = !cfgState.keysCollapsed; cfgRerender(); };
+  function buildConfig(host) {
+    const area = host && host.querySelector('#configArea'); if (!area) return;
+    const chev = cfgState.keysCollapsed ? '▸' : '▾';
+    const keysLabel = `<div class="zone-label" style="cursor:pointer" onclick="window.__cfgToggleKeysCollapse()" title="${cfgState.keysCollapsed ? 'Expand' : 'Collapse'} config keys">` +
+      `<span class="tier">Config</span> Keys <span class="chev" style="color:var(--faint);font-size:9px">${chev}</span>${cfgAddKeyButton()}</div>`;
+    let keysHtml = '';
+    if (!cfgState.keysCollapsed) {
+      const scalarHtml = CFG_SCALAR_KEYS.filter(k => Object.prototype.hasOwnProperty.call(CFG_AGENT, k)).map(cfgScalarRow).join('');
+      const listHtml = CFG_LIST_KEYS.filter(k => Object.prototype.hasOwnProperty.call(CFG_AGENT, k) || CFG_IMPORTANT_UNSET.includes(k)).map(k => {
+        const isUnset = !Object.prototype.hasOwnProperty.call(CFG_AGENT, k);
+        const hint = cfgEsc(CFG_CATALOG[k].hint || '');
+        if (isUnset) {
+          if (!CFG_IMPORTANT_UNSET.includes(k)) return '';
+          return `<div class="list-row"><span class="row-label" title="${hint}">${CFG_CATALOG[k].label}</span><div class="row-pills"><span class="pill unset">not set</span></div>${cfgRowTrailing(k, false)}</div>`;
+        }
+        return `<div class="list-row"><span class="row-label" title="${hint}">${k === 'disallowedTools' ? '⊘ ' : ''}${CFG_CATALOG[k].label}</span><div class="row-pills">${cfgListRowPills(k)}</div>${cfgRowTrailing(k, true)}</div>`;
+      }).join('');
+      keysHtml = `<div class="scalar-grid">${scalarHtml}</div><div class="list-rows">${listHtml}</div>`;
+    }
+    const customHtml = CFG_CUSTOM_KEYS.map(cfgCustomBlock).join('');
+    area.innerHTML = `${keysLabel}${keysHtml}${cfgInitialPrompt()}${customHtml}`;
+  }
+
+  // ---------- Tier 2 sections (editable) ----------
+  // Same interaction pattern as the Tier 1 blocks above (click to expand into a textarea,
+  // click outside silently exits if unchanged or confirms save/discard if changed) — built
+  // specifically to prove that pattern generalizes past config, not just to match visually.
+  // Body rendering here is a simplified mockup stand-in (numbered lines -> <ol>, blank-line
+  // paragraphs otherwise), not real markdown — the real app renders actual section markdown.
+  const CFG_SECTIONS = [
+    { key: 'role', heading: 'ROLE', core: true, collapsed: false,
+      text: "You are a senior, security-focused code auditor with expertise in vulnerability detection, secure coding practices, and performance optimization.\n\nReview code changes for security vulnerabilities, performance bottlenecks, and adherence to best practices. You have read-only access (see Disallowed tools above) — you flag issues, you never fix them yourself." },
+    { key: 'process', heading: 'PROCESS', core: true, collapsed: false,
+      text: "1. Run git diff to see recent changes.\n2. Focus analysis on modified files and newly added code paths.\n3. Check for common vulnerabilities (injection, XSS, auth bypass, secret leaks).\n4. Review error handling, logging, and performance-critical sections." },
+    { key: 'output', heading: 'OUTPUT FORMAT', core: true, collapsed: false,
+      text: "Group findings by severity — Critical / High / Medium / Low — and for each one give: what the issue is, why it matters, the exact file:line, and the fix." },
+  ];
+  function cfgSectionBodyHtml(text) {
+    const lines = text.split('\n').filter(l => l.trim() !== '');
+    const isList = lines.length > 0 && lines.every(l => /^\d+\.\s/.test(l.trim()));
+    if (isList) return '<ol>' + lines.map(l => `<li>${cfgEsc(l.trim().replace(/^\d+\.\s*/, ''))}</li>`).join('') + '</ol>';
+    return text.split(/\n\s*\n/).map(p => `<p>${cfgEsc(p.trim())}</p>`).join('');
+  }
+  function cfgSectionHtml(sec) {
+    if (cfgState.editingSection === sec.key) {
+      return `<div class="sec" data-key="${sec.key}">` +
+        `<div class="sec-h"><span class="h">${sec.heading}</span><span class="core">${sec.core ? 'core' : 'optional'}</span></div>` +
+        `<div class="sec-b" style="cursor:default" onclick="event.stopPropagation()">` +
+        `<textarea id="cfgSecTextarea" autofocus>${cfgEsc(sec.text)}</textarea>` +
+        `<div class="ip-actions"><button class="save" onclick="window.__cfgSaveSection('${sec.key}')">Save</button><button class="cancel" onclick="window.__cfgCancelSection()">Cancel</button></div>` +
+        `</div></div>`;
+    }
+    const chev = sec.collapsed ? '▸' : '▾';
+    const bodyHtml = sec.collapsed ? '' : `<div class="sec-b" title="Click to edit" onclick="window.__cfgEditSection(event,'${sec.key}')">${cfgSectionBodyHtml(sec.text)}</div>`;
+    return `<div class="sec" data-key="${sec.key}">` +
+      `<div class="sec-h" onclick="window.__cfgToggleSectionCollapse('${sec.key}')"><span class="chev">${chev}</span><span class="h">${sec.heading}</span><span class="core">${sec.core ? 'core' : 'optional'}</span></div>` +
+      bodyHtml + `</div>`;
+  }
+  window.__cfgToggleSectionCollapse = function (key) {
+    if (cfgState.editingSection && cfgState.editingSection !== key) window.__cfgOutsideCloseSection();
+    const sec = CFG_SECTIONS.find(s => s.key === key);
+    if (sec) sec.collapsed = !sec.collapsed;
+    buildSections(document.getElementById('centerTop'));
+  };
+  window.__cfgEditSection = function (e, key) {
+    e.stopPropagation();
+    cfgResolveAnyOpenEditor();
+    cfgState.editingSection = key;
+    buildSections(document.getElementById('centerTop'));
+    setTimeout(() => document.getElementById('cfgSecTextarea')?.focus(), 0);
+  };
+  window.__cfgSaveSection = function (key) {
+    const sec = CFG_SECTIONS.find(s => s.key === key);
+    if (sec) sec.text = document.getElementById('cfgSecTextarea').value;
+    cfgState.editingSection = null;
+    buildSections(document.getElementById('centerTop'));
+  };
+  window.__cfgCancelSection = function () { cfgState.editingSection = null; buildSections(document.getElementById('centerTop')); };
+  window.__cfgOutsideCloseSection = function () {
+    const key = cfgState.editingSection;
+    const sec = CFG_SECTIONS.find(s => s.key === key);
+    const ta = document.getElementById('cfgSecTextarea');
+    if (!sec || !ta) { cfgState.editingSection = null; buildSections(document.getElementById('centerTop')); return; }
+    if (ta.value !== sec.text) {
+      if (confirm(`Save changes to ${sec.heading}?`)) sec.text = ta.value;
+    }
+    cfgState.editingSection = null;
+    buildSections(document.getElementById('centerTop'));
+  };
+  document.addEventListener('click', (e) => {
+    if (cfgState.editingSection && !e.target.closest(`.sec[data-key="${cfgState.editingSection}"]`)) window.__cfgOutsideCloseSection();
+  });
+  window.__cfgToggleSectionsCollapse = function () { cfgState.sectionsCollapsed = !cfgState.sectionsCollapsed; buildSections(document.getElementById('centerTop')); };
+  function buildSections(host) {
+    const area = host && host.querySelector('#sectionsArea'); if (!area) return;
+    const chev = cfgState.sectionsCollapsed ? '▸' : '▾';
+    const sectionsLabel = `<div class="zone-label" style="cursor:pointer" onclick="window.__cfgToggleSectionsCollapse()" title="${cfgState.sectionsCollapsed ? 'Expand' : 'Collapse'} sections">` +
+      `<span class="tier">Sections</span> Body <span class="chev" style="color:var(--faint);font-size:9px">${chev}</span></div>`;
+    const sectionsHtml = cfgState.sectionsCollapsed ? '' : CFG_SECTIONS.map(cfgSectionHtml).join('');
+    area.innerHTML = sectionsLabel + sectionsHtml;
+  }
+
+  // ---------- Model + effort header control ----------
+  // Mirrors the real Claude model picker's shape (search + model list + a nested Effort
+  // drill-down) but the model list is THIS project's own catalog (lib/blueprint/catalog.ts
+  // CONFIG_DEFS.model), full values, not shortened — not whatever list another Claude
+  // surface happens to show. Every pick commits immediately (like the other enum pickers
+  // in this file), so no confirm-on-outside-click is needed here, unlike the block editors.
+  const CFG_MODEL_ALLOWED = ['sonnet','opus','haiku','fable','claude-opus-4-8','claude-sonnet-5','claude-haiku-4-5-20251001','claude-fable-5','inherit'];
+  const CFG_EFFORT_OPTS = [
+    { value: null, label: 'Default', hint: 'Model default' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'xhigh', label: 'Extra high' },
+    { value: 'max', label: 'Max' },
+  ];
+  const meState = { open: false, filter: '', effortOpen: false };
+  function meCurrentEffort() { return Object.prototype.hasOwnProperty.call(CFG_AGENT, 'effort') ? CFG_AGENT.effort : null; }
+  function meEffortLabel() { const opt = CFG_EFFORT_OPTS.find(o => o.value === meCurrentEffort()); return opt ? opt.label : cfgEsc(meCurrentEffort()); }
+  function buildModelEffort(host) {
+    const area = host && host.querySelector('#modelEffortArea'); if (!area) return;
+    const modelBad = !CFG_MODEL_ALLOWED.includes(CFG_AGENT.model);
+    let html = `<button type="button" class="me-trigger${modelBad ? ' warn' : ''}" onclick="window.__meToggle(event)" title="${modelBad ? `'${cfgEsc(CFG_AGENT.model)}' is not a current recognized model value.` : 'Model & effort'}">` +
+      `${modelBad ? '⚠ ' : ''}${cfgEsc(CFG_AGENT.model)}<span class="me-effort-tag">${meEffortLabel()}</span><span class="me-chev">▾</span></button>`;
+    if (meState.open) {
+      const q = meState.filter.toLowerCase();
+      const filtered = CFG_MODEL_ALLOWED.filter(m => m.toLowerCase().includes(q));
+      html += `<div class="me-panel" onclick="event.stopPropagation()">` +
+        `<input class="me-search" placeholder="Search models" value="${cfgEsc(meState.filter)}" oninput="window.__meFilter(this.value)" autofocus>` +
+        `<div class="me-list">${filtered.length ? filtered.map(m => `<div class="me-opt" onclick="window.__mePickModel('${m}')">${cfgEsc(m)}${m === CFG_AGENT.model ? '<span class="ck">✓</span>' : ''}</div>`).join('') : '<div class="me-empty">No matches</div>'}</div>` +
+        `<div class="me-effort-row" onclick="window.__meToggleEffort(event)"><span class="lbl">Effort</span><span class="val">${meEffortLabel()} ›</span></div>` +
+        (meState.effortOpen ? `<div class="me-effort-panel">` +
+          `<div class="me-effort-desc">How thoroughly Claude responds; lower effort saves tokens.</div>` +
+          `<div class="me-list">${CFG_EFFORT_OPTS.map(o => {
+            const sel = o.value === meCurrentEffort();
+            return `<div class="me-opt" onclick="window.__mePickEffort(${o.value ? `'${o.value}'` : 'null'})">${o.label}${o.hint ? `<span style="color:var(--faint);font-size:10.5px;margin-left:6px">${o.hint}</span>` : ''}${sel ? '<span class="ck">✓</span>' : ''}</div>`;
+          }).join('')}</div></div>` : '') +
+        `</div>`;
+    }
+    area.innerHTML = html;
+  }
+  window.__meToggle = function (e) { e.stopPropagation(); meState.open = !meState.open; meState.filter = ''; meState.effortOpen = false; buildModelEffort(document.getElementById('centerTop')); };
+  window.__meFilter = function (v) { meState.filter = v; buildModelEffort(document.getElementById('centerTop')); };
+  window.__mePickModel = function (m) { CFG_AGENT.model = m; buildModelEffort(document.getElementById('centerTop')); };
+  window.__meToggleEffort = function (e) { e.stopPropagation(); meState.effortOpen = !meState.effortOpen; buildModelEffort(document.getElementById('centerTop')); };
+  window.__mePickEffort = function (v) {
+    if (v === null) delete CFG_AGENT.effort; else CFG_AGENT.effort = v;
+    meState.effortOpen = false;
+    buildModelEffort(document.getElementById('centerTop'));
+  };
+  document.addEventListener('click', () => {
+    if (meState.open) { meState.open = false; meState.effortOpen = false; buildModelEffort(document.getElementById('centerTop')); }
+  });
+
   // ---------- slot filling ----------
+  // Example A only (R10) — viz top, chat bottom, raw right. Fixed, no switcher.
   const centerTop=document.getElementById('centerTop');
   const centerBottom=document.getElementById('centerBottom');
   const right=document.getElementById('right');
-  function fill(host,tplId){ host.innerHTML=''; host.appendChild(document.getElementById(tplId).content.cloneNode(true)); if(tplId==='tpl-raw') buildRaw(host); }
+  function fill(host,tplId){ host.innerHTML=''; host.appendChild(document.getElementById(tplId).content.cloneNode(true)); if(tplId==='tpl-raw') buildRaw(host); if(tplId==='tpl-viz'){ buildConfig(host); buildSections(host); buildModelEffort(host); } }
 
-  const cap=document.getElementById('cap');
-  const CAPS={
-    A:'<b>Example A</b> — chat as a <b>prompt bar</b> under the visualization; raw on the right.',
-    B:'<b>Example B</b> — chat gets the <b>tall right column</b> (a conversation); raw sits under the visualization.'
-  };
-  const railRightLabel=document.getElementById('railRightLabel');
-  function layout(which){
+  function layout(){
     fill(centerTop,'tpl-viz');
-    if(which==='A'){ fill(centerBottom,'tpl-chat'); fill(right,'tpl-raw'); railRightLabel.textContent='◂ Raw'; }
-    else { fill(centerBottom,'tpl-raw'); fill(right,'tpl-chat'); railRightLabel.textContent='◂ Chat'; }
+    fill(centerBottom,'tpl-chat');
+    fill(right,'tpl-raw');
     // give the right panel a collapse button
     const rh=right.querySelector('.phead');
     if(rh){ const b=document.createElement('button'); b.className='foldbtn'; b.dataset.fold='right'; b.title='Collapse'; b.textContent='⟩'; rh.appendChild(b); }
-    setFold('right', foldState.right); // preserve fold across toggle
-    cap.innerHTML=CAPS[which];
-    btnA.setAttribute('aria-pressed', which==='A'); btnB.setAttribute('aria-pressed', which==='B');
+    setFold('right', foldState.right); // preserve fold across re-render
   }
-  const btnA=document.getElementById('btnA'), btnB=document.getElementById('btnB');
-  btnA.onclick=()=>layout('A'); btnB.onclick=()=>layout('B');
 
   // ---------- fold side panels ----------
   const railLeft=document.getElementById('railLeft'), railRight=document.getElementById('railRight');
@@ -501,5 +1162,5 @@
   document.addEventListener('mousemove',onMove);
   document.addEventListener('mouseup',onUp);
 
-  layout('A');
+  layout();
 </script>
