@@ -2,12 +2,12 @@
 
 A workbench for building and managing AI agents: an **agent-aware AI chat** next to an
 **always-visible structured view** of the agent it's editing. Design is complete; Plan 01
-(Phases 1–3: round-trip proof, persistence, Strict import pipeline) is built and committed.
-A follow-up audit (Fable Review 1, 2026-07-28) found real bugs in the built import pipeline
-and produced Plan 02, which also finishes and wires up Structural Import (designed earlier
-but never built). Plan 02's non-code parts (rule-set adoption, doc sync) are done; its code
-phases (A1–A4, B2/B3/B5/B6) are **ready for `@dev` to execute** — see the Plan 02 pointer
-below. This file is the map.
+(core loop), Plan 02 (import hardening + Structural Import), and Plan 03 (visual-shell
+alignment + Library/groups + import UI) are all built and committed. The Blueprint catalog
+was refreshed against the real Claude Code subagent docs. Current work is a hands-on UI
+punch-list from the user's own testing — 2 of 8 items fixed, 6 pending, no code plan
+written yet. See the punch-list pointer below for exactly where to resume. This file is the
+map.
 
 ## Standing project rules
 
@@ -28,6 +28,14 @@ follow these even though you have no memory of when they were agreed:
    dev server, etc. — **stop and ask the user before making that call**, even if the task
    description seems to imply it should happen automatically. Say what call you'd make and
    roughly what it costs; don't just do it.
+3. **Shut down the dev server (`npm run dev`) after a testing/verification session ends —
+   default is off.** Only leave it running if the user explicitly says to keep it up. Reason
+   this rule exists: on 2026-07-28, four separate `next dev` processes (ports 3000–3003)
+   accumulated across sessions that never got shut down, all pointing at the same SQLite
+   file — one of them hung indefinitely on the `/export` route (SQLite lock contention),
+   which looked like a real app bug ("Raw pane stuck on Loading…") until traced back to the
+   stray processes. Before starting a fresh one, check `netstat -ano | grep LISTENING` (or
+   equivalent) for leftover Node processes on 3000+ and kill them first.
 
 ## ✅ Plan 01 review — complete (2026-07-26)
 
@@ -118,6 +126,45 @@ starting, not this summary.
 Phase D of the plan (catalog seed drift, Strict-mode merged-heading instability, UI mode
 picker, adversarial-file re-audit, `__raw` frontmatter escape hatch) is **intentionally not
 in scope** — each item has its own revisit trigger in the plan's Phase D table.
+
+## 🟡 UI punch-list — 2 of 8 fixed, next session starts here (2026-07-28)
+
+After Plan 03 landed, the user did a hands-on pass and flagged a punch-list of small
+bugs/polish items. **Two real bugs fixed and verified live this session:**
+
+- **Raw pane stuck on "Loading…"** — not an app bug. Four stray `next dev` processes had
+  accumulated across sessions (ports 3000–3003, all pointing at the same SQLite file); the
+  one the browser was using hung mid-compile on the `/export` route (SQLite lock
+  contention). Killed all four, started one clean instance. See standing rule 3 above —
+  this is exactly the failure mode it now guards against.
+- **"imported from imported" label** — `app/components/CustomViz/AgentView.tsx` was
+  templating the DB enum `Agent.source: 'created' | 'imported'` into an "imported from X"
+  sentence assuming X was a filename; no filename field exists anywhere in the schema.
+  Fixed to just say "imported into platform" / "created in platform".
+
+**Still pending — not started, no plan file written yet:**
+1. **Tools/skills/mcpServers as one pill per item**, not a collapsed `[N entries]` blob —
+   `AgentView.tsx` around the list-type config rendering.
+2. **Pill color + hint system** — outdated/unrecognized values already get a warn-colored
+   pill with the reason baked into the text; valid pills are all flat gray (no color
+   coding at all), and there's no hover-tooltip alternative to inline text. Needs a color
+   scheme decision before building.
+3. **Model moved to top-right as its own dropdown** — currently sits inline in the same
+   pill row as everything else. Needs a decision on exactly where "top right" means before
+   building.
+4. **Groups collapse/expand for "All agents"/"Ungrouped"** — real user groups already
+   collapse (`GroupSection.tsx`), the two pseudo-groups are hardcoded open
+   (`LibraryPanel.tsx`).
+5. **Agent name editable in place** (click the `<h1>` in `AgentView.tsx` to rename) — not
+   implemented, currently static text.
+6. **Lowercase-hyphen name validation** — user doesn't like it, wants it reviewed. Note:
+   it's already just a soft validator warning (`lib/blueprint/rules.ts:35`,
+   `isValidNameSpec`), not blocking/enforced — non-conforming names save fine today. May
+   need nothing more than confirming that's the wanted behavior.
+7. **Dedicated group-management view** — genuinely new scope, not in Plan 03. Not
+   researched yet.
+
+Description-under-title was checked and is already correct, no action needed.
 
 ## ✅ Blueprint catalog refresh — complete (2026-07-28)
 

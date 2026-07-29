@@ -74,8 +74,7 @@ export function AgentView({
           <div className="text-[var(--muted)] text-[12px] mt-[2px]">
             {agent.description || <span className="italic text-[var(--err)]">description missing</span>}
             {' · '}
-            <span>imported from</span>{' '}
-            <code className="font-mono text-[var(--faint)]">{agent.source}</code>
+            <span>{agent.source === 'imported' ? 'imported into platform' : 'created in platform'}</span>
           </div>
           {/* Group membership pills */}
           {agentGroups.length > 0 && (
