@@ -18,8 +18,12 @@ interface PanelProps {
   glyph: string;
   /** Uppercase panel label */
   label: string;
-  /** Optional subtitle shown right-aligned in a smaller muted font */
-  role?: string;
+  /**
+   * Optional subtitle shown right-aligned in a smaller muted font. Accepts a node
+   * (not just a string) so the Library panel's Agents/Grouped toggle — prototyped
+   * 2026-07-29 — can render as a clickable element here.
+   */
+  role?: React.ReactNode;
   /** If true, shows a collapse button (⟨ or ⟩ depending on side) */
   foldable?: boolean;
   /** Which direction the fold button points — left panels fold left (⟨), right panels (⟩) */

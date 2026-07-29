@@ -136,6 +136,23 @@ function isBadListItem(propKey: string, item: string): boolean {
   return false; // skills: open vocabulary, no closed list to check against
 }
 
+// List-item cap (prototyped 2026-07-29) — confirmed real gap: a `dev`-style agent with
+// ~40 MCP tools rendered as an unbroken wrap with no cap at all. Applies to every list
+// key (tools/disallowedTools/skills), not just tools.
+const LIST_ITEM_CAP = 14;
+
+// MCP tool display shortening (prototyped 2026-07-29) — an item's full qualified name
+// (mcp__server or mcp__server__tool) is still what's stored/matched/removed; this only
+// shortens what's shown on the pill, with the full name moved into its tooltip. Without
+// this, an MCP-heavy tools list is "too much info" per pill even under the cap above.
+const MCP_DISPLAY_RE = /^mcp__([\w.-]+?)(?:__([\w.-]+))?$/;
+function mcpDisplayOf(item: string): { server: string; tool?: string } | null {
+  const m = item.match(MCP_DISPLAY_RE);
+  if (!m) return null;
+  const [, server, tool] = m;
+  return { server, tool };
+}
+
 function getCatalogDef(key: string) {
   return CONFIG_DEFS.find((d) => d.key === key) ?? null;
 }
@@ -222,6 +239,8 @@ export function AgentView({
   const [toolPickerOpen, setToolPickerOpen] = useState(false);
   const [toolPickerFilter, setToolPickerFilter] = useState('');
   const [selectedItem, setSelectedItem] = useState<{ key: string; item: string } | null>(null);
+  // list-item cap expand state, per key — prototyped 2026-07-29
+  const [listExpanded, setListExpanded] = useState<Record<string, boolean>>({});
   const [editingRestriction, setEditingRestriction] = useState(false);
   const [restrictionDraft, setRestrictionDraft] = useState('');
 
@@ -652,9 +671,18 @@ export function AgentView({
     const isEnum = def.datatype === 'enum';
     const allowedValues = def.allowedValues as readonly string[] | null;
     const isValidEnum = isEnum && allowedValues ? allowedValues.includes(value as string) : true;
+    // "Invalid" (red, structurally malformed) is a distinct, more severe tier from
+    // "outdated" (yellow, unrecognized-but-well-formed) — confirmed with the user
+    // 2026-07-29. Icon: ✕ (confirmed, vs. the ⚠ used for the yellow tier below). Only
+    // int (maxTurns) has a concrete real-app case right now: a non-numeric value can only
+    // reach here via import or manual raw-edit — this UI's own edit path (saveInt) only
+    // ever writes a valid positive integer.
+    const isInvalidInt = isInt && !(typeof value === 'number' && Number.isFinite(value) && value > 0);
 
     const pillClasses = `inline-flex items-center gap-[5px] text-[10.5px] font-mono px-[8px] py-[2px] rounded-full cursor-pointer select-none border ${
-      !isValidEnum
+      isInvalidInt
+        ? 'border-[var(--err)] text-[var(--err)] bg-[var(--elev)]'
+        : !isValidEnum
         ? 'border-[var(--warn)] text-[var(--warn)] bg-[var(--elev)]'
         : 'border-[var(--border)] text-[var(--text)] bg-[var(--elev)] hover:border-[var(--accent)]'
     }`;
@@ -664,8 +692,14 @@ export function AgentView({
       key === 'color' && COLOR_HEX[valueStr]
         ? <span style={{ background: COLOR_HEX[valueStr] }} className="inline-block w-[9px] h-[9px] rounded-full border border-black/15 flex-none" />
         : null;
-    const warnPrefix = !isValidEnum ? <span className="text-[10px]">⚠</span> : null;
-    const title = !isValidEnum
+    const warnPrefix = isInvalidInt
+      ? <span className="text-[10px]">✕</span>
+      : !isValidEnum
+      ? <span className="text-[10px]">⚠</span>
+      : null;
+    const title = isInvalidInt
+      ? `'${valueStr}' is not a valid ${key} — must be a positive whole number. Click to fix.`
+      : !isValidEnum
       ? `'${valueStr}' is not a recognized ${key} value.${allowedValues ? ` Recognized: ${allowedValues.join(', ')}.` : ''}`
       : `${key} · ${def.datatype}`;
 
@@ -825,8 +859,12 @@ export function AgentView({
     }
 
     // Normal item pill
+    const mcp = mcpDisplayOf(item);
+    const displayText = mcp ? `mcp:${mcp.tool || mcp.server}` : item;
     const pillTitle = bad
       ? `'${item}' is not a recognized ${propKey} value.`
+      : mcp
+      ? `${item} · MCP tool on server "${mcp.server}"${mcp.tool ? '' : ' · whole server'}`
       : `${propKey} · list item`;
     return (
       <span
@@ -842,7 +880,7 @@ export function AgentView({
         }`}
       >
         {bad && <span className="text-[10px]">⚠</span>}
-        {item}
+        {displayText}
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); void removeListItem(propKey, item); }}
@@ -909,6 +947,8 @@ export function AgentView({
     if (!def) return null;
     const items = listItemsOf(configMap.get(key) ?? []);
     const isDisallowed = key === 'disallowedTools';
+    const capped = items.length > LIST_ITEM_CAP && !listExpanded[key];
+    const visibleItems = capped ? items.slice(0, LIST_ITEM_CAP) : items;
 
     const addControl =
       key === 'tools' ? (
@@ -958,8 +998,20 @@ export function AgentView({
           {def.label}
         </span>
         <div className="flex-1 flex flex-wrap gap-[5px] items-center">
-          {items.map((item) => renderItemPill(key, item))}
-          {addControl}
+          {visibleItems.map((item) => renderItemPill(key, item))}
+          {items.length > LIST_ITEM_CAP && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setListExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+              }}
+              className="inline-flex items-center text-[10.5px] font-sans font-semibold px-[8px] py-[2px] rounded-full border border-[var(--accent)] text-[var(--accent-ink)] bg-[var(--accent-wash)] cursor-pointer"
+            >
+              {capped ? `+${items.length - LIST_ITEM_CAP} more ▾` : 'show less ▴'}
+            </button>
+          )}
+          {!capped && addControl}
         </div>
         {/* Row-level × to remove the entire key */}
         {def.required ? (

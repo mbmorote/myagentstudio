@@ -92,6 +92,10 @@
   }
   .phead .glyph{color:var(--accent)}
   .phead .role{margin-left:auto; font-weight:500; letter-spacing:.03em; text-transform:none; color:var(--faint); font-size:10px}
+  /* Library's Agents/Grouped toggle — the phead role word itself is the control (revised
+     2026-07-29; replaced the earlier separate two-button segmented control). */
+  .phead .role.lib-toggle{cursor:pointer; color:var(--accent-ink); font-weight:700}
+  .phead .role.lib-toggle:hover{text-decoration:underline}
   .foldbtn{margin-left:8px; width:20px;height:20px;flex:0 0 auto;border:1px solid var(--border);
            background:var(--bg);color:var(--muted);border-radius:5px;cursor:pointer;font-size:11px;line-height:1;
            display:grid;place-items:center}
@@ -104,6 +108,11 @@
         display:flex; flex-direction:column; align-items:center; gap:10px; padding:10px 0; cursor:pointer;
         color:var(--muted)}
   .rail[hidden]{display:none}
+  /* a folded rail hides its side's resize gutter (nothing left to drag), which otherwise
+     also carried the visual gap to the center panel — replace it with a fixed margin so
+     the rail doesn't sit flush against center. */
+  #railLeft{margin-right:9px}
+  #railRight{margin-left:9px}
   .rail:hover{color:var(--accent-ink); border-color:var(--accent)}
   .rail .rlabel{writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; font-weight:600;
                 letter-spacing:.08em; text-transform:uppercase}
@@ -123,6 +132,12 @@
   body.resizing.rows{cursor:row-resize}
 
   /* ================= agent list ================= */
+  /* Flat/Grouped view toggle — prototyped 2026-07-29, replaces the old always-on
+     Personal/Pipeline + redundant "All agents" + Ungrouped stack of sections. Toggle
+     control itself lives in the phead (.lib-toggle, above), not here. */
+  /* zone-label reused for the "Manage" separator above the list actions — tighter margins
+     to match the list's own indent (.lgroup/.laction padding) instead of the viz's 18px */
+  .pbody > .zone-label{margin:14px 10px 6px}
   .lgroup{padding:6px 8px 2px; color:var(--faint); font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase}
   .arow{
     display:flex; align-items:center; gap:8px; padding:6px 10px; margin:1px 6px;
@@ -186,6 +201,11 @@
   .pill.grp{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-wash);font-family:var(--ui);font-size:11px}
   .pill.warn{border-color:var(--warn);color:var(--warn);background:var(--elev)}
   .pill.warn::before{content:"⚠";font-size:10px}
+  /* red/invalid tier — prototyped 2026-07-29, distinct from yellow/warn (well-formed but
+     unrecognized). Red = structurally malformed (e.g. maxTurns holding a non-number).
+     Icon not yet confirmed with the user — ✕ chosen here, ❗ was the other candidate. */
+  .pill.bad{border-color:var(--err);color:var(--err);background:var(--elev)}
+  .pill.bad::before{content:"✕";font-size:10px}
   .pill.more{cursor:pointer;font-family:var(--ui);font-weight:600;color:var(--accent-ink);
     border-color:var(--accent);background:var(--accent-wash)}
   .key-label{font-size:10px;color:var(--faint);margin-right:2px}
@@ -344,50 +364,17 @@
 
   <!-- LEFT: agent list -->
   <!--
-    TODO (next session — not implemented yet, logged 2026-07-29): redesign this whole
-    Library panel body. Currently shows FOUR sections at once (named groups like Personal/
-    Pipeline, then a redundant flat "All agents", then "Ungrouped") — cluttered, and "All
-    agents" duplicates rows already shown under the named groups above it.
-
-    Wanted instead: ONE toggleable list, driven by a single clickable label.
-      - Flat mode: every agent, no group headers at all.
-      - Grouped mode: bucketed by real Group entities, with a trailing synthetic
-        "Ungrouped" bucket for agents with no group membership. (Click again to flip back
-        to Flat.)
-    OPEN QUESTION to resolve before building: does selecting a specific agent auto-switch
-    the view to Flat (i.e. selection forces flat, independent of the toggle), or is Flat
-    just the toggle's own default/off state with no relation to what's selected? Confirm
-    this with the user first — don't guess it into the implementation.
-
-    Also: the bottom actions (＋ New agent / ⇪ Import .md / ＋ New group) should move under
-    a "Manage" label styled like the .zone-label pattern already built for the Config/
-    Sections zones (badge-or-text + trailing horizontal line via ::after), replacing the
-    current plain .lsep divider above them.
+    Flat/Grouped redesign — prototyped 2026-07-29 (was a TODO here; resolved). Replaces the
+    old always-on Personal/Pipeline + redundant flat "All agents" + Ungrouped stack with ONE
+    toggleable list (buildLibrary(), below). Grouped = real groups + trailing synthetic
+    "Ungrouped" bucket. Flat = every agent, no headers. Confirmed with the user: the toggle
+    is independent of selection — clicking an agent inside a group never force-switches the
+    view to Flat. Bottom actions now sit under a "Manage" .zone-label separator (same
+    pattern as the Config/Sections zones) instead of the old plain .lsep divider.
   -->
   <section class="panel left" id="left">
-    <div class="phead"><span class="glyph">▤</span> Library <span class="role">agents · groups</span><button class="foldbtn" data-fold="left" title="Collapse">⟨</button></div>
-    <div class="pbody">
-      <div class="lgroup">▾ Personal</div>
-      <div class="arow"><span class="av">Z</span><span class="nm">Zara</span></div>
-      <div class="arow"><span class="av">A</span><span class="nm">Aria</span></div>
-      <div class="arow"><span class="av">Ad</span><span class="nm">Ada</span></div>
-      <div class="lgroup">▾ Pipeline</div>
-      <div class="arow"><span class="av">an</span><span class="nm">analyst</span></div>
-      <div class="arow"><span class="av">de</span><span class="nm">dev</span><span class="tag">imported</span></div>
-      <div class="arow"><span class="av">qa</span><span class="nm">qa</span></div>
-      <div class="arow"><span class="av">ar</span><span class="nm">architect</span></div>
-      <div class="arow sel"><span class="av">sc</span><span class="nm">secure-code-auditor</span><span class="tag">reference</span></div>
-      <div class="lsep"></div>
-      <div class="lgroup">▾ All agents</div>
-      <div class="arow muted"><span class="av">Z</span><span class="nm">Zara</span></div>
-      <div class="arow sel"><span class="av">sc</span><span class="nm">secure-code-auditor</span><span class="tag">reference</span></div>
-      <div class="lgroup">▾ Ungrouped</div>
-      <div class="arow muted"><span class="av">sc</span><span class="nm">scribe</span></div>
-      <div class="lsep"></div>
-      <div class="laction">＋ New agent</div>
-      <div class="laction">⇪ Import .md</div>
-      <div class="laction">＋ New group</div>
-    </div>
+    <div class="phead"><span class="glyph">▤</span> Library <span class="role lib-toggle" id="libModeToggle" onclick="window.__libToggleMode()" title="Click to switch between Agents (flat) and Grouped view">Agents</span><button class="foldbtn" data-fold="left" title="Collapse">⟨</button></div>
+    <div class="pbody" id="libBody"><!-- rendered by buildLibrary() --></div>
   </section>
 
   <div class="gv" data-resize="left"></div>
@@ -413,7 +400,8 @@
 <div class="foot">
   <span class="chip"><span class="sw" style="background:var(--accent)"></span> Custom Visualization — platform's main view (always center‑top)</span>
   <span class="chip"><span class="sw" style="background:var(--muted)"></span> Raw agent — the exported <code>.md</code>, read‑reference</span>
-  <span class="chip"><span class="sw" style="background:var(--warn)"></span> ⚠ = validation flag (drift caught live)</span>
+  <span class="chip"><span class="sw" style="background:var(--warn)"></span> ⚠ = outdated (unrecognized but well-formed)</span>
+  <span class="chip"><span class="sw" style="background:var(--err)"></span> ✕ = invalid (structurally malformed)</span>
   <span class="chip" style="margin-left:auto;color:var(--faint)">drag any divider to resize · ⟨ ⟩ to fold side panels</span>
 </div>
 
@@ -516,6 +504,50 @@
     });
   }
 
+  // ---------- Library panel (Flat/Grouped) ----------
+  // Prototyped 2026-07-29 per the queued redesign note. Toggle is independent of selection
+  // (confirmed with the user) — picking an agent never forces the view to Flat.
+  const LIB_AGENTS = {
+    Zara: { av: 'Z' }, Aria: { av: 'A' }, Ada: { av: 'Ad' },
+    analyst: { av: 'an' }, dev: { av: 'de', tag: 'imported' }, qa: { av: 'qa' }, architect: { av: 'ar' },
+    'secure-code-auditor': { av: 'sc', tag: 'reference' },
+    scribe: { av: 'sc' },
+  };
+  const LIB_GROUPS = [
+    { name: 'Personal', agents: ['Zara', 'Aria', 'Ada'] },
+    { name: 'Pipeline', agents: ['analyst', 'dev', 'qa', 'architect', 'secure-code-auditor'] },
+  ];
+  // Default is Flat ("Agents") per the user's revision 2026-07-29 — the phead role word
+  // itself is the toggle (id="libModeToggle"), not a separate segmented control.
+  const libState = { mode: 'flat', selected: 'secure-code-auditor' };
+  function libRow(name) {
+    const a = LIB_AGENTS[name];
+    const sel = name === libState.selected ? ' sel' : '';
+    const tag = a.tag ? `<span class="tag">${a.tag}</span>` : '';
+    return `<div class="arow${sel}" onclick="window.__libSelect('${name}')"><span class="av">${a.av}</span><span class="nm">${name}</span>${tag}</div>`;
+  }
+  window.__libSelect = function (name) { libState.selected = name; buildLibrary(); };
+  window.__libToggleMode = function () { libState.mode = libState.mode === 'flat' ? 'grouped' : 'flat'; buildLibrary(); };
+  function buildLibrary() {
+    const body = document.getElementById('libBody'); if (!body) return;
+    const toggleLabel = document.getElementById('libModeToggle');
+    if (toggleLabel) toggleLabel.textContent = libState.mode === 'flat' ? 'Agents' : 'Grouped';
+    let listHtml;
+    if (libState.mode === 'flat') {
+      const grouped = new Set(LIB_GROUPS.flatMap(g => g.agents));
+      const all = [...new Set([...grouped, ...Object.keys(LIB_AGENTS)])];
+      listHtml = all.map(libRow).join('');
+    } else {
+      const grouped = new Set(LIB_GROUPS.flatMap(g => g.agents));
+      const ungrouped = Object.keys(LIB_AGENTS).filter(n => !grouped.has(n));
+      listHtml = LIB_GROUPS.map(g => `<div class="lgroup">▾ ${g.name}</div>${g.agents.map(libRow).join('')}`).join('') +
+        (ungrouped.length ? `<div class="lgroup">▾ Ungrouped</div>${ungrouped.map(libRow).join('')}` : '');
+    }
+    const manage = `<div class="zone-label">Manage</div>` +
+      `<div class="laction">＋ New agent</div><div class="laction">＋ New group</div><div class="laction">⇪ Import agent</div>`;
+    body.innerHTML = listHtml + manage;
+  }
+
   // ---------- Tier 1 config zone (editable) ----------
   // TODO (tracked, not yet decided): every confirm()/alert()/prompt() in this file — row
   // removal, unsaved-changes-on-outside-click for the block editors and sections, the
@@ -596,9 +628,24 @@
   // doesn't populate most of these keys — secure-code-auditor is the stress test.
   const CFG_AGENT = {
     model: 'opus', effort: 'high',
-    permissionMode: 'auto', maxTurns: 10, memory: 'project',
+    // maxTurns deliberately seeded malformed (a string, not a number) to demo the new
+    // red/invalid pill tier prototyped 2026-07-29 — this is the design note's own example
+    // of "invalid" (structurally broken) vs. the existing yellow "warn" (well-formed but
+    // unrecognized, e.g. an old model ID or removed tool name).
+    permissionMode: 'auto', maxTurns: '10 turns', memory: 'project',
     background: false, isolation: 'worktree', color: 'red',
-    tools: ["Read","Grep","Glob","Bash"],
+    // Padded past the real 4-tool read-only set with demo mcp__ entries (atlassian-mcp-server,
+    // the same server pattern as the real `dev` agent) purely to exercise the "+N more" cap
+    // prototyped below — not a realistic grant for a read-only auditor role.
+    tools: ["Read","Grep","Glob","Bash",
+      "mcp__atlassian-mcp-server__getJiraIssue","mcp__atlassian-mcp-server__searchJiraIssuesUsingJql",
+      "mcp__atlassian-mcp-server__createJiraIssue","mcp__atlassian-mcp-server__editJiraIssue",
+      "mcp__atlassian-mcp-server__getConfluencePage","mcp__atlassian-mcp-server__createConfluencePage",
+      "mcp__atlassian-mcp-server__updateConfluencePage","mcp__atlassian-mcp-server__getVisibleJiraProjects",
+      "mcp__atlassian-mcp-server__getTransitionsForJiraIssue","mcp__atlassian-mcp-server__transitionJiraIssue",
+      "mcp__atlassian-mcp-server__addCommentToJiraIssue","mcp__atlassian-mcp-server__lookupJiraAccountId",
+      "mcp__atlassian-mcp-server__search","mcp__atlassian-mcp-server__fetch",
+      "WebSearch","WebFetch"],
     disallowedTools: ["Edit","Write"],
     skills: ["security-checklist","performance-patterns"],
     initialPrompt: "Start by running `git diff` against the default branch and summarize scope before doing anything else.",
@@ -614,7 +661,13 @@
 
   const cfgState = { editing: null, addingItem: null, toolPickerOpen: false, toolPickerFilter: '',
                       editingRestriction: false, expandedCustom: null, expandedPrompt: false, addKeyMenuOpen: false,
-                      editingSection: null, keysCollapsed: false, sectionsCollapsed: false, selectedItem: null };
+                      editingSection: null, keysCollapsed: false, sectionsCollapsed: false, selectedItem: null,
+                      listExpanded: {} };
+  // list-item cap — prototyped 2026-07-29. Confirmed real gap: `dev`'s actual `tools` list
+  // (8 base tools + ~40 atlassian-mcp-server__* MCP tools) rendered as an unbroken wrap with
+  // no cap at all. Applies to every list key (tools/disallowedTools/skills), not just tools —
+  // cheap to keep generic even though tools is the only one that concretely gets this long.
+  const CFG_LIST_CAP = 14;
   function cfgRerender(){ buildConfig(document.getElementById('centerTop')); }
   // Resolves (confirm-save/discard, then exits) whichever block-style editor is currently
   // open, if any — called before opening a different one so switching directly between
@@ -662,7 +715,9 @@
     const def = CFG_CATALOG[key], value = CFG_AGENT[key];
     if (def.datatype === 'int') {
       if (cfgState.editing === key) return cfgEditControl(key);
-      return `<span class="pill" onclick="window.__cfgEdit('${key}')">${value}</span>`;
+      const bad = typeof value !== 'number' || !Number.isFinite(value) || value <= 0;
+      const title = bad ? `'${cfgEsc(value)}' is not a valid ${key} — must be a positive whole number. Click to fix.` : `${key} · int`;
+      return `<span class="pill ${bad ? 'bad' : ''}" title="${title}" onclick="window.__cfgEdit('${key}')">${cfgEsc(value)}</span>`;
     }
     let label = cfgEsc(value), extra = '';
     if (key === 'background') label = value ? 'true' : 'false';
@@ -728,14 +783,31 @@
   // NOT remove it. Only the × removes. Clicking outside a selected pill deselects it, like
   // a cancel — previously the whole pill (body included) triggered removal on any click,
   // which was one accidental click away from silently deleting an entry.
+  // MCP tools (mcp__server or mcp__server__tool) render their full qualified name by
+  // default, which is exactly the "too much info per pill" the user flagged 2026-07-29 —
+  // a real `dev`-style agent with ~40 atlassian-mcp-server__* tools turns into an unreadable
+  // wall of text even under the cap. Compact display: just the tool (or server, for a
+  // whole-server grant) with an "mcp:" prefix; the full qualified name lives in the tooltip
+  // and is still what's stored/removed/matched underneath — display-only shortening.
+  const CFG_MCP_DISPLAY_RE = /^mcp__([\w.-]+?)(?:__([\w.-]+))?$/;
+  function cfgMcpDisplay(item) {
+    const m = item.match(CFG_MCP_DISPLAY_RE);
+    if (!m) return null;
+    const [, server, tool] = m;
+    return { server, tool };
+  }
   function cfgItemPill(key, item) {
     if (key === 'tools' && (item === 'Agent' || item.startsWith('Agent('))) return cfgAgentPill(item);
     const bad = cfgIsBadListItem(key, item);
     const dashed = key === 'disallowedTools' ? ' dashed' : '';
     const selected = cfgState.selectedItem && cfgState.selectedItem.key === key && cfgState.selectedItem.item === item;
     const cls = (bad ? 'warn' : '') + (selected ? ' selected' : '');
-    const title = bad ? `'${cfgEsc(item)}' is not a recognized ${key} value.` : `${key} · list`;
-    return `<span class="pill ${cls}${dashed}" title="${title}" onclick="event.stopPropagation();window.__cfgSelectItem('${key}', ${JSON.stringify(item)})">${cfgEsc(item)}` +
+    const mcp = cfgMcpDisplay(item);
+    const displayText = mcp ? cfgEsc('mcp:' + (mcp.tool || mcp.server)) : cfgEsc(item);
+    const title = bad ? `'${cfgEsc(item)}' is not a recognized ${key} value.`
+      : mcp ? `${cfgEsc(item)} · MCP tool on server "${cfgEsc(mcp.server)}"${mcp.tool ? '' : ' · whole server'}`
+      : `${key} · list`;
+    return `<span class="pill ${cls}${dashed}" title="${title}" onclick="event.stopPropagation();window.__cfgSelectItem('${key}', ${JSON.stringify(item)})">${displayText}` +
       `<span class="x" onclick="event.stopPropagation();window.__cfgRemoveItem('${key}', ${JSON.stringify(item)})">×</span></span>`;
   }
   window.__cfgSelectItem = function (key, item) { cfgState.selectedItem = { key, item }; cfgRerender(); };
@@ -745,7 +817,15 @@
   window.__cfgRemoveItem = function (key, item) { CFG_AGENT[key] = CFG_AGENT[key].filter(i => i !== item); cfgState.selectedItem = null; cfgRerender(); };
   function cfgListRowPills(key) {
     const items = CFG_AGENT[key] || [];
-    let inner = items.map(it => cfgItemPill(key, it)).join('');
+    const capped = items.length > CFG_LIST_CAP && !cfgState.listExpanded[key];
+    const visible = capped ? items.slice(0, CFG_LIST_CAP) : items;
+    let inner = visible.map(it => cfgItemPill(key, it)).join('');
+    if (items.length > CFG_LIST_CAP) {
+      inner += capped
+        ? `<span class="pill more" onclick="event.stopPropagation();window.__cfgToggleListExpand('${key}')">+${items.length - CFG_LIST_CAP} more ▾</span>`
+        : `<span class="pill more" onclick="event.stopPropagation();window.__cfgToggleListExpand('${key}')">show less ▴</span>`;
+    }
+    if (capped) return inner; // hide the add control while collapsed, same as it hides the tail items
     if (key === 'tools') {
       const remaining = [...CFG_BUILTIN_TOOLS].filter(t => !items.includes(t));
       inner += `<span class="add-anchor"><span class="pill add" onclick="window.__cfgOpenToolPicker(event)">+ add</span>` +
@@ -757,6 +837,7 @@
     }
     return inner;
   }
+  window.__cfgToggleListExpand = function (key) { cfgState.listExpanded[key] = !cfgState.listExpanded[key]; cfgRerender(); };
   window.__cfgStartAdd = function (key) { cfgState.addingItem = key; cfgRerender(); setTimeout(() => document.getElementById('cfgAddInput')?.focus(), 0); };
   window.__cfgCancelAdd = function () { cfgState.addingItem = null; cfgRerender(); };
   window.__cfgAddInputKey = function (e, key) {
@@ -1163,4 +1244,5 @@
   document.addEventListener('mouseup',onUp);
 
   layout();
+  buildLibrary();
 </script>

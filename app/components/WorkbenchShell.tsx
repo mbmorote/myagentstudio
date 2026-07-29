@@ -32,6 +32,7 @@ import { Panel } from '@/app/components/shell/Panel';
 import { Rail } from '@/app/components/shell/Rail';
 import { Gutter } from '@/app/components/shell/Gutter';
 import { RawAgentView } from '@/app/components/Raw/RawAgentView';
+import { LibraryPanel } from '@/app/components/Library/LibraryPanel';
 
 export type InteractionLock = 'chat' | 'edit' | null;
 
@@ -45,15 +46,12 @@ interface WorkbenchShellProps {
   agents?: AgentLiteDTO[];
   /** All groups (for Library panel and config pills) */
   groups?: GroupDTO[];
-  /** Body content to render inside the Library panel (Phase C provides LibraryPanel) */
-  libraryContent?: React.ReactNode;
 }
 
 export function WorkbenchShell({
   initialAgent,
   agents = [],
   groups = [],
-  libraryContent,
 }: WorkbenchShellProps) {
   const [agent, setAgent] = useState<AgentDTO | null>(initialAgent);
   const [interactionLock, setInteractionLock] = useState<InteractionLock>(null);
@@ -61,6 +59,13 @@ export function WorkbenchShell({
   // ── Fold state (R15 — local only) ──────────────────────────────────────────
   const [leftFolded, setLeftFolded] = useState(false);
   const [rightFolded, setRightFolded] = useState(false);
+
+  // ── Library Agents/Grouped toggle (prototyped 2026-07-29) ───────────────────
+  // Lives here (not inside LibraryPanel) because the toggle control itself sits in
+  // the Panel header's `role` slot, which only WorkbenchShell renders — LibraryPanel
+  // only owns the panel body. Default is "Agents" (flat); independent of selection —
+  // picking an agent never force-switches the view to Grouped.
+  const [libraryMode, setLibraryMode] = useState<'flat' | 'grouped'>('flat');
 
   // ── Resize state (R15 — local only, same initial values as mockup) ─────────
   const [leftWidth, setLeftWidth] = useState(218);    // matches mockup .left { flex: 0 0 218px }
@@ -98,23 +103,36 @@ export function WorkbenchShell({
 
         {/* ── Left: Library panel (foldable + resizable) ───────────────── */}
         {leftFolded ? (
-          <Rail glyph="▤" label="Library ▸" onUnfold={() => setLeftFolded(false)} />
+          <Rail glyph="▤" label="Library ▸" onUnfold={() => setLeftFolded(false)} className="mr-[9px]" />
         ) : (
           <>
             <Panel
               glyph="▤"
               label="Library"
-              role="agents · groups"
+              role={
+                <span
+                  onClick={() => setLibraryMode((m) => (m === 'flat' ? 'grouped' : 'flat'))}
+                  title="Click to switch between Agents (flat) and Grouped view"
+                  className="cursor-pointer font-bold text-[var(--accent-ink)] hover:underline"
+                >
+                  {libraryMode === 'flat' ? 'Agents' : 'Grouped'}
+                </span>
+              }
               foldable
               foldDirection="left"
               onFold={() => setLeftFolded(true)}
               className="flex-none"
               style={{ width: leftWidth }}
             >
-              {libraryContent ?? (
-                <div className="p-4 text-[12px] text-[var(--faint)]">
-                  Library coming in Phase C…
-                </div>
+              {agent ? (
+                <LibraryPanel
+                  currentAgentId={agent.id}
+                  agents={agents}
+                  groups={groups}
+                  mode={libraryMode}
+                />
+              ) : (
+                <div className="p-4 text-[12px] text-[var(--faint)]">No agent loaded.</div>
               )}
             </Panel>
             <Gutter
@@ -166,7 +184,7 @@ export function WorkbenchShell({
                   <div className="text-center">
                     <p className="text-[16px] font-medium text-[var(--muted)]">No agent loaded</p>
                     <p className="mt-1 text-[12px]">
-                      Import an agent via <code className="font-mono text-[var(--accent-ink)]">⇪ Import .md</code> to get started.
+                      Import an agent via <code className="font-mono text-[var(--accent-ink)]">⇪ Import agent</code> to get started.
                     </p>
                   </div>
                 </div>
@@ -209,7 +227,7 @@ export function WorkbenchShell({
 
         {/* ── Right: Raw panel (foldable + resizable) ──────────────────── */}
         {rightFolded ? (
-          <Rail glyph="≡" label="◂ Raw" onUnfold={() => setRightFolded(false)} />
+          <Rail glyph="≡" label="◂ Raw" onUnfold={() => setRightFolded(false)} className="ml-[9px]" />
         ) : (
           <>
             <Gutter

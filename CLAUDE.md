@@ -298,43 +298,16 @@ option is absent from the "+" menu. **Deviation, not a problem:** `onModelSaved`
 in favor of a more general `onAgentUpdated(newAgent)` callback (receives the full DTO back
 from the PATCH) — no other callers referenced the old one.
 
-**Also queued, not started:** a Library (left panel) redesign — collapse the current four
-simultaneous agent-list sections (named groups + a redundant flat "All agents" + "Ungrouped")
-into one togglable Flat/Grouped list, plus a "Manage" zone-label-style separator above
-＋New agent/⇪Import/＋New group. Logged as a TODO comment directly above
-`<section class="panel left" id="left">` in `Layout-Workbench.html`, and as a memory note.
-One open question deliberately left unresolved — confirm with the user before implementing:
-does selecting an agent auto-switch the view to Flat, or is Flat just the toggle's own
-independent state?
-
-**Also queued, not started (design agreed, not yet built anywhere):** split the single
-"warn"/yellow severity into two tiers, confirmed with the user 2026-07-29. **Yellow =
-outdated** — a well-formed value just not in the current recognized set (renamed/removed
-tool, old model ID, unlisted enum value) — this is what `.pill.warn` already does today, no
-change. **Red = invalid** — the value is actually malformed, not just unrecognized (e.g.
-`maxTurns` holding a non-number, unparseable JSON in `hooks`/`mcpServers`/a custom key,
-anything structurally broken) — new tier, doesn't exist yet anywhere. Both get a leading
-icon before the pill text (not color-only signaling) — ⚠ for yellow/outdated (already
-built), a distinct *different* icon for red/invalid (not yet chosen — proposed ✕ or ❗, not
-confirmed) — plus a hover tooltip naming the specific problem. Applies to result-value pills
-only; the earlier "remove all colors" decision still stands for everything else (the
-value's own color-when-valid, category hues, row dots — all still gone). Not implemented in
-the mockup yet — next step is prototyping the red/invalid tier in `Layout-Workbench.html`
-before this goes to `@dev`.
-
-**Also queued, not started — confirmed as a real gap via live browser verification
-2026-07-29** (not hypothetical): list rows (`tools` especially) need a cap + "+N more"
-expand affordance. Right now every item renders unconditionally — verified live against the
-real `dev` agent, whose actual `tools` list is 40+ entries (the 8 base tools plus ~40
-`atlassian-mcp-server-*` MCP tools) and renders as an unbroken multi-row wrap of pills with
-no cap at all. This *was* already designed once, early in the session, in the very first
-throwaway claude.ai prototype (before the Tier 1 zone got rebuilt into its current form) —
-that version capped at 14 visible items, showed a `+N more ▾` pill to expand, and `show less
-▴` to re-collapse — but that behavior never carried over into the current
-`Layout-Workbench.html` version or the real `AgentView.tsx`. Re-check whether `disallowedTools`
-/`skills`/`mcpServers` need the same cap (lower priority — `tools` via MCP servers is the
-concrete case that actually gets long) before building. `dev`'s real config in the local DB
-is a ready-made test fixture for this — no need to fabricate a 40-item list to verify against.
+**Five further items — prototyped in `Layout-Workbench.html` AND migrated into the real app,
+same day (2026-07-29).** Library Agents/Grouped toggle + Manage separator (renamed
+"Import agent"), config list-item cap ("+N more"), the new red/invalid pill tier (icon
+confirmed as ✕) vs. the existing yellow/outdated `.pill.warn`, the folded side-panel gap,
+and compact MCP tool pill display. `npx tsc --noEmit` and `npm test` (132/132) both clean;
+verified live against the real `dev` agent (47 real MCP tools). **Not committed** — per
+standing rule 1. Full detail (files touched, deviations from the original prototype note,
+one real-world data-shape caveat found during migration) lives in
+**`plans/layout-prototype-todo.md`**, which remains the source of truth for this whole
+prototype→real-app workflow; update it (not this section) as future items move through it.
 
 ## Folders
 
@@ -343,7 +316,10 @@ is a ready-made test fixture for this — no need to fabricate a 40-item list to
 - **`design/layout/`** — the layout mockup + its source sketch.
 - **`plans/`** — build-sequence plans (distinct from `design/`'s stable architecture docs).
   One file per plan, numbered. `01-core-loop-implementation-plan.md` is the first;
-  `02-import-hardening-structural.md` is the second (see the Plan 02 pointer above).
+  `02-import-hardening-structural.md` is the second (see the Plan 02 pointer above). Also
+  holds **`plans/layout-prototype-todo.md`** — unnumbered on purpose (not an
+  `@architect`-written execution spec) — a simple running hand-off list of UI/layout
+  changes prototyped in `Layout-Workbench.html` but not yet migrated into the real app.
 
 ## Files
 

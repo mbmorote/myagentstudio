@@ -4,14 +4,19 @@
  * app/components/Library/LibraryPanel.tsx
  *
  * Plan 03 Phase C, C.3 — Real grouped agent list with drag-and-drop.
+ * Revised 2026-07-29 — Agents/Grouped toggle migrated from the mockup (replaces the old
+ * always-on named-groups + redundant flat "All agents" + "Ungrouped" stack).
  *
- * Fills the Phase B left Panel's body.
+ * Fills the Phase B left Panel's body. The `mode` prop ('flat' = "Agents", 'grouped')
+ * is owned by WorkbenchShell — the toggle control itself is the Panel header's role
+ * slot, which only WorkbenchShell renders, so the mode state has to live there too.
  *
  * Structure:
- *   1. Real groups (each as a GroupSection drop zone — drag adds, × removes)
- *   2. Pseudo-group separator + "All agents" + "Ungrouped"
- *   3. Separator
- *   4. Action rows: "+ New agent" (C.6), "⇪ Import .md" (Phase D's ImportButton), "+ New group"
+ *   mode 'flat': every agent, no group headers at all.
+ *   mode 'grouped': real groups (each a GroupSection drop zone — drag adds, × removes)
+ *     + a trailing synthetic "Ungrouped" bucket for agents with no membership.
+ *   Then always: a "Manage" zone-label separator + action rows, in this order:
+ *     "+ New agent" (C.6), "+ New group", "⇪ Import agent" (Phase D's ImportButton).
  *
  * Drag-and-drop (@dnd-kit/core, R8/R9):
  *   - DragOverlay: shows the agent name while dragging.
@@ -42,12 +47,21 @@ interface LibraryPanelProps {
   currentAgentId: string;
   agents: AgentLiteDTO[];
   groups: GroupDTO[];
+  /**
+   * Agents (flat, no group headers) vs. Grouped (real groups + trailing synthetic
+   * "Ungrouped" bucket). Prototyped 2026-07-29 — replaces the old always-on stack of
+   * named groups + a redundant flat "All agents" + "Ungrouped". Owned/toggled by
+   * WorkbenchShell (the Panel header's role slot is the toggle control itself);
+   * passed down here read-only.
+   */
+  mode: 'flat' | 'grouped';
 }
 
 export function LibraryPanel({
   currentAgentId,
   agents: initialAgents,
   groups: initialGroups,
+  mode,
 }: LibraryPanelProps) {
   const [agents, setAgents] = useState<AgentLiteDTO[]>(initialAgents);
   const [groups, setGroups] = useState<GroupDTO[]>(initialGroups);
@@ -56,7 +70,6 @@ export function LibraryPanel({
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [showNewGroup, setShowNewGroup] = useState(false);
-  const [allAgentsCollapsed, setAllAgentsCollapsed] = useState(false);
   const [ungroupedCollapsed, setUngroupedCollapsed] = useState(false);
 
   const sensors = useSensors(
@@ -194,70 +207,67 @@ export function LibraryPanel({
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="pb-2">
-        {/* Real groups */}
-        {groups.map((group) => (
-          <GroupSection
-            key={group.id}
-            group={group}
-            agents={agents}
-            currentAgentId={currentAgentId}
-            onMembershipRemoved={handleMembershipRemoved}
-            onAgentDeleted={handleAgentDeleted}
-            onGroupDeleted={handleGroupDeleted}
-          />
-        ))}
-
-        {/* Separator before pseudo-groups */}
-        {groups.length > 0 && <div className="h-px bg-[var(--border)] mx-[10px] my-2" />}
-
-        {/* Pseudo-group: All agents */}
-        <div
-          onClick={() => setAllAgentsCollapsed((v) => !v)}
-          className="px-2 pt-[6px] pb-[2px] text-[var(--faint)] text-[10px] font-bold tracking-[.08em] uppercase cursor-pointer"
-        >
-          {allAgentsCollapsed ? '▸' : '▾'} All agents
-        </div>
-        {!allAgentsCollapsed && agents.map((agent) => (
-          <AgentListItem
-            key={`all-${agent.id}`}
-            agent={agent}
-            isCurrent={agent.id === currentAgentId}
-            onDeleted={handleAgentDeleted}
-          />
-        ))}
-
-        {/* Pseudo-group: Ungrouped */}
-        <div
-          onClick={() => setUngroupedCollapsed((v) => !v)}
-          className="px-2 pt-[6px] pb-[2px] text-[var(--faint)] text-[10px] font-bold tracking-[.08em] uppercase cursor-pointer"
-        >
-          {ungroupedCollapsed ? '▸' : '▾'} Ungrouped
-        </div>
-        {!ungroupedCollapsed && (
-          ungroupedAgents.length === 0 ? (
-            <div className="px-[10px] py-[4px] text-[11px] text-[var(--faint)] italic">
-              — all agents are in groups
-            </div>
-          ) : (
-            ungroupedAgents.map((agent) => (
-              <AgentListItem
-                key={`ung-${agent.id}`}
-                agent={agent}
-                isCurrent={agent.id === currentAgentId}
-                onDeleted={handleAgentDeleted}
+        {mode === 'flat' ? (
+          /* Agents (flat) — every agent, no group headers at all */
+          agents.map((agent) => (
+            <AgentListItem
+              key={agent.id}
+              agent={agent}
+              isCurrent={agent.id === currentAgentId}
+              onDeleted={handleAgentDeleted}
+            />
+          ))
+        ) : (
+          <>
+            {/* Real groups */}
+            {groups.map((group) => (
+              <GroupSection
+                key={group.id}
+                group={group}
+                agents={agents}
+                currentAgentId={currentAgentId}
+                onMembershipRemoved={handleMembershipRemoved}
+                onAgentDeleted={handleAgentDeleted}
+                onGroupDeleted={handleGroupDeleted}
               />
-            ))
-          )
+            ))}
+
+            {/* Pseudo-group: Ungrouped */}
+            <div
+              onClick={() => setUngroupedCollapsed((v) => !v)}
+              className="px-2 pt-[6px] pb-[2px] text-[var(--faint)] text-[10px] font-bold tracking-[.08em] uppercase cursor-pointer"
+            >
+              {ungroupedCollapsed ? '▸' : '▾'} Ungrouped
+            </div>
+            {!ungroupedCollapsed && (
+              ungroupedAgents.length === 0 ? (
+                <div className="px-[10px] py-[4px] text-[11px] text-[var(--faint)] italic">
+                  — all agents are in groups
+                </div>
+              ) : (
+                ungroupedAgents.map((agent) => (
+                  <AgentListItem
+                    key={`ung-${agent.id}`}
+                    agent={agent}
+                    isCurrent={agent.id === currentAgentId}
+                    onDeleted={handleAgentDeleted}
+                  />
+                ))
+              )
+            )}
+          </>
         )}
 
-        {/* Separator before actions */}
-        <div className="h-px bg-[var(--border)] mx-[10px] my-2" />
+        {/* "Manage" zone-label separator — same visual pattern as AgentView's Config/
+            Sections zone labels, tighter margins to match the list's own indent. */}
+        <div className="flex items-center gap-2 mt-[14px] mb-[6px] mx-[10px] text-[var(--faint)] text-[10px] font-bold tracking-[.09em] uppercase">
+          Manage
+          <span className="flex-1 h-px bg-[var(--border)]" />
+        </div>
 
-        {/* Action rows */}
+        {/* Action rows, in this order: New agent, New group, Import agent */}
         <CreateAgentButton />
-        <ImportButton />
 
-        {/* New group form */}
         {showNewGroup ? (
           <div className="px-3 py-2 space-y-2">
             <input
@@ -298,6 +308,8 @@ export function LibraryPanel({
             ＋ New group
           </div>
         )}
+
+        <ImportButton />
       </div>
 
       {/* Drag overlay — shows agent name while dragging */}

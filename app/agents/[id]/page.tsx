@@ -17,7 +17,6 @@
 import { notFound } from 'next/navigation';
 import { getAgentFull, listAgents, listGroups } from '@/lib/db/repository';
 import { WorkbenchShell } from '@/app/components/WorkbenchShell';
-import { LibraryPanel } from '@/app/components/Library/LibraryPanel';
 import type { AgentDTO } from '@/lib/db/repository';
 
 interface AgentPageProps {
@@ -39,13 +38,6 @@ export default async function AgentPage({ params }: AgentPageProps) {
       initialAgent={agent as AgentDTO}
       agents={agents}
       groups={groups}
-      libraryContent={
-        <LibraryPanel
-          currentAgentId={agent.id}
-          agents={agents}
-          groups={groups}
-        />
-      }
     />
   );
 }
