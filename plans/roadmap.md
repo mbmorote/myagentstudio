@@ -7,8 +7,9 @@ Staged next-work plan, consolidated from `CLAUDE.md`'s running session narrative
 it is, not a locked sequence. Update this file (not the scattered pointers above) as items
 move; the detailed *why* for each item still lives at its original source, linked below.
 
-**Last reviewed:** 2026-07-29, right after this session's Library toggle / pill-cap /
-red-tier / panel-gap / MCP-pill migration landed (commit `74f8c86`).
+**Last reviewed:** 2026-07-29, after the frictionless-export download action and the
+catalog-seed-drift fix both landed in the same follow-up session (uncommitted as of this
+edit — see the "What's built" pointers below for exact files touched).
 
 ## Stability snapshot (as of last review)
 
@@ -37,9 +38,19 @@ Condensed — full detail lives at each pointer, not repeated here.
 - **Library + groups** (left panel, drag-and-drop, real `Group`/`Membership`) — build-order
   #2. `plans/03-*`, extended this session with the Agents/Grouped toggle.
 - **Import**, both modes (Strict verbatim, Structural — default) — `plans/01-*` + `plans/02-*`.
-- **Export (route only)** — `GET /api/agents/[id]/export` exists and backs the Raw pane's
-  read-only preview. See Tier 2 below — the actual *user-facing* "get this out of the app"
-  action doesn't exist yet, so build-order #3 is only half-done.
+- **Export, incl. the user-facing download** — `GET /api/agents/[id]/export` backs both the
+  Raw pane's read-only preview and a new "⇩ Download" button (`RawAgentView.tsx`, client-side
+  Blob + `<a download>`, no new route). Download-only was the explicit choice over
+  copy-to-clipboard or direct write-to-disk. Build-order #3 done.
+- **Catalog seed drift, fixed at the root** — `AgentView.tsx` no longer statically imports
+  `CONFIG_DEFS`; it reads the full catalog from a `configCatalog` prop
+  (`getConfigCatalog()`, `lib/db/repository/catalog.ts`) fetched fresh from the DB on every
+  page request (`app/agents/[id]/page.tsx` → `WorkbenchShell` → `AgentView`). `configDef`
+  gained a `hint` column (migration `0001_curved_sandman.sql`) so nothing was lost in the
+  move. `npm run db:seed` is now also wired into `predev`/`prebuild`. Net effect: edit
+  `catalog.ts`, run `npm run db:seed`, reload the page — no rebuild/redeploy needed.
+  Verified live by patching a `config_def.hint` row directly in the DB and confirming a
+  plain page reload picked it up with the dev server never restarted.
 - **Blueprint catalog** refreshed against real Claude Code docs — see the CLAUDE.md pointer,
   2026-07-28.
 - **UI punch-list** (6/7), **Tier 1 Config zone redesign** (16/17), and **this session's 5
@@ -51,21 +62,14 @@ Condensed — full detail lives at each pointer, not repeated here.
 
 ### Tier 1 — real papercuts, hit by actual data today
 
-1. **Catalog seed drift.** `lib/db/seed.ts` has upsert logic that would heal the DB's
-   `configDef`/`sectionDef` rows, but `npm run db:seed` isn't wired into `predev`/`prebuild`
-   — editing `catalog.ts` doesn't propagate. Current mitigation (`AgentView.tsx` reads
-   live in-code `CONFIG_DEFS` instead of the DB-embedded copy) works but is a workaround,
-   not a fix. *Real fix:* wire `db:seed` into the build/dev pipeline, or stop persisting a
-   DB-embedded catalog copy at all if nothing actually reads it anymore. Confirm which
-   before touching — worth checking whether anything still depends on the DB copy first.
-2. **`__raw` frontmatter escape hatch.** A real `mcpServers` file with an inline nested
+1. **`__raw` frontmatter escape hatch.** A real `mcpServers` file with an inline nested
    server-config object still hits a hard `unsupported_frontmatter` 400 on import — confirmed
    real (not hypothetical) via the Blueprint catalog refresh session. `TechDesign.md`
    Deferred Decisions #40.
 
 ### Tier 2 — product decisions needed before building
 
-3. **"+ custom key…" arbitrary config-key creation.** Blocked on a real UX contradiction:
+2. **"+ custom key…" arbitrary config-key creation.** Blocked on a real UX contradiction:
    a user-created key with no matching `ConfigDef` immediately gets flagged as
    `unknownConfigKeys` (a warn pill right next to the field they just intentionally made).
    Needs a "user-acknowledged custom key" concept (new DB column, or a separate key-status
@@ -74,33 +78,29 @@ Condensed — full detail lives at each pointer, not repeated here.
 
 ### Tier 3 — build-order gaps (things the product needs to feel finished)
 
-4. **Frictionless export back to Claude** (build-order #3, the *point* of "platform-is-
-   master"). The Raw pane is explicitly labeled "read reference" — there's no download,
-   copy-to-clipboard, or write-to-`.claude/agents/` action anywhere. This is arguably the
-   single most-missing piece of the MVP's own stated value prop.
-5. **Dedicated group-management view** — punch-list item 7. Not started, not researched.
+3. **Dedicated group-management view** — punch-list item 7. Not started, not researched.
    Genuinely new scope (today groups are only managed inline via drag-and-drop + the
    Library panel's inline New-group form).
-6. **Strict-mode merged-heading instability / adversarial-file re-audit** — flagged during
+4. **Strict-mode merged-heading instability / adversarial-file re-audit** — flagged during
    Plan 02 as "not re-verified this pass," never actually re-checked since. Presume open.
 
 ### Tier 4 — new scope (post-MVP features from Concept.md's build order)
 
-7. **Export translation to other platforms** (Copilot, etc.) — build-order #4. Real format
+5. **Export translation to other platforms** (Copilot, etc.) — build-order #4. Real format
    translation, not a file copy. Not started.
-8. **Sharing / forking** — build-order #5. Not started.
-9. **Skill module** — build-order #6. A sibling entity to `Agent` for `SKILL.md` files,
+6. **Sharing / forking** — build-order #5. Not started.
+7. **Skill module** — build-order #6. A sibling entity to `Agent` for `SKILL.md` files,
    genuinely different shape (no Role/Behavior/Guardrails/Output sections, sometimes a whole
    supporting-file directory). `TechDesign.md` Deferred Decisions table has the full field
    list already researched. Not started.
 
 ### Tier 5 — infra/tooling polish
 
-10. **ESLint config** — see Stability snapshot above.
-11. **`scripts/build-prompts.ts` readable output** — `TechDesign.md` Deferred Decisions #26,
-    marked **[HIGH PRIORITY]** there: currently emits an escaped single-line string, hard to
-    debug. Still not done.
-12. **Component/UI test coverage** — see Stability snapshot above. Not urgent, but the gap
+8. **ESLint config** — see Stability snapshot above.
+9. **`scripts/build-prompts.ts` readable output** — `TechDesign.md` Deferred Decisions #26,
+   marked **[HIGH PRIORITY]** there: currently emits an escaped single-line string, hard to
+   debug. Still not done.
+10. **Component/UI test coverage** — see Stability snapshot above. Not urgent, but the gap
     is real.
 
 ### Tier 6 — deliberately deferred (not MVP-blocking, explicit triggers)
@@ -115,13 +115,14 @@ rewrites (#24), AI-assisted config-key mapping (#30).
 
 ## Recommended next stage
 
-**Tier 3 item 4 (frictionless export)** is the strongest candidate to pick up next: it's
-the smallest gap between "what's built" and "what the product promises" (platform-is-
-master only means something if getting an agent *out* is actually easy), it's well-scoped
-(the export route already exists — this is a UI action, not new backend design), and it
-doesn't require a product decision to unblock like Tier 2 does. Tier 1's two papercuts are
-worth a cheap parallel pass (both are small, already-diagnosed fixes) before or alongside it.
+With export and catalog seed drift both closed, **Tier 1 item 1 (`__raw` frontmatter escape
+hatch)** is the strongest remaining candidate: it's the last real import papercut hit by
+actual files (not hypothetical), already diagnosed (`unsupported_frontmatter` in
+`lib/blueprint/catalog.ts`), and doesn't require a product decision to unblock, unlike
+Tier 2. Tier 3 item 4 (a quick strict-mode adversarial-file re-audit) is a cheap parallel
+check worth doing alongside it.
 
 Not recommended yet: Tier 4's new-scope items — each is a real second effort (translation
 logic, a sharing model, a whole second entity type) better sequenced after the MVP's own
-loop (import → edit → **export**) is airtight, which Tier 3 item 4 is what closes.
+loop (import → edit → export) is fully airtight, which is now much closer — export and the
+DB catalog architecture were the two largest remaining gaps in that loop.

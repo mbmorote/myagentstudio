@@ -46,6 +46,7 @@ async function seed() {
         required: def.required,
         isCore: def.isCore,
         exportable: true,
+        hint: def.hint,
       })
       .onConflictDoUpdate({
         target: schema.configDef.key,
@@ -56,6 +57,7 @@ async function seed() {
           required: def.required,
           isCore: def.isCore,
           exportable: true,
+          hint: def.hint,
         },
       });
     console.log(`  ~ config_def: ${def.key} (upserted)`);

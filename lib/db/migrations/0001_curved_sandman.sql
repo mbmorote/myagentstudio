@@ -1,0 +1,1 @@
+ALTER TABLE `config_def` ADD `hint` text;

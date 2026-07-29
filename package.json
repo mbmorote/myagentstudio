@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "tsx scripts/build-prompts.ts",
+    "predev": "tsx scripts/build-prompts.ts && tsx lib/db/seed.ts",
     "dev": "next dev",
-    "prebuild": "tsx scripts/build-prompts.ts",
+    "prebuild": "tsx scripts/build-prompts.ts && tsx lib/db/seed.ts",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

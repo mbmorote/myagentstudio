@@ -24,7 +24,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { AgentDTO, AgentLiteDTO, GroupDTO } from '@/lib/db/repository';
+import type { AgentDTO, AgentLiteDTO, GroupDTO, ConfigDefLite } from '@/lib/db/repository';
 import { AgentView } from '@/app/components/CustomViz/AgentView';
 import { ChatPanel } from '@/app/components/Chat/ChatPanel';
 import { Topbar } from '@/app/components/shell/Topbar';
@@ -46,12 +46,20 @@ interface WorkbenchShellProps {
   agents?: AgentLiteDTO[];
   /** All groups (for Library panel and config pills) */
   groups?: GroupDTO[];
+  /**
+   * Full config catalog, loaded fresh from the DB per page request (2026-07-29 — closes
+   * catalog seed drift). Passed through to AgentView instead of it statically importing
+   * CONFIG_DEFS, so a catalog.ts edit + `npm run db:seed` + reload updates the UI with no
+   * rebuild/redeploy.
+   */
+  configCatalog?: ConfigDefLite[];
 }
 
 export function WorkbenchShell({
   initialAgent,
   agents = [],
   groups = [],
+  configCatalog = [],
 }: WorkbenchShellProps) {
   const [agent, setAgent] = useState<AgentDTO | null>(initialAgent);
   const [interactionLock, setInteractionLock] = useState<InteractionLock>(null);
@@ -158,6 +166,7 @@ export function WorkbenchShell({
                 <AgentView
                   agent={agent}
                   groups={groups}
+                  configCatalog={configCatalog}
                   interactionLock={interactionLock}
                   onEditStart={() => setInteractionLock('edit')}
                   onEditEnd={() => setInteractionLock(null)}

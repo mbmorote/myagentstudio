@@ -42,6 +42,11 @@ export const configDef = sqliteTable('config_def', {
   required: integer('required', { mode: 'boolean' }).notNull().default(false),
   isCore: integer('is_core', { mode: 'boolean' }).notNull().default(false),
   exportable: integer('exportable', { mode: 'boolean' }).notNull().default(true),
+  // Added 2026-07-29 — closes catalog seed drift at the root: AgentView.tsx now reads the
+  // full config catalog (incl. hint) from the DB via a page-load fetch instead of a static
+  // CONFIG_DEFS import, so a `catalog.ts` edit + `npm run db:seed` + page reload is enough
+  // to update the UI — no rebuild/redeploy needed. Nullable: existing rows heal via reseed.
+  hint: text('hint'),
 });
 
 export const agentConfig = sqliteTable('agent_config', {

@@ -37,6 +37,7 @@ export type ConfigDefLite = {
   required: boolean;
   isCore: boolean;
   exportable: boolean;
+  hint: string | null;
 };
 
 export type SectionDefLite = {
@@ -123,6 +124,7 @@ function buildAgentDTO(
             required: def.required ?? false,
             isCore: def.isCore ?? false,
             exportable: def.exportable ?? true,
+            hint: def.hint ?? null,
           } satisfies ConfigDefLite)
         : null,
     };

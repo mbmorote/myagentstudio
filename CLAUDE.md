@@ -308,11 +308,30 @@ same day (2026-07-29).** Library Agents/Grouped toggle + Manage separator (renam
 "Import agent"), config list-item cap ("+N more"), the new red/invalid pill tier (icon
 confirmed as ✕) vs. the existing yellow/outdated `.pill.warn`, the folded side-panel gap,
 and compact MCP tool pill display. `npx tsc --noEmit` and `npm test` (132/132) both clean;
-verified live against the real `dev` agent (47 real MCP tools). **Not committed** — per
-standing rule 1. Full detail (files touched, deviations from the original prototype note,
-one real-world data-shape caveat found during migration) lives in
-**`plans/layout-prototype-todo.md`**, which remains the source of truth for this whole
-prototype→real-app workflow; update it (not this section) as future items move through it.
+verified live against the real `dev` agent (47 real MCP tools). **Committed** (`74f8c86`).
+Full detail (files touched, deviations from the original prototype note, one real-world
+data-shape caveat found during migration) lives in **`plans/layout-prototype-todo.md`**,
+which remains the source of truth for this whole prototype→real-app workflow; update it
+(not this section) as future items move through it.
+
+## ✅ Frictionless export + catalog seed drift, fixed (2026-07-29)
+
+Picked up from `plans/roadmap.md`'s recommended next stage, same session as the pointer
+above. Both done, verified live, typecheck/tests/build all clean. Full detail (files
+touched, the DB-vs-static-import architecture decision, the live-DB-edit-no-restart
+verification) is in `plans/roadmap.md`'s "What's built" section — this is just a pointer,
+don't duplicate detail here.
+
+- **Export download** — `RawAgentView.tsx` gained a "⇩ Download" button (client-side Blob,
+  no new route). Explicit user choice: download-only, not copy-to-clipboard or
+  direct write-to-disk.
+- **Catalog seed drift** — `AgentView.tsx` now sources the config catalog from a
+  `configCatalog` prop fetched fresh from the DB per page request, not a static
+  `CONFIG_DEFS` import. `configDef` gained a `hint` DB column (migration
+  `0001_curved_sandman.sql`). `npm run db:seed` wired into `predev`/`prebuild`. Explicit
+  user requirement driving this: editing the catalog + reseeding + a page reload should be
+  enough to update the UI, no rebuild/redeploy — verified live by patching a DB row
+  directly and confirming the change without restarting the dev server.
 
 ## Folders
 

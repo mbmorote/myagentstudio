@@ -13,6 +13,11 @@
  *
  * No full markdown parsing — a simple per-line classifier is enough (R11).
  * Re-fetches whenever the agentId prop changes (e.g. after a chat edit).
+ *
+ * Download (2026-07-29, roadmap Tier 3 item 4) — client-side Blob + <a download> of the
+ * already-fetched markdown, no new API route. Download-only was the explicit choice over
+ * direct write-to-disk (no filesystem-path assumptions) or copy-to-clipboard (marginal
+ * extra value) — the user drags the saved file into .claude/agents/ themselves.
  */
 
 import { useState, useEffect } from 'react';
@@ -95,15 +100,36 @@ export function RawAgentView({ agentId, agentName }: RawAgentViewProps) {
 
   const lines = classifyLines(markdown);
 
+  function handleDownload() {
+    if (!markdown) return;
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${agentName}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div>
       {/* Band showing file info — matches mockup's .rband */}
       <div
-        className="px-[14px] py-[6px] text-[var(--faint)] text-[10.5px] border-b border-[var(--border)] font-mono flex gap-[10px]"
+        className="px-[14px] py-[6px] text-[var(--faint)] text-[10.5px] border-b border-[var(--border)] font-mono flex items-center gap-[10px]"
       >
         <span>{agentName}.md</span>
         <span>·</span>
         <span>Markdown · UTF-8 · read reference</span>
+        <button
+          type="button"
+          onClick={handleDownload}
+          title={`Download ${agentName}.md`}
+          className="ml-auto flex-none font-sans text-[10.5px] font-semibold text-[var(--accent-ink)] bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[6px] px-[8px] py-[2px] cursor-pointer hover:opacity-90"
+        >
+          ⇩ Download
+        </button>
       </div>
 
       {/* Line-numbered monospace output — matches mockup's .raw */}

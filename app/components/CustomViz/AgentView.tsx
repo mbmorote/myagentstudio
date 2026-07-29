@@ -46,16 +46,18 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import type { AgentDTO, GroupDTO } from '@/lib/db/repository';
+import type { AgentDTO, GroupDTO, ConfigDefLite } from '@/lib/db/repository';
 import type { InteractionLock } from '@/app/components/WorkbenchShell';
 import { SectionBlock } from '@/app/components/CustomViz/SectionBlock';
-import { CONFIG_DEFS } from '@/lib/blueprint/catalog';
 
 // ─────────────────────────  Catalog-derived constants  ─────────────────────
-
-const MODEL_DEF = CONFIG_DEFS.find((d) => d.key === 'model')!;
-const TOOLS_DEF = CONFIG_DEFS.find((d) => d.key === 'tools')!;
-const BUILTIN_TOOLS = new Set(TOOLS_DEF.allowedValues as readonly string[]);
+//
+// MODEL_DEF/TOOLS_DEF/BUILTIN_TOOLS/CATALOG_KEY_SET and the isRecognizedTool/
+// isBadListItem/getCatalogDef helpers used to be module-level, derived from a static
+// `CONFIG_DEFS` import. Moved inside the component (2026-07-29 — closes catalog seed
+// drift) so they're derived from the `configCatalog` prop instead — loaded fresh from
+// the DB on every page request, so a catalog.ts edit + `npm run db:seed` + a page reload
+// updates the UI, no rebuild/redeploy needed. See getCatalogHelpers() below.
 
 // Display order for scalar fields in the 2-column grid
 const SCALAR_KEY_ORDER = ['permissionMode', 'maxTurns', 'memory', 'background', 'isolation', 'color'];
@@ -66,9 +68,6 @@ const CUSTOM_BLOCK_KEYS = new Set(['hooks', 'mcpServers']);
 // Keys handled in the header (not in the config zone)
 const HEADER_KEYS = new Set(['model', 'effort']);
 const INITIAL_PROMPT_KEY = 'initialPrompt';
-// All catalog keys (for "unknown key" detection). Typed as Set<string> so
-// `.has(propKey: string)` doesn't require a narrowed literal type.
-const CATALOG_KEY_SET: Set<string> = new Set(CONFIG_DEFS.map((d) => d.key));
 
 // Color hex values for the `color` field swatch
 const COLOR_HEX: Record<string, string> = {
@@ -117,23 +116,42 @@ function listItemsOf(value: unknown): string[] {
 }
 
 /**
+ * Catalog-derived lookups (model/tools defs, recognized-tool checks, unknown-key set),
+ * computed from the `configCatalog` prop instead of a static import (2026-07-29 — closes
+ * catalog seed drift). Called once inside the component per render — the catalog is small,
+ * not worth memoizing.
+ *
  * Three-shape tools validation (item 9):
- *   1. One of the 43 known built-in tool names
+ *   1. One of the known built-in tool names (from the DB-sourced `tools` def)
  *   2. mcp__<server> or mcp__<server>__<tool> (MCP tools, per-project — open namespace)
  *   3. Agent or Agent(types) (restricts subagent spawning — only meaningful as main agent)
  */
-function isRecognizedTool(item: string): boolean {
-  return (
-    BUILTIN_TOOLS.has(item) ||
-    item === 'Agent' ||
-    /^Agent\([^)]*\)$/.test(item) ||
-    /^mcp__[\w.-]+(__[\w.-]+)?$/.test(item)
-  );
-}
+function makeCatalogHelpers(configCatalog: ConfigDefLite[]) {
+  const modelDef = configCatalog.find((d) => d.key === 'model') ?? null;
+  const toolsDef = configCatalog.find((d) => d.key === 'tools') ?? null;
+  const builtinTools = new Set((toolsDef?.allowedValues ?? []) as readonly string[]);
+  // All catalog keys (for "unknown key" detection).
+  const catalogKeySet: Set<string> = new Set(configCatalog.map((d) => d.key));
 
-function isBadListItem(propKey: string, item: string): boolean {
-  if (propKey === 'tools' || propKey === 'disallowedTools') return !isRecognizedTool(item);
-  return false; // skills: open vocabulary, no closed list to check against
+  function getCatalogDef(key: string): ConfigDefLite | null {
+    return configCatalog.find((d) => d.key === key) ?? null;
+  }
+
+  function isRecognizedTool(item: string): boolean {
+    return (
+      builtinTools.has(item) ||
+      item === 'Agent' ||
+      /^Agent\([^)]*\)$/.test(item) ||
+      /^mcp__[\w.-]+(__[\w.-]+)?$/.test(item)
+    );
+  }
+
+  function isBadListItem(propKey: string, item: string): boolean {
+    if (propKey === 'tools' || propKey === 'disallowedTools') return !isRecognizedTool(item);
+    return false; // skills: open vocabulary, no closed list to check against
+  }
+
+  return { modelDef, toolsDef, builtinTools, catalogKeySet, getCatalogDef, isBadListItem };
 }
 
 // List-item cap (prototyped 2026-07-29) — confirmed real gap: a `dev`-style agent with
@@ -153,15 +171,13 @@ function mcpDisplayOf(item: string): { server: string; tool?: string } | null {
   return { server, tool };
 }
 
-function getCatalogDef(key: string) {
-  return CONFIG_DEFS.find((d) => d.key === key) ?? null;
-}
-
 // ─────────────────────────  Props  ─────────────────────────────────────────
 
 interface AgentViewProps {
   agent: AgentDTO;
   groups: GroupDTO[];
+  /** Full config catalog, loaded fresh from the DB per page request (2026-07-29). */
+  configCatalog: ConfigDefLite[];
   interactionLock: InteractionLock;
   onEditStart: () => void;
   onEditEnd: () => void;
@@ -176,6 +192,7 @@ interface AgentViewProps {
 export function AgentView({
   agent,
   groups,
+  configCatalog,
   interactionLock,
   onEditStart,
   onEditEnd,
@@ -185,13 +202,15 @@ export function AgentView({
 }: AgentViewProps) {
 
   // ── Derived data ──────────────────────────────────────────────────────────
+  const { modelDef, builtinTools, catalogKeySet, getCatalogDef, isBadListItem } =
+    makeCatalogHelpers(configCatalog);
   const agentGroups = groups.filter((g) => g.memberAgentIds.includes(agent.id));
   const configMap = new Map(agent.config.map((c) => [c.propKey, c.value]));
 
   const modelValue = (configMap.get('model') as string) ?? 'inherit';
   const effortValue = configMap.has('effort') ? (configMap.get('effort') as string) : null;
   const effortLabel = EFFORT_OPTS.find((o) => o.value === effortValue)?.label ?? effortValue ?? 'Default';
-  const modelOptions = MODEL_DEF.allowedValues as readonly string[];
+  const modelOptions = (modelDef?.allowedValues ?? []) as readonly string[];
   const modelBad = !modelOptions.includes(modelValue);
 
   // Which config keys are actually set (for "add key" menu and display logic)
@@ -208,10 +227,10 @@ export function AgentView({
   // Unknown keys: in agent config but not in any known category
   const unknownConfigKeys = agent.config
     .map((c) => c.propKey)
-    .filter((k) => !CATALOG_KEY_SET.has(k));
+    .filter((k) => !catalogKeySet.has(k));
 
   // Catalog keys that are unset (for the "+" add-key menu)
-  const unsetCatalogKeys = CONFIG_DEFS.filter(
+  const unsetCatalogKeys = configCatalog.filter(
     (d) => !setKeys.has(d.key) && d.key !== 'model' && d.key !== 'effort',
   );
 
@@ -896,7 +915,7 @@ export function AgentView({
   // ── Render: tool picker popover ───────────────────────────────────────────
   function renderToolPicker() {
     const existing = new Set(listItemsOf(configMap.get('tools') ?? []));
-    const remaining = Array.from(BUILTIN_TOOLS).filter(
+    const remaining = Array.from(builtinTools).filter(
       (t) => !existing.has(t) && t.toLowerCase().includes(toolPickerFilter.toLowerCase()),
     );
     return (
