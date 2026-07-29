@@ -119,6 +119,39 @@ Phase D of the plan (catalog seed drift, Strict-mode merged-heading instability,
 picker, adversarial-file re-audit, `__raw` frontmatter escape hatch) is **intentionally not
 in scope** — each item has its own revisit trigger in the plan's Phase D table.
 
+## ✅ Blueprint catalog refresh — complete (2026-07-28)
+
+Read the real Claude Code subagent docs (`code.claude.com/docs/en/sub-agents`,
+`.../tools-reference`) to replace `lib/blueprint/catalog.ts`'s guessed/incomplete
+`CONFIG_DEFS` with the authoritative current schema, after a side discussion confirmed
+MyAgent should keep targeting Claude Code's local `.claude/agents/*.md` subagent format —
+**not** Anthropic's separate, subscription-hosted Managed Agents product
+(`platform.claude.com/docs/en/managed-agents/*`), which the user doesn't want (no online
+subscription dependency) and which has a structurally different config shape (one `system`
+string, no sections, fixed 8-tool bundle) anyway.
+
+- `model.allowedValues` gained the 4 short aliases (`sonnet`/`opus`/`haiku`/`fable`) as the
+  primary documented form, alongside the existing full IDs and `'inherit'` — supersedes
+  Rules Index #19 (was full-IDs-only).
+- `tools.allowedValues` replaced with the real 43-tool list; dropped `'Create'` (never a
+  real tool) and renamed `'Task'` → `'Agent'` (renamed in Claude Code v2.1.63).
+- `permissionMode.allowedValues` gained `'manual'` (7th value, alias for `'default'`).
+- Four new `ConfigDef` entries: `hooks`, `isolation`, `color`, `initialPrompt`.
+- `mcpServers`' inline-nested-object gap (gets rejected by A3's `unsupported_frontmatter`
+  guard) is now confirmed real against real files, not hypothetical — still deferred to the
+  `__raw` escape hatch (Plan 02 Phase D).
+- Full detail: `TechDesign.md` Rules Index #37–#40 and the Deferred Decisions table.
+
+`npx tsc --noEmit` and `npm test` (133/133) both clean after the catalog edit — no other
+code touched.
+
+**New future item logged, not started:** a **Skill module** — a sibling entity to `Agent`
+mirroring its props/config/import/export, for `SKILL.md` files
+(`.claude/skills/<name>/SKILL.md`). Genuinely different shape (no Role/Behavior/Guardrails/
+Output sections, sometimes a whole directory of supporting files). Added as build-order
+item 6 in `design/Concept.md`; field-level detail and revisit trigger in `TechDesign.md`'s
+Deferred Decisions table.
+
 ## Folders
 
 - **`design/`** — all design docs (see below).
@@ -184,6 +217,8 @@ Structural Import** — its non-code parts are done, its code parts are queued f
   the first AI edit) · `AgentSnapshot` (whole-agent pre/post-import capture).
 - **Agent Blueprint** — one module (`lib/blueprint`, per the plan) exporting catalog data
   **and** rule functions, so import/UI/export can never drift into three implementations.
+  Catalog data refreshed 2026-07-28 against the real Claude Code subagent schema (see the
+  Blueprint catalog refresh pointer above).
 - **Import/Export** — two user-chosen import modes sharing deterministic Stage 1. **Strict
   Import** (built, being hardened by Plan 02 Phase A): Stage 2 is labels-only, `{blockId →
   sectionKey}`, content never passes through the model — the server reassembles bytes from

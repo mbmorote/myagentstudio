@@ -73,6 +73,13 @@ the structured view instantly. That editing loop is the engineering heart of the
    agents, exporting them back out has to be effortless.
 4. **Export to Copilot / others** — real *translation* between formats, not a file copy.
 5. **Sharing / forking** — show my agent to a friend so they can fork their own from it.
+6. **Skill module** — a sibling entity to Agent, mirroring its props/config/import/
+   export, for `SKILL.md` files (`.claude/skills/<name>/SKILL.md`). Genuinely
+   different shape from an Agent (no Role/Behavior/Guardrails/Output sections,
+   sometimes a whole directory of supporting files, not one `.md`) — see
+   `TechDesign.md`'s Deferred Decisions table for the field-level detail.
+   Surfaced 2026-07-28 while researching the real Claude Code config schema
+   for the Blueprint; not started.
 
 ## Deliberately out of scope (for now)
 
