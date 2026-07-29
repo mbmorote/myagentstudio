@@ -11,6 +11,11 @@ dedicated group-management view) is logged as future scope, not started. `README
 `lib/serialize/`) were also written this session — see the Documentation pointer below.
 This file is the map.
 
+**Start at `plans/roadmap.md` for "what's next."** 2026-07-29: a stability pass (typecheck,
+132/132 tests, and a production build all clean) confirmed a good checkpoint, so the
+scattered open items across this file, `TechDesign.md`, and `Concept.md` were consolidated
+into one prioritized roadmap there — check it before assuming something is or isn't done.
+
 ## Standing project rules
 
 These apply to **every** session and every subagent (`@dev`, `@architect`, etc.) working in
@@ -317,9 +322,14 @@ prototype→real-app workflow; update it (not this section) as future items move
 - **`plans/`** — build-sequence plans (distinct from `design/`'s stable architecture docs).
   One file per plan, numbered. `01-core-loop-implementation-plan.md` is the first;
   `02-import-hardening-structural.md` is the second (see the Plan 02 pointer above). Also
-  holds **`plans/layout-prototype-todo.md`** — unnumbered on purpose (not an
-  `@architect`-written execution spec) — a simple running hand-off list of UI/layout
-  changes prototyped in `Layout-Workbench.html` but not yet migrated into the real app.
+  holds two unnumbered, living (not locked-execution-spec) files:
+  **`plans/layout-prototype-todo.md`** — running hand-off list of UI/layout changes
+  prototyped in `Layout-Workbench.html` but not yet migrated into the real app; and
+  **`plans/roadmap.md`** — **start here for "what's next."** Consolidates this file's
+  session narrative, `TechDesign.md`'s Deferred Decisions table, and `Concept.md`'s Build
+  order into one prioritized, tiered list of open work. Written 2026-07-29 after a
+  stability pass (typecheck/tests/build all clean) confirmed the project was at a good
+  checkpoint to consolidate.
 
 ## Files
 

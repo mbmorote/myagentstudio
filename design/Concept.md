@@ -67,13 +67,20 @@ the structured view instantly. That editing loop is the engineering heart of the
 
 ## Build order
 
-1. **Structured view + agent-aware AI chat** — the core loop, the reason to open the app.
-2. **Library + groups** (left panel) — cheap, wanted early.
-3. **Frictionless export back to Claude** — the "master" tax: if the platform owns the
-   agents, exporting them back out has to be effortless.
-4. **Export to Copilot / others** — real *translation* between formats, not a file copy.
-5. **Sharing / forking** — show my agent to a friend so they can fork their own from it.
-6. **Skill module** — a sibling entity to Agent, mirroring its props/config/import/
+*(Status column added 2026-07-29 — see `plans/roadmap.md` for the live, prioritized
+next-work list; this stays the stable why-ordered list.)*
+
+1. ✅ **Structured view + agent-aware AI chat** — the core loop, the reason to open the app. Built.
+2. ✅ **Library + groups** (left panel) — cheap, wanted early. Built (Plan 03), extended
+   2026-07-29 with an Agents/Grouped toggle.
+3. 🟡 **Frictionless export back to Claude** — the "master" tax: if the platform owns the
+   agents, exporting them back out has to be effortless. **Half-built**: the export route
+   (`GET /api/agents/[id]/export`) exists and backs the Raw pane's read-only preview, but
+   there's no actual user-facing action (download / copy / write-to-disk) yet — see
+   `plans/roadmap.md` Tier 3.
+4. ⬜ **Export to Copilot / others** — real *translation* between formats, not a file copy. Not started.
+5. ⬜ **Sharing / forking** — show my agent to a friend so they can fork their own from it. Not started.
+6. ⬜ **Skill module** — a sibling entity to Agent, mirroring its props/config/import/
    export, for `SKILL.md` files (`.claude/skills/<name>/SKILL.md`). Genuinely
    different shape from an Agent (no Role/Behavior/Guardrails/Output sections,
    sometimes a whole directory of supporting files, not one `.md`) — see

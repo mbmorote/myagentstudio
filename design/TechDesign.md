@@ -718,7 +718,7 @@ memory, before assuming something was decided.
 | 20 | Display-label lookup for `model` (short name in UI, full ID in storage) | Building any UI surface that renders `model` (later plan) |
 | 24 | Propose-preview before applying a mediator rewrite | If apply-then-history ever feels too abrupt in real dogfooding use |
 | 26 | **[HIGH PRIORITY]** `scripts/build-prompts.ts` should emit readable template-literal output, not an escaped single-line string | Next time anyone touches `scripts/build-prompts.ts`, or before relying heavily on chat-mediator/import-converter debugging |
-| 27 | **Structural Import (Stage 2b)** implementation — rule-set is written (`import-instructions-structural.md`), but no code path (API route, prompt wiring, UI mode picker) exists yet | Building the import UI/API — natural pairing with whichever plan first wires up `POST /api/agents/import`'s mode selection |
+| 27 | ~~Structural Import (Stage 2b) implementation~~ — **Resolved 2026-07-28**: built in full (`lib/ai/structuralConverter.ts`, `POST /api/agents/import`'s `mode` field, `ImportDialog.tsx`'s mode picker) as Plan 02 Phase B. Kept here only as a pointer for anyone still holding the old memory. | — (resolved) |
 | 30 | AI-assisted config-key mapping (labels a messy frontmatter key to its canonical propKey, same content-never-touched pattern as sections) — removed as dead code in #28, not ruled out forever | Real-world imports show messy/nonstandard frontmatter keys are an actual recurring problem, not speculative |
 | 40 | `__raw` frontmatter escape hatch for genuinely nested values (`mcpServers` inline server configs, `hooks`) that A3 currently rejects loudly | Real files hitting the `unsupported_frontmatter` rejection turn out to be a recurring papercut, not a rare edge case (now confirmed *possible* per #40, not yet confirmed *common*) |
 | — | **Skill module** — a sibling entity to `Agent`, mirroring its props/config/import/export, for `SKILL.md` files (`.claude/skills/<name>/SKILL.md`). Real `SKILL.md` frontmatter (`name`, `description`, `when_to_use`, `argument-hint`, `arguments`, `disable-model-invocation`, `user-invocable`, `allowed-tools`, `disallowed-tools`, `model`, `effort`, `context`, `agent`, `background`, `hooks`, `paths`, `shell`) is a genuinely different shape from an Agent's Role/Behavior/Guardrails/Output Blueprint — no sections, just a name/description header plus procedural instruction content, sometimes with supporting files in the skill's directory (not necessarily one file, unlike an Agent's single `.md`). Would need its own `SectionDef`-equivalent (or no section concept at all — closer to one big body field), its own `ConfigDef` catalog from the field list above, and its own import/export pipeline — a real second Library-panel entity type, not a small addition | Concept.md's build-order list (currently items 1-5) picks this up as a "later plan" once Agent-side Library/groups (build-order #2, `plans/03-*`) and this Blueprint refresh have both landed and proven out |
@@ -729,7 +729,8 @@ dialect #8b eventually picks).
 
 ## Next step
 
-**Design is complete — start building.** First slice = the **core loop** (Concept build
-order #1): the structured **Custom Visualization** pane rendering one seeded agent + the
-**agent-aware chat** editing a section in place. Everything else (library/groups, export,
-import) layers on after that loop works.
+*(Superseded 2026-07-29 — this section originally said "Design is complete — start
+building," written before Plan 01 existed. Left as a historical marker; the actual current
+next-work plan now lives in `plans/roadmap.md`, which consolidates this table with
+`CLAUDE.md`'s session narrative and `Concept.md`'s Build order into one prioritized list —
+check there, not here, for what's next.)*
