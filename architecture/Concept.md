@@ -34,25 +34,29 @@ An **agent-aware AI chat**. Not a generic chatbot — it always knows the sectio
 currently-selected agent, edits *those* specifically, and writes the result back into
 the structured view instantly. That editing loop is the engineering heart of the tool.
 
-## Layout (3 panes)
+## Layout (4 panes)
 
 ```
 ┌─────────────┬───────────────────────────┬──────────────┐
-│  AGENTS     │  Zara                     │  AI CHAT     │
+│  LIBRARY    │  Zara                     │  RAW AGENT   │
 │             │  ─────────────────────    │              │
-│ ▾ Personal  │  ▸ Role                   │ "tighten     │
-│    Zara ◄   │  ▸ Tools                  │  her         │
-│    Aria     │  ▸ Instructions           │  guardrails" │
-│ ▾ Pipeline  │  ▸ Output format          │              │
-│    analyst  │  ▸ Guardrails             │ [AI edits    │
-│    architect│                           │  the section │
-│    dev      │  (live preview / raw ⇄)   │  in place]   │
+│ ▾ Personal  │  ▸ Role                   │  ---         │
+│    Zara ◄   │  ▸ Tools                  │  name: Zara  │
+│    Aria     │  ▸ Instructions           │  tools: ...  │
+│ ▾ Pipeline  │  ▸ Output format          │  ---         │
+│    analyst  │  ▸ Guardrails             │  # ROLE      │
+│    architect│  ─────────────────────    │  ...         │
+│    dev      │  AI CHAT: "tighten her    │  (foldable,  │
+│             │  guardrails" → [applied]  │   read-only) │
 └─────────────┴───────────────────────────┴──────────────┘
 ```
 
-- **Left** — groupable agent list (e.g. a "Personal" group with Zara + Aria).
-- **Center** — the agent split into its real sections, always visible.
-- **Right** — the AI chat, whose edits appear immediately in the center pane.
+- **Left (Library)** — groupable agent list (e.g. a "Personal" group with Zara + Aria).
+- **Center-top (Custom Visualization)** — the agent split into its real sections, always
+  visible; this is the platform's main view.
+- **Center-bottom (AI Chat)** — sits *under* the structured view, not beside it; edits
+  apply directly into the pane above.
+- **Right (Raw agent)** — the exported `.md`, read-only reference, foldable.
 
 ## Decisions locked
 
@@ -63,7 +67,7 @@ the structured view instantly. That editing loop is the engineering heart of the
 | Killer feature  | AI chat that edits the *structured sections* in place |
 | Source of truth | **Platform is master** |
 | AI provider     | **Bring-your-own-key** for MVP → hosted later (easy first, migrate later) |
-| Layout          | 3-pane: groupable list · structured sections · AI chat |
+| Layout          | 4-pane IDE layout: Library · structured view · AI chat (below it) · Raw agent (foldable) |
 
 ## Build order
 
@@ -73,11 +77,10 @@ next-work list; this stays the stable why-ordered list.)*
 1. ✅ **Structured view + agent-aware AI chat** — the core loop, the reason to open the app. Built.
 2. ✅ **Library + groups** (left panel) — cheap, wanted early. Built (Plan 03), extended
    2026-07-29 with an Agents/Grouped toggle.
-3. 🟡 **Frictionless export back to Claude** — the "master" tax: if the platform owns the
-   agents, exporting them back out has to be effortless. **Half-built**: the export route
-   (`GET /api/agents/[id]/export`) exists and backs the Raw pane's read-only preview, but
-   there's no actual user-facing action (download / copy / write-to-disk) yet — see
-   `plans/roadmap.md` Tier 3.
+3. ✅ **Frictionless export back to Claude** — the "master" tax: if the platform owns the
+   agents, exporting them back out has to be effortless. Built: `GET /api/agents/[id]/export`
+   backs both the Raw pane's read-only preview and a "⇩ Download" button (client-side, no new
+   route). Download-only was the explicit choice over copy-to-clipboard or write-to-disk.
 4. ⬜ **Export to Copilot / others** — real *translation* between formats, not a file copy. Not started.
 5. ⬜ **Sharing / forking** — show my agent to a friend so they can fork their own from it. Not started.
 6. ⬜ **Skill module** — a sibling entity to Agent, mirroring its props/config/import/

@@ -1,6 +1,6 @@
 # Import Hardening + Structural-First Import — Execution Plan
 
-> **Origin:** Fable 5 audit (2026-07-28, prompt in `Fable-Review-1.md`) + follow-up strategy
+> **Origin:** Fable 5 audit (2026-07-28, prompt in `design/audits/Fable-Review-1.md`) + follow-up strategy
 > discussion with the user. The audit findings have been converted into this ordered,
 > dev-ready plan. **This file is the spec for `@dev` — execute phases in order.**
 > Companion deliverables already written (same audit pass):

@@ -42,5 +42,5 @@ All four panels resize via drag gutters. Library and Raw fold to rails to reclai
 ## Documentation
 
 - **[User guide](docs/user-guide.md)** — how to import, edit, organize, and export agents.
-- **[Concept](design/Concept.md)** — the what and why: problem statement, design decisions, agent schema.
-- **[Technical design](design/TechDesign.md)** — the how: data model, import pipeline, Blueprint catalog, Rules Index.
+- **[Concept](architecture/Concept.md)** — the what and why: problem statement, design decisions, agent schema.
+- **[Technical design](architecture/TechDesign.md)** — the how: data model, import pipeline, Blueprint catalog, Rules Index.

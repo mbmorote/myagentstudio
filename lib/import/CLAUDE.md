@@ -108,7 +108,9 @@ Coverage for a block = fraction of its non-empty normalized lines that appear as
 
 Importing a file whose `name` matches an agent already in the platform is always an **update-in-place**, never a duplicate or an error.
 
-- Sections present in the incoming file are upserted (created or updated, matched by `sectionKey`).
+- Sections present in the incoming file are upserted (created or updated, matched by
+  `(sectionKey, heading)` identity in document order — not `sectionKey` alone, which would
+  collapse distinct `custom` rows onto each other; fixed in Plan 02 Phase A1).
 - Sections that existed before but are absent from the incoming file are **deleted**. Their `SectionRevision` rows are not cascade-deleted — the history survives.
 - Before the upsert, a `pre-import` `AgentSnapshot` is written capturing the agent's full exported markdown. After the upsert, a `post-import` snapshot is written. First-time imports get only the post-import snapshot.
 

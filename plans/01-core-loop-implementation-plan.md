@@ -1,7 +1,7 @@
 # Plan 01 — Core Loop Implementation
 
 > The first build-sequence plan for MyAgent. Turns the settled design (`design/Concept.md`,
-> `design/TechDesign.md`, the two system-agent rule-sets, `design/DesignReview.md`) into an
+> `design/TechDesign.md`, the two system-agent rule-sets, `design/audits/DesignReview.md`) into an
 > ordered, file-by-file build @dev executes against.
 >
 > **Scope of this plan:** everything up to and including Concept build-order #1 — the *core

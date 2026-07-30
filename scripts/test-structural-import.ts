@@ -11,7 +11,7 @@
  *   1. Run this script against all 15 golden fixtures.
  *   2. Read the per-fixture output in the scratch folder.
  *   3. If coverage warnings or restructuring issues appear, edit:
- *        design/system-agents/import-instructions-structural.md
+ *        lib/ai/prompts/system-agents/import-instructions-structural.md
  *   4. Restart dev server (or re-run build-prompts.ts) to recompile the prompt.
  *   5. Re-run this script and iterate.
  *
@@ -52,6 +52,22 @@ try {
 const { callStructuralConverter } = await import('../lib/ai/structuralConverter.js');
 const { parse } = await import('../lib/serialize/index.js');
 const { checkCoverage } = await import('../lib/import/coverage.js');
+
+// ── Pre-flight: check that live LLM calls are enabled (§7.6) ─────────────────
+// The harness goes through the gateway like everything else and now respects the
+// liveLlmCalls switch. Running 15 fixtures with the switch off emits 15 dry-run
+// rows and looks broken — exit early with a clear message instead.
+const { getLiveLlmCalls } = await import('../lib/settings.js');
+const liveLlmCalls = getLiveLlmCalls();
+console.log(`[harness] liveLlmCalls = ${liveLlmCalls}`);
+if (!liveLlmCalls) {
+  console.error(
+    '[harness] ERROR: Live LLM calls are turned OFF in Settings.\n' +
+    '  Go to the Settings page (or PATCH /api/settings with { key: "liveLlmCalls", value: true })\n' +
+    '  to re-enable them before running this harness.',
+  );
+  process.exit(1);
+}
 
 // ─────────────────────────────  Config  ─────────────────────────────────────
 
@@ -125,7 +141,7 @@ console.log(`[harness] Done. ${fixtureFiles.length} fixtures processed.`);
 console.log(`  Fixtures with full coverage: ${totalFixed}/${fixtureFiles.length}`);
 console.log(`  Total coverage warnings:      ${totalWarnings}`);
 if (totalWarnings > 0) {
-  console.log('\n  Refine the rule-set in design/system-agents/import-instructions-structural.md');
+  console.log('\n  Refine the rule-set in lib/ai/prompts/system-agents/import-instructions-structural.md');
   console.log('  then re-run this script to iterate.');
 }
 console.log('');
