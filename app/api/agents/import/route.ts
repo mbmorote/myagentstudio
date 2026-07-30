@@ -31,6 +31,7 @@ import { parse } from '@/lib/serialize';
 import { FrontmatterParseError } from '@/lib/serialize/parseFrontmatter';
 import { callImportConverter, ImportConverterUpstreamError, ImportConverterInvalidResponseError } from '@/lib/ai/importConverter';
 import { callStructuralConverter, StructuralConverterTruncatedError, StructuralConverterUpstreamError } from '@/lib/ai/structuralConverter';
+import { LlmDryRunBlockedError } from '@/lib/ai/gateway';
 import { assemble } from '@/lib/import/assemble';
 import { assembleStructural } from '@/lib/import/assembleStructural';
 import { checkCoverage } from '@/lib/import/coverage';
@@ -111,10 +112,32 @@ async function runStructuralPipeline(
   }
 
   // ── Stage 2b: structural converter ───────────────────────────────────────
+  // §5.2: agentId best-effort at call time — the agent may not exist yet.
+  const agentId = agentName ? (getAgentSnapshotInfo(agentName)?.id ?? null) : null;
+
   let restructuredBody: string;
   try {
-    restructuredBody = await callStructuralConverter(rawMd);
+    restructuredBody = await callStructuralConverter(rawMd, {
+      kind: 'import-structural',
+      agentId,
+      agentLabel: agentName || null,
+    });
   } catch (err) {
+    // Dry-run block — checked BEFORE other error types (§7.2, §3.6)
+    if (err instanceof LlmDryRunBlockedError) {
+      console.info('[import/structural] Dry-run blocked:', err.message);
+      return NextResponse.json(
+        {
+          error: 'llm_dry_run',
+          dryRun: true,
+          kind: err.kind,
+          model: err.model,
+          logId: err.logId,
+          message: 'Live LLM calls are turned off in Settings. The request was recorded but never sent.',
+        },
+        { status: 409 },
+      );
+    }
     if (err instanceof StructuralConverterTruncatedError) {
       console.error('[import/structural] Response truncated (max_tokens):', err.message);
       return NextResponse.json({ error: 'structural_truncated' }, { status: 422 });
@@ -157,10 +180,37 @@ async function runStrictPipeline(
   // ── Stage 2: AI labels-only call ─────────────────────────────────────────
   // Only blockId + heading go to the model — never content (Rules Index #5).
   const blockRefs = structured.blocks.map((b) => ({ blockId: b.blockId, heading: b.heading }));
+
+  // §5.2: agentId best-effort at call time — the agent may not exist yet.
+  const fmNameStrict = structured.frontmatter.find((e) => e.key === 'name');
+  const agentNameStrict = fmNameStrict
+    ? (Array.isArray(fmNameStrict.rawValue) ? fmNameStrict.rawValue[0] : fmNameStrict.rawValue)
+    : '';
+  const agentIdStrict = agentNameStrict ? (getAgentSnapshotInfo(agentNameStrict)?.id ?? null) : null;
+
   let labels;
   try {
-    labels = await callImportConverter(blockRefs);
+    labels = await callImportConverter(blockRefs, {
+      kind: 'import-strict',
+      agentId: agentIdStrict,
+      agentLabel: agentNameStrict || null,
+    });
   } catch (err) {
+    // Dry-run block — checked BEFORE other error types (§7.2, §3.6)
+    if (err instanceof LlmDryRunBlockedError) {
+      console.info('[import/strict] Dry-run blocked:', err.message);
+      return NextResponse.json(
+        {
+          error: 'llm_dry_run',
+          dryRun: true,
+          kind: err.kind,
+          model: err.model,
+          logId: err.logId,
+          message: 'Live LLM calls are turned off in Settings. The request was recorded but never sent.',
+        },
+        { status: 409 },
+      );
+    }
     if (err instanceof ImportConverterInvalidResponseError) {
       console.error('[import/strict] Stage-2 invalid AI labels:', err.message);
       return NextResponse.json({ error: 'invalid_ai_labels' }, { status: 422 });

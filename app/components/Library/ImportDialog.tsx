@@ -47,6 +47,12 @@ type ImportResponseBody = {
   skipped?: 'unchanged';
   warnings?: string[];
   error?: string;
+  // Dry-run (§7.2, §5.1): present when "Live LLM calls" is off
+  dryRun?: boolean;
+  kind?: string;
+  model?: string;
+  logId?: string | null;
+  message?: string;
 };
 
 /** Human-readable error messages for the import route's error codes. */
@@ -69,6 +75,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[] | null>(null);
   const [upToDate, setUpToDate] = useState(false);
+  const [dryRunBlock, setDryRunBlock] = useState<{ logId: string | null } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -98,6 +105,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     setError(null);
     setWarnings(null);
     setUpToDate(false);
+    setDryRunBlock(null);
 
     try {
       const response = await fetch('/api/agents/import', {
@@ -112,6 +120,13 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
       if (body.skipped === 'unchanged') {
         setUpToDate(true);
         return;
+      }
+
+      // Dry-run blocked (§5.1, §7.2) — MUST be checked before !response.ok
+      // (409 would otherwise fall into the generic error branch)
+      if (body.dryRun) {
+        setDryRunBlock({ logId: body.logId ?? null });
+        return; // Dialog stays open; pasted text preserved
       }
 
       if (!response.ok) {
@@ -185,6 +200,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
                 setError(null);
                 setWarnings(null);
                 setUpToDate(false);
+                setDryRunBlock(null);
               }}
               rows={12}
               placeholder="---&#10;name: my-agent&#10;description: ...&#10;---&#10;&#10;# ROLE&#10;..."
@@ -220,6 +236,33 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
           </div>
 
           {/* Status messages */}
+          {dryRunBlock && (
+            <div className="text-[12px] text-[var(--muted)] bg-[var(--elev)] border border-[var(--border)] rounded-[6px] px-3 py-2 space-y-1">
+              <p className="font-medium text-[var(--text)]">Live LLM calls are off</p>
+              <p>
+                The import was recorded but not sent — no changes were made.{' '}
+                {dryRunBlock.logId ? (
+                  <a
+                    href={`/settings?log=${dryRunBlock.logId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[var(--accent)] hover:underline"
+                  >
+                    View log entry →
+                  </a>
+                ) : (
+                  <span className="text-[var(--faint)]">(log entry could not be written)</span>
+                )}
+              </p>
+              <p className="text-[11px] text-[var(--faint)]">
+                Turn on &ldquo;Live LLM calls&rdquo; in{' '}
+                <a href="/settings" target="_blank" rel="noreferrer" className="text-[var(--accent)] hover:underline">
+                  Settings
+                </a>{' '}
+                to run the import.
+              </p>
+            </div>
+          )}
           {upToDate && (
             <p className="text-[12px] text-[var(--ok)] bg-[var(--elev)] border border-[var(--ok)] rounded-[6px] px-3 py-2">
               ✓ Already up to date — no changes were made.

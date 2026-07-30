@@ -110,6 +110,56 @@ export const membership = sqliteTable('membership', {
   pk: primaryKey({ columns: [t.agentId, t.groupId] }),
 }));
 
+// ─────────────────────  Settings (generic EAV — §4.1)  ─────────────────────────
+// Operator-owned runtime state. Rows created on first write; a missing row is
+// a valid state meaning "never configured" (default-on in getLiveLlmCalls()).
+// Table name: singular, matching codebase convention (§15.1).
+export const setting = sqliteTable('setting', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),              // always stringified; typing lives in SETTING_DEFS
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull().default(sql`(unixepoch())`),
+});
+
+// ─────────────────────  LLM call log (append-only audit — §4.2)  ─────────────
+// Every AI call attempt (live or dry-run, success or failure) writes one row.
+// Soft agentId ref (never cascade-deleted), matching sectionRevision/agentSnapshot.
+// No UPDATE/DELETE exported from the repository — append-only by convention + test.
+
+/** Shape stored in requestPayload — no credentials. */
+export type LoggedRequest = {
+  system: string;
+  messages: { role: 'user' | 'assistant'; content: string }[];
+  maxTokens: number;
+  model: string;
+};
+
+/** Shape stored in responsePayload — always null for dry-run and errored calls. */
+export type LoggedResponse = {
+  text: string;
+  stopReason: string;
+};
+
+export const llmCallLog = sqliteTable('llm_call_log', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  kind: text('kind', { enum: ['import-strict', 'import-structural', 'chat'] }).notNull(),
+  provider: text('provider').notNull().default('anthropic'),
+  agentId: text('agent_id'),                    // SOFT ref, nullable — never cascade-deleted
+  agentLabel: text('agent_label'),              // display fallback (§5.2)
+  dryRun: integer('dry_run', { mode: 'boolean' }).notNull(),
+  model: text('model').notNull(),
+  requestPayload: text('request_payload', { mode: 'json' }).notNull().$type<LoggedRequest>(),
+  responsePayload: text('response_payload', { mode: 'json' }).$type<LoggedResponse | null>(),
+  error: text('error'),                         // '<ErrorName>: <message>', ≤2000 chars
+  durationMs: integer('duration_ms').notNull(),
+  usage: text('usage', { mode: 'json' }).$type<{ inputTokens: number; outputTokens: number } | null>(),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull().default(sql`(unixepoch())`),
+}, (t) => ({
+  byCreated: index('llm_call_log_created_idx').on(t.createdAt),
+  byKind:    index('llm_call_log_kind_idx').on(t.kind),
+}));
+
 // ─────────────────────  Whole-agent snapshots (import/export)  ─────────────────────
 export const agentSnapshot = sqliteTable('agent_snapshot', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),

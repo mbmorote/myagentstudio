@@ -90,6 +90,18 @@ async function seed() {
     console.log(`  ~ section_def: ${def.key} (upserted)`);
   }
 
+  // ── Setting rows — onConflictDoNothing (CRITICAL: opposite of catalog pattern) ─
+  // configDef/sectionDef use onConflictDoUpdate because they are CODE-OWNED and
+  // must heal from catalog.ts. `setting` is OPERATOR-OWNED runtime state.
+  // Since npm run db:seed is wired into predev/prebuild, a DoUpdate here would
+  // silently flip "Live LLM calls" back to on every single `npm run dev` —
+  // a money-spending regression disguised as a seed.
+  await db
+    .insert(schema.setting)
+    .values({ key: 'liveLlmCalls', value: 'true' })
+    .onConflictDoNothing();
+  console.log('  ~ setting: liveLlmCalls (skip if exists)');
+
   console.log('Seed complete.');
   sqlite.close();
 }

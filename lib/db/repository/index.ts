@@ -32,3 +32,14 @@ export type { ConfigDefRow, SectionDefRow } from './catalog.js';
 
 export { createGroup, listGroups, deleteGroup, addMembership, removeMembership } from './groups.js';
 export type { GroupDTO } from './groups.js';
+
+export { getSetting, setSetting, getAllSettings } from './settings.js';
+
+export { writeCallLog, listCallLogs, getCallLog } from './llmCallLog.js';
+export type {
+  LlmCallKind,
+  WriteCallLogInput,
+  CallLogListItem,
+  CallLogFull,
+  ListCallLogsOptions,
+} from './llmCallLog.js';

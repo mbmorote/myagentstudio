@@ -13,7 +13,8 @@ import 'server-only';
  * Stage-1 blocks by blockId; the AI only supplies labels.
  */
 
-import { getClient, getModel } from './client.js';
+import { getGateway, LlmDryRunBlockedError } from './gateway.js';
+import type { LlmCallContext } from './gateway.js';
 import { IMPORT_CONVERTER_PROMPT } from './prompts/generated/import-instructions.js';
 import { renderBlueprintForPrompt } from '../blueprint/index.js';
 
@@ -62,11 +63,16 @@ export type Stage2BlockRef = {
  * returns the Stage-2 label map.
  *
  * @param blocks  Stable block identifiers + heading text from Stage-1 parse
+ * @param ctx     Gateway context for logging (§5.2 — agentId best-effort at call time)
  * @returns       Parsed and validated Stage2Labels
+ * @throws        LlmDryRunBlockedError          when live LLM calls are disabled
  * @throws        ImportConverterUpstreamError   on API failure
  * @throws        ImportConverterInvalidResponseError  on bad/content-bearing AI output
  */
-export async function callImportConverter(blocks: Stage2BlockRef[]): Promise<Stage2Labels> {
+export async function callImportConverter(
+  blocks: Stage2BlockRef[],
+  ctx: LlmCallContext = { kind: 'import-strict' },
+): Promise<Stage2Labels> {
   // Stage 2 never classifies config data (Rules Index #28) — omit it from the prompt.
   const blueprint = renderBlueprintForPrompt({ includeConfig: false });
 
@@ -81,28 +87,29 @@ export async function callImportConverter(blocks: Stage2BlockRef[]): Promise<Sta
     blueprint,
   ].join('\n');
 
-  let responseText: string;
+  // Dry-run check outside the catch-all so it can never be swallowed as ai_upstream (§3.6).
+  let res;
   try {
-    const client = getClient();
-    const model = getModel();
-    const response = await client.messages.create({
-      model,
-      max_tokens: 4096,
-      system: IMPORT_CONVERTER_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
-    });
-
-    const textBlock = response.content.find((b) => b.type === 'text');
-    if (!textBlock || textBlock.type !== 'text') {
-      throw new ImportConverterUpstreamError('No text block in Anthropic response');
-    }
-    responseText = textBlock.text;
+    res = await getGateway().complete(
+      {
+        system: IMPORT_CONVERTER_PROMPT,
+        messages: [{ role: 'user', content: userMessage }],
+        maxTokens: 4096,
+      },
+      ctx,
+    );
   } catch (err) {
-    if (err instanceof ImportConverterUpstreamError) throw err;
+    // Belt-and-braces: re-throw LlmDryRunBlockedError unchanged if it somehow ends up here
+    if (err instanceof LlmDryRunBlockedError) throw err;
     throw new ImportConverterUpstreamError(String(err));
   }
 
-  return parseAndValidateLabels(responseText);
+  // Handle dry-run result (§3.6 — outside the try, cannot be misclassified as 502)
+  if (!res.ok) throw new LlmDryRunBlockedError(res.logId, ctx.kind, res.model);
+
+  // Provider-level errors (no text block) are already mapped by anthropicProvider.ts —
+  // any remaining upstream error would come through the catch above.
+  return parseAndValidateLabels(res.response.text);
 }
 
 // ─────────────────────────────  Internal validation  ──────────────────────────

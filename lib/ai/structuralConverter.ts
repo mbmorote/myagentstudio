@@ -20,7 +20,8 @@ import 'server-only';
  * stored, routes to 422 (Rules Index #31).
  */
 
-import { getClient, getModel } from './client.js';
+import { getGateway, LlmDryRunBlockedError } from './gateway.js';
+import type { LlmCallContext } from './gateway.js';
 import { STRUCTURAL_IMPORT_PROMPT } from './prompts/generated/import-instructions-structural.js';
 import { renderBlueprintForPrompt } from '../blueprint/index.js';
 
@@ -64,15 +65,21 @@ export class StructuralConverterInvalidResponseError extends Error {
  * Returns the restructured body document as a string (no frontmatter — the server
  * handles frontmatter deterministically from Stage-1 parse output).
  *
- * Uses streaming to handle the larger response size (up to 32000 tokens).
+ * Uses gateway.stream() which preserves the streaming transport (§3.5):
+ * the SDK's finalMessage() is used internally, same as before this refactor.
  *
  * @param rawMd  The full raw markdown of the agent file being imported.
+ * @param ctx    Gateway context for logging (§5.2)
  * @returns      The restructured body document (markdown, no frontmatter).
+ * @throws       LlmDryRunBlockedError             when live LLM calls are disabled
  * @throws       StructuralConverterUpstreamError   on API failure
  * @throws       StructuralConverterTruncatedError  on stop_reason === 'max_tokens'
  * @throws       StructuralConverterInvalidResponseError  on unexpected response shape
  */
-export async function callStructuralConverter(rawMd: string): Promise<string> {
+export async function callStructuralConverter(
+  rawMd: string,
+  ctx: LlmCallContext = { kind: 'import-structural' },
+): Promise<string> {
   const blueprint = renderBlueprintForPrompt({ includeConfig: false });
 
   // Build the user message per the INPUT section of import-instructions-structural.md:
@@ -93,39 +100,33 @@ export async function callStructuralConverter(rawMd: string): Promise<string> {
     '</agent-source>',
   ].join('\n');
 
+  // Dry-run check outside the catch-all so it can never be swallowed as ai_upstream (§3.6).
+  let res;
   try {
-    const client = getClient();
-    const model = getModel();
-
     // Stream the response — structural output can be large (full agent body).
-    const stream = client.messages.stream({
-      model,
-      max_tokens: 32000,
-      system: STRUCTURAL_IMPORT_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
-    });
-
-    const finalMessage = await stream.finalMessage();
-
-    // Hard fail on truncation — a truncated document is content loss (Rules Index #31).
-    if (finalMessage.stop_reason === 'max_tokens') {
-      throw new StructuralConverterTruncatedError();
-    }
-
-    const textBlock = finalMessage.content.find((b) => b.type === 'text');
-    if (!textBlock || textBlock.type !== 'text') {
-      throw new StructuralConverterInvalidResponseError('No text block in Anthropic response');
-    }
-
-    return textBlock.text;
+    // gateway.stream() preserves the SDK's streaming transport (§3.5).
+    res = await getGateway().stream(
+      {
+        system: STRUCTURAL_IMPORT_PROMPT,
+        messages: [{ role: 'user', content: userMessage }],
+        maxTokens: 32000,
+      },
+      ctx,
+    );
   } catch (err) {
-    // Re-throw our own typed errors unchanged.
-    if (
-      err instanceof StructuralConverterTruncatedError ||
-      err instanceof StructuralConverterInvalidResponseError
-    ) {
-      throw err;
-    }
+    // Belt-and-braces: re-throw LlmDryRunBlockedError unchanged
+    if (err instanceof LlmDryRunBlockedError) throw err;
     throw new StructuralConverterUpstreamError(String(err));
   }
+
+  // Handle dry-run result (§3.6 — outside the try, cannot be misclassified as 502)
+  if (!res.ok) throw new LlmDryRunBlockedError(res.logId, ctx.kind, res.model);
+
+  // Hard fail on truncation — a truncated document is content loss (Rules Index #31).
+  // Domain rule stays in the caller — the gateway only records stopReason, never acts on it (§3.5).
+  if (res.response.stopReason === 'max_tokens') {
+    throw new StructuralConverterTruncatedError();
+  }
+
+  return res.response.text;
 }

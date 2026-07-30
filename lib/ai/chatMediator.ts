@@ -23,7 +23,8 @@ import 'server-only';
  *     writing to the DB.
  */
 
-import { getClient, getModel } from './client.js';
+import { getGateway, LlmDryRunBlockedError } from './gateway.js';
+import type { LlmCallContext } from './gateway.js';
 import { CHAT_MEDIATOR_PROMPT } from './prompts/generated/chat-mediator.js';
 import { renderBlueprintForPrompt } from '../blueprint/index.js';
 
@@ -71,38 +72,36 @@ export class ChatMediatorInvalidResponseError extends Error {
  * Calls the chat mediator with the full agent content and the user's instruction.
  *
  * @param input  Agent context + instruction + optional AbortSignal (Rules Index #23)
+ * @param ctx    Gateway context for logging (agentId always known for chat, §5.2)
  * @returns      Map of sectionKey → new content for each section that changed
+ * @throws       LlmDryRunBlockedError             when live LLM calls are disabled
  * @throws       ChatMediatorUpstreamError on API failure
  * @throws       ChatMediatorInvalidResponseError on invalid model output
  * @throws       Error with name 'AbortError' if the request was cancelled
  */
-export async function callChatMediator(input: MediatorInput): Promise<MediatorResult> {
+export async function callChatMediator(
+  input: MediatorInput,
+  ctx: LlmCallContext = { kind: 'chat' },
+): Promise<MediatorResult> {
   const blueprint = renderBlueprintForPrompt();
   const userMessage = buildUserMessage(input, blueprint);
 
-  let responseText: string;
+  // Dry-run check outside the catch-all so it can never be swallowed as ai_upstream (§3.6).
+  let res;
   try {
-    const client = getClient();
-    const model = getModel();
-
-    // Pass signal through to the Anthropic SDK so a cancelled client request
-    // also cancels the upstream call (Rules Index #23).
-    const response = await client.messages.create(
+    // Pass signal through to the gateway → provider → SDK (Rules Index #23).
+    res = await getGateway().complete(
       {
-        model,
-        max_tokens: 8192,
         system: CHAT_MEDIATOR_PROMPT,
         messages: [{ role: 'user', content: userMessage }],
+        maxTokens: 8192,
+        signal: input.signal,
       },
-      { signal: input.signal },
+      ctx,
     );
-
-    const textBlock = response.content.find((b) => b.type === 'text');
-    if (!textBlock || textBlock.type !== 'text') {
-      throw new ChatMediatorUpstreamError('No text block in Anthropic response');
-    }
-    responseText = textBlock.text;
   } catch (err) {
+    // Belt-and-braces: re-throw LlmDryRunBlockedError unchanged
+    if (err instanceof LlmDryRunBlockedError) throw err;
     // Re-throw our own error types unchanged
     if (err instanceof ChatMediatorUpstreamError) throw err;
     if (err instanceof ChatMediatorInvalidResponseError) throw err;
@@ -111,6 +110,10 @@ export async function callChatMediator(input: MediatorInput): Promise<MediatorRe
     throw new ChatMediatorUpstreamError(String(err));
   }
 
+  // Handle dry-run result (§3.6 — outside the try, cannot be misclassified as 502)
+  if (!res.ok) throw new LlmDryRunBlockedError(res.logId, ctx.kind, res.model);
+
+  const responseText = res.response.text;
   const parsed = parseMediatorResponse(responseText);
 
   // Server double-checks each returned section for split-level headings and

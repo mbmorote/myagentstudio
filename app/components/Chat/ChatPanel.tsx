@@ -23,6 +23,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
+import Link from 'next/link';
 import type { InteractionLock, SectionUpdateResult } from '@/app/components/WorkbenchShell';
 
 interface ChatMessage {
@@ -30,6 +31,8 @@ interface ChatMessage {
   text: string;
   /** Sections that were actually changed in this turn */
   changedSectionKeys?: string[];
+  /** Non-null when this message is a dry-run notice (§5.2) */
+  dryRunLogId?: string | null;
 }
 
 interface ChatPanelProps {
@@ -85,18 +88,37 @@ export function ChatPanel({
 
       if (response.status === 499) return;
 
-      if (!response.ok) {
-        const err = (await response.json().catch(() => ({ error: 'unknown' }))) as {
-          error: string;
-        };
+      // Parse body once — needed for dry-run check BEFORE !response.ok (§5.2, §7.2)
+      const body = (await response.json().catch(() => ({ error: 'unknown' }))) as {
+        error?: string;
+        dryRun?: boolean;
+        logId?: string | null;
+        sections?: Record<string, SectionUpdateResult>;
+      };
+
+      // Dry-run blocked: render as assistant notice bubble with link (§5.2)
+      // The finally block still runs → interaction lock is released.
+      if (body.dryRun) {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', text: `Error: ${err.error ?? response.statusText}` },
+          {
+            role: 'assistant',
+            text: 'Live LLM calls are off — no changes were made.',
+            dryRunLogId: body.logId ?? null,
+          },
         ]);
         return;
       }
 
-      const result = (await response.json()) as {
+      if (!response.ok) {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', text: `Error: ${body.error ?? response.statusText}` },
+        ]);
+        return;
+      }
+
+      const result = { sections: body.sections ?? {} } as {
         sections: Record<string, SectionUpdateResult>;
       };
 
@@ -194,6 +216,26 @@ export function ChatPanel({
               }`}
             >
               {msg.text}
+
+              {/* Dry-run notice link (§5.2) */}
+              {msg.role === 'assistant' && msg.dryRunLogId !== undefined && (
+                <div className="mt-[6px] text-[11px] text-[var(--muted)]">
+                  {msg.dryRunLogId ? (
+                    <Link
+                      href={`/settings?log=${msg.dryRunLogId}`}
+                      className="text-[var(--accent)] hover:underline"
+                    >
+                      View log entry →
+                    </Link>
+                  ) : (
+                    <span className="text-[var(--faint)]">(log entry could not be written)</span>
+                  )}
+                  {' · '}
+                  <Link href="/settings" className="text-[var(--accent)] hover:underline">
+                    Open Settings
+                  </Link>
+                </div>
+              )}
 
               {/* R13: target chips — sections only, never config */}
               {msg.role === 'assistant' && msg.changedSectionKeys && msg.changedSectionKeys.length > 0 && (

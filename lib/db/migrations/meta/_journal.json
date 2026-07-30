@@ -15,6 +15,13 @@
       "when": 1785365623837,
       "tag": "0001_curved_sandman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785375377488,
+      "tag": "0002_unknown_thunderbolt_ross",
+      "breakpoints": true
     }
   ]
 }

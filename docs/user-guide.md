@@ -106,6 +106,38 @@ The **Raw** panel on the right shows the current state of the selected agent as 
 
 Frontmatter lines are dimmed; top-level section headings are highlighted. The filename band at the top shows `<name>.md`.
 
-To copy the content for use in Claude Code, select all text in the Raw panel and copy it. To save it as a file, copy the content and paste it into your `.claude/agents/` directory.
+Click **⇩ Download** at the top of the Raw panel to save `<name>.md` directly, then move it into your `.claude/agents/` directory. Alternatively, select all text in the panel and copy it if you just want the content.
 
 The export format is deterministic and semantically faithful: frontmatter keys are written in their original insertion order, YAML values are normalized (no type coercion, no added quotes beyond what is necessary for round-trip safety), and section bodies are written byte-for-byte as stored. Group memberships are platform metadata and are not written into the exported file.
+
+---
+
+## Settings: dry-run mode and the activity log
+
+Click **⚙ Settings** in the top bar to open the Settings page.
+
+### Live LLM calls toggle
+
+The **Live LLM calls** toggle controls whether AI calls (import, chat) are actually sent to the Anthropic API.
+
+- **On (default):** normal behavior — AI calls are made, billed, and logged.
+- **Off (dry-run mode):** every AI call is recorded and blocked before any network request is made. No response is produced, no money is spent, and no changes are written to any agent.
+
+When the toggle is off and you try to import a file or send a chat instruction, you will see a notice in the dialog or chat panel. The notice includes a link to the matching entry in the activity log. Turn the toggle back on and try again to make a real call.
+
+The toggle takes effect immediately — the next AI call observes the new value without a server restart.
+
+### Activity log
+
+The activity log lists every AI call attempt, whether live or dry-run. Each row shows the timestamp, kind (Import/Chat), agent name, status (OK / Dry-run / Error), model, and duration.
+
+**Status meanings:**
+- **OK** — the call succeeded and the response was applied.
+- **Dry-run** — the call was blocked because "Live LLM calls" was off. No response was produced.
+- **Error** — the call reached the provider but failed (e.g. network error, auth failure, truncation).
+
+Click any row to expand it and see the full request payload (system prompt + messages) and, for live successful calls, the response payload. Dry-run rows always show a null response payload — that is correct by design.
+
+You can filter the log by **All / Dry-run / Live** using the buttons above the table.
+
+**Deep links:** the notices shown in `ImportDialog` and `ChatPanel` after a dry-run block include a "View log entry →" link that opens `/settings?log=<id>`, which scrolls directly to and highlights that row in the activity log.

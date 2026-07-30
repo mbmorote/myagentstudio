@@ -1,85 +1,131 @@
-# lib/ai — AI Callers and System Agents
+# lib/ai — AI Callers, Gateway, and System Agents
 
-This folder contains the three AI callers used by the server, the Anthropic client singleton, and the build-time prompt compilation output.
+This folder contains the single gateway through which every AI call in the app passes, the three AI callers, the Anthropic provider implementation, and the build-time prompt compilation output.
+
+## Architecture (Plan 04)
+
+```
+route (app/api/…)
+  └─ caller (importConverter.ts, structuralConverter.ts, chatMediator.ts)
+        ← knows the domain (prompts, JSON parsing, stop_reason rules, demotion)
+        └─ gateway (gateway.ts)
+              ← the single choke point. Gate check + audit log. The ONLY lib/ai file
+                 allowed to import from lib/db.
+              └─ provider (anthropicProvider.ts)
+                    ← transport only. Never sees `kind`, agentId, or lib/db.
+                    └─ @anthropic-ai/sdk
+```
+
+**One-SDK-importer rule (§1 constraint 1, Rules Index #41):** exactly one file in the entire codebase may import `@anthropic-ai/sdk` — `lib/ai/anthropicProvider.ts`. This is enforced by a fitness-function test (`lib/ai/__tests__/architecture.test.ts`) that scans every `.ts`/`.tsx` source file and asserts the import appears in exactly that one file. `client.ts` was deleted when Plan 04 landed.
+
+## The gateway (`gateway.ts`)
+
+The gateway is the single point through which every AI call attempt flows, live or dry-run. It:
+
+1. Resolves the model (`req.model ?? provider.defaultModel()`).
+2. Reads `liveLlmCalls` from the DB **fresh on every call** (no cache — §6).
+3. **Dry-run path** (setting is off): writes a log row (`dryRun: true`, `responsePayload: null`), returns `{ ok: false, reason: 'dry_run_blocked', model, logId }`. The provider is never touched.
+4. **Live path**: calls the provider, writes a log row, returns `{ ok: true, response, logId }` on success or re-throws the original error unchanged on failure.
+
+Key exports:
+- `createGateway(provider)` — testable seam; used in `gateway.test.ts`.
+- `getGateway()` — lazy singleton used by all production callers.
+- `LlmDryRunBlockedError` — thrown by callers when the gateway returns `ok: false`. Routes catch this first and return `409 { error: 'llm_dry_run', dryRun: true, kind, model, logId }`.
+
+**Dry-run is a hard stop** — no synthetic response, no network traffic, no partial degradation. The blocked result is structurally distinct from a success; accessing `.response` on the blocked arm is a compile error.
+
+**Log-write failures** on the live path are swallowed (the response is already there; discarding it for a logging failure is strictly worse). On the dry-run path, a failed log write still blocks the call (`logId: null`).
+
+## The provider (`provider.ts`, `anthropicProvider.ts`)
+
+`provider.ts` defines the `LLMProvider` interface and provider-agnostic types (`LlmRequest`, `LlmResponse`, `LlmMessage`, etc.). No implementation, no imports beyond types.
+
+`anthropicProvider.ts` is the only implementation. It:
+- Holds a module-private lazy `Anthropic` singleton (moved verbatim from the deleted `client.ts`).
+- Reads `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` from `lib/env.ts` (unchanged).
+- Maps `stop_reason` → `LlmStopReason`; maps usage fields.
+- Exposes `complete()` (non-streaming) and `stream()` (awaits `finalMessage()`).
+
+`stream()` returns a fully-accumulated `LlmResponse` — the same shape as `complete()`. The streaming *transport* is preserved (the SDK still uses its streaming path for large responses), but no delta-by-delta consumer is exposed here yet (deferred, see `TechDesign.md` Deferred Decisions).
+
+## Callers — shape (§3.6, normative)
+
+All three callers follow the same pattern so the dry-run check is never swallowed by their catch-all:
+
+```ts
+let res: LlmGatewayResult;
+try {
+  res = await getGateway().complete(req, ctx);
+} catch (err) {
+  if (err instanceof LlmDryRunBlockedError) throw err; // belt-and-braces
+  // existing mapping: AbortError re-thrown, everything else → XUpstreamError
+}
+if (!res.ok) throw new LlmDryRunBlockedError(res.logId, ctx.kind, res.model);
+// existing domain logic on res.response.text
+```
 
 ## System agents: the source of truth
 
-MyAgent uses two system agents — the import converter and the chat mediator. Their actual rule-sets (Role, Behavior, Guardrails, Output) live in:
+MyAgent uses two system agents — the import converter and the chat mediator. Their actual
+rule-sets (Role, Behavior, Guardrails, Output) live in `lib/ai/prompts/system-agents/` —
+source `.md` files, not documentation (moved out of `architecture/` 2026-07-29 for exactly
+this reason: this content is compiled into the running app, so it sits next to the generated
+output it produces, not in a folder meant for passive reference material):
 
 ```
-design/system-agents/import-instructions.md          ← Strict Import prompt
-design/system-agents/import-instructions-structural.md  ← Structural Import prompt
-design/system-agents/chat-mediator.md                ← Chat mediator prompt
+lib/ai/prompts/system-agents/import-instructions.md          ← Strict Import prompt
+lib/ai/prompts/system-agents/import-instructions-structural.md  ← Structural Import prompt
+lib/ai/prompts/system-agents/chat-mediator.md                ← Chat mediator prompt
 ```
 
 **These files are the one and only place those rules are ever reviewed or edited.** Never edit the generated files under `lib/ai/prompts/generated/` — they are regenerated on every `npm run dev` / `npm run build` and are gitignored.
 
 ## Build-time compilation
 
-`scripts/build-prompts.ts` runs as a `predev` / `prebuild` npm hook. It reads each `design/system-agents/*.md` file, strips the human-facing `# Title` line and any leading prose before the first `##` heading, and writes the remaining content as a TypeScript string constant:
+`scripts/build-prompts.ts` runs as a `predev` / `prebuild` npm hook. It reads each `lib/ai/prompts/system-agents/*.md` file and writes the content as a TypeScript string constant:
 
 ```
-design/system-agents/import-instructions.md
+lib/ai/prompts/system-agents/import-instructions.md
   → lib/ai/prompts/generated/import-instructions.ts
      exports: IMPORT_CONVERTER_PROMPT
 
-design/system-agents/import-instructions-structural.md
+lib/ai/prompts/system-agents/import-instructions-structural.md
   → lib/ai/prompts/generated/import-instructions-structural.ts
      exports: STRUCTURAL_IMPORT_PROMPT
 
-design/system-agents/chat-mediator.md
+lib/ai/prompts/system-agents/chat-mediator.md
   → lib/ai/prompts/generated/chat-mediator.ts
      exports: CHAT_MEDIATOR_PROMPT
 ```
 
-The running server never reads `design/` at runtime. The prompt text is already compiled into the JS bundle by the time any request arrives.
+The running server never reads the source `.md` files at runtime — only the compiled output.
 
-**To change a prompt:** edit the relevant `design/system-agents/*.md` file and restart the dev server. The `predev` hook recompiles automatically.
-
-## client.ts
-
-A lazy singleton that holds one `Anthropic` instance shared across all callers. Reads `ANTHROPIC_API_KEY` from the environment at first call (throws immediately if unset). Reads `ANTHROPIC_MODEL` for the model ID (defaults to `claude-opus-4-8`). Both functions are imported by every AI caller — never instantiate `Anthropic` directly.
-
-The module is `server-only`, so Next.js will produce a build error if any client component tree imports it.
+**To change a prompt:** edit the relevant `lib/ai/prompts/system-agents/*.md` file and restart the dev server.
 
 ## importConverter.ts — Strict Import caller
 
-Sends each Stage-1 block's `blockId` and `heading` text (never the body content) to Claude, along with the Agent Blueprint (sections only — config omitted, per Rules Index #28) and `IMPORT_CONVERTER_PROMPT`. Parses and validates the returned JSON label map.
-
-**Hard invariant:** the AI response must never contain a `content` or `text` field at the top level or inside any mapping entry. The validation layer checks this explicitly and throws `ImportConverterInvalidResponseError` if found. The server always copies content bytes from Stage-1 blocks; the AI only ever supplies labels.
-
-Additional validation catches overlapping `blockId` references (a `blockId` appearing in more than one mapping entry) — these would silently drop a block in assembly, so they are rejected at the caller level.
+Sends each Stage-1 block's `blockId` and `heading` text (never the body content) to Claude via `getGateway().complete(req, { kind: 'import-strict' })`. Parses and validates the returned JSON label map. The AI only ever supplies labels; content bytes come from Stage-1 blocks.
 
 ## structuralConverter.ts — Structural Import caller
 
-Sends the agent's **full raw markdown text** plus the Blueprint to Claude and returns the entire restructured agent body as one markdown string. Unlike the Strict caller, the structural converter's job requires reading and reorganizing content, so full content is intentionally provided.
-
-Uses streaming (`client.messages.stream`) because the response can be large (up to 32,000 tokens). The final message is checked for `stop_reason === 'max_tokens'` before the text is extracted — a truncated document is rejected immediately with `StructuralConverterTruncatedError` and never stored.
-
-The agent file may contain fenced code blocks (`` ``` `` or `~~~`), so the user message wraps the raw content in XML-style delimiters (`<agent-source>...</agent-source>`) rather than a code fence — a literal `` ``` `` inside the agent would prematurely close a code fence wrapper, which happens in real agent files.
+Sends the agent's **full raw markdown text** plus the Blueprint to Claude via `getGateway().stream(req, { kind: 'import-structural' })`. Returns the entire restructured agent body as one markdown string. Checks `stopReason === 'max_tokens'` (domain rule, stays in this caller) and throws `StructuralConverterTruncatedError` if the response was truncated.
 
 ## chatMediator.ts — Chat mediator caller
 
-Sends the **full current content of every section** (loaded from the database by the route, never from the client), the Agent Blueprint, and `CHAT_MEDIATOR_PROMPT` to Claude. Returns a map of `sectionKey → new content` for only the sections that changed.
+Sends the **full current content of every section** to Claude via `getGateway().complete(req, { kind: 'chat' })`. Forwards `request.signal` through `LlmRequest.signal` for cancellation support (Rules Index #23).
 
-**Key design decisions:**
-
-**Agent-wide scope.** The mediator sees all sections and may rewrite any number of them that a single instruction genuinely requires. There is no per-section isolation at the AI call level. The `SectionRevision` table is the per-section audit log; it is not the edit boundary.
-
-**No tools.** The mediator has no tools — it cannot read files, call agents, or reach outside the agent's content.
-
-**Split-level demotion.** The agent's `splitLevel` (the shallowest heading level in the file — usually `1`) is passed to the mediator. Any heading at exactly that level inside a section's content would collide with the file-level section heading on export. The mediator's prompt instructs it not to emit these; `chatMediator.ts` also scans every returned section line-by-line and demotes any such heading by one level (`# Foo` → `## Foo` when `splitLevel=1`). The chat route applies this check a second time as the authoritative gate.
-
-**Cancellation.** The route passes `request.signal` through to the mediator caller, which forwards it to the Anthropic SDK's `RequestOptions.signal`. If the client disconnects, the upstream API call is also cancelled. Because the server writes changes only after the mediator returns (apply-then-history), a cancelled request leaves the agent unchanged — nothing partial is ever written.
-
-**Optimistic concurrency.** The route reads each section's current `version` at the start of the handler. After the mediator responds, each changed section is written with `expectedVersion`. A version conflict on one section does not block the others — it is reported as `{conflict: true, current, content}` in the response while the remaining sections still apply.
+Key behaviors: agent-wide scope, no tools, split-level heading demotion, optimistic concurrency per section — all unchanged from before Plan 04. See the previous section-level detail for each; only the transport layer changed.
 
 ## Files in this folder
 
 | File | Role |
 |---|---|
-| `client.ts` | Anthropic SDK singleton; `getClient()` and `getModel()` |
+| `provider.ts` | `LLMProvider` interface + provider-agnostic types (`LlmRequest`, `LlmResponse`, etc.) |
+| `anthropicProvider.ts` | The ONLY `@anthropic-ai/sdk` importer. Lazy singleton, `complete()`, `stream()`. |
+| `gateway.ts` | Gate check, audit log, `LlmDryRunBlockedError`. The choke point. |
 | `importConverter.ts` | Strict Import Stage-2 caller (labels-only) |
-| `structuralConverter.ts` | Structural Import Stage-2b caller (full content, streaming) |
-| `chatMediator.ts` | Chat mediator caller (agent-wide, all sections) |
+| `structuralConverter.ts` | Structural Import Stage-2b caller (full content, streaming transport) |
+| `chatMediator.ts` | Chat mediator caller (agent-wide, all sections, signal forwarded) |
 | `prompts/generated/` | Auto-generated by `scripts/build-prompts.ts` — do not edit |
+| `__tests__/gateway.test.ts` | 12 gateway behaviour cases via fake provider (no SDK) |
+| `__tests__/architecture.test.ts` | Fitness function: one SDK importer only |

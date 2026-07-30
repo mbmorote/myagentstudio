@@ -35,6 +35,7 @@ import {
   callChatMediator,
   ChatMediatorUpstreamError,
 } from '@/lib/ai/chatMediator';
+import { LlmDryRunBlockedError } from '@/lib/ai/gateway';
 
 // ── Split-level heading demotion (Rules Index #3, defense-in-depth) ──────────
 // Inlined in the route so it runs even in tests where callChatMediator is mocked.
@@ -98,18 +99,37 @@ export async function POST(request: Request): Promise<NextResponse> {
   // ── Call the mediator (signal passthrough for cancellation — Rules Index #23) ───
   let mediatorResult;
   try {
-    mediatorResult = await callChatMediator({
-      agentName: agent.name,
-      splitLevel: agent.splitLevel,
-      sections: agent.sections.map((s) => ({
-        sectionKey: s.sectionKey,
-        heading: s.heading,
-        content: s.content,
-      })),
-      instruction,
-      signal: request.signal,
-    });
+    mediatorResult = await callChatMediator(
+      {
+        agentName: agent.name,
+        splitLevel: agent.splitLevel,
+        sections: agent.sections.map((s) => ({
+          sectionKey: s.sectionKey,
+          heading: s.heading,
+          content: s.content,
+        })),
+        instruction,
+        signal: request.signal,
+      },
+      // agentId is always known for chat (§5.2)
+      { kind: 'chat', agentId, agentLabel: agent.name },
+    );
   } catch (err) {
+    // Dry-run block — FIRST, before ChatMediatorUpstreamError (§7.2, §3.2 catch order)
+    if (err instanceof LlmDryRunBlockedError) {
+      console.info('[chat] Dry-run blocked:', err.message);
+      return NextResponse.json(
+        {
+          error: 'llm_dry_run',
+          dryRun: true,
+          kind: err.kind,
+          model: err.model,
+          logId: err.logId,
+          message: 'Live LLM calls are turned off in Settings. The request was recorded but never sent.',
+        },
+        { status: 409 },
+      );
+    }
     if (err instanceof ChatMediatorUpstreamError) {
       console.error('[chat] Mediator upstream error:', err.message);
       return NextResponse.json({ error: 'ai_upstream' }, { status: 502 });
