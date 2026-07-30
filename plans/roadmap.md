@@ -18,9 +18,9 @@ the dedicated hand-off file it used to route through (`plans/layout-prototype-to
 retired 2026-07-29 — its one open slot was empty and its migrated-item history is already in
 `CHANGELOG.md` and git history. Layout items just live directly below now, tagged.
 
-**Last reviewed:** 2026-07-29, after Plan 04 (LLM Gateway, dry-run mode, Settings page)
-landed. Plan 04 added the gateway, provider abstraction, `setting`/`llm_call_log` tables,
-Settings page + activity log, and dry-run UI handling — see `CHANGELOG.md` for full detail.
+**Last reviewed:** 2026-07-30, after Plan 05's `@architect` revision landed. Plan 04 (2026-07-29)
+added the gateway, provider abstraction, `setting`/`llm_call_log` tables, Settings page +
+activity log, and dry-run UI handling — see `CHANGELOG.md` for full detail.
 
 ## Stability snapshot (as of last review)
 
@@ -73,14 +73,19 @@ Condensed — full detail lives at each pointer, not repeated here.
 ### Core
 
 1. **Plan B — multi-tenant schema + JWT auth.** `@analyst`, `@impact`, and `@architect` are
-   all done. **The plan is written: `plans/05-multi-tenant-auth.md`** (16 sections, matches
-   Plan 04's shape) — verified real, not yet reviewed with the user. **Next step: a
-   section-by-section walk through §16's 11 confirmation points**, same process Plan 04 got,
-   before `@dev` starts. The single biggest one is §16.6 — the plan enforces ownership in
-   the repository layer (14 changed function signatures) rather than at the route layer as
-   the approved `@analyst` task description specified; flagged as the one deviation most
-   worth pushing back on if the reasoning doesn't land. This is the prerequisite for a safe
-   public deploy (friends' data isolated from each other).
+   all done, and the **§16 review with the user is now complete** (2026-07-30) —
+   `plans/05-multi-tenant-auth.md` is reviewed and ready for `@dev`. Confirmed: ownership
+   enforced in the repository layer (§16.6, the biggest deviation from the original
+   `@analyst` scope, confirmed over the route-layer alternative); `role` column renamed to
+   `admin`/`user` values; opt-in, cookie-banner-style consent for activity-log sharing with
+   per-row snapshotting (§16.5, new design); a new "User Settings" (`/account`) surface
+   alongside admin-only "System Settings"; a new per-user LLM call cap (15/hour, rolling
+   window, admin-exempt, dry-run-or-wait choice on hitting it). Three architect judgment
+   calls are open for a quick confirm before build starts (plan §17): the `/account` route
+   name, the rolling-vs-fixed window choice for the cap, and that a cap-blocked call writes
+   no `llm_call_log` row. The login/signup rate limiter's keep-or-drop call and its
+   disclosure-in-UI question were explicitly deferred (§14, not decided). This is the
+   prerequisite for a safe public deploy (friends' data isolated from each other).
 2. **Deploy online** — get a version reachable outside the local network. Manual/simple for
    now (whatever the smallest real hosting step is); the *automated* version of this is
    CI/CD, tracked under Future below, not blocking this first deploy.
@@ -177,9 +182,10 @@ before any of these move into TODO or FUTURE.
 ## Recommended next stage
 
 **Plan B (TODO item 1)** is the natural next step — `plans/05-multi-tenant-auth.md` is
-written and waiting on the user's section-by-section review (§16, 11 points) before `@dev`
-starts. TODO items 3–8 are cheap, independently-diagnosed papercuts worth picking off in
-parallel or as a break from Plan B's size, not sequenced before it.
+reviewed and ready; the three open architect judgment calls (plan §17) are a quick confirm,
+not a blocker, and can be settled at the start of the `@dev` session. TODO items 3–8 are
+cheap, independently-diagnosed papercuts worth picking off in parallel or as a break from
+Plan B's size, not sequenced before it.
 
 Not recommended yet: anything under Future — each is either a second real effort (export
 translation, sharing, Skill module) or explicitly paced to arrive later (deployment-process
