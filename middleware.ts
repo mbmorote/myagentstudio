@@ -27,7 +27,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
+import { verifySessionToken } from '@/lib/auth/jwt';
 import { SESSION_COOKIE } from '@/lib/auth/constants';
 
 const PUBLIC_PATHS = new Set([
@@ -38,15 +38,21 @@ const PUBLIC_PATHS = new Set([
   '/api/auth/logout',
 ]);
 
+// OAuth callback and start routes live under a dynamic segment, so they cannot
+// be in the exact-match set above. This prefix is intentionally narrow
+// (/api/auth/oauth/, not /api/auth/) so it does not widen to cover a future
+// authenticated route (§3.1).
+const PUBLIC_PATH_PREFIXES = ['/api/auth/oauth/'];
+
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
 
-  if (PUBLIC_PATHS.has(pathname)) {
+  if (PUBLIC_PATHS.has(pathname) || PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))) {
     // If the user already has a valid session, bounce them away from /login and /signup
     if (pathname === '/login' || pathname === '/signup') {
       const token = request.cookies.get(SESSION_COOKIE)?.value;
       if (token) {
-        const tokenValid = await verifyToken(token);
+        const tokenValid = (await verifySessionToken(token)) !== null;
         if (tokenValid) {
           return NextResponse.redirect(new URL('/', request.url));
         }
@@ -57,7 +63,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   // Protected path — require a valid token
   const token = request.cookies.get(SESSION_COOKIE)?.value;
-  const tokenValid = token ? await verifyToken(token) : false;
+  const tokenValid = token ? (await verifySessionToken(token)) !== null : false;
 
   if (!tokenValid) {
     if (pathname.startsWith('/api/')) {
@@ -68,18 +74,6 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   }
 
   return NextResponse.next();
-}
-
-async function verifyToken(token: string): Promise<boolean> {
-  const secret = process.env.JWT_SECRET;
-  if (!secret || secret.length < 32) return false;
-  try {
-    const key = new TextEncoder().encode(secret);
-    await jwtVerify(token, key);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export const config = {

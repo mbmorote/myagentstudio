@@ -19,7 +19,7 @@
 
 import { SignJWT, jwtVerify } from 'jose';
 import { getJwtSecret } from '../env.js';
-import { SESSION_TTL_SECONDS } from './constants.js';
+import { getSessionTtlSeconds } from './constants.js';
 
 export type SessionTokenPayload = {
   sub: string;    // user id
@@ -36,7 +36,7 @@ export async function signSessionToken(payload: SessionTokenPayload): Promise<st
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(payload.sub)
     .setIssuedAt()
-    .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
+    .setExpirationTime(`${getSessionTtlSeconds()}s`)
     .sign(secret);
 }
 

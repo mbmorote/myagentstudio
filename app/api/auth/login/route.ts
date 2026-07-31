@@ -16,7 +16,7 @@ import { checkRateLimit } from '@/lib/auth/rateLimit';
 import { verifyPassword } from '@/lib/auth/password';
 import { signSessionToken } from '@/lib/auth/jwt';
 import { getUserByEmail } from '@/lib/db/repository/users';
-import { SESSION_COOKIE, SESSION_TTL_SECONDS, NO_PASSWORD_SENTINEL } from '@/lib/auth/constants';
+import { SESSION_COOKIE, getSessionTtlSeconds, NO_PASSWORD_SENTINEL } from '@/lib/auth/constants';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // Rate limit check (§3.8)
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    maxAge: SESSION_TTL_SECONDS,
+    maxAge: getSessionTtlSeconds(),
   });
 
   return response;

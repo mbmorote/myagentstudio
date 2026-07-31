@@ -1,4 +1,5 @@
 import 'server-only';
+import { getSessionTtlSeconds } from './auth/constants.js';
 
 /**
  * Returns the Anthropic API key from environment.
@@ -64,4 +65,7 @@ export function assertServerEnv(): void {
   // Calling getJwtSecret() is sufficient — it throws with a helpful message
   // if the secret is absent or too short.
   getJwtSecret();
+  // Validate SESSION_TTL_SECONDS at boot so a typo'd value fails loudly rather
+  // than silently falling back to 7 days (constraint 4, §3.2).
+  getSessionTtlSeconds();
 }

@@ -23,7 +23,7 @@ import { signSessionToken } from '@/lib/auth/jwt';
 import { normalizeInviteCode } from '@/lib/auth/inviteCode';
 import { createUserWithInvite } from '@/lib/db/repository/users';
 import { getMaxUsers } from '@/lib/settings';
-import { SESSION_COOKIE, SESSION_TTL_SECONDS } from '@/lib/auth/constants';
+import { SESSION_COOKIE, getSessionTtlSeconds } from '@/lib/auth/constants';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // Rate limit check (§3.8)
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    maxAge: SESSION_TTL_SECONDS,
+    maxAge: getSessionTtlSeconds(),
   });
 
   return response;

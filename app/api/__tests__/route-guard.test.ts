@@ -15,8 +15,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { readdirSync, readFileSync, statSync } from 'fs';
-import { join, relative, sep } from 'path';
+import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
+import { dirname, extname, join, relative, sep } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -106,6 +106,161 @@ describe('Route-guard fitness — every non-auth route is guarded', () => {
 
     expect(missingPaths).toEqual([]);
     expect(adminPaths).toEqual([]);
+  });
+});
+
+// ── Phase 0 fitness (Plan 06 §10.4) ───────────────────────────────────────────
+
+/**
+ * Assertion 1 — One JWT verifier (constraint 1, §3.1).
+ *
+ * Only lib/auth/jwt.ts may import jwtVerify or SignJWT from 'jose'.
+ * middleware.ts must not contain the literal string 'jwtVerify(' — it
+ * must call verifySessionToken() from lib/auth/jwt instead.
+ *
+ * This stops the §3.1 duplication from growing back silently.
+ */
+describe('Phase 0 fitness — single JWT verifier', () => {
+  function collectSourceFiles(dir: string): string[] {
+    const results: string[] = [];
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      // Skip __tests__ dirs so test helpers that use SignJWT for fixtures don't trip this
+      if (['node_modules', '.next', 'generated', '__tests__'].includes(entry)) continue;
+      const stat = statSync(full);
+      if (stat.isDirectory()) {
+        results.push(...collectSourceFiles(full));
+      } else if (/\.(ts|tsx)$/.test(entry)) {
+        results.push(full);
+      }
+    }
+    return results;
+  }
+
+  const SOURCE_DIRS = ['lib', 'app', 'scripts'].map((d) => join(ROOT, d));
+  const sourceFiles = SOURCE_DIRS.flatMap(collectSourceFiles);
+
+  const ALLOWED_JOSE_IMPORTER = join(ROOT, 'lib', 'auth', 'jwt.ts');
+
+  it('only lib/auth/jwt.ts imports jwtVerify or SignJWT from jose', () => {
+    const violations = sourceFiles.filter((f) => {
+      if (f === ALLOWED_JOSE_IMPORTER) return false;
+      const src = readFileSync(f, 'utf8');
+      return (src.includes('jwtVerify') || src.includes('SignJWT')) &&
+             (src.includes("from 'jose'") || src.includes('from "jose"'));
+    });
+    const relPaths = violations.map((f) => relative(ROOT, f).replaceAll('\\', '/'));
+    expect(relPaths).toEqual([]);
+  });
+
+  it('middleware.ts does not contain jwtVerify( — it calls verifySessionToken() instead', () => {
+    const middlewareSrc = readFileSync(join(ROOT, 'middleware.ts'), 'utf8');
+    expect(middlewareSrc).not.toContain('jwtVerify(');
+    expect(middlewareSrc).toContain('verifySessionToken(');
+  });
+});
+
+/**
+ * Assertion 2 — Middleware's import closure is Edge-clean (constraint 3, §3.1).
+ *
+ * Starting from middleware.ts, follows every relative and @/-aliased import
+ * transitively. Asserts:
+ *   (a) No resolved file path falls under lib/db/
+ *   (b) No file in the closure imports from next/headers, bcryptjs, or node:*
+ *
+ * This is the guard against the next person wiring middleware to something that
+ * only runs on Node — a broken Edge build discovered at deploy time, not in tests.
+ */
+describe('Phase 0 fitness — middleware import closure is Edge-clean', () => {
+  /** Resolve a local import specifier to an absolute .ts path, or null if not local. */
+  function resolveSpecifier(specifier: string, fromFile: string): string | null {
+    let candidate: string | null = null;
+
+    if (specifier.startsWith('./') || specifier.startsWith('../')) {
+      // Relative import
+      let p = join(dirname(fromFile), specifier);
+      if (p.endsWith('.js')) p = p.slice(0, -3) + '.ts';
+      else if (p.endsWith('.tsx')) { /* keep */ }
+      else if (!extname(p)) p += '.ts';
+      candidate = existsSync(p) ? p : null;
+    } else if (specifier.startsWith('@/')) {
+      // @/ alias → project root
+      let p = join(ROOT, specifier.slice(2));
+      if (p.endsWith('.js')) p = p.slice(0, -3) + '.ts';
+      else if (!extname(p)) {
+        const ts = p + '.ts';
+        const tsx = p + '.tsx';
+        p = existsSync(ts) ? ts : existsSync(tsx) ? tsx : p;
+      }
+      candidate = existsSync(p) ? p : null;
+    }
+    // else: npm package — not a local file
+
+    return candidate;
+  }
+
+  /** Walk the transitive import closure of a file. Returns absolute paths of all reached files. */
+  function buildClosure(startFile: string): Set<string> {
+    const visited = new Set<string>();
+    const queue = [startFile];
+    while (queue.length > 0) {
+      const file = queue.shift()!;
+      if (visited.has(file)) continue;
+      visited.add(file);
+
+      let src: string;
+      try {
+        src = readFileSync(file, 'utf8');
+      } catch {
+        continue;
+      }
+
+      const importRegex = /from\s+['"]([^'"]+)['"]/g;
+      let m: RegExpExecArray | null;
+      while ((m = importRegex.exec(src)) !== null) {
+        const resolved = resolveSpecifier(m[1], file);
+        if (resolved && !visited.has(resolved)) queue.push(resolved);
+      }
+
+      // Also capture side-effect imports: import 'specifier'
+      const sideEffectRegex = /^import\s+['"]([^'"]+)['"]/gm;
+      while ((m = sideEffectRegex.exec(src)) !== null) {
+        const resolved = resolveSpecifier(m[1], file);
+        if (resolved && !visited.has(resolved)) queue.push(resolved);
+      }
+    }
+    return visited;
+  }
+
+  const MIDDLEWARE = join(ROOT, 'middleware.ts');
+  const LIB_DB = join(ROOT, 'lib', 'db') + sep;
+
+  it('no file in the middleware closure resolves under lib/db/', () => {
+    const closure = buildClosure(MIDDLEWARE);
+    const violations = [...closure].filter((f) => f.startsWith(LIB_DB));
+    const relPaths = violations.map((f) => relative(ROOT, f).replaceAll('\\', '/'));
+    expect(relPaths).toEqual([]);
+  });
+
+  it('no file in the middleware closure imports next/headers, bcryptjs, or node:*', () => {
+    const closure = buildClosure(MIDDLEWARE);
+    const FORBIDDEN = [
+      { label: 'next/headers', test: (src: string) => /from\s+['"]next\/headers['"]/.test(src) },
+      { label: 'bcryptjs', test: (src: string) => /from\s+['"]bcryptjs['"]/.test(src) },
+      { label: 'node:*', test: (src: string) => /from\s+['"]node:/.test(src) || /import\s+['"]node:/.test(src) },
+    ];
+
+    const violations: string[] = [];
+    for (const file of closure) {
+      let src: string;
+      try { src = readFileSync(file, 'utf8'); } catch { continue; }
+      for (const { label, test } of FORBIDDEN) {
+        if (test(src)) {
+          violations.push(`${relative(ROOT, file).replaceAll('\\', '/')} (imports ${label})`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
   });
 });
 
