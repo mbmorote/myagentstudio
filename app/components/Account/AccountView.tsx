@@ -4,9 +4,10 @@
  * app/components/Account/AccountView.tsx
  *
  * Client component for the User Settings page (/account) — Plan 05 Phase 4.6, §5.7.
+ * Extended in Plan 06 Phase 4.4 to show the "Signed in with" line (§7.2).
  *
  * Displays:
- *   - Read-only: signed-in email and role
+ *   - Read-only: signed-in email, role, and sign-in method(s)
  *   - Editable: log-sharing consent toggle (PATCH /api/account)
  *
  * The consent toggle is the one preference that belongs to the person,
@@ -21,13 +22,29 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/apiFetch';
 
+/** One linked OAuth provider row, passed from the server page (§7.2, Plan 06 §4.1). */
+interface LinkedAccount {
+  provider: string;
+  providerEmail: string | null;
+}
+
 interface AccountViewProps {
   email: string;
   role: 'admin' | 'user';
   shareLogsWithAdmin: boolean;
+  /** True when the user has a password hash (false for Google-only accounts). */
+  hasPassword: boolean;
+  /** OAuth provider links for this user — [] for password-only accounts. */
+  linkedAccounts: LinkedAccount[];
 }
 
-export function AccountView({ email, role, shareLogsWithAdmin: initialShare }: AccountViewProps) {
+export function AccountView({
+  email,
+  role,
+  shareLogsWithAdmin: initialShare,
+  hasPassword,
+  linkedAccounts,
+}: AccountViewProps) {
   const [sharing, setSharing] = useState(initialShare);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +78,15 @@ export function AccountView({ email, role, shareLogsWithAdmin: initialShare }: A
     }
   }
 
+  // Build the "Signed in with" display string from the passed props (§7.2).
+  const signinMethods: string[] = [];
+  if (hasPassword) signinMethods.push('password');
+  for (const acc of linkedAccounts) {
+    const label = acc.provider.charAt(0).toUpperCase() + acc.provider.slice(1); // 'google' → 'Google'
+    signinMethods.push(acc.providerEmail ? `${label} (${acc.providerEmail})` : label);
+  }
+  const signinDisplay = signinMethods.length > 0 ? signinMethods.join(', ') : '—';
+
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-8 max-w-lg">
       {/* Back link */}
@@ -91,6 +117,11 @@ export function AccountView({ email, role, shareLogsWithAdmin: initialShare }: A
             ].join(' ')}>
               {role}
             </span>
+          </div>
+          {/* Sign-in method — read-only (Plan 06 §7.2, Phase 4.4) */}
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-[13px] text-[var(--muted)]">Signed in with</span>
+            <span className="text-[13px] text-[var(--text)] font-medium">{signinDisplay}</span>
           </div>
         </div>
       </section>

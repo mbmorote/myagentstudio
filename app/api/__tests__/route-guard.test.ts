@@ -359,8 +359,16 @@ describe('Route-guard fitness — Phase 4 (apiFetch migration)', () => {
     // auth pages that call /api/auth/* endpoints. Those endpoints return 401 to
     // mean "wrong credentials", not "session expired", so using apiFetch there
     // would create a circular redirect (login → 401 → redirect to /login → loop).
+    //
+    // app/components/Auth/ is also excluded for the same reason (Plan 06 Phase 4):
+    // LoginForm.tsx and SignupForm.tsx were split out of the login/signup pages and
+    // call the same public /api/auth/login and /api/auth/signup endpoints with bare
+    // fetch for the same reason. GoogleButton.tsx in the same directory uses apiFetch
+    // correctly, but excluding the whole directory is simpler than per-file exclusions.
+    //
     // All other 'use client' files must use apiFetch for /api/ calls (§5.4).
     const AUTH_PAGE_DIRS = ['login', 'signup'];
+    const AUTH_COMPONENT_PATHS = ['components/Auth'];
 
     function collectClientFiles(dir: string): string[] {
       const results: string[] = [];
@@ -369,9 +377,12 @@ describe('Route-guard fitness — Phase 4 (apiFetch migration)', () => {
         const stat = statSync(full);
         if (stat.isDirectory()) {
           if (['node_modules', '.next', '__tests__'].includes(entry)) continue;
-          // Skip auth page directories (they call public auth endpoints directly)
+          // Skip auth page directories (top-level under app/)
           const relToApp = relative(join(ROOT, 'app'), full).split(sep)[0];
           if (AUTH_PAGE_DIRS.includes(relToApp)) continue;
+          // Skip auth component directories (nested under app/components/)
+          const relToAppNorm = relative(join(ROOT, 'app'), full).replaceAll(sep, '/');
+          if (AUTH_COMPONENT_PATHS.some((p) => relToAppNorm === p || relToAppNorm.startsWith(p + '/'))) continue;
           results.push(...collectClientFiles(full));
         } else if (/\.(ts|tsx)$/.test(entry)) {
           const src = readFileSync(full, 'utf8');
