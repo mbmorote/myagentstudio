@@ -140,13 +140,30 @@ describe('Phase 0 fitness — single JWT verifier', () => {
   const SOURCE_DIRS = ['lib', 'app', 'scripts'].map((d) => join(ROOT, d));
   const sourceFiles = SOURCE_DIRS.flatMap(collectSourceFiles);
 
-  const ALLOWED_JOSE_IMPORTER = join(ROOT, 'lib', 'auth', 'jwt.ts');
+  // lib/auth/jwt.ts — session-token sign / verify
+  // lib/auth/oauth/google.ts — OIDC id_token verify (added Phase 1, Plan 06 §3.6)
+  const ALLOWED_JOSE_IMPORTERS = new Set([
+    join(ROOT, 'lib', 'auth', 'jwt.ts'),
+    join(ROOT, 'lib', 'auth', 'oauth', 'google.ts'),
+  ]);
 
-  it('only lib/auth/jwt.ts imports jwtVerify or SignJWT from jose', () => {
+  it('only lib/auth/jwt.ts and lib/auth/oauth/google.ts import jwtVerify or SignJWT from jose', () => {
     const violations = sourceFiles.filter((f) => {
-      if (f === ALLOWED_JOSE_IMPORTER) return false;
+      if (ALLOWED_JOSE_IMPORTERS.has(f)) return false;
       const src = readFileSync(f, 'utf8');
       return (src.includes('jwtVerify') || src.includes('SignJWT')) &&
+             (src.includes("from 'jose'") || src.includes('from "jose"'));
+    });
+    const relPaths = violations.map((f) => relative(ROOT, f).replaceAll('\\', '/'));
+    expect(relPaths).toEqual([]);
+  });
+
+  it('SignJWT is only in lib/auth/jwt.ts (session-token signing is a single file)', () => {
+    const JWT_FILE = join(ROOT, 'lib', 'auth', 'jwt.ts');
+    const violations = sourceFiles.filter((f) => {
+      if (f === JWT_FILE) return false;
+      const src = readFileSync(f, 'utf8');
+      return src.includes('SignJWT') &&
              (src.includes("from 'jose'") || src.includes('from "jose"'));
     });
     const relPaths = violations.map((f) => relative(ROOT, f).replaceAll('\\', '/'));
@@ -261,6 +278,78 @@ describe('Phase 0 fitness — middleware import closure is Edge-clean', () => {
       }
     }
     expect(violations).toEqual([]);
+  });
+});
+
+// ── Phase 1 fitness (Plan 06 §10.4) ───────────────────────────────────────────
+
+/**
+ * Assertion 3 — One arctic importer (constraints 9 and 11).
+ *
+ * `arctic` is imported by exactly `lib/auth/oauth/google.ts`.
+ * No other source file and no test file may import it directly.
+ *
+ * Modelled on lib/ai/__tests__/architecture.test.ts's one-SDK-importer test
+ * (Rules Index #41).
+ */
+describe('Phase 1 fitness — single arctic importer', () => {
+  /** Non-test source files — mirrors the helper in the Phase 0 block. */
+  function collectPhase1SourceFiles(dir: string): string[] {
+    const results: string[] = [];
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (['node_modules', '.next', 'generated', '__tests__'].includes(entry)) continue;
+      const stat = statSync(full);
+      if (stat.isDirectory()) {
+        results.push(...collectPhase1SourceFiles(full));
+      } else if (/\.(ts|tsx)$/.test(entry)) {
+        results.push(full);
+      }
+    }
+    return results;
+  }
+  const P1_SOURCE_DIRS = ['lib', 'app', 'scripts'].map((d) => join(ROOT, d));
+  const p1SourceFiles = P1_SOURCE_DIRS.flatMap(collectPhase1SourceFiles);
+
+  const ALLOWED_ARCTIC_IMPORTER = join(ROOT, 'lib', 'auth', 'oauth', 'google.ts');
+
+  /** Returns true if `src` contains an ES import statement that imports from 'arctic'. */
+  function importsArctic(src: string): boolean {
+    return /^\s*import\s[^;]+from\s+['"]arctic['"]/m.test(src);
+  }
+
+  it('arctic is imported by exactly lib/auth/oauth/google.ts and no other source file', () => {
+    const violations = p1SourceFiles.filter((f) => {
+      if (f === ALLOWED_ARCTIC_IMPORTER) return false;
+      return importsArctic(readFileSync(f, 'utf8'));
+    });
+    const relPaths = violations.map((f) => relative(ROOT, f).replaceAll('\\', '/'));
+    expect(relPaths).toEqual([]);
+  });
+
+  it('no test file directly imports arctic (constraint 11)', () => {
+    /** Collects .test.ts files under __tests__/ directories. */
+    function collectTestFiles(dir: string): string[] {
+      const results: string[] = [];
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        if (['node_modules', '.next', 'generated'].includes(entry)) continue;
+        const stat = statSync(full);
+        if (stat.isDirectory()) {
+          results.push(...collectTestFiles(full));
+        } else if (/\.test\.(ts|tsx)$/.test(entry)) {
+          results.push(full);
+        }
+      }
+      return results;
+    }
+
+    const TEST_SOURCE_DIRS = ['lib', 'app', 'scripts'].map((d) => join(ROOT, d));
+    const testFiles = TEST_SOURCE_DIRS.flatMap(collectTestFiles);
+
+    const violations = testFiles.filter((f) => importsArctic(readFileSync(f, 'utf8')));
+    const relPaths = violations.map((f) => relative(ROOT, f).replaceAll('\\', '/'));
+    expect(relPaths).toEqual([]);
   });
 });
 

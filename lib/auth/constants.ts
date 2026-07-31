@@ -50,6 +50,15 @@ export function getSessionTtlSeconds(): number {
   return n;
 }
 
+/** HttpOnly OAuth transaction cookie name (§3.5). */
+export const OAUTH_TX_COOKIE = 'myagent_oauth_tx';
+
+/** OAuth transaction cookie lifetime in seconds — 10 minutes (§3.5). */
+export const OAUTH_TX_TTL_SECONDS = 600;
+
+/** OpenID Connect scopes requested from Google — fixed, no offline access (§8 policy 20). */
+export const OAUTH_SCOPES: readonly string[] = ['openid', 'email', 'profile'];
+
 /** bcryptjs work factor (cost 10 ≈ 100–300 ms in pure JS). */
 export const BCRYPT_COST = 10;
 

@@ -1,6 +1,54 @@
 import 'server-only';
 import { getSessionTtlSeconds } from './auth/constants.js';
 
+// ── OAuth configuration ────────────────────────────────────────────────────────
+
+/**
+ * The resolved OAuth configuration for Google sign-in.
+ * All three fields are present — callers must first check `isOAuthConfigured()`.
+ */
+export type OAuthConfig = {
+  clientId: string;
+  clientSecret: string;
+  redirectBaseUrl: string;
+};
+
+/**
+ * Returns true when all three OAuth env vars are set (§3.4).
+ *
+ * Used by `providers.ts` to gate the registry and by server components to
+ * decide whether to render the "Continue with Google" button.
+ */
+export function isOAuthConfigured(): boolean {
+  return Boolean(
+    process.env.GOOGLE_CLIENT_ID &&
+    process.env.GOOGLE_CLIENT_SECRET &&
+    process.env.OAUTH_REDIRECT_BASE_URL,
+  );
+}
+
+/**
+ * Returns the full OAuth configuration. Throws if OAuth is not configured.
+ *
+ * Callers that handle the unconfigured case gracefully should call
+ * `isOAuthConfigured()` first. Route handlers that only reach this after
+ * checking can call it directly.
+ */
+export function getOAuthConfig(): OAuthConfig {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirectBaseUrl = process.env.OAUTH_REDIRECT_BASE_URL;
+
+  if (!clientId || !clientSecret || !redirectBaseUrl) {
+    throw new Error(
+      'OAuth is not configured. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and ' +
+      'OAUTH_REDIRECT_BASE_URL, or none of them (§3.4).',
+    );
+  }
+
+  return { clientId, clientSecret, redirectBaseUrl };
+}
+
 /**
  * Returns the Anthropic API key from environment.
  * Throws at call-time if the variable is unset.
@@ -68,4 +116,75 @@ export function assertServerEnv(): void {
   // Validate SESSION_TTL_SECONDS at boot so a typo'd value fails loudly rather
   // than silently falling back to 7 days (constraint 4, §3.2).
   getSessionTtlSeconds();
+  // OAuth is all-or-nothing: none set → disabled (fine); all set → validated;
+  // some set → throw, because a partial config produces a "Continue with Google"
+  // button that leads to a provider error page (§3.4).
+  _assertOAuthEnv();
+}
+
+/**
+ * Validates the three OAuth env vars.
+ *
+ * Rules (§3.4):
+ *   - None set → OAuth disabled; app runs normally (password auth only). No error.
+ *   - Some but not all set → throw (partial config is worse than none).
+ *   - All set → `OAUTH_REDIRECT_BASE_URL` must be an absolute URL, scheme http/https,
+ *     no path/query/fragment, no trailing slash. In production it must be https.
+ *
+ * Extracted as its own function so the sessionTtl test suite can import
+ * `assertServerEnv()` without triggering OAuth validation side-effects.
+ *
+ * @internal
+ */
+export function _assertOAuthEnv(): void {
+  const id = process.env.GOOGLE_CLIENT_ID;
+  const secret = process.env.GOOGLE_CLIENT_SECRET;
+  const base = process.env.OAUTH_REDIRECT_BASE_URL;
+
+  const setCount = [id, secret, base].filter((v) => v && v !== '').length;
+
+  if (setCount === 0) return; // OAuth disabled — fine
+
+  if (setCount > 0 && setCount < 3) {
+    throw new Error(
+      'OAuth is partially configured — set all three of GOOGLE_CLIENT_ID, ' +
+      'GOOGLE_CLIENT_SECRET, and OAUTH_REDIRECT_BASE_URL, or none of them.',
+    );
+  }
+
+  // All three set — validate OAUTH_REDIRECT_BASE_URL
+  const raw = base!;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(
+      `OAUTH_REDIRECT_BASE_URL must be a valid absolute URL (got: ${raw}).`,
+    );
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(
+      `OAUTH_REDIRECT_BASE_URL must use the http or https scheme (got: ${url.protocol}).`,
+    );
+  }
+
+  if (url.pathname !== '/' || url.search !== '' || url.hash !== '') {
+    throw new Error(
+      'OAUTH_REDIRECT_BASE_URL must be scheme+host+optional-port only — ' +
+      `no path, query, or fragment (got: ${raw}).`,
+    );
+  }
+
+  if (raw.endsWith('/')) {
+    throw new Error(
+      `OAUTH_REDIRECT_BASE_URL must not have a trailing slash (got: ${raw}).`,
+    );
+  }
+
+  if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') {
+    throw new Error(
+      `OAUTH_REDIRECT_BASE_URL must use https in production (got: ${raw}).`,
+    );
+  }
 }
