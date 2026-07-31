@@ -105,6 +105,7 @@ Condensed — full detail lives at each pointer, not repeated here.
 ## TODO — before going online
 
 Ordered. **"Deploy online" is always last** — anything else added here goes before it.
+Flat list, no sub-headers — one section, one list, per the 2026-07-30 simplification pass.
 
 1. **Zero-agents empty state has no Topbar.** `app/page.tsx`'s "No agents yet" branch
    (pre-existing since Plan 03) renders bare — no Topbar, no way to log out or reach
@@ -119,151 +120,152 @@ Ordered. **"Deploy online" is always last** — anything else added here goes be
    pattern hits it on day one. TechDesign Rules Index #35/#40.
 3. **Component/UI test coverage.** Zero automated coverage on the React component tree —
    only manual live-browser verification per session. Worth closing before more people touch
-   this app (this was the original reasoning for keeping it in TODO, and it still holds).
-   Folds in TechDesign P04g (component tests for `ImportDialog`/`ChatPanel` specifically —
-   same gap, not a separate item — the dry-run branches added in Plan 04 have no unit tests).
-4. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
-   now (whatever the smallest real hosting step is); the *automated* version of this is
-   CI/CD, tracked under FUTURE, not blocking this first deploy.
-
-### Layout (small adjustments)
-
-*(none open right now)*
+   this app. Folds in TechDesign P04g (component tests for `ImportDialog`/`ChatPanel`
+   specifically — same gap, not a separate item — the dry-run branches added in Plan 04 have
+   no unit tests).
+4. **Auth framework review — JWT session config + OAuth 2.0 + OpenID Connect.** Added
+   2026-07-30. Plan 05 shipped a fixed 7-day JWT session (no refresh, no revocation, §3.3) —
+   check the whole auth structure end to end while it's fresh: whether session length should
+   be configurable, and whether OAuth 2.0 / OpenID Connect (social login, an identity
+   provider) belongs alongside email+password+invite-code. Not expected to be a big lift —
+   this is a structured review of what's already built, not a redesign from zero.
+5. **"+custom key…" arbitrary config-key creation, incl. removing one.** Was blocked on a
+   product decision (a user-created key immediately gets flagged as `unknownConfigKeys`,
+   contradicting the intent of letting the user create it). Scope broadened 2026-07-30: also
+   cover *removing* a custom/JSON key, not just adding — half the feature without the other
+   is awkward. `CHANGELOG.md`'s 2026-07-29 Tier 1 redesign entry has the original detail.
+6. **`scripts/build-prompts.ts` readable output.** TechDesign #26, tagged **[HIGH
+   PRIORITY]** there — currently emits one giant escaped-string line, unreadable if anyone
+   opens the generated file to sanity-check a compiled prompt.
+7. **AI chat persistence — verify current status before scoping.** Believed by the user to
+   possibly already be done; **checked 2026-07-30, it is not** — `ChatPanel.tsx`'s `messages`
+   is plain in-memory `useState`, no `localStorage`/DB persistence, chat still fully resets
+   on reload or agent switch. If it should survive a reload, this needs an actual
+   `Conversation`/`Message` table per agent (a real schema addition), not a small fix.
+8. **Section-scoped chat selection.** Moved from IDEA 2026-07-30 — clicking a specific
+   section (Role, Tools, etc.) in the structured view would scope/show that section's
+   context in the chat panel, instead of chat always being agent-wide. Directly reopens a
+   locked decision: `TechDesign.md` Rules Index #7's supersession note deliberately widened
+   the chat mediator from per-section to agent-wide scope (Plan 01 review, D2). Building this
+   means consciously reversing or qualifying that call, not just adding a UI toggle on top of
+   it — read the supersession note's own reasoning before starting.
+9. **Review the chat-mediator system agent.** `lib/ai/prompts/system-agents/chat-mediator.md`
+   — its rule-set hasn't had a dedicated review pass since it was widened to agent-wide scope
+   (Plan 01 review, 2026-07-26). Natural to do together with item 8 above, since re-scoping
+   to per-section touches exactly this file's Guardrails, but worth reviewing as its own
+   pass even independent of that decision.
+10. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
+    now (whatever the smallest real hosting step is); the *automated* version of this is
+    CI/CD, tracked under FUTURE, not blocking this first deploy.
 
 ## FUTURE — decided to build eventually, not prioritized
 
-### Near-term product polish (moved out of TODO this pass)
+Flat list, no sub-headers. Everything here either has a clear-enough scope to build when
+picked up, or an explicit trigger to revisit at. Full "why" for the TechDesign-numbered ones
+lives in `TechDesign.md`'s Deferred Decisions table / Rules Index.
 
-- **"+custom key…" arbitrary config-key creation** — blocked on a product decision (a
-  user-created key immediately gets flagged as `unknownConfigKeys`, contradicting the intent
-  of letting the user create it). Not needed to safely go online. `CHANGELOG.md`'s
-  2026-07-29 Tier 1 redesign entry has the detail.
 - **Strict-mode merged-heading instability re-audit** — flagged unverified during Plan 02,
-  never re-checked since. Lower risk than when first flagged: it only affects the secondary
-  Strict import path, and Structural has been the default since Plan 02's hardening pass.
-- **`scripts/build-prompts.ts` readable output** — TechDesign #26, tagged **[HIGH
-  PRIORITY]** there (`scripts/build-prompts.ts` currently emits one giant escaped-string
-  line, unreadable if anyone opens the generated file to sanity-check a compiled prompt).
-  Moved here because it only affects internal debugging, not end users — but the HIGH
-  PRIORITY tag was a deliberate signal from whoever flagged it, so don't let this quietly
-  sink to the bottom of the list.
+  never re-checked since. Lower risk than when first flagged: only affects the secondary
+  Strict import path, Structural has been default since Plan 02.
 - **ESLint config** — script wired (`next lint`) but never configured; typecheck + tests are
-  the real gate today. See also "Deployment maturity" below, where it fits thematically.
-
-### Core features
-
+  the real gate today.
 - **Export translation to other platforms** (Copilot, etc.) — build-order #4. Real format
   translation, not a file copy.
 - **Sharing / forking** — build-order #5. `ownerId` was the prerequisite this was waiting
-  for — **now satisfied by Plan 05**.
-- **Skill module** — build-order #6. Sibling entity to `Agent` for `SKILL.md` files;
-  `TechDesign.md`'s Deferred Decisions table has the full real-schema field list already
-  researched. Its own stated trigger (Agent-side Library/groups + this Blueprint refresh
-  both landing) has already happened — ready to scope whenever it's picked up.
-- **Organizations / teams** — `ownerId` currently means "a user." Making it "a principal"
-  (org-owned agents, shared across a team) is a real remodel, not a tweak.
-- **AI chat persistence** — a `Conversation`/`Message` table per agent, if chat should
-  survive a page reload instead of staying ephemeral in-memory per session (current,
-  deliberate MVP choice).
-
-### TechDesign deferred decisions — each has its own explicit trigger, see `TechDesign.md` for the "why"
-
-- **#8b** Storage target dialect (Postgres vs. Azure SQL) — revisit at the Azure step of the
-  learning-goals roadmap, when a migration is actually happening.
-- **#13** Catalog evolution: distinguish "never known" vs. "was known, catalog changed" —
+  for — now satisfied by Plan 05.
+- **Skill module** — build-order #6. Sibling entity to `Agent` for `SKILL.md` files; full
+  real-schema field list already researched in `TechDesign.md`. Trigger (Agent-side
+  Library/groups + Blueprint refresh both landing) already happened — ready to scope.
+- **#8b Storage target dialect** (Postgres vs. Azure SQL) — revisit at the Azure step of the
+  learning-goals roadmap, when a migration is actually happening. **Not close yet**: this
+  app is single-file SQLite (`better-sqlite3`), single-process, and the first deploy target
+  is a handful of friends (`maxUsers` currently 5) — that's comfortably within SQLite's
+  range. The real trigger isn't user count, it's the *hosting choice* for "deploy online"
+  (TODO item 8): a host with a persistent disk (Fly.io, a VM, Azure App Service with a
+  mounted volume) keeps SQLite working fine; a stateless/serverless host (e.g. Vercel's
+  default) would force this decision immediately rather than later. Worth deciding the
+  hosting target with this in mind, not migrating pre-emptively.
+- **#13 Catalog evolution** — distinguish "never known" vs. "was known, catalog changed";
   revisit once catalog-versioning infrastructure exists.
-- **#14** Manual-edit save frequency: every save appends a `SectionRevision`, or debounced
-  to meaningful edit boundaries — worth a quick check whether this was already effectively
-  decided when the structured-view manual-edit save flow shipped (unclear from a quick pass
-  over `SectionBlock.tsx`; needs someone to actually trace the save path).
-- **#16** `AgentSnapshot(kind:'export')` capture point + an import/export diff-view UI — the
-  export route this was waiting on is now built; ready to scope.
-- **#18** `ConfigDef` platform-scoping (per-platform `model`/`tools`/etc. catalogs) — revisit
+- **#14 Manual-edit save frequency** — every save appends a `SectionRevision`, or debounced
+  to meaningful edit boundaries; worth a quick check whether this was already effectively
+  decided when manual editing shipped (unclear from a quick pass over `SectionBlock.tsx`).
+- **#16 `AgentSnapshot(kind:'export')` capture + import/export diff-view UI** — the export
+  route this was waiting on is now built; ready to scope.
+- **#18 `ConfigDef` platform-scoping** (per-platform `model`/`tools`/etc. catalogs) — revisit
   when a second platform's import/create is actually being built.
-- **#20** Display-label lookup for `model` (short label in UI, e.g. "Opus" instead of the
-  full model ID; storage stays the full ID) — cosmetic, revisit next time the Tier 1 Config
-  zone is touched.
-- **#24** Propose-preview before applying a mediator rewrite (show the proposed change,
+- **#20 Display-label lookup for `model`** (short label in UI, e.g. "Opus" instead of the
+  full ID; storage stays the full ID) — cosmetic, revisit next time the Tier 1 Config zone is
+  touched.
+- **#24 Propose-preview before applying a mediator rewrite** (show the proposed change,
   require explicit "Apply") — revisit if apply-then-history ever feels too abrupt in real
-  dogfooding use.
-- **#30** AI-assisted config-key mapping (label a messy frontmatter key to its canonical
+  dogfooding use. **Refined 2026-07-30:** make this a per-user setting, not a single global
+  toggle — a "confirm before applying" preference. If off: the mediator applies directly to
+  the agent being edited, exactly as it does today. If on: the proposed response is shown in
+  a modal first, and nothing is written until the user explicitly applies it. Same underlying
+  mechanism either way (apply-then-history), just gated behind a per-user choice instead of
+  an all-or-nothing behavior change.
+- **#30 AI-assisted config-key mapping** (label a messy frontmatter key to its canonical
   `propKey`, same content-never-touched pattern as section classification) — revisit only if
-  messy/nonstandard frontmatter keys turn out to be a real recurring papercut, not
-  speculative.
-
-### Plan 04's own deferred list
-
-- **P04a** Second LLM provider (NVIDIA/OpenAI-compatible) — revisit once a real second
+  messy/nonstandard frontmatter keys turn out to be a real recurring papercut.
+- **P04a Second LLM provider** (NVIDIA/OpenAI-compatible) — revisit once a real second
   provider is chosen, with a key and a model to test against.
-- **P04b** Incremental streaming (`streamChunks()`, token-by-token chat) — revisit once
-  streaming responses become a real UX requirement. Purely additive to `LLMProvider`.
-- **P04c** Log retention / pruning / pagination — revisit past 5,000 `llm_call_log` rows or
+- **P04b Incremental streaming** (`streamChunks()`, token-by-token chat) — revisit once
+  streaming responses become a real UX requirement.
+- **P04c Log retention / pruning / pagination** — revisit past 5,000 `llm_call_log` rows or
   `myagent.db` exceeding ~200MB.
-- **P04d** Cost estimation in currency on log rows — revisit once token counts stop being
+- **P04d Cost estimation in currency on log rows** — revisit once token counts stop being
   sufficient to answer "what did that cost."
-- **P04e** "Replay this request" from a dry-run log row — the stored `requestPayload`
-  already has everything needed; revisit if manual re-running becomes a papercut.
-- **P04f** Settings modal instead of full-page navigation (avoids losing `ChatPanel`'s local
-  message history on nav, same as an agent-switch remount) — revisit if that loss becomes an
-  actual annoyance in real use.
-- **P04h** Compliance-grade (non-droppable) logging — today a failed log write on a live
-  call is deliberately swallowed (diagnostics, not an evidence ledger). Revisit only if the
-  log is ever needed as evidence rather than a debugging aid.
-
-### Layout (big changes)
-
+- **P04e "Replay this request" from a dry-run log row** — the stored `requestPayload` has
+  everything needed; revisit if manual re-running becomes a papercut.
+- **P04f Settings modal instead of full-page navigation** (avoids losing `ChatPanel`'s local
+  message history on nav) — revisit if that loss becomes an actual annoyance in real use.
+- **P04h Compliance-grade (non-droppable) logging** — today a failed log write on a live call
+  is deliberately swallowed (diagnostics, not an evidence ledger). Revisit only if the log is
+  ever needed as evidence rather than a debugging aid.
 - **Dedicated group-management view** — punch-list item 7. New panel, not started, not
   researched. Prototype in `Layout-Workbench.html` first per standing rule 4 whenever it's
   picked up.
-
-### Deployment maturity (the process, not the first deploy)
-
-- **CI/CD** — test → build → deploy automation. The automated counterpart to TODO item 4
-  above; that item is "get something online," this is "stop doing it by hand."
+- **CI/CD** — test → build → deploy automation. The automated counterpart to TODO item 8; that
+  item is "get something online," this is "stop doing it by hand."
 - **Docker** — containerize once the app runs end-to-end online.
 - **Azure / hosting infra maturity** — App Service first, K8s only if that ever becomes the
-  actual goal; folds together with the storage-dialect decision (#8b) above.
-- **ESLint config** — cross-referenced from "Near-term product polish" above, fits here
-  thematically; not a separate item.
+  actual goal; folds together with the storage-dialect item above.
 
 ## IDEA — either not decided-if, or decided-but-not-how
 
-Needs a product/design debate (the way the LLM-gateway question got one before it became
-Plan 04) before any of these can move into FUTURE with an understood scope, let alone TODO.
+Flat list, no sub-headers. Needs a product/design debate (the way the LLM-gateway question
+got one before it became Plan 04) before any of these can move into FUTURE with an
+understood scope, let alone TODO. Each entry tagged with which case applies.
 
-- **Section-scoped chat selection** *(not decided-if)* — clicking a specific section (Role,
-  Tools, etc.) in the structured view would scope/show that section's context in the chat
-  panel, rather than chat always being agent-wide. In tension with a locked design decision:
-  `TechDesign.md` Rules Index #7's supersession note explicitly widened the chat mediator
-  from per-section to agent-wide scope (Plan 01 review, D2) on purpose. Revisiting this needs
-  to engage with *why* that call was made, not just add a UI toggle — genuinely undecided
-  whether this should happen at all.
-- **JWT session configuration** *(decided-but-not-how)* — we want session length to not be
-  permanently hardcoded, but Plan 05 §3.3 deliberately shipped a fixed 7-day, no-refresh,
-  no-revocation default and confirmed it as drafted at review. What "configurable" means in
-  practice — an env var, a System Settings field, per-user override — is undecided, and the
-  scope is clearer once Plan 05 is fully live and any real friction from the fixed value
-  shows up.
+- **Organizations / teams** *(decided-but-not-how)* — `ownerId` currently means "a user."
+  Making it "a principal" (org-owned agents, shared across a team) is a real remodel, and
+  there's no concrete design yet for what that remodel looks like.
 - **Presentation for prospective (non-signed-up) users** *(decided-but-not-how)* — a
   video/demo-style presentation showing how to import and edit an agent, for visitors
-  without an account yet. Marketing/demo material, not interactive product UI — the "we want
-  this" part is settled, the format/production isn't.
+  without an account yet. The "we want this" part is settled, the format/production isn't.
 - **Interactive tour for signed-up users** *(decided-but-not-how)* — step-by-step, in-app,
-  with explanations at each step, dismissible. Likely shown after first signup/login.
-  Distinct from the presentation above, not a rephrasing of it — wanted, but the actual step
-  sequence and trigger conditions aren't designed yet.
+  dismissible, likely after first signup/login. Wanted, but the step sequence and trigger
+  conditions aren't designed yet.
 - **Optional call-log persistence toggle** *(not decided-if)* — a flag controlling whether
-  `llm_call_log` entries actually get written to the database, or are shown only
-  transiently/visually without being saved. A different axis from Plan 05's per-user hourly
-  cap (§3.9) — not *how much* to store, but *whether* to persist at all — and it isn't
-  settled that this is even worth the complexity yet.
+  `llm_call_log` entries get written to the database at all, vs. shown only transiently. Not
+  settled that this is worth the complexity yet.
+- **MCP server exposing MyAgent's agents** *(not decided-if)* — added 2026-07-30. An MCP
+  server so Claude (Claude Code, Claude Desktop, etc.) could access and update a user's
+  agents directly from outside the web UI, instead of only through the app's own chat panel.
+  Brand new idea, not yet debated: would need its own auth story (an MCP client isn't a
+  browser session — API keys? OAuth?), and raises the same guardrail questions the chat
+  mediator already has to answer (scope, tools, no-fabricated-headings) but for a client the
+  platform doesn't control the prompt of. Needs real design thought before it's even a
+  FUTURE item.
 
 ## Recommended next stage
 
-Plan 05 is done. TODO items 1–3 (the zero-agents Topbar gap, the `__raw` escape hatch,
-component/UI test coverage) are small and independent — pick off in any order, or in
-parallel. Item 4 (deploy online) is next per this file's own ordering rule once those are
-clear, or sooner if you'd rather deploy first and treat 1–3 as immediate post-launch fixes.
+Plan 05 is done. TODO items 1–9 are independent enough to pick off in any order, or in
+parallel — item 10 (deploy online) is next per this file's own ordering rule once those are
+clear, or sooner if you'd rather deploy first and treat 1–9 as immediate post-launch fixes.
+Items 8 and 9 are naturally paired (both touch the chat mediator's scope/rule-set) but
+neither blocks the other.
 
 Not recommended yet: anything under FUTURE or IDEA — FUTURE is either a second real effort
 (export translation, sharing, Skill module) or explicitly paced to a trigger that hasn't
