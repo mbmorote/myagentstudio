@@ -36,6 +36,7 @@ import {
   listInviteCodes,
   revokeInviteCode,
 } from '../users.js';
+import { getOAuthAccount } from '../oauthAccounts.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ describe('createUserWithInvite — happy path', () => {
       code,
       maxUsers: before + 5,
       shareLogsWithAdmin: false,
+      oauth: null,
     });
 
     expect(result.ok).toBe(true);
@@ -100,6 +102,7 @@ describe('createUserWithInvite — happy path', () => {
       code,
       maxUsers: getUserCount() + 5,
       shareLogsWithAdmin: false,
+      oauth: null,
     });
 
     const codeRow = testDb.select().from(schema.inviteCode)
@@ -116,6 +119,7 @@ describe('createUserWithInvite — happy path', () => {
       code,
       maxUsers: getUserCount() + 5,
       shareLogsWithAdmin: false,
+      oauth: null,
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -130,6 +134,7 @@ describe('createUserWithInvite — happy path', () => {
       code,
       maxUsers: getUserCount() + 5,
       shareLogsWithAdmin: true,
+      oauth: null,
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -150,6 +155,7 @@ describe('createUserWithInvite — invalid_code', () => {
       code: 'ZZZZ-ZZZZ-ZZZZ-ZZZZ',
       maxUsers: 100,
       shareLogsWithAdmin: false,
+      oauth: null,
     });
 
     expect(result).toEqual({ ok: false, reason: 'invalid_code' });
@@ -167,6 +173,7 @@ describe('createUserWithInvite — invalid_code', () => {
       code,
       maxUsers: getUserCount() + 5,
       shareLogsWithAdmin: false,
+      oauth: null,
     });
 
     const countBefore = getUserCount();
@@ -176,6 +183,7 @@ describe('createUserWithInvite — invalid_code', () => {
       code,                          // same code — now redeemed
       maxUsers: 100,
       shareLogsWithAdmin: false,
+      oauth: null,
     });
 
     expect(result).toEqual({ ok: false, reason: 'invalid_code' });
@@ -195,6 +203,7 @@ describe('createUserWithInvite — cap_reached', () => {
       code,
       maxUsers: current,            // exactly at the limit
       shareLogsWithAdmin: false,
+      oauth: null,
     });
 
     expect(result).toEqual({ ok: false, reason: 'cap_reached' });
@@ -220,6 +229,7 @@ describe('createUserWithInvite — email_exists', () => {
       code: code1,
       maxUsers: getUserCount() + 5,
       shareLogsWithAdmin: false,
+      oauth: null,
     });
 
     const countBefore = getUserCount();
@@ -229,6 +239,7 @@ describe('createUserWithInvite — email_exists', () => {
       code: code2,
       maxUsers: 100,
       shareLogsWithAdmin: false,
+      oauth: null,
     });
 
     expect(result).toEqual({ ok: false, reason: 'email_exists' });
@@ -252,6 +263,7 @@ describe('getUserPolicy', () => {
       code,
       maxUsers: getUserCount() + 5,
       shareLogsWithAdmin: true,
+      oauth: null,
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -293,6 +305,7 @@ describe('revokeInviteCode', () => {
       code,
       maxUsers: getUserCount() + 5,
       shareLogsWithAdmin: false,
+      oauth: null,
     });
 
     const result = revokeInviteCode(code);
@@ -315,6 +328,7 @@ describe('setUserLogSharing', () => {
       code,
       maxUsers: getUserCount() + 5,
       shareLogsWithAdmin: false,
+      oauth: null,
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -335,6 +349,7 @@ describe('setUserLogSharing', () => {
       code,
       maxUsers: getUserCount() + 5,
       shareLogsWithAdmin: true,
+      oauth: null,
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -380,6 +395,7 @@ describe('getUserById / getUserByEmail', () => {
       code,
       maxUsers: getUserCount() + 5,
       shareLogsWithAdmin: false,
+      oauth: null,
     });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -400,10 +416,114 @@ describe('getUserById / getUserByEmail', () => {
       code,
       maxUsers: getUserCount() + 5,
       shareLogsWithAdmin: false,
+      oauth: null,
     });
 
     const found = getUserByEmail(email);
     expect(found?.email).toBe(email);
     expect(getUserByEmail('nobody@nowhere.invalid')).toBeNull();
+  });
+});
+
+// ── createUserWithInvite — OAuth field (§4.2) ─────────────────────────────────
+
+describe('createUserWithInvite — with oauth (happy path)', () => {
+  it('creates both a user row and an oauth_account row, redeems the code', () => {
+    const code = makeCode(admin.id, 'OA01');
+    const providerAccountId = `sub-${crypto.randomUUID()}`;
+    const before = getUserCount();
+
+    const result = createUserWithInvite({
+      email: `oauth-signup-${crypto.randomUUID()}@example.com`,
+      passwordHash: '',                  // NO_PASSWORD_SENTINEL for an OAuth-only user
+      code,
+      maxUsers: before + 5,
+      shareLogsWithAdmin: false,
+      oauth: {
+        provider: 'google',
+        providerAccountId,
+        providerEmail: 'alice@gmail.com',
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // User row exists with role: 'user' and the sentinel hash
+    expect(result.user.role).toBe('user');
+    expect(result.user.passwordHash).toBe('');
+
+    // oauth_account row exists and points at the new user
+    const oauthRow = getOAuthAccount('google', providerAccountId);
+    expect(oauthRow).not.toBeNull();
+    expect(oauthRow?.userId).toBe(result.user.id);
+    expect(oauthRow?.providerEmail).toBe('alice@gmail.com');
+
+    // Invite code was redeemed
+    const codeRow = testDb.select().from(schema.inviteCode).all().find((r) => r.code === code);
+    expect(codeRow?.redeemedBy).toBe(result.user.id);
+  });
+
+  it('with oauth: null behaves exactly as the pre-OAuth password path — no oauth_account row', () => {
+    const code = makeCode(admin.id, 'OA02');
+    const result = createUserWithInvite({
+      email: `password-signup-${crypto.randomUUID()}@example.com`,
+      passwordHash: '$2a$10$placeholder',
+      code,
+      maxUsers: getUserCount() + 5,
+      shareLogsWithAdmin: false,
+      oauth: null,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Confirm no oauth_account row was created for this user
+    const rows = testDb
+      .select()
+      .from(schema.oauthAccount)
+      .all()
+      .filter((r) => r.userId === result.user.id);
+    expect(rows).toHaveLength(0);
+  });
+});
+
+describe('createUserWithInvite — oauth_account_exists', () => {
+  it('returns oauth_account_exists and writes zero rows when the (provider, sub) is already linked', () => {
+    const code1 = makeCode(admin.id, 'OAE1');
+    const code2 = makeCode(admin.id, 'OAE2');
+    const providerAccountId = `sub-${crypto.randomUUID()}`;
+
+    // First signup succeeds, creating an oauth_account row
+    const first = createUserWithInvite({
+      email: `oae-first-${crypto.randomUUID()}@example.com`,
+      passwordHash: '',
+      code: code1,
+      maxUsers: getUserCount() + 5,
+      shareLogsWithAdmin: false,
+      oauth: { provider: 'google', providerAccountId, providerEmail: 'x@gmail.com' },
+    });
+    expect(first.ok).toBe(true);
+
+    const countBefore = getUserCount();
+
+    // Second signup with the same (provider, providerAccountId) must fail
+    const result = createUserWithInvite({
+      email: `oae-second-${crypto.randomUUID()}@example.com`,
+      passwordHash: '',
+      code: code2,
+      maxUsers: 100,
+      shareLogsWithAdmin: false,
+      oauth: { provider: 'google', providerAccountId, providerEmail: 'x@gmail.com' },
+    });
+
+    expect(result).toEqual({ ok: false, reason: 'oauth_account_exists' });
+
+    // No new user row written
+    expect(getUserCount()).toBe(countBefore);
+
+    // code2 must remain unredeemed
+    const codeRow = testDb.select().from(schema.inviteCode).all().find((r) => r.code === code2);
+    expect(codeRow?.redeemedBy).toBeNull();
   });
 });

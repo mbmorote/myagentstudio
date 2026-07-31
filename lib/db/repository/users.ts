@@ -132,100 +132,168 @@ export function setUserLogSharing(userId: string, shareLogsWithAdmin: boolean): 
 
 // ─────────────────────────────  Atomic signup  ────────────────────────────
 
+export type OAuthSignupInput = {
+  provider: string;
+  providerAccountId: string;
+  providerEmail: string | null;
+};
+
 export type CreateUserWithInviteInput = {
   email: string;           // already normalized (lowercased + trimmed)
   passwordHash: string;    // already hashed — constraint 5
   code: string;            // already normalized
   maxUsers: number;        // read from settings by the caller
   shareLogsWithAdmin: boolean; // the signup consent choice — never inferred (§5.6)
+  /**
+   * Required, explicitly nullable (§4.2). Pass null for password-only signup so
+   * every call site states its intent — an optional field is an opt-out that will
+   * eventually be taken by accident (P05-C2 reasoning applied to a new field).
+   */
+  oauth: OAuthSignupInput | null;
 };
 
 export type CreateUserWithInviteResult =
   | { ok: true; user: UserRow }
-  | { ok: false; reason: 'invalid_code' | 'email_exists' | 'cap_reached' };
+  | { ok: false; reason: 'invalid_code' | 'email_exists' | 'cap_reached' | 'oauth_account_exists' };
 
 /**
- * The one transactional signup primitive (§4.4).
+ * Internal signal class used to force a rollback from inside a db.transaction()
+ * callback when a precondition discovered after a DML statement is violated.
+ * better-sqlite3 rolls back if the callback throws; returning commits.
+ */
+class RollbackSignal extends Error {
+  constructor(public readonly failureReason: Exclude<CreateUserWithInviteResult, { ok: true }>['reason']) {
+    super(`rollback: ${failureReason}`);
+    this.name = 'RollbackSignal';
+  }
+}
+
+/**
+ * The one transactional signup primitive (§4.4, extended by §4.2).
  *
  * Re-checks all preconditions inside one synchronous db.transaction():
  *   1. Invite code exists and is unredeemed.
  *   2. User count is below maxUsers.
  *   3. Email is not already registered.
  *   4. Inserts the user (role: 'user', always — signup never mints admin).
+ *   4a. (when oauth !== null) Re-checks (provider, providerAccountId) uniqueness.
+ *   4b. (when oauth !== null) Inserts the oauth_account row.
  *   5. Marks the code redeemed.
  *
  * passwordHash is accepted here, never a plaintext password (constraint 5).
+ * oauth is required and explicitly nullable — pass null for password-only signup (§4.2).
+ * A failure anywhere leaves the invite code unredeemed and zero rows written.
+ *
+ * Steps 1–3 return before any DML so they can use `return` to exit. Steps 4a–4b come
+ * after the user INSERT (step 4), so they throw a RollbackSignal to force a rollback.
  */
 export function createUserWithInvite(
   input: CreateUserWithInviteInput,
 ): CreateUserWithInviteResult {
   let result: CreateUserWithInviteResult = { ok: false, reason: 'invalid_code' };
 
-  db.transaction((tx) => {
-    // 1. Validate invite code
-    const codeRow = tx
-      .select()
-      .from(schema.inviteCode)
-      .where(eq(schema.inviteCode.code, input.code))
-      .get();
+  try {
+    db.transaction((tx) => {
+      // 1. Validate invite code
+      const codeRow = tx
+        .select()
+        .from(schema.inviteCode)
+        .where(eq(schema.inviteCode.code, input.code))
+        .get();
 
-    if (!codeRow || codeRow.redeemedBy !== null) {
-      result = { ok: false, reason: 'invalid_code' };
-      return;
+      if (!codeRow || codeRow.redeemedBy !== null) {
+        result = { ok: false, reason: 'invalid_code' };
+        return; // no DML yet — return commits nothing
+      }
+
+      // 2. Check user cap
+      const countResult = tx.select({ count: sql<number>`COUNT(*)` }).from(schema.user).get();
+      const count = countResult?.count ?? 0;
+      if (count >= input.maxUsers) {
+        result = { ok: false, reason: 'cap_reached' };
+        return; // no DML yet
+      }
+
+      // 3. Check for duplicate email
+      const emailCheck = tx
+        .select({ id: schema.user.id })
+        .from(schema.user)
+        .where(eq(schema.user.email, input.email))
+        .get();
+
+      if (emailCheck) {
+        result = { ok: false, reason: 'email_exists' };
+        return; // no DML yet
+      }
+
+      // 4. Insert user (role: 'user' unconditionally — §8 invariant 6)
+      const userId = crypto.randomUUID();
+      tx.insert(schema.user).values({
+        id: userId,
+        email: input.email,
+        passwordHash: input.passwordHash,
+        role: 'user',
+        shareLogsWithAdmin: input.shareLogsWithAdmin,
+      }).run();
+
+      // 4a. If an OAuth identity was supplied, re-check uniqueness inside the transaction.
+      //     This is the authoritative check — the composite PK is the independent backstop
+      //     for a race (§4.2). Throws RollbackSignal (not returns) because step 4 already
+      //     ran a DML statement; better-sqlite3 only rolls back on throw, not on return.
+      if (input.oauth !== null) {
+        const existingOAuth = tx
+          .select({ provider: schema.oauthAccount.provider })
+          .from(schema.oauthAccount)
+          .where(
+            and(
+              eq(schema.oauthAccount.provider, input.oauth.provider),
+              eq(schema.oauthAccount.providerAccountId, input.oauth.providerAccountId),
+            ),
+          )
+          .get();
+
+        if (existingOAuth) {
+          throw new RollbackSignal('oauth_account_exists');
+        }
+
+        // 4b. Insert the oauth_account row pointing at the newly created user.
+        tx.insert(schema.oauthAccount).values({
+          provider: input.oauth.provider,
+          providerAccountId: input.oauth.providerAccountId,
+          userId,
+          providerEmail: input.oauth.providerEmail,
+        }).run();
+      }
+
+      // 5. Mark code redeemed (AND redeemed_by IS NULL is the backstop for a race)
+      tx.update(schema.inviteCode)
+        .set({ redeemedBy: userId, redeemedAt: new Date() })
+        .where(
+          and(
+            eq(schema.inviteCode.code, input.code),
+            // SQL IS NULL check via Drizzle
+            sql`${schema.inviteCode.redeemedBy} IS NULL`,
+          ),
+        )
+        .run();
+
+      // Re-read the freshly inserted user row to return it
+      const newUser = tx.select().from(schema.user).where(eq(schema.user.id, userId)).get();
+      if (!newUser) {
+        // Shouldn't happen; guard for type safety
+        result = { ok: false, reason: 'invalid_code' };
+        return;
+      }
+
+      result = { ok: true, user: mapUserRow(newUser) };
+    });
+  } catch (e) {
+    if (e instanceof RollbackSignal) {
+      result = { ok: false, reason: e.failureReason };
+    } else {
+      throw e;
     }
-
-    // 2. Check user cap
-    const countResult = tx.select({ count: sql<number>`COUNT(*)` }).from(schema.user).get();
-    const count = countResult?.count ?? 0;
-    if (count >= input.maxUsers) {
-      result = { ok: false, reason: 'cap_reached' };
-      return;
-    }
-
-    // 3. Check for duplicate email
-    const emailCheck = tx
-      .select({ id: schema.user.id })
-      .from(schema.user)
-      .where(eq(schema.user.email, input.email))
-      .get();
-
-    if (emailCheck) {
-      result = { ok: false, reason: 'email_exists' };
-      return;
-    }
-
-    // 4. Insert user (role: 'user' unconditionally — §8 invariant 6)
-    const userId = crypto.randomUUID();
-    tx.insert(schema.user).values({
-      id: userId,
-      email: input.email,
-      passwordHash: input.passwordHash,
-      role: 'user',
-      shareLogsWithAdmin: input.shareLogsWithAdmin,
-    }).run();
-
-    // 5. Mark code redeemed (AND redeemed_by IS NULL is the backstop for a race)
-    tx.update(schema.inviteCode)
-      .set({ redeemedBy: userId, redeemedAt: new Date() })
-      .where(
-        and(
-          eq(schema.inviteCode.code, input.code),
-          // SQL IS NULL check via Drizzle
-          sql`${schema.inviteCode.redeemedBy} IS NULL`,
-        ),
-      )
-      .run();
-
-    // Re-read the freshly inserted user row to return it
-    const newUser = tx.select().from(schema.user).where(eq(schema.user.id, userId)).get();
-    if (!newUser) {
-      // Shouldn't happen; guard for type safety
-      result = { ok: false, reason: 'invalid_code' };
-      return;
-    }
-
-    result = { ok: true, user: mapUserRow(newUser) };
-  });
+  }
 
   return result;
 }

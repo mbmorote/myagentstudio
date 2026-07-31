@@ -63,7 +63,11 @@ export const configDef = sqliteTable('config_def', {
   key: text('key').notNull().unique(),              // frontmatter key: model, tools…
   label: text('label').notNull(),
   datatype: text('datatype', {
-    enum: ['string', 'enum', 'int', 'bool', 'list', 'any'],
+    // 'json': a real general mechanism for genuinely nested values (e.g. hooks,
+    // mcpServers) — added 2026-07-31, roadmap TODO item 2, supersedes the old 'any'
+    // placeholder those two keys used. 'any' itself is kept (not yet used by any
+    // current key) rather than removed speculatively.
+    enum: ['string', 'enum', 'int', 'bool', 'list', 'any', 'json'],
   }).notNull(),
   allowedValues: text('allowed_values', { mode: 'json' }).$type<string[] | null>(),
   required: integer('required', { mode: 'boolean' }).notNull().default(false),
@@ -79,7 +83,7 @@ export const configDef = sqliteTable('config_def', {
 export const agentConfig = sqliteTable('agent_config', {
   agentId: text('agent_id').notNull(),              // → agent.id (app-enforced, not FK-cascade here)
   propKey: text('prop_key').notNull(),              // NO FK to config_def (openness rule)
-  value: text('value', { mode: 'json' }).notNull().$type<unknown>(), // scalar | list, JSON-as-text
+  value: text('value', { mode: 'json' }).notNull().$type<unknown>(), // scalar | list | nested object/array (datatype:'json' keys), JSON-as-text
 }, (t) => ({
   pk: primaryKey({ columns: [t.agentId, t.propKey] }),
   byAgent: index('agent_config_agent_idx').on(t.agentId),
@@ -193,6 +197,22 @@ export const llmCallLog = sqliteTable('llm_call_log', {
   byCreated:    index('llm_call_log_created_idx').on(t.createdAt),
   byKind:       index('llm_call_log_kind_idx').on(t.kind),
   byUserCreated: index('llm_call_log_user_created_idx').on(t.userId, t.createdAt), // §3.9 cap count
+}));
+
+// ─────────────────────  OAuth accounts  ─────────────────────────────────────────────
+// Keyed on (provider, providerAccountId) — the composite PK is the unique constraint
+// (§4.1). Soft reference to user.id — no references(), matching the schema convention.
+export const oauthAccount = sqliteTable('oauth_account', {
+  provider: text('provider').notNull(),                        // 'google' — open catalog, no DB enum
+  providerAccountId: text('provider_account_id').notNull(),    // Google's `sub` — stable, never the email
+  userId: text('user_id').notNull(),                           // soft ref → user.id
+  providerEmail: text('provider_email'),                       // audit/display only — never authoritative
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull().default(sql`(unixepoch())`),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.provider, t.providerAccountId] }),
+  byUser: index('oauth_account_user_idx').on(t.userId),
+  userProvider: uniqueIndex('oauth_account_user_provider_unique').on(t.userId, t.provider),
 }));
 
 // ─────────────────────  Whole-agent snapshots (import/export)  ─────────────────────

@@ -1,11 +1,11 @@
 /**
  * lib/db/__tests__/migration.test.ts
  *
- * Verifies that the 0003 migration applied correctly to the shared in-memory DB.
+ * Verifies that migrations up to 0004 applied correctly to the shared in-memory DB.
  * test-db.ts runs migrate() eagerly at module load, so by the time these tests
  * run the schema is already in place.
  *
- * Assertions (§4.5 gate 0 verification checks):
+ * Assertions (§4.5 gate 0 verification checks for 0003; §4.3 gate 2 checks for 0004):
  *   - agent.owner_id is NOT NULL
  *   - agent_owner_name_unique and group_owner_name_unique exist
  *   - agent_name_unique is GONE
@@ -14,6 +14,7 @@
  *   - user.share_logs_with_admin and llm_call_log.shared_with_admin both exist,
  *     are NOT NULL, and default to 0
  *   - llm_call_log_user_created_idx exists
+ *   - oauth_account table exists with the expected columns (composite PK, both indexes)
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -200,5 +201,128 @@ describe('migration 0003 schema verification', () => {
 
     const row = testDb.select().from(schema.llmCallLog).all().find((r) => r.id === id);
     expect(row?.userId).toBeNull();
+  });
+});
+
+// ── migration 0004: oauth_account table ──────────────────────────────────────
+
+describe('migration 0004 — oauth_account table', () => {
+  it('oauth_account table exists and accepts a valid row', () => {
+    const owner = createTestUser('user');
+    const providerAccountId = `mig-sub-${crypto.randomUUID()}`;
+
+    testDb.insert(schema.oauthAccount).values({
+      provider: 'google',
+      providerAccountId,
+      userId: owner.id,
+      providerEmail: 'mig@gmail.com',
+    }).run();
+
+    const row = testDb
+      .select()
+      .from(schema.oauthAccount)
+      .all()
+      .find((r) => r.providerAccountId === providerAccountId);
+
+    expect(row).toBeDefined();
+    expect(row?.provider).toBe('google');
+    expect(row?.userId).toBe(owner.id);
+    expect(row?.providerEmail).toBe('mig@gmail.com');
+    expect(row?.createdAt).toBeDefined();
+  });
+
+  it('providerEmail is nullable', () => {
+    const owner = createTestUser('user');
+    const providerAccountId = `mig-null-${crypto.randomUUID()}`;
+
+    testDb.insert(schema.oauthAccount).values({
+      provider: 'google',
+      providerAccountId,
+      userId: owner.id,
+      providerEmail: null,
+    }).run();
+
+    const row = testDb
+      .select()
+      .from(schema.oauthAccount)
+      .all()
+      .find((r) => r.providerAccountId === providerAccountId);
+
+    expect(row?.providerEmail).toBeNull();
+  });
+
+  it('composite PK (provider, providerAccountId) — duplicate is rejected', () => {
+    const owner1 = createTestUser('user');
+    const owner2 = createTestUser('user');
+    const providerAccountId = `mig-pk-${crypto.randomUUID()}`;
+
+    testDb.insert(schema.oauthAccount).values({
+      provider: 'google',
+      providerAccountId,
+      userId: owner1.id,
+      providerEmail: null,
+    }).run();
+
+    expect(() => {
+      testDb.insert(schema.oauthAccount).values({
+        provider: 'google',
+        providerAccountId,   // same PK
+        userId: owner2.id,
+        providerEmail: null,
+      }).run();
+    }).toThrow();
+  });
+
+  it('oauth_account_user_provider_unique — one provider per user is enforced', () => {
+    const owner = createTestUser('user');
+    const sub1 = `mig-up1-${crypto.randomUUID()}`;
+    const sub2 = `mig-up2-${crypto.randomUUID()}`;
+
+    testDb.insert(schema.oauthAccount).values({
+      provider: 'google',
+      providerAccountId: sub1,
+      userId: owner.id,
+      providerEmail: null,
+    }).run();
+
+    // Same user, same provider, different sub → unique index violation
+    expect(() => {
+      testDb.insert(schema.oauthAccount).values({
+        provider: 'google',
+        providerAccountId: sub2,  // different sub — not a PK collision
+        userId: owner.id,          // same user + same provider → UNIQUE violation
+        providerEmail: null,
+      }).run();
+    }).toThrow();
+  });
+
+  it('oauth_account_user_idx — different provider for same user is allowed', () => {
+    const owner = createTestUser('user');
+    const googleSub = `mig-g-${crypto.randomUUID()}`;
+    const githubSub = `mig-gh-${crypto.randomUUID()}`;
+
+    // Google
+    testDb.insert(schema.oauthAccount).values({
+      provider: 'google',
+      providerAccountId: googleSub,
+      userId: owner.id,
+      providerEmail: null,
+    }).run();
+
+    // A second provider for the same user — should NOT throw
+    testDb.insert(schema.oauthAccount).values({
+      provider: 'github',
+      providerAccountId: githubSub,
+      userId: owner.id,
+      providerEmail: null,
+    }).run();
+
+    const rows = testDb
+      .select()
+      .from(schema.oauthAccount)
+      .all()
+      .filter((r) => r.userId === owner.id);
+
+    expect(rows).toHaveLength(2);
   });
 });

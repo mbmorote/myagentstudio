@@ -64,3 +64,6 @@ export type {
   CreateUserWithInviteInput,
   CreateUserWithInviteResult,
 } from './users.js';
+
+export { getOAuthAccount, listOAuthAccountsForUser, linkOAuthAccount } from './oauthAccounts.js';
+export type { OAuthAccountRow, LinkOAuthAccountInput } from './oauthAccounts.js';

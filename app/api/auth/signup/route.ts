@@ -93,6 +93,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     code: normalizedCode,
     maxUsers,
     shareLogsWithAdmin: consentGranted,
+    oauth: null,   // password signup — no OAuth identity (§4.2)
   });
 
   if (!result.ok) {
