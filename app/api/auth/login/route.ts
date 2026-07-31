@@ -56,7 +56,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Reject the sentinel hash before bcrypt (§8 invariant 9)
   if (!user || user.passwordHash === NO_PASSWORD_SENTINEL) {
     if (user && user.passwordHash === NO_PASSWORD_SENTINEL) {
-      console.warn(`[auth] login attempted on user with no password set: ${normalizedEmail}`);
+      console.warn(`[auth] password login attempted on a passwordless account (oauth-only or un-bootstrapped): ${normalizedEmail}`);
     } else {
       console.warn(`[auth] failed login attempt for unknown email: ${normalizedEmail}`);
     }

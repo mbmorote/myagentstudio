@@ -56,6 +56,7 @@ export {
   createInviteCode,
   listInviteCodes,
   revokeInviteCode,
+  getInviteCode,
 } from './users.js';
 export type {
   UserRow,

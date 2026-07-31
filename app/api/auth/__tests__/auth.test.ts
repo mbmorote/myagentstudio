@@ -177,6 +177,23 @@ describe('POST /api/auth/login', () => {
     const body = await res.json() as { error: string };
     expect(body.error).toBe('invalid_credentials');
   });
+
+  // Plan 06 §10.3 — a Google-only account (passwordHash === '') cannot log in with a password.
+  // The response is identical to a wrong password — no user-enumeration oracle (§3.8).
+  it('returns 401 invalid_credentials for a Google-only user (passwordHash sentinel) — same body as wrong password', async () => {
+    const email = `google-only-${crypto.randomUUID()}@gmail.com`;
+    const id = crypto.randomUUID();
+    testDb
+      .insert(schema.user)
+      .values({ id, email, passwordHash: '', role: 'user', shareLogsWithAdmin: false })
+      .run();
+
+    const res = await loginPOST(makeLoginRequest({ email, password: 'the-google-users-password' }, nextLoginIp()));
+    expect(res.status).toBe(401);
+    const body = await res.json() as { error: string };
+    // Must be the same error code as a wrong password — no oracle (§3.8, §7.3)
+    expect(body.error).toBe('invalid_credentials');
+  });
 });
 
 // ── signup ────────────────────────────────────────────────────────────────────

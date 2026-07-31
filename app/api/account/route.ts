@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticate } from '@/lib/auth/guard';
 import { getUserById, setUserLogSharing } from '@/lib/db/repository/users';
+import { listOAuthAccountsForUser } from '@/lib/db/repository/oauthAccounts';
 
 // ── GET /api/account ──────────────────────────────────────────────────────────
 
@@ -24,10 +25,15 @@ export async function GET(): Promise<NextResponse> {
     const user = getUserById(session.userId);
     if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
+    // linkedProviders: read-only, session user's own rows only (§7.1, invariant 17)
+    const oauthAccounts = listOAuthAccountsForUser(session.userId);
+    const linkedProviders = oauthAccounts.map((a) => a.provider);
+
     return NextResponse.json({
       email: user.email,
       role: user.role,
       shareLogsWithAdmin: user.shareLogsWithAdmin,
+      linkedProviders,
     });
   } catch (err) {
     console.error('[account] GET error:', String(err));

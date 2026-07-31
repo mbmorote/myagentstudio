@@ -300,6 +300,17 @@ export function createUserWithInvite(
 
 // ─────────────────────────────  Invite codes  ──────────────────────────────
 
+/**
+ * Returns the invite code row for a given code string, or null if it does not exist.
+ * Used for the non-authoritative pre-check in the OAuth start route (§6 Leg 1 step 4).
+ * The authoritative check re-runs inside the creating transaction (§4.2).
+ */
+export function getInviteCode(code: string): InviteCodeRow | null {
+  const row = db.select().from(schema.inviteCode).where(eq(schema.inviteCode.code, code)).get();
+  if (!row) return null;
+  return mapInviteCodeRow(row);
+}
+
 export type CreateInviteCodeInput = {
   code: string;        // already generated and normalized
   note?: string | null;
