@@ -10,7 +10,20 @@ MyAgent requires an account. Go to `/login` and enter your email and password.
 
 If you do not have an account yet, ask the admin (the person who runs this deployment) for an invite code. With that code in hand, go to `/signup` and create your account. The signup page will ask you to make one privacy choice — see the **Activity log** section below for what that choice means.
 
-When your session expires (after 7 days), you will be redirected to `/login` with your intended destination preserved — signing back in returns you to the page you were on.
+When your session expires (default 7 days, may be shorter or longer on this deployment), you will be redirected to `/login` with your intended destination preserved — signing back in returns you to the page you were on.
+
+### Signing in with Google
+
+If this deployment has Google sign-in enabled, a **Continue with Google** button appears on `/login` and `/signup`. It is a second way to prove who you are, not a second way to get in — **an invite code is still required** the first time you sign in with Google, exactly as with a password account. On `/signup`, the button stays disabled until you've entered a code and answered the privacy question below it.
+
+If you already have a password account and later sign in with Google using the same, Google-verified email address, MyAgent links the two automatically — you land in your existing account, no second account is created, and no invite code is spent. Your original password keeps working afterward.
+
+A few things worth knowing:
+
+- Google is told nothing about MyAgent beyond the standard sign-in request — no access to your contacts, Drive, or profile picture, and no ongoing access after you sign in.
+- MyAgent is told your Google account's email address and nothing else.
+- **Revoking MyAgent's access from your Google account settings does not end an active MyAgent session.** The two are independent — if you want to sign out of MyAgent, use the sign-out button here.
+- An account created via Google has no password. If you'd rather sign in with a password later, that isn't available yet — see the admin if you need this.
 
 ### Admin vs. user
 
@@ -200,7 +213,7 @@ Click **Account** in the Topbar (always visible, for both admins and users) to o
 
 **Log sharing with the admin.** The consent toggle mirrors the choice you made at signup: on = share your prompt and response content; off = private. You can flip it at any time. **The change is not retroactive in either direction** — past rows keep the consent value they were written with, and changing your preference only affects future calls.
 
-Your signed-in email and role are shown as read-only.
+Your signed-in email, role, and how you sign in (password, or Google with the linked email) are shown as read-only. There is currently no self-service way to link or unlink a Google account from this page.
 
 ---
 

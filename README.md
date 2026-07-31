@@ -19,6 +19,17 @@ JWT_SECRET=<at-least-32-random-characters>
 # Only needed for the one-time bootstrap command (see below)
 BOOTSTRAP_USER_EMAIL=you@example.com
 BOOTSTRAP_USER_PASSWORD=<your-admin-password>
+
+# Session lifetime — optional, defaults to 7 days (604800 seconds). Bounds: 60–7776000
+# seconds (60s–90d). An invalid value refuses to start the process rather than silently
+# falling back to the default.
+SESSION_TTL_SECONDS=604800
+
+# Google sign-in — optional. All three must be set together, or none at all; a partial
+# set refuses to start. See "Google OAuth setup" below.
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+OAUTH_REDIRECT_BASE_URL=http://localhost:3000
 ```
 
 Optionally override the default model (defaults to `claude-opus-4-8`):
@@ -50,6 +61,27 @@ BOOTSTRAP_USER_EMAIL=you@example.com BOOTSTRAP_USER_PASSWORD=yourpassword npm ru
 After that, go to [http://localhost:3000/login](http://localhost:3000/login), sign in as the admin, and generate invite codes from **System Settings** to let others sign up.
 
 > **HTTPS required for deployed instances.** The session cookie is `secure: true` in production, which means it is only sent over HTTPS. An `http://` deployment will silently drop the cookie and every request will appear unauthenticated.
+
+### Session lifetime
+
+`SESSION_TTL_SECONDS` changes the lifetime baked into **newly issued** tokens only — it is not revocation. A JWT's expiry is set at signing time, so shortening the TTL does nothing to anyone already signed in; they keep their original lifetime until it expires on its own. If a session must be killed right now, the only immediate options are deleting or altering that user's row in `myagent.db` (`getSession()` re-reads the DB on every request), or rotating `JWT_SECRET`, which invalidates every session at once.
+
+### Google OAuth setup (optional)
+
+MyAgent can offer "Continue with Google" alongside password sign-in. It is entirely optional — leave the three `GOOGLE_*`/`OAUTH_REDIRECT_BASE_URL` variables unset and the button never renders. Signing in with Google still requires a valid invite code on first use; it is a second way to prove who you are, not a second way to get admitted.
+
+To enable it:
+
+1. Create an OAuth 2.0 client in the [Google Cloud console](https://console.cloud.google.com/apis/credentials) (Web application type).
+2. Register this exact redirect URI, built from `OAUTH_REDIRECT_BASE_URL` (no trailing slash, no path):
+   ```
+   <OAUTH_REDIRECT_BASE_URL>/api/auth/oauth/google/callback
+   ```
+3. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `OAUTH_REDIRECT_BASE_URL` in `.env.local`. All three are required together — setting only some of them refuses to start the process rather than half-working.
+4. In production, `OAUTH_REDIRECT_BASE_URL` must be `https://` (Google rejects non-HTTPS redirect URIs except for `localhost`).
+5. For a closed beta, keep the Google Cloud consent screen in **Testing** mode and list your invite-gated users as test users — this restricts who can even reach the consent screen, on top of the invite-code gate on the MyAgent side.
+
+Google is told nothing beyond the standard OpenID Connect `openid email profile` scopes — no ongoing access, no refresh token is requested, and nothing Google issues is ever stored.
 
 ## Settings
 

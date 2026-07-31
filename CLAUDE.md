@@ -62,7 +62,7 @@ follow these even though you have no memory of when they were agreed:
 - **`docs/`** — user-facing documentation (`user-guide.md`). Not named `CLAUDE.md` —
   that name is reserved for internal folder-map docs; this one is for end users.
 - **`plans/`** — build-sequence plans, distinct from `architecture/`'s stable docs. One file
-  per plan, numbered (`01`–`04`, see Files below). Also holds one unnumbered, living
+  per plan, numbered (`01`–`06`, see Files below). Also holds one unnumbered, living
   file: **`plans/roadmap.md`** — **start here for "what's next."** TODO (core work + small
   layout adjustments needed before going online) vs. FUTURE (flexible priority, includes big
   layout redesigns and deployment-process maturity).
@@ -128,6 +128,21 @@ follow these even though you have no memory of when they were agreed:
   scoping), JWT auth, invite-code signup. **Reviewed 2026-07-30, built 2026-07-30** —
   all 11 §16 confirmation points resolved; implementation complete (Phases 0–6); real DB
   migrated. See `CHANGELOG.md` 2026-07-30 entry for full detail.
+- **`plans/06-auth-review-google-oauth.md`** — the auth-framework review (roadmap TODO 2):
+  fixes `middleware.ts`'s duplicated JWT verification, makes `SESSION_TTL_SECONDS` an env var,
+  and adds Google OAuth 2.0 / OpenID Connect sign-in alongside password auth (invite-code gate
+  still applies). Deliberately overrides Plan 05 §0's "no OAuth / social login" exclusion; also
+  closes Plan 05's two 🔶 OPEN rate-limiter questions. **Reviewed 2026-07-31 (all six §16
+  decision points resolved). Phases 0–4 built and committed 2026-07-31** (middleware fix +
+  configurable TTL; OAuth foundations; `oauth_account` schema; the start/callback routes; the
+  login/signup UI split + `GoogleButton`) — see `CHANGELOG.md` 2026-07-31 entry. **Phase 5**
+  (live verification against real Google endpoints — needs a user-created Google Cloud OAuth
+  client and explicit go-ahead per the standing no-real-external-call rule) **and Phase 6**
+  (remaining doc sync) are not started.
+- **`plans/Evaluation-260730.md`** — a point-in-time outside opinion on the idea and
+  project (requested by the user, 2026-07-30), not a build plan. Verdict: strong idea,
+  good architecture, but infrastructure (multi-tenant auth) has outpaced dogfooding the
+  core loop, and "deploy online" sits too late in the TODO ordering.
 - **`lib/ai/CLAUDE.md`** — the gateway architecture (single choke point, one-SDK-importer
   rule), the three AI callers, and build-time prompt compilation.
 - **`lib/import/CLAUDE.md`** — the import pipeline (Stage 1 deterministic split, Strict vs.

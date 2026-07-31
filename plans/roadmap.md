@@ -20,6 +20,16 @@ entry below is tagged with which of the two applies.
 **Layout work still prototypes first** — `architecture/layout/Layout-Workbench.html` before
 live code, for iteration speed (see `CLAUDE.md` standing rule 4).
 
+**Last updated:** 2026-07-31 — TODO item 2 (auth framework review): `plans/06-auth-review-google-oauth.md`
+**Phases 0–4 built and committed** (`1d77019`, `ea2867f`, `a937297`, `9aee4bf`, `d1a29cc`) —
+middleware JWT dedup + configurable session TTL, the OAuth foundations, the `oauth_account`
+schema, the start/callback routes, and the login/signup UI. Each phase independently verified:
+`tsc` clean, 502/502 tests green, `npm run build` passing. **Phase 5 (live verification against
+real Google endpoints) and the rest of Phase 6 (doc sync) are not started** — Phase 5 needs a
+user-created Google Cloud OAuth client plus explicit go-ahead before any real external call is
+made, per the standing no-real-external-call rule. See `CHANGELOG.md` 2026-07-31 entry for full
+detail.
+
 **Last reviewed:** 2026-07-30 — reorganized. Every item from `architecture/TechDesign.md`'s
 Deferred Decisions table + Rules Index (previously compressed into one summary paragraph
 here) is now its own line, sorted into TODO/FUTURE/IDEA. Duplicates between that table and
@@ -101,62 +111,113 @@ Condensed — full detail lives at each pointer, not repeated here.
   `lib/db/seed.ts` does the same). Real `myagent.db` migrated; real admin account live.
   `plans/05-multi-tenant-auth.md` has full detail; `plans/roadmap.md`'s own prior entry (this
   section) tracked it while in flight.
+- **Zero-agents empty state now has a Topbar** — 2026-07-31, was TODO item 1. `app/page.tsx`'s
+  "No agents yet" branch now renders `WorkbenchShell` with `initialAgent={null}` instead of a
+  bare div. `WorkbenchShell`'s Viz/Chat/Raw panels already had null-agent fallbacks built in
+  (including "Import an agent via ⇪ Import agent to get started" text) — they were simply
+  unreachable dead code until now. The one real gap: `WorkbenchShell` only rendered
+  `LibraryPanel` (which owns the actual Import/New-agent/New-group buttons) when an agent was
+  loaded; fixed by making `LibraryPanel`/`GroupSection`'s `currentAgentId` prop optional and
+  always rendering it. `tsc --noEmit` clean, 367/367 tests passing. **Not yet verified live in
+  a browser** — the only accounts in the real DB are the admin (with the one real agent), and
+  checking this would require a second zero-agent signup that writes to the real DB; skipped
+  pending the user's OK rather than mutating real data unasked.
+- **`__raw` frontmatter escape hatch — built as a real `datatype: 'json'`, not a raw-blob
+  hatch** — 2026-07-31, was TODO item 2. Original scope was importing an `mcpServers` file
+  with an inline nested server-config object (`400 unsupported_frontmatter`); scope grew
+  during review into a proper general mechanism. `parseFrontmatter.ts` no longer hard-rejects
+  a nested mapping/list — `FrontmatterEntry.rawValue` now allows `Record<string, unknown> |
+  unknown[]` alongside the original `string | string[]`; only genuinely unparseable YAML
+  (A2) still throws. `hooks` (`datatype: 'any'`) and `mcpServers` (`datatype: 'list'`, with a
+  hardcoded `key === 'mcpServers'` UI special-case) both moved to a new, real `datatype:
+  'json'` — a general mechanism any catalog key can use, not hardcoded to these two.
+  `AgentView.tsx`'s old `CUSTOM_BLOCK_KEYS = new Set(['hooks', 'mcpServers'])` hardcoded set
+  is gone, replaced by deriving the set from the catalog's `datatype === 'json'` keys.
+  **Bonus fix, found during review, not part of the original scope:** `serializeAgentSnapshot`
+  (`lib/db/repository/agents.ts`) was `JSON.stringify`-ing any non-string/non-string-array
+  config value on export — meaning an agent's `hooks`/`mcpServers` block, even one created
+  entirely inside MyAgent with no import involved, exported as a quoted JSON-string scalar
+  (`hooks: '{"PreToolUse":...}'`), not valid nested YAML. Real bug, now fixed — nested values
+  export as real YAML via `yaml.dump`. `skills` deliberately stayed `datatype: 'list'` (no
+  evidence of a nested/inline skills schema in the real docs) after explicit review with the
+  user. `datatype: 'json'` added to the DB schema's `configDef.datatype` enum (TS-only
+  constraint on a SQLite text column — no migration needed) and synced to the real DB via
+  `npm run db:seed` (catalog metadata only, no agent data touched). TechDesign Rules Index
+  #35/#39/#40 and the Deferred Decisions table's `__raw` row updated to reflect the
+  supersession. `tsc --noEmit` clean, 368/368 tests passing (2 new/rewritten covering the
+  nested-value parse and round-trip cases, replacing the old throw-on-nested-map test).
 
 ## TODO — before going online
 
 Ordered. **"Deploy online" is always last** — anything else added here goes before it.
 Flat list, no sub-headers — one section, one list, per the 2026-07-30 simplification pass.
 
-1. **Zero-agents empty state has no Topbar.** `app/page.tsx`'s "No agents yet" branch
-   (pre-existing since Plan 03) renders bare — no Topbar, no way to log out or reach
-   Account, no UI path to import a first agent (only a bare mention of the API endpoint in
-   text). Harmless in the single-tenant era (there was always at least one agent already);
-   now a real dead-end every fresh signup hits first. Found during Plan 05's browser
-   verification pass, 2026-07-30. Likely a small fix — wrap this branch in the same
-   shell/Topbar the rest of the app uses.
-2. **`__raw` frontmatter escape hatch.** Confirmed real, not hypothetical: a real
-   `mcpServers` file with an inline nested server-config object hard-fails import with `400
-   unsupported_frontmatter`. A beta user importing a real Claude Code agent that uses this
-   pattern hits it on day one. TechDesign Rules Index #35/#40.
-3. **Component/UI test coverage.** Zero automated coverage on the React component tree —
+1. **Component/UI test coverage.** Zero automated coverage on the React component tree —
    only manual live-browser verification per session. Worth closing before more people touch
    this app. Folds in TechDesign P04g (component tests for `ImportDialog`/`ChatPanel`
    specifically — same gap, not a separate item — the dry-run branches added in Plan 04 have
    no unit tests).
-4. **Auth framework review — JWT session config + OAuth 2.0 + OpenID Connect.** Added
-   2026-07-30. Plan 05 shipped a fixed 7-day JWT session (no refresh, no revocation, §3.3) —
-   check the whole auth structure end to end while it's fresh: whether session length should
-   be configurable, and whether OAuth 2.0 / OpenID Connect (social login, an identity
-   provider) belongs alongside email+password+invite-code. Not expected to be a big lift —
-   this is a structured review of what's already built, not a redesign from zero.
-5. **"+custom key…" arbitrary config-key creation, incl. removing one.** Was blocked on a
+2. **Auth framework review — JWT session config + OAuth 2.0 + OpenID Connect.**
+   **🟡 Phases 0–4 built and committed 2026-07-31 — `plans/06-auth-review-google-oauth.md`.
+   Phase 5 (live verification) and the rest of Phase 6 (doc sync) remain.** Added 2026-07-30
+   as a review of what Plan 05 shipped (a fixed 7-day
+   JWT session, no refresh, no revocation, §3.3); the review found one real defect and the
+   scope then grew, in conversation with the user, into three workstreams, **all now built**:
+   **(A)** fix `middleware.ts` duplicating JWT verification instead of reusing
+   `lib/auth/jwt.ts` — the copy had drifted (no `algorithms: ['HS256']`, its own inline
+   `JWT_SECRET` read bypassing `lib/env.ts`'s length check) — **fixed, commit `1d77019`**;
+   **(B)** promote the hardcoded `SESSION_TTL_SECONDS` to an env var, 7-day default unchanged,
+   no live-editable admin setting — **built, commit `1d77019`**; **(C)** real **Google OAuth
+   2.0 / OpenID Connect sign-in** alongside password auth — `arctic` behind this repo's own
+   provider seam, `id_token` verified with `jose`, a new `oauth_account` table, and the
+   invite-code gate still applying to OAuth signups — **built across commits `ea2867f`
+   (foundations), `a937297` (schema/repository), `9aee4bf` (start/callback routes), `d1a29cc`
+   (UI)**. Every phase independently verified: `tsc` clean, 502/502 tests green, `npm run
+   build` passing (Phase 4 also fixed a pre-existing `useSearchParams()`-without-`Suspense`
+   build failure as part of its page split).
+   **What's left:** Phase 5 — creating the real Google Cloud OAuth client (user-performed),
+   setting the three live env vars, and a manual checklist against real Google endpoints —
+   **needs the user's explicit go-ahead before any real external call**, per the standing
+   no-real-external-call rule (§10.6). Phase 6 — the remainder of the doc sync (this roadmap
+   entry was Phase 6's last item; `TechDesign.md`/`README.md`/`docs/user-guide.md`/
+   `CHANGELOG.md`/`CLAUDE.md` are already updated, see the 2026-07-31 `CHANGELOG.md` entry).
+   **Workstream C deliberately overrides Plan 05 §0's "Explicitly NOT in this plan: … OAuth /
+   social login" exclusion**, at the user's explicit request — see Plan 06 §14.1. Plan 06 also
+   closes Plan 05's two 🔶 OPEN items (keep the login rate limiter; don't disclose it in the
+   UI).
+   **Two review decisions worth knowing without opening the plan:** the proposed admin toggle
+   for auto-linking was **declined** (hardcoded on — "don't want to overcomplicate"), and
+   auto-linking a Google sign-in to an existing account on a verified email is accepted **for
+   all domains, Google Workspace included** — the domain-takeover residual risk is knowingly
+   accepted for now, with a revisit trigger recorded (Plan 06 §3.7 / §16.5, Rules Index #72).
+3. **"+custom key…" arbitrary config-key creation, incl. removing one.** Was blocked on a
    product decision (a user-created key immediately gets flagged as `unknownConfigKeys`,
    contradicting the intent of letting the user create it). Scope broadened 2026-07-30: also
    cover *removing* a custom/JSON key, not just adding — half the feature without the other
    is awkward. `CHANGELOG.md`'s 2026-07-29 Tier 1 redesign entry has the original detail.
-6. **`scripts/build-prompts.ts` readable output.** TechDesign #26, tagged **[HIGH
+4. **`scripts/build-prompts.ts` readable output.** TechDesign #26, tagged **[HIGH
    PRIORITY]** there — currently emits one giant escaped-string line, unreadable if anyone
    opens the generated file to sanity-check a compiled prompt.
-7. **AI chat persistence — verify current status before scoping.** Believed by the user to
+5. **AI chat persistence — verify current status before scoping.** Believed by the user to
    possibly already be done; **checked 2026-07-30, it is not** — `ChatPanel.tsx`'s `messages`
    is plain in-memory `useState`, no `localStorage`/DB persistence, chat still fully resets
    on reload or agent switch. If it should survive a reload, this needs an actual
    `Conversation`/`Message` table per agent (a real schema addition), not a small fix.
-8. **Section-scoped chat selection.** Moved from IDEA 2026-07-30 — clicking a specific
+6. **Section-scoped chat selection.** Moved from IDEA 2026-07-30 — clicking a specific
    section (Role, Tools, etc.) in the structured view would scope/show that section's
    context in the chat panel, instead of chat always being agent-wide. Directly reopens a
    locked decision: `TechDesign.md` Rules Index #7's supersession note deliberately widened
    the chat mediator from per-section to agent-wide scope (Plan 01 review, D2). Building this
    means consciously reversing or qualifying that call, not just adding a UI toggle on top of
    it — read the supersession note's own reasoning before starting.
-9. **Review the chat-mediator system agent.** `lib/ai/prompts/system-agents/chat-mediator.md`
+7. **Review the chat-mediator system agent.** `lib/ai/prompts/system-agents/chat-mediator.md`
    — its rule-set hasn't had a dedicated review pass since it was widened to agent-wide scope
-   (Plan 01 review, 2026-07-26). Natural to do together with item 8 above, since re-scoping
+   (Plan 01 review, 2026-07-26). Natural to do together with item 6 above, since re-scoping
    to per-section touches exactly this file's Guardrails, but worth reviewing as its own
    pass even independent of that decision.
-10. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
-    now (whatever the smallest real hosting step is); the *automated* version of this is
-    CI/CD, tracked under FUTURE, not blocking this first deploy.
+8. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
+   now (whatever the smallest real hosting step is); the *automated* version of this is
+   CI/CD, tracked under FUTURE, not blocking this first deploy.
 
 ## FUTURE — decided to build eventually, not prioritized
 
@@ -231,6 +292,20 @@ lives in `TechDesign.md`'s Deferred Decisions table / Rules Index.
 - **Docker** — containerize once the app runs end-to-end online.
 - **Azure / hosting infra maturity** — App Service first, K8s only if that ever becomes the
   actual goal; folds together with the storage-dialect item above.
+- **Refactor this roadmap's format** — added 2026-07-31, revisit post-v1 (after TODO item 8,
+  "Deploy online," ships). Reference: `github.com/mbmorote/PMFlow`'s
+  `refactor/ROADMAP.md` — a phase table (`#` / Name / Status badge / Depends-on / link to a
+  per-phase detail `.md`), one short description per phase, an Execution Rules section, and a
+  "Known Technical Debt" table. Deliberately not adopted now: that format is built for a
+  strictly sequential, dependency-chained set of phases, and this roadmap's current TODO list
+  is explicitly the opposite (items 1–7 are independent, pick off in any order) — a
+  dependency column would mostly read "—" today. The natural trigger is v1 shipping: once
+  work starts splitting into real sequenced hardening/infra/security phases (which
+  `plans/01`–`05`'s one-file-per-plan numbering already half-resembles), the dependency graph
+  becomes real and the table format starts paying for itself. When this is picked up, the
+  "Known gaps in the stability net" section (currently prose, in "Stability snapshot" above)
+  is a good first candidate to convert to a "Known Technical Debt"-style table, independent
+  of whether the rest of the file migrates.
 
 ## IDEA — either not decided-if, or decided-but-not-how
 
@@ -261,11 +336,16 @@ understood scope, let alone TODO. Each entry tagged with which case applies.
 
 ## Recommended next stage
 
-Plan 05 is done. TODO items 1–9 are independent enough to pick off in any order, or in
-parallel — item 10 (deploy online) is next per this file's own ordering rule once those are
-clear, or sooner if you'd rather deploy first and treat 1–9 as immediate post-launch fixes.
-Items 8 and 9 are naturally paired (both touch the chat mediator's scope/rule-set) but
-neither blocks the other.
+Plan 05 is done. Two TODO items are done — zero-agents empty state Topbar, and the `__raw`
+frontmatter escape hatch (built as a real `datatype: 'json'` instead) — see "What's built".
+Items 1–7 are independent enough to pick off in any order, or in parallel — item 8 (deploy
+online) is next per this file's own ordering rule once those are clear, or sooner if you'd
+rather deploy first and treat 1–7 as immediate post-launch fixes. **Item 2's code is
+built** (`plans/06-auth-review-google-oauth.md` Phases 0–4, commits `1d77019`/`ea2867f`/
+`a937297`/`9aee4bf`/`d1a29cc`) but **not yet fully closed**: Phase 5 is a live pass against
+real Google endpoints that needs a user-created Google Cloud OAuth client and explicit
+go-ahead first (nothing to build, just to run, once you're ready). Items 6 and 7 are naturally
+paired (both touch the chat mediator's scope/rule-set) but neither blocks the other.
 
 Not recommended yet: anything under FUTURE or IDEA — FUTURE is either a second real effort
 (export translation, sharing, Skill module) or explicitly paced to a trigger that hasn't
