@@ -1,8 +1,8 @@
 /**
  * app/api/settings/route.ts
  *
- * GET  /api/settings  — returns all known settings with defaults applied
- * PATCH /api/settings — upserts one setting (allowlisted by SETTING_DEFS)
+ * GET  /api/settings  — returns all known settings with defaults applied (admin only)
+ * PATCH /api/settings — upserts one setting (allowlisted by SETTING_DEFS) (admin only)
  *
  * Design (§7.1, §8 policies 10–11):
  *   - GET returns one entry per SETTING_DEFS key, whether or not a DB row exists.
@@ -12,13 +12,17 @@
  *   - Coerces the incoming value to a string before storage (setting table stores text).
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { SETTING_DEFS, parseSettingValue } from '@/lib/settings';
 import { getAllSettings, setSetting } from '@/lib/db/repository';
+import { authenticateAdmin } from '@/lib/auth/guard';
 
 // ── GET /api/settings ──────────────────────────────────────────────────────────
 
-export function GET(): NextResponse {
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const auth = await authenticateAdmin(request.nextUrl.pathname);
+  if (!auth.ok) return auth.response;
+
   try {
     const rows = getAllSettings();
     const rowMap = new Map(rows.map((r) => [r.key, r]));
@@ -57,7 +61,10 @@ export function GET(): NextResponse {
 
 // ── PATCH /api/settings ────────────────────────────────────────────────────────
 
-export async function PATCH(request: Request): Promise<NextResponse> {
+export async function PATCH(request: NextRequest): Promise<NextResponse> {
+  const auth = await authenticateAdmin(request.nextUrl.pathname);
+  if (!auth.ok) return auth.response;
+
   let body: unknown;
   try {
     body = await request.json();
@@ -95,6 +102,18 @@ export async function PATCH(request: Request): Promise<NextResponse> {
     if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value)) {
       return NextResponse.json(
         { error: 'invalid_setting_value', key, datatype: def.datatype },
+        { status: 400 },
+      );
+    }
+    if (def.min !== undefined && value < def.min) {
+      return NextResponse.json(
+        { error: 'invalid_setting_value', key, datatype: def.datatype, min: def.min },
+        { status: 400 },
+      );
+    }
+    if (def.max !== undefined && value > def.max) {
+      return NextResponse.json(
+        { error: 'invalid_setting_value', key, datatype: def.datatype, max: def.max },
         { status: 400 },
       );
     }

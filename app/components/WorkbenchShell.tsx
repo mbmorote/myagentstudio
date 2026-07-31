@@ -25,6 +25,7 @@
 
 import { useState, useCallback } from 'react';
 import type { AgentDTO, AgentLiteDTO, GroupDTO, ConfigDefLite } from '@/lib/db/repository';
+import type { Session } from '@/lib/auth/session';
 import { AgentView } from '@/app/components/CustomViz/AgentView';
 import { ChatPanel } from '@/app/components/Chat/ChatPanel';
 import { Topbar } from '@/app/components/shell/Topbar';
@@ -53,6 +54,8 @@ interface WorkbenchShellProps {
    * rebuild/redeploy.
    */
   configCatalog?: ConfigDefLite[];
+  /** Authenticated session — threaded to Topbar for email display and role-gated links. */
+  session: Session;
 }
 
 export function WorkbenchShell({
@@ -60,6 +63,7 @@ export function WorkbenchShell({
   agents = [],
   groups = [],
   configCatalog = [],
+  session,
 }: WorkbenchShellProps) {
   const [agent, setAgent] = useState<AgentDTO | null>(initialAgent);
   const [interactionLock, setInteractionLock] = useState<InteractionLock>(null);
@@ -104,7 +108,7 @@ export function WorkbenchShell({
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg)]">
       {/* ── Topbar ──────────────────────────────────────────────────────── */}
-      <Topbar />
+      <Topbar session={session} />
 
       {/* ── Workbench grid ──────────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0 p-[9px] gap-0">

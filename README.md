@@ -12,6 +12,13 @@ Create a `.env.local` file in the project root and add your key:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
+
+# Auth — required (see "Auth setup" below)
+JWT_SECRET=<at-least-32-random-characters>
+
+# Only needed for the one-time bootstrap command (see below)
+BOOTSTRAP_USER_EMAIL=you@example.com
+BOOTSTRAP_USER_PASSWORD=<your-admin-password>
 ```
 
 Optionally override the default model (defaults to `claude-opus-4-8`):
@@ -27,6 +34,31 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+## Auth setup (first run / new database)
+
+The app requires a login session. On a fresh database, run the migration and bootstrap the admin account:
+
+```bash
+# 1. Run the migration + seed (also runs automatically on every npm run dev)
+npm run db:seed
+
+# 2. Set the admin's email and password (run once; re-run with --force to change credentials)
+BOOTSTRAP_USER_EMAIL=you@example.com BOOTSTRAP_USER_PASSWORD=yourpassword npm run auth:bootstrap
+```
+
+After that, go to [http://localhost:3000/login](http://localhost:3000/login), sign in as the admin, and generate invite codes from **System Settings** to let others sign up.
+
+> **HTTPS required for deployed instances.** The session cookie is `secure: true` in production, which means it is only sent over HTTPS. An `http://` deployment will silently drop the cookie and every request will appear unauthenticated.
+
+## Settings
+
+Two settings are configurable from **System Settings** (`/settings`, admin only):
+
+| Setting | Default | Notes |
+|---|---|---|
+| `maxUsers` | `5` | Maximum number of accounts (including the admin). Lowering it below the current count blocks new signups but does not remove anyone. |
+| `maxLlmCallsPerUserPerHour` | `15` | Per-user hourly LLM call cap (rolling 60-minute window). The admin is always exempt. When a user hits the cap they are offered a dry-run preview instead of a hard block. |
 
 ## The workbench layout
 

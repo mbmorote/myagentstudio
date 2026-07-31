@@ -1,31 +1,36 @@
 /**
  * app/api/llm-call-log/[id]/route.ts
  *
- * GET /api/llm-call-log/[id]
+ * GET /api/llm-call-log/[id] (admin only)
  *
  * Returns the full log row for a single entry, including requestPayload
- * and responsePayload. This is the detail view linked from the Settings page
- * via `?log=<id>` deep links (§5.4, §7.1).
+ * and responsePayload (subject to §5.6 redaction). This is the detail view
+ * linked from the Settings page via `?log=<id>` deep links (§5.4, §7.1).
+ *
+ * The admin is the viewer: rows from users who have not consented (sharedWithAdmin=false)
+ * have both payloads returned as null and redacted:true; metadata fields are intact.
  *
  * Response: CallLogFull (with createdAt serialized to ISO string)
  * 404 if not found.
- *
- * Security note (§9): this endpoint exposes full system prompts and agent
- * content — intentional for an audit log in a local single-user app, but
- * flagged for Plan B auth (§13).
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getCallLog } from '@/lib/db/repository';
+import { authenticateAdmin } from '@/lib/auth/guard';
 
 interface Params {
   params: Promise<{ id: string }>;
 }
 
-export async function GET(_request: Request, { params }: Params): Promise<NextResponse> {
+export async function GET(request: NextRequest, { params }: Params): Promise<NextResponse> {
+  const auth = await authenticateAdmin(request.nextUrl.pathname);
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
   try {
     const { id } = await params;
-    const row = getCallLog(id);
+    // Pass the admin's userId as viewerUserId for §5.6 redaction computation
+    const row = getCallLog(id, session.userId);
 
     if (!row) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });

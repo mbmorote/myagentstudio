@@ -3,26 +3,32 @@
 /**
  * app/components/Settings/SettingsView.tsx
  *
- * Client component: the Settings page body (Plan 04 Phase 4.4, §5.4).
+ * Client component: the System Settings page body (Plan 04 Phase 4.4, §5.4).
+ *
+ * Plan 05 Phase 4.5 additions:
+ *   - Int setting fields (maxUsers, maxLlmCallsPerUserPerHour) with inline
+ *     number inputs and save-on-blur / Enter.
+ *   - Invite-code panel: list, generate, revoke (admin-only, §7.1).
+ *   - Redacted-row treatment in the activity log: rows with `redacted: true`
+ *     show a "content hidden" affordance in the list; the detail view shows
+ *     a privacy notice instead of payload content (§5.6).
  *
  * Sections:
- *   1. Settings panel — toggle(s) rendered from the settings array
- *   2. Activity log — Dry-run / Live / All filter, table of log entries,
- *      row expand for payloads, ?log=<id> highlight + scroll
+ *   1. Settings panel — bool toggles + int number inputs
+ *   2. Invite codes — generate, list (unredeemed + redeemed), revoke unredeemed
+ *   3. Activity log — filter, table, expand for payloads
  *
  * Status column is derived (§11, Phase 4 note):
  *   dryRun=true → "Dry-run"
  *   error non-null → "Error"
  *   else → "OK"
- *
- * The toggle calls PATCH /api/settings directly (no page reload needed — §6 §8.18).
- * The next gateway call reads the fresh DB value without a restart.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { CallLogListItem, CallLogFull } from '@/lib/db/repository';
+import { apiFetch } from '@/lib/apiFetch';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -34,6 +40,10 @@ type SettingEntry = {
   value: boolean | number | string;
   isDefault: boolean;
   updatedAt: string | null;
+  /** Minimum value — only applicable to int settings. */
+  min?: number;
+  /** Maximum value — only applicable to int settings. */
+  max?: number;
 };
 
 // createdAt is serialized to ISO string for JSON transport; use Omit to replace the Date type.
@@ -41,6 +51,14 @@ type LogListItem = Omit<CallLogListItem, 'createdAt'> & { createdAt: string };
 type LogFull = Omit<CallLogFull, 'createdAt'> & { createdAt: string };
 
 type FilterMode = 'all' | 'dry-run' | 'live';
+
+type InviteCodeRow = {
+  code: string;
+  note: string | null;
+  createdAt: string;
+  redeemedBy: string | null;
+  redeemedAt: string | null;
+};
 
 interface SettingsViewProps {
   settings: SettingEntry[];
@@ -86,6 +104,13 @@ function kindLabel(kind: string): string {
   }
 }
 
+function humanizeSecs(secs: number): string {
+  if (secs < 60) return `${secs}s`;
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function SettingsView({
@@ -102,6 +127,30 @@ export function SettingsView({
   const [loadingPayload, setLoadingPayload] = useState(false);
   const highlightRef = useRef<HTMLTableRowElement | null>(null);
 
+  // ── Invite codes state ───────────────────────────────────────────────────────
+  const [codes, setCodes] = useState<InviteCodeRow[]>([]);
+  const [codesLoading, setCodesLoading] = useState(false);
+  const [codesError, setCodesError] = useState<string | null>(null);
+  const [newCodeNote, setNewCodeNote] = useState('');
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [newCode, setNewCode] = useState<string | null>(null);
+
+  // Load invite codes on mount
+  useEffect(() => {
+    setCodesLoading(true);
+    apiFetch('/api/settings/invite-codes')
+      .then(async (res) => {
+        if (res.ok) {
+          const body = await res.json() as { codes: InviteCodeRow[] };
+          setCodes(body.codes);
+        } else {
+          setCodesError('Failed to load invite codes.');
+        }
+      })
+      .catch(() => setCodesError('Network error loading invite codes.'))
+      .finally(() => setCodesLoading(false));
+  }, []);
+
   // Scroll to highlighted row on first paint
   useEffect(() => {
     if (highlightRef.current) {
@@ -109,7 +158,7 @@ export function SettingsView({
     }
   }, []);
 
-  // ── Toggle handler ───────────────────────────────────────────────────────────
+  // ── Toggle handler (bool settings) ──────────────────────────────────────────
 
   async function handleToggle(key: string, current: boolean) {
     const newValue = !current;
@@ -120,7 +169,7 @@ export function SettingsView({
       ),
     );
     try {
-      const res = await fetch('/api/settings', {
+      const res = await apiFetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key, value: newValue }),
@@ -144,6 +193,44 @@ export function SettingsView({
     }
   }
 
+  // ── Int setting save ─────────────────────────────────────────────────────────
+
+  async function handleIntSave(key: string, rawValue: string, def: SettingEntry) {
+    const parsed = parseInt(rawValue, 10);
+    if (isNaN(parsed)) return;
+    if (def.min !== undefined && parsed < def.min) return;
+    if (def.max !== undefined && parsed > def.max) return;
+    if (parsed === (def.value as number)) return; // no change
+
+    const prev = def.value;
+    setLocalSettings((s) =>
+      s.map((entry) =>
+        entry.key === key ? { ...entry, value: parsed, isDefault: false } : entry,
+      ),
+    );
+
+    try {
+      const res = await apiFetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value: parsed }),
+      });
+      if (!res.ok) {
+        setLocalSettings((s) =>
+          s.map((entry) => (entry.key === key ? { ...entry, value: prev } : entry)),
+        );
+        console.error('[settings] int PATCH failed:', await res.text());
+      } else {
+        router.refresh();
+      }
+    } catch (err) {
+      setLocalSettings((s) =>
+        s.map((entry) => (entry.key === key ? { ...entry, value: prev } : entry)),
+      );
+      console.error('[settings] int PATCH error:', err);
+    }
+  }
+
   // ── Row expand ───────────────────────────────────────────────────────────────
 
   async function handleRowExpand(id: string) {
@@ -160,7 +247,7 @@ export function SettingsView({
     }
     setLoadingPayload(true);
     try {
-      const res = await fetch(`/api/llm-call-log/${id}`);
+      const res = await apiFetch(`/api/llm-call-log/${id}`);
       if (res.ok) {
         setExpandedPayload(await res.json() as LogFull);
       } else {
@@ -173,6 +260,51 @@ export function SettingsView({
     }
   }
 
+  // ── Invite code actions ───────────────────────────────────────────────────────
+
+  async function handleGenerateCode() {
+    setGeneratingCode(true);
+    setNewCode(null);
+    try {
+      const res = await apiFetch('/api/settings/invite-codes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: newCodeNote.trim() || undefined }),
+      });
+      if (res.ok) {
+        const row = await res.json() as InviteCodeRow;
+        setNewCode(row.code);
+        setCodes((prev) => [row, ...prev]);
+        setNewCodeNote('');
+      } else {
+        setCodesError('Failed to generate code.');
+      }
+    } catch {
+      setCodesError('Network error generating code.');
+    } finally {
+      setGeneratingCode(false);
+    }
+  }
+
+  async function handleRevokeCode(code: string) {
+    if (!window.confirm(`Revoke invite code ${code}?`)) return;
+    try {
+      const res = await apiFetch(
+        `/api/settings/invite-codes/${encodeURIComponent(code)}`,
+        { method: 'DELETE' },
+      );
+      if (res.ok || res.status === 204) {
+        setCodes((prev) => prev.filter((c) => c.code !== code));
+      } else if (res.status === 409) {
+        setCodesError('That code has already been redeemed and cannot be revoked.');
+      } else {
+        setCodesError('Failed to revoke code.');
+      }
+    } catch {
+      setCodesError('Network error revoking code.');
+    }
+  }
+
   // ── Filter entries ───────────────────────────────────────────────────────────
 
   const filtered = entries.filter((e) => {
@@ -180,6 +312,9 @@ export function SettingsView({
     if (filter === 'live') return !e.dryRun;
     return true;
   });
+
+  const unredeemedCodes = codes.filter((c) => !c.redeemedBy);
+  const redeemedCodes = codes.filter((c) => c.redeemedBy);
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -235,9 +370,108 @@ export function SettingsView({
                   />
                 </button>
               )}
+              {/* Int input */}
+              {s.datatype === 'int' && (
+                <IntSettingInput setting={s} onSave={handleIntSave} />
+              )}
             </div>
           ))}
         </div>
+      </section>
+
+      {/* ── Invite codes panel ──────────────────────────────────────────── */}
+      <section>
+        <h2 className="text-[15px] font-semibold text-[var(--text)] mb-4">Invite codes</h2>
+
+        {/* Generate new code */}
+        <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[9px] p-4 mb-4">
+          <p className="text-[12px] text-[var(--muted)] mb-3">
+            Generate a one-time invite code and share it with a friend. Each code can only be
+            used once. The code will appear here so you can copy it again if needed.
+          </p>
+          {newCode && (
+            <div className="mb-3 flex items-center gap-2 bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[7px] px-3 py-2">
+              <code className="flex-1 font-mono text-[13px] text-[var(--text)] tracking-wider">
+                {newCode}
+              </code>
+              <button
+                onClick={() => navigator.clipboard.writeText(newCode)}
+                className="text-[11px] text-[var(--accent-ink)] hover:underline flex-none"
+              >
+                Copy
+              </button>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              value={newCodeNote}
+              onChange={(e) => setNewCodeNote(e.target.value)}
+              placeholder="Label (optional, e.g. &quot;for Alice&quot;)"
+              className="flex-1 border border-[var(--border)] rounded-[6px] px-2 py-1 text-[12px] bg-[var(--bg)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
+            />
+            <button
+              onClick={handleGenerateCode}
+              disabled={generatingCode}
+              className="px-3 py-1 text-[12px] font-medium bg-[var(--accent)] text-white rounded-[6px] hover:opacity-90 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+            >
+              {generatingCode ? 'Generating…' : '+ Generate code'}
+            </button>
+          </div>
+        </div>
+
+        {codesError && (
+          <p className="text-[12px] text-[var(--err)] mb-3">{codesError}</p>
+        )}
+
+        {codesLoading ? (
+          <p className="text-[12px] text-[var(--faint)]">Loading codes…</p>
+        ) : codes.length === 0 ? (
+          <p className="text-[12px] text-[var(--faint)]">No invite codes yet.</p>
+        ) : (
+          <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[9px] overflow-hidden">
+            <table className="w-full text-[12px]">
+              <thead>
+                <tr className="border-b border-[var(--border)] text-left">
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Code</th>
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Label</th>
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Created</th>
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Status</th>
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium w-16"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {unredeemedCodes.map((c) => (
+                  <tr key={c.code} className="border-b border-[var(--border)] hover:bg-[var(--bg)]">
+                    <td className="px-3 py-2 font-mono text-[var(--text)] tracking-wider">{c.code}</td>
+                    <td className="px-3 py-2 text-[var(--muted)]">{c.note ?? '—'}</td>
+                    <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatTs(c.createdAt)}</td>
+                    <td className="px-3 py-2 text-[var(--ok)]">Unused</td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        onClick={() => handleRevokeCode(c.code)}
+                        className="text-[11px] text-[var(--faint)] hover:text-[var(--err)] transition-colors"
+                        title="Revoke this code"
+                      >
+                        Revoke
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {redeemedCodes.map((c) => (
+                  <tr key={c.code} className="border-b border-[var(--border)] opacity-50">
+                    <td className="px-3 py-2 font-mono text-[var(--muted)] tracking-wider line-through">{c.code}</td>
+                    <td className="px-3 py-2 text-[var(--muted)]">{c.note ?? '—'}</td>
+                    <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatTs(c.createdAt)}</td>
+                    <td className="px-3 py-2 text-[var(--faint)]">
+                      Redeemed {c.redeemedAt ? formatTs(c.redeemedAt) : ''}
+                    </td>
+                    <td className="px-3 py-2"></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       {/* ── Activity log ────────────────────────────────────────────────── */}
@@ -319,6 +553,15 @@ export function SettingsView({
                         </td>
                         <td className={['px-3 py-2 font-medium', statusClass(status)].join(' ')}>
                           {status}
+                          {/* Content-hidden affordance for redacted rows (§5.6) */}
+                          {entry.redacted && (
+                            <span
+                              className="ml-1 text-[10px] text-[var(--faint)] font-normal"
+                              title="This user has not consented to sharing their prompt content."
+                            >
+                              🔒
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-[var(--muted)] font-mono">{entry.model}</td>
                         <td className="px-3 py-2 text-[var(--muted)] text-right whitespace-nowrap">
@@ -334,6 +577,21 @@ export function SettingsView({
                               <p className="text-[12px] text-[var(--faint)]">Loading…</p>
                             ) : expandedPayload && expandedPayload.id === entry.id ? (
                               <div className="space-y-3">
+                                {/* Redacted notice (§5.6) */}
+                                {expandedPayload.redacted && (
+                                  <div className="bg-[var(--elev)] border border-[var(--border)] rounded-[6px] px-3 py-2">
+                                    <p className="text-[12px] font-medium text-[var(--muted)] flex items-center gap-2">
+                                      <span>🔒</span>
+                                      <span>Content hidden</span>
+                                    </p>
+                                    <p className="text-[11px] text-[var(--faint)] mt-1">
+                                      This user has not consented to sharing their prompt and response
+                                      content with the admin. You can see metadata (agent, model,
+                                      tokens, duration) but not the text of their instructions or the
+                                      AI&apos;s replies.
+                                    </p>
+                                  </div>
+                                )}
                                 {/* Error row */}
                                 {expandedPayload.error && (
                                   <div>
@@ -343,27 +601,31 @@ export function SettingsView({
                                     </pre>
                                   </div>
                                 )}
-                                {/* Request payload */}
-                                <div>
-                                  <p className="text-[11px] font-medium text-[var(--muted)] mb-1">Request payload</p>
-                                  <pre className="text-[11px] text-[var(--text)] bg-[var(--panel)] border border-[var(--border)] rounded-[6px] p-2 overflow-x-auto max-h-48 whitespace-pre-wrap">
-                                    {JSON.stringify(expandedPayload.requestPayload, null, 2)}
-                                  </pre>
-                                </div>
-                                {/* Response payload */}
-                                {expandedPayload.responsePayload ? (
+                                {/* Request payload — only shown when not redacted */}
+                                {!expandedPayload.redacted && (
                                   <div>
-                                    <p className="text-[11px] font-medium text-[var(--muted)] mb-1">Response payload</p>
+                                    <p className="text-[11px] font-medium text-[var(--muted)] mb-1">Request payload</p>
                                     <pre className="text-[11px] text-[var(--text)] bg-[var(--panel)] border border-[var(--border)] rounded-[6px] p-2 overflow-x-auto max-h-48 whitespace-pre-wrap">
-                                      {JSON.stringify(expandedPayload.responsePayload, null, 2)}
+                                      {JSON.stringify(expandedPayload.requestPayload, null, 2)}
                                     </pre>
                                   </div>
-                                ) : (
-                                  <p className="text-[12px] text-[var(--faint)]">
-                                    {expandedPayload.dryRun
-                                      ? 'No response — call was blocked (dry-run).'
-                                      : 'No response payload.'}
-                                  </p>
+                                )}
+                                {/* Response payload — only shown when not redacted */}
+                                {!expandedPayload.redacted && (
+                                  expandedPayload.responsePayload ? (
+                                    <div>
+                                      <p className="text-[11px] font-medium text-[var(--muted)] mb-1">Response payload</p>
+                                      <pre className="text-[11px] text-[var(--text)] bg-[var(--panel)] border border-[var(--border)] rounded-[6px] p-2 overflow-x-auto max-h-48 whitespace-pre-wrap">
+                                        {JSON.stringify(expandedPayload.responsePayload, null, 2)}
+                                      </pre>
+                                    </div>
+                                  ) : (
+                                    <p className="text-[12px] text-[var(--faint)]">
+                                      {expandedPayload.dryRun
+                                        ? 'No response — call was blocked (dry-run).'
+                                        : 'No response payload.'}
+                                    </p>
+                                  )
                                 )}
                                 {/* Usage */}
                                 {expandedPayload.usage && (
@@ -401,5 +663,43 @@ export function SettingsView({
         </p>
       </section>
     </div>
+  );
+}
+
+// ── Int setting sub-component ─────────────────────────────────────────────────
+
+function IntSettingInput({
+  setting,
+  onSave,
+}: {
+  setting: SettingEntry;
+  onSave: (key: string, rawValue: string, def: SettingEntry) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState(String(setting.value));
+
+  function handleBlur() {
+    onSave(setting.key, draft, setting);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      (e.target as HTMLInputElement).blur();
+    }
+    if (e.key === 'Escape') {
+      setDraft(String(setting.value));
+    }
+  }
+
+  return (
+    <input
+      type="number"
+      value={draft}
+      min={setting.min}
+      max={setting.max}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      className="flex-none w-20 border border-[var(--border)] rounded-[6px] px-2 py-1 text-[12px] text-right bg-[var(--bg)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
+    />
   );
 }

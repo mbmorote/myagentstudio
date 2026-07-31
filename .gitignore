@@ -16,6 +16,7 @@ dist/
 *.db
 *.db-shm
 *.db-wal
+*.db.bak-*
 
 # Drizzle temporary / generated migration files
 drizzle/

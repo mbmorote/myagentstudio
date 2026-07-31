@@ -1,7 +1,7 @@
 /**
  * app/api/llm-call-log/route.ts
  *
- * GET /api/llm-call-log
+ * GET /api/llm-call-log (admin only)
  *
  * Returns a capped, ordered list of log entries without payloads.
  *
@@ -12,16 +12,23 @@
  *
  * Response: { entries: CallLogListItem[] }
  *
+ * The `redacted` flag on each entry is computed against the admin's userId:
+ * rows where userId !== admin && sharedWithAdmin === false have redacted:true.
  * Payloads are NOT included — see GET /api/llm-call-log/[id] for the full row.
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { listCallLogs } from '@/lib/db/repository';
 import type { LlmCallKind } from '@/lib/db/repository';
+import { authenticateAdmin } from '@/lib/auth/guard';
 
 const VALID_KINDS = new Set<string>(['import-strict', 'import-structural', 'chat']);
 
-export function GET(request: Request): NextResponse {
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const auth = await authenticateAdmin(request.nextUrl.pathname);
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
   try {
     const url = new URL(request.url);
     const limitParam = url.searchParams.get('limit');
@@ -65,7 +72,8 @@ export function GET(request: Request): NextResponse {
       kind = kindParam as LlmCallKind;
     }
 
-    const entries = listCallLogs({ limit, dryRun, kind });
+    // Pass the admin's userId as viewerUserId so redaction is computed correctly (§5.6)
+    const entries = listCallLogs({ limit, dryRun, kind, viewerUserId: session.userId });
 
     // Serialize Date fields for JSON transport
     const serialized = entries.map((e) => ({

@@ -1,26 +1,29 @@
 /**
  * app/api/agents/[id]/route.ts
  *
- * Phase 4.8 — Single-agent CRUD.
- *
  * GET    /api/agents/[id]  → AgentDTO (full: includes sections, config, validation)
  * PATCH  /api/agents/[id]  → AgentDTO (updated)
  * DELETE /api/agents/[id]  → { ok: true }
  *
  * §5 route contract:
- *   GET:    no body; 404 if not found
- *   PATCH:  { name?, description?, config?: {propKey, value}[] }; 404 not found; 409 name_exists
- *   DELETE: no body; 404 if not found; SectionRevision + AgentSnapshot rows retained (§6 rule 4)
+ *   GET:    no body; 404 if not found or not owned by caller
+ *   PATCH:  { name?, description?, config?: {propKey, value}[] }; 404; 409 name_exists
+ *   DELETE: no body; 404 if not found or not owned; SectionRevision + AgentSnapshot retained (§6 rule 4)
  */
 
 import { NextResponse } from 'next/server';
 import { getAgentFull, updateAgent, deleteAgent } from '@/lib/db/repository';
+import { authenticate } from '@/lib/auth/guard';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: RouteContext): Promise<NextResponse> {
+  const auth = await authenticate();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
   const { id } = await params;
-  const dto = getAgentFull(id);
+  const dto = getAgentFull(id, session.userId);
   if (!dto) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
@@ -28,6 +31,10 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
 }
 
 export async function PATCH(request: Request, { params }: RouteContext): Promise<NextResponse> {
+  const auth = await authenticate();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
   const { id } = await params;
 
   let body: unknown;
@@ -61,7 +68,7 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
   }
 
   try {
-    const dto = updateAgent(id, {
+    const dto = updateAgent(id, session.userId, {
       name: patch.name as string | undefined,
       description: patch.description as string | undefined,
       config: patch.config as { propKey: string; value: unknown }[] | undefined,
@@ -81,13 +88,16 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
 }
 
 export async function DELETE(_request: Request, { params }: RouteContext): Promise<NextResponse> {
-  const { id } = await params;
+  const auth = await authenticate();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
-  const dto = getAgentFull(id);
-  if (!dto) {
+  const { id } = await params;
+  // deleteAgent returns boolean — false means not found or owner mismatch (→ 404)
+  const deleted = deleteAgent(id, session.userId);
+  if (!deleted) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
 
-  deleteAgent(id);
   return NextResponse.json({ ok: true }, { status: 200 });
 }

@@ -11,12 +11,14 @@
  *
  * Both modes share Stage 1 (deterministic parse) and upsertAgentFromImport.
  *
- * Request:  { md: string, mode?: 'structural' | 'strict' }  (default mode: 'structural')
+ * Request:  { md: string, mode?: 'structural' | 'strict', dryRun?: boolean }
  * Response: AgentDTO (+ warnings[] for structural mode)
  *
  * Error codes (§5 error table):
  *   400  bad .md (parse fails, malformed YAML, missing name, or md field missing)
+ *   401  unauthorized
  *   422  Stage-2 returned invalid JSON / overlapping groups (strict) or truncated (structural)
+ *   429  per-user LLM cap reached (§3.9)
  *   502  Anthropic API failure
  *   500  unexpected server error (never includes the key or prompt text)
  *
@@ -31,13 +33,18 @@ import { parse } from '@/lib/serialize';
 import { FrontmatterParseError } from '@/lib/serialize/parseFrontmatter';
 import { callImportConverter, ImportConverterUpstreamError, ImportConverterInvalidResponseError } from '@/lib/ai/importConverter';
 import { callStructuralConverter, StructuralConverterTruncatedError, StructuralConverterUpstreamError } from '@/lib/ai/structuralConverter';
-import { LlmDryRunBlockedError } from '@/lib/ai/gateway';
+import { LlmDryRunBlockedError, LlmUserCapReachedError } from '@/lib/ai/gateway';
 import { assemble } from '@/lib/import/assemble';
 import { assembleStructural } from '@/lib/import/assembleStructural';
 import { checkCoverage } from '@/lib/import/coverage';
 import { upsertAgentFromImport, getAgentFull, getAgentSnapshotInfo } from '@/lib/db/repository';
+import { authenticate } from '@/lib/auth/guard';
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const auth = await authenticate();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
   // ── Parse request body ────────────────────────────────────────────────────
   let body: unknown;
   try {
@@ -55,10 +62,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'invalid_body', field: 'md' }, { status: 400 });
   }
 
-  const rawMd = (body as { md: string; mode?: string }).md;
+  const rawMd = (body as { md: string; mode?: string; dryRun?: unknown }).md;
   const modeRaw = (body as { md: string; mode?: string }).mode;
   const mode: 'structural' | 'strict' =
     modeRaw === 'strict' ? 'strict' : 'structural';
+  // forceDryRun: client may request dry-run mode explicitly (§8.16 — can only downgrade, never upgrade)
+  const forceDryRun = (body as { dryRun?: unknown }).dryRun === true;
 
   // ── Stage 1: deterministic parse (shared by both modes) ──────────────────
   let structured;
@@ -83,9 +92,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   // ── Route by mode ─────────────────────────────────────────────────────────
   if (mode === 'structural') {
-    return runStructuralPipeline(rawMd, structured);
+    return runStructuralPipeline(rawMd, structured, session.userId, forceDryRun);
   } else {
-    return runStrictPipeline(rawMd, structured);
+    return runStrictPipeline(rawMd, structured, session.userId, forceDryRun);
   }
 }
 
@@ -96,6 +105,8 @@ export async function POST(request: Request): Promise<NextResponse> {
 async function runStructuralPipeline(
   rawMd: string,
   structured: ReturnType<typeof parse>,
+  userId: string,
+  forceDryRun: boolean,
 ): Promise<NextResponse> {
   // ── Short-circuit: identical raw bytes (Rules Index #36 — B3) ────────────
   // Extract name from Stage-1 frontmatter to look up the existing agent.
@@ -103,17 +114,17 @@ async function runStructuralPipeline(
   const agentName = fmName ? (Array.isArray(fmName.rawValue) ? fmName.rawValue[0] : fmName.rawValue) : '';
 
   if (agentName) {
-    const snapshotInfo = getAgentSnapshotInfo(agentName);
+    const snapshotInfo = getAgentSnapshotInfo(agentName, userId);
     if (snapshotInfo && snapshotInfo.rawSourceSnapshot === rawMd) {
       // Unchanged — skip AI call entirely, return current agent DTO.
-      const dto = getAgentFull(snapshotInfo.id);
+      const dto = getAgentFull(snapshotInfo.id, userId);
       return NextResponse.json({ ...dto, skipped: 'unchanged' }, { status: 200 });
     }
   }
 
   // ── Stage 2b: structural converter ───────────────────────────────────────
   // §5.2: agentId best-effort at call time — the agent may not exist yet.
-  const agentId = agentName ? (getAgentSnapshotInfo(agentName)?.id ?? null) : null;
+  const agentId = agentName ? (getAgentSnapshotInfo(agentName, userId)?.id ?? null) : null;
 
   let restructuredBody: string;
   try {
@@ -121,8 +132,26 @@ async function runStructuralPipeline(
       kind: 'import-structural',
       agentId,
       agentLabel: agentName || null,
+      userId,
+      forceDryRun,
     });
   } catch (err) {
+    // Cap reached — checked first (§3.9)
+    if (err instanceof LlmUserCapReachedError) {
+      return NextResponse.json(
+        {
+          error: 'llm_cap_reached',
+          limit: err.limit,
+          windowSeconds: err.windowSeconds,
+          retryAfterSeconds: err.retryAfterSeconds,
+          canDryRun: true,
+        },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(err.retryAfterSeconds) },
+        },
+      );
+    }
     // Dry-run block — checked BEFORE other error types (§7.2, §3.6)
     if (err instanceof LlmDryRunBlockedError) {
       console.info('[import/structural] Dry-run blocked:', err.message);
@@ -157,7 +186,7 @@ async function runStructuralPipeline(
   let dto;
   try {
     const importData = assembleStructural(structured, restructuredBody, rawMd);
-    dto = upsertAgentFromImport(importData);
+    dto = upsertAgentFromImport(userId, importData);
   } catch (err) {
     if (err instanceof Error && err.name === 'MissingNameError') {
       return NextResponse.json({ error: 'missing_name' }, { status: 400 });
@@ -176,6 +205,8 @@ async function runStructuralPipeline(
 async function runStrictPipeline(
   rawMd: string,
   structured: ReturnType<typeof parse>,
+  userId: string,
+  forceDryRun: boolean,
 ): Promise<NextResponse> {
   // ── Stage 2: AI labels-only call ─────────────────────────────────────────
   // Only blockId + heading go to the model — never content (Rules Index #5).
@@ -186,7 +217,7 @@ async function runStrictPipeline(
   const agentNameStrict = fmNameStrict
     ? (Array.isArray(fmNameStrict.rawValue) ? fmNameStrict.rawValue[0] : fmNameStrict.rawValue)
     : '';
-  const agentIdStrict = agentNameStrict ? (getAgentSnapshotInfo(agentNameStrict)?.id ?? null) : null;
+  const agentIdStrict = agentNameStrict ? (getAgentSnapshotInfo(agentNameStrict, userId)?.id ?? null) : null;
 
   let labels;
   try {
@@ -194,8 +225,26 @@ async function runStrictPipeline(
       kind: 'import-strict',
       agentId: agentIdStrict,
       agentLabel: agentNameStrict || null,
+      userId,
+      forceDryRun,
     });
   } catch (err) {
+    // Cap reached — checked first (§3.9)
+    if (err instanceof LlmUserCapReachedError) {
+      return NextResponse.json(
+        {
+          error: 'llm_cap_reached',
+          limit: err.limit,
+          windowSeconds: err.windowSeconds,
+          retryAfterSeconds: err.retryAfterSeconds,
+          canDryRun: true,
+        },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(err.retryAfterSeconds) },
+        },
+      );
+    }
     // Dry-run block — checked BEFORE other error types (§7.2, §3.6)
     if (err instanceof LlmDryRunBlockedError) {
       console.info('[import/strict] Dry-run blocked:', err.message);
@@ -228,7 +277,7 @@ async function runStrictPipeline(
   let dto;
   try {
     const importData = assemble(structured, labels, rawMd);
-    dto = upsertAgentFromImport(importData);
+    dto = upsertAgentFromImport(userId, importData);
   } catch (err) {
     if (err instanceof Error && err.name === 'MissingNameError') {
       return NextResponse.json({ error: 'missing_name' }, { status: 400 });

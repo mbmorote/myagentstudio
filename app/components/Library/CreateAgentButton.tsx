@@ -14,6 +14,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { apiFetch } from '@/lib/apiFetch';
 
 export function CreateAgentButton() {
   const [open, setOpen] = useState(false);
@@ -29,7 +30,7 @@ export function CreateAgentButton() {
     setError(null);
 
     try {
-      const response = await fetch('/api/agents', {
+      const response = await apiFetch('/api/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), description: description.trim() }),

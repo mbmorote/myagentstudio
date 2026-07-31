@@ -102,6 +102,21 @@ async function seed() {
     .onConflictDoNothing();
   console.log('  ~ setting: liveLlmCalls (skip if exists)');
 
+  // maxUsers and maxLlmCallsPerUserPerHour — added by Plan 05 (§8 policy 18, §8 policy 24).
+  // onConflictDoNothing is CRITICAL (Rules Index #47): these are admin-owned runtime values;
+  // a DoUpdate would silently reset user-configured limits on every `npm run dev`.
+  await db
+    .insert(schema.setting)
+    .values({ key: 'maxUsers', value: '5' })
+    .onConflictDoNothing();
+  console.log('  ~ setting: maxUsers (skip if exists)');
+
+  await db
+    .insert(schema.setting)
+    .values({ key: 'maxLlmCallsPerUserPerHour', value: '15' })
+    .onConflictDoNothing();
+  console.log('  ~ setting: maxLlmCallsPerUserPerHour (skip if exists)');
+
   console.log('Seed complete.');
   sqlite.close();
 }

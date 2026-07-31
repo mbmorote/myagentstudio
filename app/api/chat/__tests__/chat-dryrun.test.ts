@@ -15,6 +15,18 @@
  */
 
 import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { BOOTSTRAP_USER_ID } from '../../../../lib/auth/constants.js';
+
+// ── Mock getSession — the single auth seam (§10.2) ────────────────────────────
+let currentSession: { userId: string; email: string; role: 'admin' | 'user' } | null = {
+  userId: BOOTSTRAP_USER_ID,
+  email: 'bootstrap@example.test',
+  role: 'user',
+};
+
+vi.mock('../../../../lib/auth/session.js', () => ({
+  getSession: vi.fn(async () => currentSession),
+}));
 
 // ── Replace lib/db/client.ts with in-memory test DB ───────────────────────────
 vi.mock('../../../../lib/db/client.js', async () => {
@@ -85,7 +97,7 @@ beforeAll(() => {
       .run();
   }
 
-  const dto = createAgent('chat-dryrun-test-agent', 'Test agent for chat dry-run');
+  const dto = createAgent(BOOTSTRAP_USER_ID, 'chat-dryrun-test-agent', 'Test agent for chat dry-run');
   testAgentId = dto.id;
 });
 
@@ -144,5 +156,22 @@ describe('POST /api/chat — dry-run', () => {
     for (const section of agentAfter) {
       expect(section.version).toBe(versionsBefore.get(section.id));
     }
+  });
+});
+
+// ── Auth guard: unauthenticated → 401 (§10.2, §3.6) ─────────────────────────
+
+describe('unauthenticated → 401', () => {
+  it('POST /api/chat returns 401 when there is no session', async () => {
+    currentSession = null;
+    const res = await POST(
+      new Request('http://localhost/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId: testAgentId, messages: [] }),
+      }),
+    );
+    expect(res.status).toBe(401);
+    currentSession = { userId: BOOTSTRAP_USER_ID, email: 'bootstrap@example.test', role: 'user' };
   });
 });

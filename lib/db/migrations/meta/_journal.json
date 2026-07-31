@@ -22,6 +22,13 @@
       "when": 1785375377488,
       "tag": "0002_unknown_thunderbolt_ross",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1785445107296,
+      "tag": "0003_fancy_may_parker",
+      "breakpoints": true
     }
   ]
 }

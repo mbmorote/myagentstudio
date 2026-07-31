@@ -8,7 +8,7 @@
  *
  * §4 route contract:
  *   POST request: { groupId: string }
- *   POST errors:  400 invalid body; 404 agent or group not found
+ *   POST errors:  401 unauthorized; 400 invalid body; 404 agent or group not found or not owned
  *
  * Business rules (Plan 03 §5 rule 2):
  *   Many-to-many — an agent may belong to zero, one, or many groups.
@@ -17,10 +17,15 @@
 
 import { NextResponse } from 'next/server';
 import { addMembership } from '@/lib/db/repository';
+import { authenticate } from '@/lib/auth/guard';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function POST(request: Request, { params }: RouteContext): Promise<NextResponse> {
+  const auth = await authenticate();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
   const { id: agentId } = await params;
 
   let body: unknown;
@@ -41,7 +46,7 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
 
   const { groupId } = body as { groupId: string };
 
-  const result = addMembership(agentId, groupId);
+  const result = addMembership(agentId, groupId, session.userId);
   if (result === null) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }

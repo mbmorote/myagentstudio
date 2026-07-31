@@ -8,11 +8,15 @@ import 'server-only';
  * Invariants:
  *   - No UPDATE or DELETE is exported — append-only by design.
  *   - Deleting an agent leaves its log rows intact (soft agentId ref).
- *   - listCallLogs selects explicit columns so a future userId column
- *     cannot silently leak into the list DTO (Plan B readiness, §4.2).
+ *   - listCallLogs selects explicit columns so a future column cannot silently
+ *     leak into the list DTO (Plan B readiness, §4.2).
+ *   - sharedWithAdmin is written ONCE by the gateway at write time and never
+ *     updated — constraint 11. The row's copy governs what the admin sees (§5.6).
+ *   - Pre-auth rows (userId IS NULL) are NEVER redacted, regardless of
+ *     sharedWithAdmin — they predate multi-tenancy and belong to the admin (§4.3).
  */
 
-import { eq, and, desc, SQL } from 'drizzle-orm';
+import { eq, and, gte, desc, sql, SQL } from 'drizzle-orm';
 import { db } from '../client.js';
 import * as schema from '../schema.js';
 import type { LoggedRequest, LoggedResponse } from '../schema.js';
@@ -33,6 +37,10 @@ export type WriteCallLogInput = {
   error?: string | null;
   durationMs: number;
   usage?: { inputTokens: number; outputTokens: number } | null;
+  /** The user who triggered this call; null for pre-auth/script/test rows (§4.3). */
+  userId?: string | null;
+  /** Snapshot of the user's shareLogsWithAdmin at write time (§5.6, constraint 11). */
+  sharedWithAdmin: boolean;
 };
 
 /** Shape returned from listCallLogs — no payloads (§4.2 Plan B readiness). */
@@ -48,19 +56,36 @@ export type CallLogListItem = {
   durationMs: number;
   usage: { inputTokens: number; outputTokens: number } | null;
   createdAt: Date;
+  /** The user who triggered this call; null for pre-auth rows (§4.3). */
+  userId: string | null;
+  /**
+   * Whether the requestPayload/responsePayload would be redacted for the viewer.
+   * Based on the §5.6 rule: userId !== null && userId !== viewerUserId && sharedWithAdmin === false.
+   * In the list DTO, payloads are not included — this flag lets the UI show a lock icon.
+   */
+  redacted: boolean;
 };
 
 /** Full row including payloads — returned only by getCallLog. */
 export type CallLogFull = CallLogListItem & {
-  requestPayload: LoggedRequest;
+  requestPayload: LoggedRequest | null;
   responsePayload: LoggedResponse | null;
 };
 
 export type ListCallLogsOptions = {
-  limit?: number;       // 1–500, default 200
-  dryRun?: boolean;     // filter when provided
-  kind?: LlmCallKind;  // filter when provided
+  limit?: number;        // 1–500, default 200
+  dryRun?: boolean;      // filter when provided
+  kind?: LlmCallKind;   // filter when provided
+  userId?: string | null; // filter to a specific user when provided
+  /**
+   * The user viewing the list. Used to compute the `redacted` flag.
+   * When provided, rows where userId !== viewerUserId && sharedWithAdmin === false
+   * are marked redacted. When omitted, redacted defaults to userId !== null && sharedWithAdmin === false.
+   */
+  viewerUserId?: string | null;
 };
+
+// ─────────────────────────────  Write  ─────────────────────────────────────
 
 /**
  * Appends one row. Returns the generated id.
@@ -80,13 +105,19 @@ export function writeCallLog(input: WriteCallLogInput): string {
     error: input.error ?? null,
     durationMs: input.durationMs,
     usage: input.usage ?? null,
+    userId: input.userId ?? null,
+    sharedWithAdmin: input.sharedWithAdmin,
   }).run();
   return id;
 }
 
+// ─────────────────────────────  Read — list  ────────────────────────────────
+
 /**
  * Lists log rows ordered by createdAt DESC, id DESC.
  * Payloads are excluded (Plan B readiness — explicit column selection).
+ * The `redacted` field on each item indicates whether the detail view would
+ * redact payloads for the given viewer (§5.6).
  */
 export function listCallLogs(opts: ListCallLogsOptions = {}): CallLogListItem[] {
   const limit = Math.min(Math.max(1, opts.limit ?? 200), 500);
@@ -97,6 +128,13 @@ export function listCallLogs(opts: ListCallLogsOptions = {}): CallLogListItem[] 
   }
   if (opts.kind !== undefined) {
     conditions.push(eq(schema.llmCallLog.kind, opts.kind));
+  }
+  if (opts.userId !== undefined) {
+    if (opts.userId === null) {
+      conditions.push(sql`${schema.llmCallLog.userId} IS NULL`);
+    } else {
+      conditions.push(eq(schema.llmCallLog.userId, opts.userId));
+    }
   }
 
   const where = conditions.length > 0
@@ -116,28 +154,53 @@ export function listCallLogs(opts: ListCallLogsOptions = {}): CallLogListItem[] 
       durationMs: schema.llmCallLog.durationMs,
       usage: schema.llmCallLog.usage,
       createdAt: schema.llmCallLog.createdAt,
+      userId: schema.llmCallLog.userId,
+      sharedWithAdmin: schema.llmCallLog.sharedWithAdmin,
     })
     .from(schema.llmCallLog)
     .orderBy(desc(schema.llmCallLog.createdAt), desc(schema.llmCallLog.id))
     .limit(limit);
 
   const rows = where ? q.where(where).all() : q.all();
+  const viewerUserId = opts.viewerUserId;
 
-  return rows.map((r) => ({
-    ...r,
-    kind: r.kind as LlmCallKind,
-    agentId: r.agentId ?? null,
-    agentLabel: r.agentLabel ?? null,
-    dryRun: Boolean(r.dryRun),
-    error: r.error ?? null,
-    usage: r.usage as { inputTokens: number; outputTokens: number } | null,
-  }));
+  return rows.map((r) => {
+    const userId = r.userId ?? null;
+    const shared = Boolean(r.sharedWithAdmin);
+    const redacted = computeRedacted(userId, viewerUserId ?? null, shared);
+    return {
+      id: r.id,
+      kind: r.kind as LlmCallKind,
+      provider: r.provider,
+      agentId: r.agentId ?? null,
+      agentLabel: r.agentLabel ?? null,
+      dryRun: Boolean(r.dryRun),
+      model: r.model,
+      error: r.error ?? null,
+      durationMs: r.durationMs,
+      usage: r.usage as { inputTokens: number; outputTokens: number } | null,
+      createdAt: r.createdAt,
+      userId,
+      redacted,
+    };
+  });
 }
 
+// ─────────────────────────────  Read — detail  ──────────────────────────────
+
 /**
- * Returns a single row with full payloads, or null if not found.
+ * Returns a single row with full payloads (or nulled if redacted), or null if not found.
+ *
+ * viewerUserId is REQUIRED — the §5.6 redaction rule requires knowing who is asking.
+ * There is no default or optional form; a caller that omits it cannot silently get
+ * the unredacted row (same principle as ownerId in §6.1).
+ *
+ * Redaction rule (§5.6):
+ *   redacted = userId !== null && userId !== viewerUserId && sharedWithAdmin === false
+ * When redacted: requestPayload = null, responsePayload = null, redacted = true.
+ * Pre-auth rows (userId === null) are NEVER redacted (§4.3).
  */
-export function getCallLog(id: string): CallLogFull | null {
+export function getCallLog(id: string, viewerUserId: string): CallLogFull | null {
   const row = db
     .select()
     .from(schema.llmCallLog)
@@ -145,6 +208,10 @@ export function getCallLog(id: string): CallLogFull | null {
     .get();
 
   if (!row) return null;
+
+  const userId = row.userId ?? null;
+  const shared = Boolean(row.sharedWithAdmin);
+  const redacted = computeRedacted(userId, viewerUserId, shared);
 
   return {
     id: row.id,
@@ -158,7 +225,70 @@ export function getCallLog(id: string): CallLogFull | null {
     durationMs: row.durationMs,
     usage: row.usage as { inputTokens: number; outputTokens: number } | null,
     createdAt: row.createdAt,
-    requestPayload: row.requestPayload as LoggedRequest,
-    responsePayload: (row.responsePayload ?? null) as LoggedResponse | null,
+    userId,
+    redacted,
+    requestPayload: redacted ? null : (row.requestPayload as LoggedRequest),
+    responsePayload: redacted ? null : ((row.responsePayload ?? null) as LoggedResponse | null),
   };
+}
+
+// ─────────────────────────────  Cap count  ──────────────────────────────────
+
+/**
+ * Counts live (dry_run = 0) calls for a user in a rolling window.
+ * Returns COUNT(*) and MIN(created_at) so the caller can compute
+ * retryAfterSeconds = (oldestAt + windowSeconds) - now.
+ *
+ * `sinceEpochSeconds` = Math.floor((Date.now() / 1000) - windowSeconds) — computed by caller.
+ *
+ * Backed by llm_call_log_user_created_idx (§4.3 / §3.9).
+ */
+export function countLlmCallsInWindow(
+  userId: string,
+  sinceEpochSeconds: number,
+): { count: number; oldestAt: Date | null } {
+  const result = db
+    .select({
+      count: sql<number>`COUNT(*)`,
+      oldestAt: sql<number | null>`MIN(${schema.llmCallLog.createdAt})`,
+    })
+    .from(schema.llmCallLog)
+    .where(
+      and(
+        eq(schema.llmCallLog.userId, userId),
+        eq(schema.llmCallLog.dryRun, false),
+        gte(schema.llmCallLog.createdAt, new Date(sinceEpochSeconds * 1000)),
+      ),
+    )
+    .get();
+
+  const count = result?.count ?? 0;
+  const oldestRaw = result?.oldestAt;
+
+  let oldestAt: Date | null = null;
+  if (oldestRaw !== null && oldestRaw !== undefined) {
+    // sql<number | null> → SQLite returns epoch seconds as a number
+    oldestAt = new Date(oldestRaw * 1000);
+  }
+
+  return { count, oldestAt };
+}
+
+// ─────────────────────────────  Internal helpers  ───────────────────────────
+
+/**
+ * §5.6 redaction rule:
+ *   redacted = userId !== null && userId !== viewerUserId && sharedWithAdmin === false
+ *
+ * Pre-auth rows (userId === null) are never redacted.
+ * The viewer's own rows (userId === viewerUserId) are never redacted.
+ */
+function computeRedacted(
+  userId: string | null,
+  viewerUserId: string | null,
+  sharedWithAdmin: boolean,
+): boolean {
+  if (userId === null) return false;          // pre-auth row — never redacted (§4.3)
+  if (userId === viewerUserId) return false;  // viewer's own row
+  return !sharedWithAdmin;
 }

@@ -9,22 +9,31 @@
  * §4 route contract:
  *   POST request:  { name: string }
  *   POST response: 201 { id, name, memberAgentIds: [] }
- *   POST errors:   400 invalid body; 409 { error: 'name_exists' }
+ *   POST errors:   401 unauthorized; 400 invalid body; 409 { error: 'name_exists' }
  *
  * Business rules (Plan 03 §5):
- *   - Group name is globally unique (schema UNIQUE constraint).
+ *   - Group name is unique per owner (§6.3 — composite unique index).
  *   - parentId is always null (R1 — flat MVP).
  */
 
 import { NextResponse } from 'next/server';
 import { listGroups, createGroup } from '@/lib/db/repository';
+import { authenticate } from '@/lib/auth/guard';
 
-export function GET(): NextResponse {
-  const groups = listGroups();
+export async function GET(): Promise<NextResponse> {
+  const auth = await authenticate();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
+  const groups = listGroups(session.userId);
   return NextResponse.json(groups, { status: 200 });
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const auth = await authenticate();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
   let body: unknown;
   try {
     body = await request.json();
@@ -47,7 +56,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const { name } = body as { name: string };
 
   try {
-    const dto = createGroup(name.trim());
+    const dto = createGroup(session.userId, name.trim());
     return NextResponse.json(dto, { status: 201 });
   } catch (err) {
     if (err instanceof Error && err.name === 'NameExistsError') {

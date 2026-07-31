@@ -54,6 +54,7 @@ import * as schema from '../../db/schema.js';
 import { testDb } from '../../db/__tests__/test-db.js';
 import { CONFIG_DEFS, SECTION_DEFS } from '../../blueprint/catalog.js';
 import { upsertAgentFromImport, getAgentFull, getAgentSnapshotInfo } from '../../db/repository/agents.js';
+import { BOOTSTRAP_USER_ID } from '../../auth/constants.js';
 import { parse } from '../../serialize/index.js';
 import { assembleStructural } from '../assembleStructural.js';
 import { checkCoverage } from '../coverage.js';
@@ -130,12 +131,12 @@ describe('structural import pipeline — first import of dev.md (mocked)', () =>
   beforeAll(() => {
     vi.mocked(callStructuralConverter).mockResolvedValue(CANONICAL_RESTRUCTURED_BODY);
     const importData = assembleStructural(devParsed, CANONICAL_RESTRUCTURED_BODY, devMdRaw);
-    const dto = upsertAgentFromImport(importData);
+    const dto = upsertAgentFromImport(BOOTSTRAP_USER_ID, importData);
     agentId = dto.id;
   });
 
   it('sections land under the canonical sectionKeys', () => {
-    const dto = getAgentFull(agentId);
+    const dto = getAgentFull(agentId, BOOTSTRAP_USER_ID);
     expect(dto).not.toBeNull();
     const keys = dto!.sections.map((s) => s.sectionKey).sort();
     // 'behavior' because # BEHAVIOR is the canonical defaultHeading for 'behavior'.
@@ -146,14 +147,14 @@ describe('structural import pipeline — first import of dev.md (mocked)', () =>
   });
 
   it('heading for behavior section is the canonical # BEHAVIOR (renamed by converter)', () => {
-    const dto = getAgentFull(agentId);
+    const dto = getAgentFull(agentId, BOOTSTRAP_USER_ID);
     const behaviorSection = dto!.sections.find((s) => s.sectionKey === 'behavior');
     expect(behaviorSection).toBeDefined();
     expect(behaviorSection!.heading).toBe('# BEHAVIOR');
   });
 
   it('config comes from original Stage-1 frontmatter (not from converter output)', () => {
-    const dto = getAgentFull(agentId);
+    const dto = getAgentFull(agentId, BOOTSTRAP_USER_ID);
     // name and description from original frontmatter.
     expect(dto!.name).toBe('dev');
     // model config key must exist, value from original frontmatter.
@@ -216,7 +217,7 @@ describe('structural import short-circuit — identical rawSourceSnapshot', () =
   it('skips the AI call when rawSourceSnapshot matches the incoming file', () => {
     // The dev agent was imported in the previous describe block.
     // Its rawSourceSnapshot == devMdRaw. Verify the short-circuit condition holds.
-    const snapshotInfo = getAgentSnapshotInfo('dev');
+    const snapshotInfo = getAgentSnapshotInfo('dev', BOOTSTRAP_USER_ID);
     expect(snapshotInfo).not.toBeNull();
     expect(snapshotInfo!.rawSourceSnapshot).toBe(devMdRaw);
 
@@ -229,7 +230,7 @@ describe('structural import short-circuit — identical rawSourceSnapshot', () =
 
     // Simulate route short-circuit: rawSourceSnapshot === rawMd → return current DTO without calling converter.
     vi.mocked(callStructuralConverter).mockClear();
-    const dto = getAgentFull(snapshotInfo!.id);
+    const dto = getAgentFull(snapshotInfo!.id, BOOTSTRAP_USER_ID);
     expect(dto).not.toBeNull();
 
     // No converter call should happen in the short-circuit path.

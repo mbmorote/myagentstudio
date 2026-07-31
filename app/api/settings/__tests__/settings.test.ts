@@ -9,6 +9,19 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
+import { BOOTSTRAP_USER_ID } from '../../../../lib/auth/constants.js';
+
+// ── Mock getSession — the single auth seam (§10.2) ────────────────────────────
+let currentSession: { userId: string; email: string; role: 'admin' | 'user' } | null = {
+  userId: BOOTSTRAP_USER_ID,
+  email: 'bootstrap@example.test',
+  role: 'admin',
+};
+
+vi.mock('../../../../lib/auth/session.js', () => ({
+  getSession: vi.fn(async () => currentSession),
+}));
 
 // ── Replace lib/db/client.ts with in-memory test DB ───────────────────────────
 vi.mock('../../../../lib/db/client.js', async () => {
@@ -26,8 +39,12 @@ beforeEach(() => {
   testDb.delete(schema.setting).run();
 });
 
-function makePatch(body: Record<string, unknown>): Request {
-  return new Request('http://localhost/api/settings', {
+function makeGet(): NextRequest {
+  return new NextRequest('http://localhost/api/settings');
+}
+
+function makePatch(body: Record<string, unknown>): NextRequest {
+  return new NextRequest('http://localhost/api/settings', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -36,7 +53,7 @@ function makePatch(body: Record<string, unknown>): Request {
 
 describe('GET /api/settings', () => {
   it('returns liveLlmCalls with isDefault:true and value:true when no row exists', async () => {
-    const res = GET();
+    const res = await GET(makeGet());
     expect(res.status).toBe(200);
     const body = await res.json() as { settings: Record<string, unknown>[] };
     expect(Array.isArray(body.settings)).toBe(true);
@@ -52,7 +69,7 @@ describe('GET /api/settings', () => {
 
   it('returns isDefault:false with stored value after a PATCH', async () => {
     await PATCH(makePatch({ key: 'liveLlmCalls', value: false }));
-    const res = GET();
+    const res = await GET(makeGet());
     const body = await res.json() as { settings: Record<string, unknown>[] };
     const liveEntry = body.settings.find((s) => s.key === 'liveLlmCalls');
     expect(liveEntry?.isDefault).toBe(false);
@@ -106,10 +123,21 @@ describe('PATCH /api/settings', () => {
   it('toggle round-trip: true then false, then GET reflects false', async () => {
     await PATCH(makePatch({ key: 'liveLlmCalls', value: true }));
     await PATCH(makePatch({ key: 'liveLlmCalls', value: false }));
-    const res = GET();
+    const res = await GET(makeGet());
     const body = await res.json() as { settings: Record<string, unknown>[] };
     const liveEntry = body.settings.find((s) => s.key === 'liveLlmCalls');
     expect(liveEntry?.value).toBe(false);
     expect(liveEntry?.isDefault).toBe(false);
+  });
+});
+
+// ── Auth guard: unauthenticated → 401 (§10.2, §3.6) ─────────────────────────
+
+describe('unauthenticated → 401', () => {
+  it('GET /api/settings returns 401 when there is no session', async () => {
+    currentSession = null;
+    const res = await GET(makeGet());
+    expect(res.status).toBe(401);
+    currentSession = { userId: BOOTSTRAP_USER_ID, email: 'bootstrap@example.test', role: 'admin' };
   });
 });

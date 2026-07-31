@@ -20,11 +20,16 @@
  *   - Done: onChatEnd() → lock released.
  *   - Cancel: abort() → lock released immediately.
  *   - lock='edit': send disabled.
+ *
+ * Plan 05 Phase 4.1 — fetch → apiFetch (§5.4).
+ * Plan 05 Phase 4.7 — cap-reached 429 handling (§3.9): two-action prompt
+ *   "Preview without sending" (re-sends with dryRun:true) or "Wait" (dismiss).
  */
 
 import { useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import type { InteractionLock, SectionUpdateResult } from '@/app/components/WorkbenchShell';
+import { apiFetch } from '@/lib/apiFetch';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -33,6 +38,16 @@ interface ChatMessage {
   changedSectionKeys?: string[];
   /** Non-null when this message is a dry-run notice (§5.2) */
   dryRunLogId?: string | null;
+}
+
+/** State for a cap-reached prompt, shown in place of a message bubble (§3.9). */
+interface CapPrompt {
+  /** The instruction that was blocked, so we can re-send it as dry-run */
+  instruction: string;
+  /** Human-readable time until a slot frees up */
+  retryAfterSeconds: number;
+  /** Whether the preview fallback is available (should always be true here, but guard it) */
+  canDryRun: boolean;
 }
 
 interface ChatPanelProps {
@@ -55,6 +70,7 @@ export function ChatPanel({
   const [instruction, setInstruction] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isInFlight, setIsInFlight] = useState(false);
+  const [capPrompt, setCapPrompt] = useState<CapPrompt | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -65,24 +81,21 @@ export function ChatPanel({
   const canSend = !isInFlight && interactionLock !== 'edit' && instruction.trim().length > 0;
   const canCancel = isInFlight;
 
-  async function handleSend() {
-    if (!canSend) return;
-    const trimmed = instruction.trim();
-    if (!trimmed) return;
-
-    setMessages((prev) => [...prev, { role: 'user', text: trimmed }]);
-    setInstruction('');
+  /** Core send logic — separated so it can be called both for normal sends and
+   *  the dry-run re-send on cap-reached "Preview" (§3.9). */
+  async function doSend(text: string, dryRun = false) {
     setIsInFlight(true);
+    setCapPrompt(null);
     onChatStart();
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId, instruction: trimmed }),
+        body: JSON.stringify({ agentId, instruction: text, ...(dryRun ? { dryRun: true } : {}) }),
         signal: controller.signal,
       });
 
@@ -94,7 +107,21 @@ export function ChatPanel({
         dryRun?: boolean;
         logId?: string | null;
         sections?: Record<string, SectionUpdateResult>;
+        limit?: number;
+        windowSeconds?: number;
+        retryAfterSeconds?: number;
+        canDryRun?: boolean;
       };
+
+      // Per-user LLM cap reached (§3.9) — offer two choices instead of showing an error
+      if (response.status === 429 && body.error === 'llm_cap_reached') {
+        setCapPrompt({
+          instruction: text,
+          retryAfterSeconds: body.retryAfterSeconds ?? 60,
+          canDryRun: body.canDryRun ?? true,
+        });
+        return;
+      }
 
       // Dry-run blocked: render as assistant notice bubble with link (§5.2)
       // The finally block still runs → interaction lock is released.
@@ -162,6 +189,29 @@ export function ChatPanel({
     }
   }
 
+  async function handleSend() {
+    if (!canSend) return;
+    const trimmed = instruction.trim();
+    if (!trimmed) return;
+
+    setMessages((prev) => [...prev, { role: 'user', text: trimmed }]);
+    setInstruction('');
+    await doSend(trimmed);
+  }
+
+  /** "Preview without sending" — re-sends the blocked instruction as dry-run (§3.9) */
+  async function handleCapPreview() {
+    if (!capPrompt) return;
+    const text = capPrompt.instruction;
+    setCapPrompt(null);
+    await doSend(text, true);
+  }
+
+  /** "Wait" — dismiss the cap prompt */
+  function handleCapDismiss() {
+    setCapPrompt(null);
+  }
+
   function handleCancel() {
     if (!abortControllerRef.current) return;
     abortControllerRef.current.abort();
@@ -181,12 +231,18 @@ export function ChatPanel({
     }
   }
 
+  function humanizeSecs(secs: number): string {
+    if (secs < 60) return `${secs} second${secs !== 1 ? 's' : ''}`;
+    const m = Math.floor(secs / 60);
+    return `${m} minute${m !== 1 ? 's' : ''}`;
+  }
+
   return (
     /* .chat */
     <div className="flex flex-col h-full">
       {/* Message scroll area — .chat-scroll */}
       <div className="flex-1 min-h-0 overflow-auto px-[14px] pt-[14px] pb-[6px] flex flex-col gap-3">
-        {messages.length === 0 && (
+        {messages.length === 0 && !capPrompt && (
           <p className="text-[12px] text-[var(--faint)] text-center pt-8">
             Edit {agentName}…
             <br />
@@ -253,6 +309,44 @@ export function ChatPanel({
             </div>
           </div>
         ))}
+
+        {/* Cap-reached prompt (§3.9) — two actions instead of an error */}
+        {capPrompt && (
+          <div className="self-start max-w-[92%]">
+            <span className="text-[10px] text-[var(--faint)] tracking-[.04em] mb-1 block">✦ Mediator</span>
+            <div className="bg-[var(--elev)] border border-[var(--warn)] rounded-[10px] rounded-bl-[3px] px-[11px] py-[8px] text-[12px] leading-[1.5] space-y-2">
+              <p className="text-[var(--text)] font-medium">Hourly call limit reached</p>
+              <p className="text-[var(--muted)]">
+                You&apos;ve reached the hourly AI call limit. A slot frees up in approximately{' '}
+                <strong>{humanizeSecs(capPrompt.retryAfterSeconds)}</strong>.
+              </p>
+              {capPrompt.canDryRun && (
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={handleCapPreview}
+                    className="px-3 py-1 text-[11px] font-medium bg-[var(--accent)] text-white rounded-[6px] hover:opacity-90 cursor-pointer"
+                  >
+                    Preview without sending
+                  </button>
+                  <button
+                    onClick={handleCapDismiss}
+                    className="px-3 py-1 text-[11px] text-[var(--muted)] hover:text-[var(--text)] cursor-pointer"
+                  >
+                    Wait
+                  </button>
+                </div>
+              )}
+              {!capPrompt.canDryRun && (
+                <button
+                  onClick={handleCapDismiss}
+                  className="text-[11px] text-[var(--muted)] hover:text-[var(--text)] cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {isInFlight && (
           <div className="self-start max-w-[92%]">

@@ -60,6 +60,7 @@ import {
   upsertAgentFromImport,
   getAgentFull,
 } from '../../db/repository/agents.js';
+import { BOOTSTRAP_USER_ID } from '../../auth/constants.js';
 import { parse, exportAgent } from '../../serialize/index.js';
 import { assemble } from '../assemble.js';
 import { callImportConverter } from '../../ai/importConverter.js';
@@ -122,7 +123,7 @@ describe('assemble + upsertAgentFromImport (dev.md, first import)', () => {
     vi.mocked(callImportConverter).mockResolvedValue(DEV_LABELS);
 
     const importData = assemble(devParsed, DEV_LABELS, devMdRaw);
-    dto = upsertAgentFromImport(importData);
+    dto = upsertAgentFromImport(BOOTSTRAP_USER_ID,importData);
     agentId = dto!.id;
   });
 
@@ -257,7 +258,7 @@ describe('re-import with a changed section', () => {
     const modifiedParsed = { ...devParsed, blocks: modifiedBlocks };
 
     const importData = assemble(modifiedParsed, DEV_LABELS, devMdRaw);
-    const dto = upsertAgentFromImport(importData);
+    const dto = upsertAgentFromImport(BOOTSTRAP_USER_ID,importData);
 
     // Find the role section after re-import.
     const roleSection = dto.sections.find((s) => s.sectionKey === 'role');
@@ -330,7 +331,7 @@ describe('re-import with a section removed from the incoming file', () => {
     };
 
     const importData = assemble(parsedWithoutOutput, labelsWithoutOutput, devMdRaw);
-    upsertAgentFromImport(importData);
+    upsertAgentFromImport(BOOTSTRAP_USER_ID,importData);
 
     // AgentSection for "output" should be gone.
     const sectionRow = testDb
@@ -377,7 +378,7 @@ describe('AgentSnapshot pre/post invariant on re-import (§6 rule 7)', () => {
 
     // Run another re-import.
     const importData = assemble(devParsed, DEV_LABELS, devMdRaw);
-    upsertAgentFromImport(importData);
+    upsertAgentFromImport(BOOTSTRAP_USER_ID,importData);
 
     const afterSnapshots = testDb
       .select()
@@ -526,7 +527,7 @@ describe('A1 — multi-custom section re-import (identity-based reconciliation)'
   });
 
   it('first import creates three sections: custom(null), role, custom(#MISC)', () => {
-    const dto = upsertAgentFromImport(buildImportData(preambleContent, unmappedContent, roleContent));
+    const dto = upsertAgentFromImport(BOOTSTRAP_USER_ID,buildImportData(preambleContent, unmappedContent, roleContent));
     expect(dto.sections.length).toBe(3);
     const customSections = dto.sections.filter((s) => s.sectionKey === 'custom');
     expect(customSections.length).toBe(2);
@@ -556,7 +557,7 @@ describe('A1 — multi-custom section re-import (identity-based reconciliation)'
     expect(sectionsBeforeReimport.length).toBe(3);
 
     // Re-import with identical data (same name, same content).
-    const dto = upsertAgentFromImport(buildImportData(preambleContent, unmappedContent, roleContent));
+    const dto = upsertAgentFromImport(BOOTSTRAP_USER_ID,buildImportData(preambleContent, unmappedContent, roleContent));
     expect(dto.sections.length).toBe(3);
 
     // Content must be unchanged.
@@ -611,7 +612,7 @@ describe('A1 — multi-custom section re-import (identity-based reconciliation)'
     expect(miscSectionBefore).toBeDefined();
 
     // Re-import with only the MISC block's content changed.
-    const dto = upsertAgentFromImport(
+    const dto = upsertAgentFromImport(BOOTSTRAP_USER_ID,
       buildImportData(preambleContent, changedUnmappedContent, roleContent),
     );
     expect(dto.sections.length).toBe(3);
@@ -661,7 +662,7 @@ describe('A2 — FrontmatterParseError and missing_name rejection', () => {
       config: [],
       sections: [],
     };
-    expect(() => upsertAgentFromImport(data)).toThrow('missing_name');
+    expect(() => upsertAgentFromImport(BOOTSTRAP_USER_ID,data)).toThrow('missing_name');
   });
 
   it('upsertAgentFromImport throws MissingNameError on whitespace-only name', () => {
@@ -674,7 +675,7 @@ describe('A2 — FrontmatterParseError and missing_name rejection', () => {
       config: [],
       sections: [],
     };
-    expect(() => upsertAgentFromImport(data)).toThrow('missing_name');
+    expect(() => upsertAgentFromImport(BOOTSTRAP_USER_ID,data)).toThrow('missing_name');
   });
 });
 

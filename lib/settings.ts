@@ -27,6 +27,10 @@ export type SettingDef = {
   default: boolean | number | string;
   label: string;
   hint: string;
+  /** Minimum value (inclusive) — only meaningful for 'int' settings (§15.5). */
+  min?: number;
+  /** Maximum value (inclusive) — only meaningful for 'int' settings. */
+  max?: number;
 };
 
 /**
@@ -41,6 +45,22 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     default: true,
     label: 'Live LLM calls',
     hint: 'When off, AI calls are recorded and blocked before any network request is made. No response is produced.',
+  },
+  {
+    key: 'maxUsers',
+    datatype: 'int',
+    default: 5,
+    min: 1,
+    label: 'Max users',
+    hint: 'Maximum number of user accounts that may be created via signup (including the admin). Lowering it below the current count does not remove anyone; it only blocks new signups.',
+  },
+  {
+    key: 'maxLlmCallsPerUserPerHour',
+    datatype: 'int',
+    default: 15,
+    min: 1,
+    label: 'Max LLM calls per user per hour',
+    hint: 'Per-user hourly LLM call cap (rolling 60-minute window). Admin is exempt. Setting to 0 is not allowed; use "Live LLM calls: off" to block all calls globally.',
   },
 ] as const;
 
@@ -101,4 +121,47 @@ export function getLiveLlmCalls(): boolean {
   }
 
   return parsed as boolean;
+}
+
+/**
+ * Returns the current effective value of `maxUsers`.
+ *
+ * Row absent → returns the SETTING_DEFS default (5).
+ * Unparseable value → returns 1 (minimum, most restrictive) + console.warn.
+ * A value below 1 stored in the DB (shouldn't happen — PATCH validates) → treated as 1.
+ */
+export function getMaxUsers(): number {
+  const def = SETTING_DEFS.find((d) => d.key === 'maxUsers')!;
+  const raw = getSetting('maxUsers');
+  if (raw === null) return def.default as number;
+
+  const parsed = parseSettingValue(raw, 'int');
+  if (parsed === null || (parsed as number) < 1) {
+    console.warn(
+      `[settings] maxUsers has invalid value "${raw}" — using minimum of 1`,
+    );
+    return 1;
+  }
+  return parsed as number;
+}
+
+/**
+ * Returns the current effective value of `maxLlmCallsPerUserPerHour`.
+ *
+ * Row absent → returns the SETTING_DEFS default (15).
+ * Unparseable or < 1 → returns 1 (minimum) + console.warn.
+ */
+export function getMaxLlmCallsPerUserPerHour(): number {
+  const def = SETTING_DEFS.find((d) => d.key === 'maxLlmCallsPerUserPerHour')!;
+  const raw = getSetting('maxLlmCallsPerUserPerHour');
+  if (raw === null) return def.default as number;
+
+  const parsed = parseSettingValue(raw, 'int');
+  if (parsed === null || (parsed as number) < 1) {
+    console.warn(
+      `[settings] maxLlmCallsPerUserPerHour has invalid value "${raw}" — using minimum of 1`,
+    );
+    return 1;
+  }
+  return parsed as number;
 }

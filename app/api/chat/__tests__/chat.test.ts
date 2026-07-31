@@ -21,6 +21,18 @@
 
 import { beforeAll, describe, expect, it, vi, type MockedFunction } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { BOOTSTRAP_USER_ID } from '../../../../lib/auth/constants.js';
+
+// ── Mock getSession — the single auth seam (§10.2) ────────────────────────────
+let currentSession: { userId: string; email: string; role: 'admin' | 'user' } | null = {
+  userId: BOOTSTRAP_USER_ID,
+  email: 'bootstrap@example.test',
+  role: 'user',
+};
+
+vi.mock('../../../../lib/auth/session.js', () => ({
+  getSession: vi.fn(async () => currentSession),
+}));
 
 // ── Replace lib/db/client.ts with in-memory test DB ───────────────────────────
 vi.mock('../../../../lib/db/client.js', async () => {
@@ -100,7 +112,8 @@ beforeAll(() => {
   }
 
   // Create a test agent (source:'created', 4 core sections, version=0 each)
-  const dto = createAgent('test-agent', 'A test agent for chat route tests');
+  // BOOTSTRAP_USER_ID as owner (Phase 0 scaffold — matches the route's hard-coded ownerId)
+  const dto = createAgent(BOOTSTRAP_USER_ID, 'test-agent', 'A test agent for chat route tests');
   testAgentId = dto.id;
 });
 
@@ -153,7 +166,7 @@ describe('POST /api/chat', () => {
 
   // ── 3. Two-section mediator response → both versions bumped, two ai revisions ──
   it('two-section response bumps both versions and writes two ai revisions', async () => {
-    const agent = getAgentFull(testAgentId)!;
+    const agent = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
     const roleSection = agent.sections.find((s) => s.sectionKey === 'role')!;
     const behaviorSection = agent.sections.find((s) => s.sectionKey === 'behavior')!;
     const roleVersionBefore = roleSection.version;
@@ -204,7 +217,7 @@ describe('POST /api/chat', () => {
 
   // ── 4. Split-level heading demotion before persistence (Rules Index #3) ────
   it('demotes split-level headings in mediator output before writing to DB', async () => {
-    const agent = getAgentFull(testAgentId)!;
+    const agent = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
     // agent.splitLevel is 1 (created agents default to 1)
     expect(agent.splitLevel).toBe(1);
 
@@ -244,7 +257,7 @@ describe('POST /api/chat', () => {
 
   // ── 5. Per-section conflict: one conflict doesn't block others ─────────────
   it('conflicted section reported individually; other sections still apply', async () => {
-    const agent = getAgentFull(testAgentId)!;
+    const agent = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
     const outputSection = agent.sections.find((s) => s.sectionKey === 'output')!;
     const roleSection = agent.sections.find((s) => s.sectionKey === 'role')!;
 
@@ -343,7 +356,9 @@ describe('POST /api/chat', () => {
       async () => {
         // Side-effect: bump 'output' version in the DB (concurrent edit)
         updateSectionContent(
+          testAgentId,
           outputSection.id,
+          BOOTSTRAP_USER_ID,
           concurrentContent,
           'user',
           outputVersionBefore,
@@ -382,7 +397,7 @@ describe('POST /api/chat', () => {
 
   // ── 6. Cancellation: aborted request → zero DB writes ────────────────────
   it('cancellation: aborted request (signal fires) → zero DB writes, no revisions, no version bump', async () => {
-    const agentBefore = getAgentFull(testAgentId)!;
+    const agentBefore = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
     const versionsBefore = new Map(agentBefore.sections.map((s) => [s.id, s.version]));
 
     const aiRevisionsBefore = testDb
@@ -437,9 +452,26 @@ describe('POST /api/chat', () => {
     expect(aiRevisionsAfter).toBe(aiRevisionsBefore);
 
     // No version bumps on any section
-    const agentAfter = getAgentFull(testAgentId)!;
+    const agentAfter = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
     for (const section of agentAfter.sections) {
       expect(section.version).toBe(versionsBefore.get(section.id));
     }
+  });
+});
+
+// ── Auth guard: unauthenticated → 401 (§10.2, §3.6) ─────────────────────────
+
+describe('unauthenticated → 401', () => {
+  it('POST /api/chat returns 401 when there is no session', async () => {
+    currentSession = null;
+    const res = await POST(
+      new Request('http://localhost/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId: testAgentId, messages: [] }),
+      }),
+    );
+    expect(res.status).toBe(401);
+    currentSession = { userId: BOOTSTRAP_USER_ID, email: 'bootstrap@example.test', role: 'user' };
   });
 });

@@ -9,7 +9,7 @@
  * §5 route contract:
  *   Request:  { content: string, expectedVersion: number }
  *   Response: { content: string, version: number }
- *   Errors:   400 invalid body; 404 section not found; 409 version_conflict (R4)
+ *   Errors:   401 unauthorized; 400 invalid body; 404 section not found or not owned; 409 version_conflict (R4)
  *
  * Business rules (§6):
  *   - author:'user' for manual edits (interaction-lock client-enforcement means
@@ -21,12 +21,18 @@
  */
 
 import { NextResponse } from 'next/server';
-import { updateSectionContent, VersionConflictError } from '@/lib/db/repository';
+import { updateSectionContent, VersionConflictError, SectionNotFoundError } from '@/lib/db/repository';
+import { authenticate } from '@/lib/auth/guard';
 
 type RouteContext = { params: Promise<{ id: string; sectionId: string }> };
 
 export async function PATCH(request: Request, { params }: RouteContext): Promise<NextResponse> {
-  const { sectionId } = await params;
+  const auth = await authenticate();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
+  // Both [id] (agentId) and [sectionId] are required for the §6.4 ownership check
+  const { id: agentId, sectionId } = await params;
 
   let body: unknown;
   try {
@@ -50,7 +56,7 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
   const { content, expectedVersion } = body as { content: string; expectedVersion: number };
 
   try {
-    const result = updateSectionContent(sectionId, content, 'user', expectedVersion);
+    const result = updateSectionContent(agentId, sectionId, session.userId, content, 'user', expectedVersion);
     return NextResponse.json({ content, version: result.version }, { status: 200 });
   } catch (err) {
     if (err instanceof VersionConflictError) {
@@ -58,6 +64,9 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
         { error: 'version_conflict', current: err.current },
         { status: 409 },
       );
+    }
+    if (err instanceof SectionNotFoundError) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404 });
     }
     if (err instanceof Error && err.message.includes('Section not found')) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 });

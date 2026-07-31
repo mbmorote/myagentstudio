@@ -16,6 +16,18 @@
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { BOOTSTRAP_USER_ID } from '../../../../lib/auth/constants.js';
+
+// ── Mock getSession — the single auth seam (§10.2) ────────────────────────────
+let currentSession: { userId: string; email: string; role: 'admin' | 'user' } | null = {
+  userId: BOOTSTRAP_USER_ID,
+  email: 'bootstrap@example.test',
+  role: 'user',
+};
+
+vi.mock('../../../../lib/auth/session.js', () => ({
+  getSession: vi.fn(async () => currentSession),
+}));
 
 // ── Replace lib/db/client.ts with in-memory test DB ───────────────────────────
 vi.mock('../../../../lib/db/client.js', async () => {
@@ -171,5 +183,16 @@ describe('POST /api/agents/import — dry-run', () => {
 
     // Zero agent-side writes
     expect(countAgents()).toBe(agentsBefore);
+  });
+});
+
+// ── Auth guard: unauthenticated → 401 (§10.2, §3.6) ─────────────────────────
+
+describe('unauthenticated → 401', () => {
+  it('POST /api/agents/import returns 401 when there is no session', async () => {
+    currentSession = null;
+    const res = await POST(makeRequest({ md: VALID_MD, mode: 'structural' }));
+    expect(res.status).toBe(401);
+    currentSession = { userId: BOOTSTRAP_USER_ID, email: 'bootstrap@example.test', role: 'user' };
   });
 });

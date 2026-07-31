@@ -14,13 +14,37 @@
  * one place (Plan §3 notes, Rules Index #8a).
  */
 
-import { sqliteTable, text, integer, primaryKey, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
+
+// ─────────────────────────────  User  ─────────────────────────────
+export const user = sqliteTable('user', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  email: text('email').notNull().unique(),          // stored lowercased + trimmed
+  passwordHash: text('password_hash').notNull(),    // '' = sentinel (§3.7)
+  role: text('role', { enum: ['admin', 'user'] }).notNull().default('user'),
+  shareLogsWithAdmin: integer('share_logs_with_admin', { mode: 'boolean' })
+    .notNull().default(false),                      // opt-in consent, §5.6
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+});
+
+// ─────────────────────────────  InviteCode  ─────────────────────────────
+export const inviteCode = sqliteTable('invite_code', {
+  code: text('code').primaryKey(),                  // canonical 'XXXX-XXXX-XXXX-XXXX'
+  note: text('note'),                               // optional admin label
+  createdBy: text('created_by').notNull(),          // soft ref → user.id
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  redeemedBy: text('redeemed_by'),                  // soft ref → user.id; NULL = unused
+  redeemedAt: integer('redeemed_at', { mode: 'timestamp' }),
+}, (t) => ({
+  byRedeemed: index('invite_code_redeemed_idx').on(t.redeemedBy),
+}));
 
 // ─────────────────────────────  Agent  ─────────────────────────────
 export const agent = sqliteTable('agent', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  name: text('name').notNull().unique(),            // stored verbatim; flag-don't-block (Rules #1)
+  ownerId: text('owner_id').notNull(),              // soft ref → user.id
+  name: text('name').notNull(),                     // stored verbatim; flag-don't-block (Rules #1); .unique() removed — per-owner unique (§4.3)
   description: text('description').notNull(),        // missing-on-import ⇒ placeholder (Rules #12)
   source: text('source', { enum: ['created', 'imported'] }).notNull(),
   platform: text('platform').notNull().default('claude'),   // NOT a DB enum — open catalog (PLATFORM_DEFS, §4); only 'claude' exists in this plan
@@ -28,7 +52,10 @@ export const agent = sqliteTable('agent', {
   rawSourceSnapshot: text('raw_source_snapshot'),   // nullable: whole original .md, byte-for-byte
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-});
+}, (t) => ({
+  ownerName: uniqueIndex('agent_owner_name_unique').on(t.ownerId, t.name),
+  byOwner:   index('agent_owner_idx').on(t.ownerId),
+}));
 
 // ─────────────────────  Zone 1: Config catalog + values  ─────────────────────
 export const configDef = sqliteTable('config_def', {
@@ -98,10 +125,14 @@ export const sectionRevision = sqliteTable('section_revision', {
 // ─────────────────────  Grouping (schema now, UI later)  ─────────────────────
 export const group = sqliteTable('group', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  name: text('name').notNull().unique(),            // globally unique now → per-parent later (additive)
+  ownerId: text('owner_id').notNull(),              // soft ref → user.id
+  name: text('name').notNull(),                     // per-owner unique (§4.3)
   parentId: text('parent_id'),                      // nullable; always null in flat MVP
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-});
+}, (t) => ({
+  ownerName: uniqueIndex('group_owner_name_unique').on(t.ownerId, t.name),
+  byOwner:   index('group_owner_idx').on(t.ownerId),
+}));
 
 export const membership = sqliteTable('membership', {
   agentId: text('agent_id').notNull(),
@@ -153,11 +184,15 @@ export const llmCallLog = sqliteTable('llm_call_log', {
   error: text('error'),                         // '<ErrorName>: <message>', ≤2000 chars
   durationMs: integer('duration_ms').notNull(),
   usage: text('usage', { mode: 'json' }).$type<{ inputTokens: number; outputTokens: number } | null>(),
+  userId: text('user_id'),                      // SOFT ref → user.id; NULL = pre-auth row (§4.3)
+  sharedWithAdmin: integer('shared_with_admin', { mode: 'boolean' })
+    .notNull().default(false),                  // consent snapshot at write time — never updated (§5.6)
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull().default(sql`(unixepoch())`),
 }, (t) => ({
-  byCreated: index('llm_call_log_created_idx').on(t.createdAt),
-  byKind:    index('llm_call_log_kind_idx').on(t.kind),
+  byCreated:    index('llm_call_log_created_idx').on(t.createdAt),
+  byKind:       index('llm_call_log_kind_idx').on(t.kind),
+  byUserCreated: index('llm_call_log_user_created_idx').on(t.userId, t.createdAt), // §3.9 cap count
 }));
 
 // ─────────────────────  Whole-agent snapshots (import/export)  ─────────────────────

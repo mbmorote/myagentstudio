@@ -12,12 +12,24 @@
  */
 
 import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { BOOTSTRAP_USER_ID } from '../../../../lib/auth/constants.js';
 
 // ── Replace lib/db/client.ts with in-memory test DB ───────────────────────────
 vi.mock('../../../../lib/db/client.js', async () => {
   const { testDb } = await import('../../../../lib/db/__tests__/test-db.js');
   return { db: testDb };
 });
+
+// ── Mock getSession — the single auth seam (§10.2) ────────────────────────────
+let currentSession: { userId: string; email: string; role: 'admin' | 'user' } | null = {
+  userId: BOOTSTRAP_USER_ID,
+  email: 'bootstrap@example.test',
+  role: 'user',
+};
+
+vi.mock('../../../../lib/auth/session.js', () => ({
+  getSession: vi.fn(async () => currentSession),
+}));
 
 // ── Imports after mock ─────────────────────────────────────────────────────────
 import * as schema from '../../../../lib/db/schema.js';
@@ -133,3 +145,18 @@ describe('GET /api/agents/[id]/export', () => {
     expect(snapshotsAfter.length).toBe(snapshotsBefore.length);
   });
 });
+
+// ── Auth guard: unauthenticated → 401 (§10.2, §3.6) ─────────────────────────
+
+describe('unauthenticated → 401', () => {
+  it('GET /api/agents/[id]/export returns 401 when there is no session', async () => {
+    currentSession = null;
+    const res = await exportGET(
+      new Request('http://localhost/api/agents/any-id/export'),
+      makeParamsContext({ id: 'any-id' }),
+    );
+    expect(res.status).toBe(401);
+    currentSession = { userId: BOOTSTRAP_USER_ID, email: 'bootstrap@example.test', role: 'user' };
+  });
+});
+

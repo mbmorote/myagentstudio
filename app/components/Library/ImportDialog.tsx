@@ -20,6 +20,10 @@
  *   - Error codes (400/422/502) → inline message keyed off error code vocabulary from lib/import
  *   - Dialog stays open on error (user's pasted text preserved)
  *
+ * Plan 05 Phase 4.1 — fetch → apiFetch (§5.4).
+ * Plan 05 Phase 4.7 — cap-reached 429 handling (§3.9): two-action prompt
+ *   "Preview without sending" (re-sends with dryRun:true) or "Wait" (dismiss).
+ *
  * Gate D: build and wire only — do NOT submit the form during build/verification.
  * The user explicitly decides when to run a real import.
  */
@@ -33,6 +37,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { apiFetch } from '@/lib/apiFetch';
 
 interface ImportDialogProps {
   open: boolean;
@@ -53,7 +58,18 @@ type ImportResponseBody = {
   model?: string;
   logId?: string | null;
   message?: string;
+  // Cap-reached (§3.9)
+  limit?: number;
+  windowSeconds?: number;
+  retryAfterSeconds?: number;
+  canDryRun?: boolean;
 };
+
+/** State for a cap-reached prompt (§3.9) */
+interface CapState {
+  retryAfterSeconds: number;
+  canDryRun: boolean;
+}
 
 /** Human-readable error messages for the import route's error codes. */
 function errorMessage(code: string): string {
@@ -68,6 +84,12 @@ function errorMessage(code: string): string {
   }
 }
 
+function humanizeSecs(secs: number): string {
+  if (secs < 60) return `${secs} second${secs !== 1 ? 's' : ''}`;
+  const m = Math.floor(secs / 60);
+  return `${m} minute${m !== 1 ? 's' : ''}`;
+}
+
 export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   const [mdText, setMdText] = useState('');
   const [mode, setMode] = useState<ImportMode>('structural');
@@ -76,6 +98,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
   const [warnings, setWarnings] = useState<string[] | null>(null);
   const [upToDate, setUpToDate] = useState(false);
   const [dryRunBlock, setDryRunBlock] = useState<{ logId: string | null } | null>(null);
+  const [capState, setCapState] = useState<CapState | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -91,6 +114,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
         setError(null);
         setWarnings(null);
         setUpToDate(false);
+        setCapState(null);
       }
     };
     reader.readAsText(file, 'utf-8');
@@ -98,7 +122,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     e.target.value = '';
   }, []);
 
-  async function handleSubmit() {
+  async function doSubmit(dryRun = false) {
     if (!mdText.trim() || submitting) return;
 
     setSubmitting(true);
@@ -106,15 +130,25 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     setWarnings(null);
     setUpToDate(false);
     setDryRunBlock(null);
+    setCapState(null);
 
     try {
-      const response = await fetch('/api/agents/import', {
+      const response = await apiFetch('/api/agents/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ md: mdText, mode }),
+        body: JSON.stringify({ md: mdText, mode, ...(dryRun ? { dryRun: true } : {}) }),
       });
 
       const body = (await response.json()) as ImportResponseBody;
+
+      // Per-user LLM cap reached (§3.9) — offer two actions
+      if (response.status === 429 && body.error === 'llm_cap_reached') {
+        setCapState({
+          retryAfterSeconds: body.retryAfterSeconds ?? 60,
+          canDryRun: body.canDryRun ?? true,
+        });
+        return;
+      }
 
       // skipped: 'unchanged' (Rules Index #36) → no navigation, just notice
       if (body.skipped === 'unchanged') {
@@ -151,6 +185,20 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleSubmit() {
+    await doSubmit(false);
+  }
+
+  /** "Preview without sending" — re-run as dry-run (§3.9) */
+  async function handleCapPreview() {
+    setCapState(null);
+    await doSubmit(true);
+  }
+
+  function handleCapDismiss() {
+    setCapState(null);
   }
 
   function handleClose() {
@@ -201,6 +249,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
                 setWarnings(null);
                 setUpToDate(false);
                 setDryRunBlock(null);
+                setCapState(null);
               }}
               rows={12}
               placeholder="---&#10;name: my-agent&#10;description: ...&#10;---&#10;&#10;# ROLE&#10;..."
@@ -236,6 +285,41 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
           </div>
 
           {/* Status messages */}
+          {/* Cap-reached prompt (§3.9) */}
+          {capState && (
+            <div className="bg-[var(--elev)] border border-[var(--warn)] rounded-[6px] px-3 py-3 space-y-2">
+              <p className="text-[12px] font-medium text-[var(--text)]">Hourly call limit reached</p>
+              <p className="text-[12px] text-[var(--muted)]">
+                You&apos;ve reached the hourly AI call limit. A slot frees up in approximately{' '}
+                <strong>{humanizeSecs(capState.retryAfterSeconds)}</strong>.
+              </p>
+              {capState.canDryRun && (
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={handleCapPreview}
+                    disabled={submitting}
+                    className="px-3 py-1 text-[11px] font-medium bg-[var(--accent)] text-white rounded-[6px] hover:opacity-90 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Preview without sending
+                  </button>
+                  <button
+                    onClick={handleCapDismiss}
+                    className="px-3 py-1 text-[11px] text-[var(--muted)] hover:text-[var(--text)] cursor-pointer"
+                  >
+                    Wait
+                  </button>
+                </div>
+              )}
+              {!capState.canDryRun && (
+                <button
+                  onClick={handleCapDismiss}
+                  className="text-[11px] text-[var(--muted)] hover:text-[var(--text)] cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              )}
+            </div>
+          )}
           {dryRunBlock && (
             <div className="text-[12px] text-[var(--muted)] bg-[var(--elev)] border border-[var(--border)] rounded-[6px] px-3 py-2 space-y-1">
               <p className="font-medium text-[var(--text)]">Live LLM calls are off</p>
@@ -257,7 +341,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
               <p className="text-[11px] text-[var(--faint)]">
                 Turn on &ldquo;Live LLM calls&rdquo; in{' '}
                 <a href="/settings" target="_blank" rel="noreferrer" className="text-[var(--accent)] hover:underline">
-                  Settings
+                  System Settings
                 </a>{' '}
                 to run the import.
               </p>

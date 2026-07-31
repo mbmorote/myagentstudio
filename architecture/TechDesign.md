@@ -99,7 +99,22 @@ doc; **AI guardrail** rules belong in the relevant `lib/ai/prompts/system-agents
 | 44 | **Settings default-on / garbage-off asymmetry.** `getLiveLlmCalls()` in `lib/settings.ts`: row absent → `true` (fail-open, preserves today's behavior, missing row = never configured = default on); `'true'` → `true`; `'false'` → `false`; anything else → `false` + `console.warn` (fail-closed on garbage — money-spending defaults may only come from the *absence* of config, never from *unparseable* config). No cache — fresh `SELECT` on every gateway call | Architecture | `lib/settings.ts` | ✅ Locked | Plan 04, 2026-07-29 |
 | 45 | **`agentId` in `llm_call_log` is never backfilled.** Import log rows frequently have `agentId: null` because the agent does not exist at call time (it is created from the AI's response). The `agentLabel` column stores the frontmatter name for display. No `UPDATE` is ever run on the log table to fill the id in after the fact — that would violate the append-only invariant (same rule as `sectionRevision`/`agentSnapshot`). A first-time-import row keeps `agentId: null` permanently; that is factually correct | Data integrity | `lib/db/repository/llmCallLog.ts`, `app/api/agents/import/route.ts` | ✅ Locked | Plan 04, 2026-07-29 |
 | 46 | **`llm_call_log` is append-only.** No `UPDATE` or `DELETE` is exported from `lib/db/repository/llmCallLog.ts`. Deleting an agent leaves its log rows intact (soft `agentId` ref, matching `sectionRevision`/`agentSnapshot`). Log rows are diagnostic, not business-invariant — they may not be compliance-grade (see Deferred Decisions) | Data integrity | `lib/db/repository/llmCallLog.ts` | ✅ Locked | Plan 04, 2026-07-29 |
-| 47 | **`setting` seeded with `onConflictDoNothing`.** `lib/db/seed.ts` inserts `{ key: 'liveLlmCalls', value: 'true' }` using `onConflictDoNothing()`. Using `onConflictDoUpdate` here would silently reset the switch to on every `npm run dev` (because the seed runs via `predev`) — a money-spending regression disguised as a seed. This is the opposite of the `configDef`/`sectionDef` rows (which use `DoUpdate` because the catalog is code-owned and must heal). The comment at the call site names this explicitly | Data integrity | `lib/db/seed.ts` | ✅ Locked | Plan 04, 2026-07-29 |
+| 47 | **`setting` seeded with `onConflictDoNothing`.** `lib/db/seed.ts` inserts `{ key: 'liveLlmCalls', value: 'true' }` using `onConflictDoNothing()`. Using `onConflictDoUpdate` here would silently reset the switch to on every `npm run dev` (because the seed runs via `predev`) — a money-spending regression disguised as a seed. This is the opposite of the `configDef`/`sectionDef` rows (which use `DoUpdate` because the catalog is code-owned and must heal). The comment at the call site names this explicitly. Extended to `maxUsers` and `maxLlmCallsPerUserPerHour` (Plan 05). | Data integrity | `lib/db/seed.ts` | ✅ Locked | Plan 04, 2026-07-29; extended Plan 05, 2026-07-30 |
+| 48 | **Ownership is enforced in the repository, in the same statement that touches the row.** Every exported repository function that reads or writes an `agent` or `group` takes an `ownerId` and applies it in the `WHERE` clause. A route cannot fetch someone else's agent even if the author forgets to check, because there is no function that will return it. (`lib/db/repository/agents.ts`, `groups.ts`) | Architecture | `lib/db/repository/agents.ts`, `lib/db/repository/groups.ts` | ✅ Locked | Plan 05, 2026-07-30 |
+| 49 | **`ownerId` is never optional and never defaulted in any function signature.** An optional parameter is an opt-out, and an opt-out will eventually be taken by accident. | Architecture | All repository functions in `agents.ts` and `groups.ts` | ✅ Locked | Plan 05, 2026-07-30 |
+| 50 | **Cross-owner denial returns `404`, never `403`.** A `403` confirms the resource exists. The only `403` in this plan is the admin-only gate on `/settings`, where the resource's existence is not a secret. Cross-owner access is also logged server-side (`[auth] cross-owner access attempt`). | Architecture | Route handlers; `lib/db/repository/` | ✅ Locked | Plan 05, 2026-07-30 |
+| 51 | **`middleware.ts` is never the authorization boundary and never reads the DB.** Next.js CVE-2025-29927 (patched in 15.2.3; this repo runs 15.5.22+) demonstrated that a design in which middleware is the sole gate is one framework CVE away from full data exposure. Every route handler and server component independently establishes its own session via `authenticate()` / `requirePageSession()`. | Architecture | `middleware.ts`, `lib/auth/guard.ts`, `lib/auth/session.ts` | ✅ Locked | Plan 05, 2026-07-30 |
+| 52 | **Password hashing never happens inside a `db.transaction()` callback.** `better-sqlite3` transaction callbacks must be synchronous; `bcryptjs`'s async API inside one would either throw or silently commit outside the transaction. Enforced structurally: `createUserWithInvite()` accepts a `passwordHash`, never a plaintext password. The bootstrap admin is created by SQL with the `''` sentinel; login explicitly rejects the sentinel before ever calling `verifyPassword`. | Architecture | `lib/db/repository/users.ts`, `lib/auth/password.ts` | ✅ Locked | Plan 05, 2026-07-30 |
+| 53 | **Signup cannot mint an admin; no request field influences `role`.** `createUserWithInvite()` always writes `role: 'user'`. There is no promotion endpoint or promotion UI — promoting a second admin is `UPDATE user SET role='admin' WHERE email=?`, documented in `docs/user-guide.md`. | Data integrity | `lib/db/repository/users.ts`, `app/api/auth/signup/route.ts` | ✅ Locked | Plan 05, 2026-07-30 |
+| 54 | **Role is read fresh from the DB on every request, never from a token claim.** The JWT carries `sub`, `email`, and `exp` only — no `role` claim. `getSession()` does one indexed PK lookup on `user` after verifying the token. A demotion takes effect on the next request, not the next login. | Architecture | `lib/auth/jwt.ts`, `lib/auth/session.ts` | ✅ Locked | Plan 05, 2026-07-30 |
+| 55 | **Invite codes are single-use and stored in plaintext, deliberately.** Hashing would make them unreadable to the admin, who needs to re-send a code. A code is single-use, worthless once redeemed, worthless once `maxUsers` is reached, and only readable by someone who already has admin access. Revisit trigger in Deferred Decisions (P05e). | Data integrity | `lib/db/repository/users.ts`, `app/api/settings/invite-codes/route.ts` | ✅ Locked | Plan 05, 2026-07-30 |
+| 56 | **`maxUsers` is checked inside the signup transaction, not only before it.** Two friends redeeming the same code in the same second must produce exactly one account. The `user.email` unique index is the backstop for the email race; `UPDATE … WHERE redeemed_by IS NULL` is the backstop for the code race; the in-transaction count is the backstop for the cap race. | Data integrity | `lib/db/repository/users.ts` `createUserWithInvite()` | ✅ Locked | Plan 05, 2026-07-30 |
+| 57 | **`llm_call_log.shared_with_admin` is written once at write time and never updated.** Changing the preference at `/account` affects future rows only. Retroactively hiding past shared rows would break an admin's audit trail; retroactively exposing past private rows would be a privacy violation. Both directions are stated to the user at `/account`. | Data integrity | `lib/ai/gateway.ts`, `lib/db/repository/llmCallLog.ts` | ✅ Locked | Plan 05, 2026-07-30 |
+| 58 | **Consent is never inferred from the absence of a refusal.** At signup, only a request body carrying literally `shareLogsWithAdmin: true` grants consent. Absent, null, `"true"`, `1`, or malformed → `false`. A malformed body can never silently mean "shared." | Data integrity | `app/api/auth/signup/route.ts` | ✅ Locked | Plan 05, 2026-07-30 |
+| 59 | **Redaction of another user's payloads happens in the repository, not the view.** `getCallLog(id, viewerUserId)` nulls `requestPayload` and `responsePayload` for non-consented rows. An unredacted payload is not merely *not rendered* — it is never loaded into the response object. `viewerUserId` is a required, non-defaulted parameter for the same reason `ownerId` is (#49). | Architecture | `lib/db/repository/llmCallLog.ts` | ✅ Locked | Plan 05, 2026-07-30 |
+| 60 | **The per-user LLM cap (15 calls/hour, rolling window, admin-exempt) is enforced in `lib/ai/gateway.ts`, never in a route handler.** The gateway is already the single choke point every AI call must pass (#41). The cap sits *after* the dry-run branch (so dry-run mode is still available when capped) and *before* the provider call (so a capped call never spends money). A capped call writes no log row (the log table is the counter; denials would inflate it and push `retryAfterSeconds` forward). | Architecture | `lib/ai/gateway.ts` | ✅ Locked | Plan 05, 2026-07-30 |
+| 61 | **`forceDryRun` may only downgrade a live call to a dry run; no request field can cause a real API call that would not otherwise have happened.** Accepted from the request body because it can only cause *less* spending. `ctx.forceDryRun` is set from the body; the body cannot unset the global `liveLlmCalls = false`. | Architecture | `lib/ai/gateway.ts`, `app/api/chat/route.ts`, `app/api/agents/import/route.ts` | ✅ Locked | Plan 05, 2026-07-30 |
+| 62 | **`/api/account` and `/account` operate only on `session.userId`; no user id is accepted from a body, query string, or path segment.** There is no cross-user variant of these endpoints to get wrong. | Architecture | `app/api/account/route.ts`, `app/account/page.tsx` | ✅ Locked | Plan 05, 2026-07-30 |
 | 28 | **Removed** — Stage 2 never classifies config/frontmatter data, only body-block sectionKey. The `propKey` mapping capability (`{blockId, propKey}`) was found to be dead code: `assemble.ts` never read it, config values were already 100% deterministic from Stage 1's frontmatter parse. Frontmatter keys are already exact, unambiguous strings — there was never a genuine classification problem there for AI to solve, unlike section headings (which vary unpredictably across real agent files). Removed from `Stage2Mapping`'s type, `importConverter.ts`'s validation, `assemble.ts`'s handling, and `import-instructions.md`'s OUTPUT FORMAT | Schema/Architecture | `lib/ai/importConverter.ts`, `lib/import/assemble.ts`, `lib/ai/prompts/system-agents/import-instructions.md` | ✅ Locked (removal) | Live Stage-2 testing prep, 2026-07-26 |
 | 29 | `renderBlueprintForPrompt()` takes `{ includeConfig?: boolean }`, default `true`. The import converter now calls it with `includeConfig: false` — following #28, sending the config-fields catalog to Stage 2 was pure dead-weight tokens for a decision it's never asked to make. The chat mediator (Phase 4, not yet built) keeps the default `true` — it needs full agent context, config included | Architecture | `lib/blueprint/prompt.ts`, `lib/ai/importConverter.ts` | ✅ Locked | Live Stage-2 testing, 2026-07-26 |
 | 30 | **Future flag — reconsider AI-assisted config-key mapping.** #28 removed `propKey` because it was dead code, not because the underlying idea (a messy/nonstandard frontmatter key like `tool_list` getting recognized as the canonical `tools`) is necessarily wrong forever. Today an unrecognized key just stores openly as unknown — safe, but a human still has to notice and manually fix it. A "middle way" was discussed and set aside 2026-07-26 (same safe pattern as section classification — AI labels the *key*, never touches the *value*) — worth revisiting if messy frontmatter keys turn out to be a real recurring papercut once real imports are happening | Product | *(not yet added)* | ⬜ Deferred — revisit only if real-world imports show this is an actual recurring problem, not speculative | Live Stage-2 testing, 2026-07-26 |
@@ -147,7 +162,8 @@ constraints + fast queries; everything else lives in the value tables.
 | Field | Type | Constraints | Notes |
 |-------|------|-------------|-------|
 | `id` | uuid | PK | internal — **never exported** |
-| `name` | string | not null, unique | Config `name`. Stored verbatim regardless of casing/format (e.g. imported `Zara`) — never blocked or silently rewritten on import (Principles #3/#10). **Not validated at all**: the lowercase-hyphen name-spec check and its `nameSpecViolation` flag were removed entirely per explicit user decision (`lib/blueprint/rules.ts`, `ValidationResult`, `AgentDTO.validation`) — see `CHANGELOG.md`. |
+| `ownerId` | text | not null | Soft reference → `user.id`. All reads and writes are owner-scoped at the repository layer — the same statement that fetches or mutates the row applies `WHERE owner_id = ?`. A cross-owner attempt returns `null`/`false`/throws, never a forbidden status visible to the caller (Rules Index #48–#50). The standalone `.unique()` on `name` is replaced by a composite unique index `(owner_id, name)` — two users may each own an agent named `dev`. |
+| `name` | string | not null, unique per owner | Config `name`. Stored verbatim regardless of casing/format (e.g. imported `Zara`) — never blocked or silently rewritten on import (Principles #3/#10). **Not validated at all**: the lowercase-hyphen name-spec check and its `nameSpecViolation` flag were removed entirely per explicit user decision (`lib/blueprint/rules.ts`, `ValidationResult`, `AgentDTO.validation`) — see `CHANGELOG.md`. |
 | `description` | text | not null | Config `description`. **Missing on import → placeholder + a `descriptionMissing` validation flag** (review finding 12) — same flag-don't-block pattern as `name`, never a hard block. |
 | `createdAt` / `updatedAt` | timestamp | not null | |
 | `source` | enum | not null | `created` / `imported` — provenance |
@@ -352,7 +368,8 @@ changed is an explicitly future feature — out of scope for Plan 01.
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | uuid | |
-| `name` | string | user-defined, unlimited groups |
+| `ownerId` | text | Soft reference → `user.id`. Same owner-scoped repository enforcement as `Agent` (Rules Index #48–#50). Composite unique index `(owner_id, name)`. |
+| `name` | string | user-defined, unique per owner |
 | `parentId` | uuid → Group \| null | **nullable; always null in flat MVP.** Present now so flat→nested is additive with zero data migration |
 | `createdAt` | timestamp | |
 
@@ -366,6 +383,41 @@ changed is an explicitly future feature — out of scope for Plan 01.
 Composite key `(agentId, groupId)`. This join is what lets one agent live in many groups.
 Untagging deletes a membership row only — never the agent. Nesting later does not touch
 this table.
+
+### Entity: `User` (Plan 05)
+
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| `id` | text uuid | PK | |
+| `email` | text | not null, unique | Normalized to lowercase + trimmed before both storage and lookup. |
+| `passwordHash` | text | not null | bcrypt hash (cost 10), or `''` for the un-activated bootstrap row. Login explicitly rejects an empty hash before ever calling `verifyPassword` (Rules Index #52; §3.7). |
+| `role` | text | not null, default `'user'` | Values `'admin' \| 'user'`. Drizzle's `enum` on SQLite text is TypeScript-only — no `CHECK` constraint is generated, so adding a third role later needs no migration. Signup always writes `'user'`, unconditionally (Rules Index #53). |
+| `shareLogsWithAdmin` | int boolean | not null, default `false` | The user's standing consent for the admin to read their prompt/response content in the activity log (§5.6). **Default-false is the whole point**: consent must be an action, never an omission. Read at LLM-call time and *copied onto each log row* — the row's copy, not this column, governs what the admin sees (append-only invariant, Rules Index #57). |
+| `createdAt` | int timestamp | not null, default now | |
+
+The bootstrap admin (`id: BOOTSTRAP_USER_ID`) is created by the migration only when legacy data exists (existing agents/groups that need an owner), with `passwordHash: ''`. `npm run auth:bootstrap` sets the real credentials — it never runs automatically (§5.1, Rules Index #52). All existing agents and groups are migrated to the bootstrap admin's `ownerId`.
+
+### Entity: `InviteCode` (Plan 05)
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `code` | text | PK — canonical `XXXX-XXXX-XXXX-XXXX`, 31-char alphabet (no `I`/`L`/`O`/`0`/`1`), ~79 bits of entropy. Stored **plaintext** so the admin can re-read it from the Settings panel. Single-use enforced by the PK + the `redeemed_by IS NULL` check inside the signup transaction. |
+| `note` | text \| null | Optional admin label ("for Alice"). |
+| `createdBy` | text | Soft ref → `user.id`. |
+| `createdAt` | int timestamp | |
+| `redeemedBy` | text \| null | Soft ref → `user.id`. Null = unused. |
+| `redeemedAt` | int timestamp \| null | Both null or both set, atomically. |
+
+### `llm_call_log` additions (Plan 05)
+
+Two columns added to the existing table (see Rules Index #45/#46 for the append-only invariant, extended here):
+
+| Column | Type | Notes |
+|-------|------|-------|
+| `userId` | text \| null | Soft ref → `user.id`. Null for pre-auth rows (before multi-tenancy existed) — **never backfilled**, same policy as `agentId` (Rules Index #45). |
+| `sharedWithAdmin` | int boolean | not null, default `0`. Written by the gateway at call time from `getUserPolicy(userId).shareLogsWithAdmin`. **Never updated after write** (Rules Index #57). For redaction rule: the admin sees full payloads only when this is `true`. Pre-auth rows (`userId IS NULL`) are never redacted regardless of this flag. |
+
+New composite index `llm_call_log_user_created_idx` on `(user_id, created_at)` serves the per-user hourly cap count query (Rules Index #60).
 
 ### Note on catalogs
 
@@ -382,7 +434,8 @@ itself rather than a config/section value on it.
   should persist. MVP can keep chat ephemeral (in-memory per session).
 - **Export adapters** — Copilot/others live as serializers over the same model, not new
   storage.
-- **Sharing / public pages, users/auth** — arrive with hosted mode, out of MVP scope.
+- **Sharing / forking agents between users** — Concept build-order #5. `ownerId` is the prerequisite it was waiting for. A share would be a new join table, not a change to `ownerId`.
+- **Organizations / teams** — `ownerId` currently means "a user". Making it "a principal" is a real remodel; see Deferred Decisions (P05i).
 
 ## The Agent Blueprint
 
@@ -697,7 +750,7 @@ user agents*).
 The user is using this project to build production-engineering skills. These are **layered on
 after** the core loop works — none gate the MVP:
 
-1. **JWT auth** — arrives with going-online (multi-user); NextAuth or a custom JWT flow.
+1. **JWT auth** — ✅ **Built (Plan 05, 2026-07-30).** Custom `jose`-based HS256 JWT with `httpOnly` cookie sessions; `bcryptjs` password hashing; invite-code signup; admin/user roles; `middleware.ts` + `lib/auth/` subsystem.
 2. **Unit tests** — Vitest for `lib/` (serialize, blueprint, db) from early on.
 3. **Docker** — containerize the Next app once it runs end-to-end.
 4. **CI/CD** — GitHub Actions: test → build → (later) deploy.
@@ -737,6 +790,26 @@ memory, before assuming something was decided.
 | P04f | **Settings modal instead of full-page navigation.** Full navigation discards `ChatPanel`'s local message history (same as agent-switch remount) | Losing chat history when opening Settings turns out to be an actual annoyance in real use |
 | P04g | **Component/UI tests for `ImportDialog` / `ChatPanel`.** The dry-run branches added in Plan 04 have no unit tests — consistent with the project-wide gap (roadmap Tier 5). Adding RTL + jsdom + a split vitest config is genuinely separate infrastructure work | Taken up as its own roadmap Tier 5 item |
 | P04h | **Compliance-grade (non-droppable) logging.** §5.5 deliberately treats the log as diagnostics: a failed log write on a live call is swallowed. If the log ever needs to be an evidence ledger rather than a debugging aid, the failure policy must change | The log is ever needed as evidence rather than as a debugging aid |
+| P05a | **🔶 OPEN — login/signup rate limiter: keep it or drop it?** (§3.8, plan 05). The 10-attempts/15-min in-process limiter on `/api/auth/login` and `/api/auth/signup` is per-process, resets on restart, and trusts a spoofable `x-forwarded-for`. It was never in the approved scope. §3.8's design stays as the current default; neither "keep it" nor "drop it" was decided. | Before the first real deploy — depends on what the hosting platform already provides for rate-limiting at the TLS-termination layer |
+| P05b | **🔶 OPEN — whether to disclose the rate limit in the login UI.** The `429` body already carries `retryAfterSeconds`; the open question is whether the limit's *existence* is stated before anyone trips it. Resolved together with P05a. | Resolved together with P05a |
+| P05c | **In-place re-login modal preserving unsaved client state.** Today a `401` hard-navigates to `/login`, discarding a half-typed chat instruction. A modal that re-authenticates in place and resumes the original request needs a request-replay path and a decision about what happens if the replay also fails. `lib/apiFetch.ts` is the single place it will be implemented. | Any beta user loses work to an expired session |
+| P05d | **Per-individual LLM quotas** (a per-user override of `maxLlmCallsPerUserPerHour`). The cap is one global number by decision. A per-user override cannot live in `setting` (constraint 8) and would need a column on `user` or a small table, plus UI. | Someone legitimately needs a different ceiling and raising it globally is the wrong answer |
+| P05e | **Per-user LLM spend/cost caps rather than call-count caps.** `llm_call_log.usage` already records tokens; a cost-based cap is the same query with a `SUM` instead of a `COUNT`. | The call-count proxy visibly misbehaves — the bill is high while nobody is near the call cap |
+| P05f | **Server-side session revocation** (a token version column or session table). A 7-day JWT among ≤10 friends does not justify it. | A password reset flow exists, a user must be removable immediately, or the beta stops being closed |
+| P05g | **Sliding session refresh / "remember me".** A fixed 7-day window is one state to reason about; a refresh path is three. | Users complain about re-logging-in, or the TTL is shortened for security reasons |
+| P05h | **Password reset / forgot-password.** Needs an email transport, which the app does not have. Admin-side reset via `npm run auth:bootstrap --force` is the interim answer. | Any beta user actually forgets a password |
+| P05i | **Organizations / teams** (a group of users owning agents jointly). `ownerId` currently means "a user". Making it "a principal" is a real remodel. | More than one household of friends needs shared agents |
+| P05j | **User self-service: change email, change password, delete account.** `/account` is the page these grow into; they are deferred on content, not on placement. Changing a password should invalidate other sessions (which P05f says we cannot do yet); deleting an account raises the orphaned-agent question. | Someone actually needs one of these |
+| P05k | **Per-user view of the activity log** (users see their own calls). `llm_call_log.userId` makes this a filter argument; `/account` is the natural page. Users who consent to sharing have a fair claim to see what they shared. | A user asks "what did my imports cost?" or asks to see what they consented to share |
+| P05l | **Retention / purge policy for `llm_call_log`.** The log is append-only and unbounded. With prompt content in it — some consented, some not — "keep everything forever" should be a choice, not a default. | The table gets large enough to notice, or the consent model raises the question of how long non-consented content is retained |
+| P05m | **Constant-time login** (dummy bcrypt compare for unknown emails). The timing difference reveals only whether an email is registered, in a beta where the admin knows every user. | The app opens to self-service signup without invite codes |
+| P05n | **Distributed / persistent rate limiting** (§3.8 login limiter only — the §3.9 LLM cap is already DB-backed). The in-process limiter is per-instance and resets on restart. | The deploy runs more than one instance, or brute-force attempts appear in the logs |
+| P05o | **Hashing invite codes at rest.** Would prevent the admin from re-reading a code to re-send it. | Codes become long-lived, high-value, or numerous |
+| P05p | **Invite-code expiry (`expiresAt`).** `maxUsers` plus single-use already bounds the damage. | Codes are handed out far enough ahead of use that staleness matters |
+| P05q | **CSRF tokens.** `sameSite=lax` + JSON-only mutating verbs covers the realistic surface. | Any mutating `GET` appears, or the app is ever embedded / consumed cross-origin |
+| P05r | **Agent ownership transfer UI.** One `UPDATE`; a UI for it is premature. Documented as a manual SQL operation in `docs/user-guide.md`. | Users start handing agents to each other regularly |
+| P05s | **GDPR-style data export / deletion workflow.** No legal obligation for a private closed beta among friends. | The app has users who are not friends |
+| P05t | **Argon2id instead of bcrypt.** bcrypt's 72-byte cap and pure-JS slowness are real but adequate here; argon2 needs a native build (node-gyp). The hash format is prefix-tagged, so a lazy rehash-on-login migration is straightforward when the time comes. | The native-dependency constraint disappears (Docker image, Linux-only host) |
 
 **8a is final, not deferred:** the repository layer over Drizzle is locked and needed
 starting now (it's how the app talks to the DB from day one, independent of which future

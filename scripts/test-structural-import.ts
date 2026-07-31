@@ -110,7 +110,7 @@ for (const fixturePath of fixtureFiles) {
   // Stage 2b: call structural converter.
   let restructuredBody: string;
   try {
-    restructuredBody = await callStructuralConverter(rawMd);
+    restructuredBody = await callStructuralConverter(rawMd, { kind: 'import-structural', userId: null });
   } catch (err) {
     console.error(`  ✗ Structural converter error: ${err}`);
     continue;

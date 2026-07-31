@@ -19,7 +19,7 @@
  *   - D5: platform-created sections get author:'scaffold' for revision #0.
  */
 
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, and } from 'drizzle-orm';
 import { db } from '../client.js';
 import * as schema from '../schema.js';
 import { Rules } from '../../blueprint/rules.js';
@@ -74,6 +74,14 @@ export type AgentDTO = {
     outdatedOrUnknownValues: { propKey: string; value: unknown }[];
   };
 };
+
+/** Error thrown when a section is not found or the ownership/agent check fails (§6.4). */
+export class SectionNotFoundError extends Error {
+  constructor(sectionId: string) {
+    super(`Section not found: ${sectionId}`);
+    this.name = 'SectionNotFoundError';
+  }
+}
 
 /** Error thrown when an optimistic version check fails (R4). */
 export class VersionConflictError extends Error {
@@ -178,8 +186,11 @@ function buildAgentDTO(
  * Creates an agent row (source:'created', platform:'claude' default) + seeds one
  * AgentSection per SectionDef.isCore template, each with a SectionRevision(author:'scaffold')
  * revision #0. (D5 — 'scaffold' is distinct from 'import'/'user'/'ai'.)
+ *
+ * ownerId is required and non-defaulted (constraint 2, §6.2).
  */
 export function createAgent(
+  ownerId: string,
   name: string,
   description: string,
 ): AgentDTO {
@@ -192,37 +203,51 @@ export function createAgent(
     .orderBy(schema.sectionDef.defaultOrder)
     .all();
 
-  db.transaction((tx) => {
-    tx.insert(schema.agent).values({
-      id: agentId,
-      name,
-      description,
-      source: 'created',
-      platform: 'claude',
-      splitLevel: 1,
-    }).run();
-
-    for (const def of coreDefs) {
-      const sectionId = crypto.randomUUID();
-      tx.insert(schema.agentSection).values({
-        id: sectionId,
-        agentId,
-        sectionKey: def.key,
-        heading: def.defaultHeading,
-        content: def.template,
-        order: def.defaultOrder,
-        version: 0,
+  try {
+    db.transaction((tx) => {
+      tx.insert(schema.agent).values({
+        id: agentId,
+        ownerId,
+        name,
+        description,
+        source: 'created',
+        platform: 'claude',
+        splitLevel: 1,
       }).run();
 
-      // Revision #0 — author:'scaffold' (D5)
-      tx.insert(schema.sectionRevision).values({
-        id: crypto.randomUUID(),
-        sectionId,
-        content: def.template,
-        author: 'scaffold',
-      }).run();
+      for (const def of coreDefs) {
+        const sectionId = crypto.randomUUID();
+        tx.insert(schema.agentSection).values({
+          id: sectionId,
+          agentId,
+          sectionKey: def.key,
+          heading: def.defaultHeading,
+          content: def.template,
+          order: def.defaultOrder,
+          version: 0,
+        }).run();
+
+        // Revision #0 — author:'scaffold' (D5)
+        tx.insert(schema.sectionRevision).values({
+          id: crypto.randomUUID(),
+          sectionId,
+          content: def.template,
+          author: 'scaffold',
+        }).run();
+      }
+    });
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      (err.message.includes('UNIQUE constraint failed') ||
+        err.message.includes('SQLITE_CONSTRAINT'))
+    ) {
+      const nameErr = new Error('name_exists');
+      nameErr.name = 'NameExistsError';
+      throw nameErr;
     }
-  });
+    throw err;
+  }
 
   const agentRow = db
     .select()
@@ -235,13 +260,15 @@ export function createAgent(
 }
 
 /**
- * Returns the full AgentDTO for a given agent ID, or null if not found.
+ * Returns the full AgentDTO for a given agent ID, or null if not found or owner mismatch.
+ *
+ * ownerId is required — ownership is enforced in the same query (constraint 1, §6.1).
  */
-export function getAgentFull(agentId: string): AgentDTO | null {
+export function getAgentFull(agentId: string, ownerId: string): AgentDTO | null {
   const agentRow = db
     .select()
     .from(schema.agent)
-    .where(eq(schema.agent.id, agentId))
+    .where(and(eq(schema.agent.id, agentId), eq(schema.agent.ownerId, ownerId)))
     .get();
 
   if (!agentRow) return null;
@@ -249,17 +276,21 @@ export function getAgentFull(agentId: string): AgentDTO | null {
 }
 
 /**
- * Looks up an agent by its unique name and returns its ID + rawSourceSnapshot.
+ * Looks up an agent by name within an owner's scope and returns its ID + rawSourceSnapshot.
  * Used by the import route's short-circuit check (Rules Index #36 — B3).
- * Returns null if no agent with that name exists.
+ * Returns null if no agent with that name exists for this owner.
+ *
+ * ownerId is required — owner-scoped (§6.3 security fix: prevents B's import from
+ * short-circuiting on A's identical file and returning A's AgentDTO).
  */
 export function getAgentSnapshotInfo(
   name: string,
+  ownerId: string,
 ): { id: string; rawSourceSnapshot: string | null } | null {
   const row = db
     .select()
     .from(schema.agent)
-    .where(eq(schema.agent.name, name))
+    .where(and(eq(schema.agent.name, name), eq(schema.agent.ownerId, ownerId)))
     .get();
 
   if (!row) return null;
@@ -275,11 +306,14 @@ export type AgentLiteDTO = Omit<AgentDTO, 'sections' | 'config' | 'validation'> 
 };
 
 /**
- * Returns a lite list of all agents (agent row fields + groupIds; no sections/config/validation).
+ * Returns a lite list of agents belonging to the given owner
+ * (agent row fields + groupIds; no sections/config/validation).
  * groupIds is populated via a join against membership (Plan 03 A.3).
+ *
+ * ownerId is required — filters to only this owner's agents (§6.2).
  */
-export function listAgents(): AgentLiteDTO[] {
-  const rows = db.select().from(schema.agent).orderBy(schema.agent.name).all();
+export function listAgents(ownerId: string): AgentLiteDTO[] {
+  const rows = db.select().from(schema.agent).where(eq(schema.agent.ownerId, ownerId)).orderBy(schema.agent.name).all();
   const memberships = db.select().from(schema.membership).all();
 
   // Build agentId → groupId[] map
@@ -306,14 +340,23 @@ export function listAgents(): AgentLiteDTO[] {
 
 /**
  * Overwrites a section's content and appends exactly one SectionRevision (rule 3, R4).
+ *
+ * Requires that section.id === sectionId, section.agentId === agentId, and the
+ * section's agent has ownerId === ownerId. Any mismatch throws SectionNotFoundError
+ * (§6.4 — closes the [id]-ignored bug; no oracle about which check failed).
+ *
  * Throws VersionConflictError if expectedVersion doesn't match the current version.
+ * The ownership check runs BEFORE the version check (§6.4).
  */
 export function updateSectionContent(
+  agentId: string,
   sectionId: string,
+  ownerId: string,
   content: string,
   author: 'import' | 'reimport' | 'scaffold' | 'user' | 'ai',
   expectedVersion: number,
 ): { version: number } {
+  // Load the section
   const section = db
     .select()
     .from(schema.agentSection)
@@ -321,10 +364,25 @@ export function updateSectionContent(
     .get();
 
   if (!section) {
-    throw new Error(`Section not found: ${sectionId}`);
+    throw new SectionNotFoundError(sectionId);
   }
 
-  // Optimistic concurrency check (R4)
+  // §6.4: All three must agree — section.id, section.agentId, agent.ownerId
+  if (section.agentId !== agentId) {
+    throw new SectionNotFoundError(sectionId);
+  }
+
+  const agentRow = db
+    .select({ ownerId: schema.agent.ownerId })
+    .from(schema.agent)
+    .where(and(eq(schema.agent.id, agentId), eq(schema.agent.ownerId, ownerId)))
+    .get();
+
+  if (!agentRow) {
+    throw new SectionNotFoundError(sectionId);
+  }
+
+  // Optimistic concurrency check (R4) — runs AFTER ownership (§6.4)
   if (section.version !== expectedVersion) {
     throw new VersionConflictError(section.version, section.content);
   }
@@ -376,6 +434,10 @@ export type ImportedAgentData = {
 /**
  * Creates or updates an agent from import data (Rules Index #11a/#11b/#33).
  *
+ * ownerId is a separate parameter (§5.3) — never a field on ImportedAgentData.
+ * The lookup is owner-scoped (§6.3 security fix: prevents B's import from
+ * overwriting A's agent when their frontmatter names collide).
+ *
  * First-time import: creates agent (source:'imported') + writes AgentSnapshot(post-import).
  * Re-import of existing name:
  *   - writes AgentSnapshot(pre-import) of the current state
@@ -387,7 +449,7 @@ export type ImportedAgentData = {
  *
  * Throws with message 'missing_name' when data.name is empty or whitespace-only (A2).
  */
-export function upsertAgentFromImport(data: ImportedAgentData): AgentDTO {
+export function upsertAgentFromImport(ownerId: string, data: ImportedAgentData): AgentDTO {
   // A2: reject empty/whitespace-only name — flag-don't-block (#1) covers format, not absence.
   if (!data.name || data.name.trim().length === 0) {
     const err = new Error('missing_name');
@@ -395,10 +457,11 @@ export function upsertAgentFromImport(data: ImportedAgentData): AgentDTO {
     throw err;
   }
 
+  // §6.3 fix: lookup is owner-scoped — B cannot overwrite A's agent
   const existing = db
     .select()
     .from(schema.agent)
-    .where(eq(schema.agent.name, data.name))
+    .where(and(eq(schema.agent.name, data.name), eq(schema.agent.ownerId, ownerId)))
     .get();
 
   const isUpdate = !!existing;
@@ -532,6 +595,7 @@ export function upsertAgentFromImport(data: ImportedAgentData): AgentDTO {
     db.transaction((tx) => {
       tx.insert(schema.agent).values({
         id: agentId,
+        ownerId,
         name: data.name,
         description: data.description,
         platform: data.platform,
@@ -599,31 +663,52 @@ export function upsertAgentFromImport(data: ImportedAgentData): AgentDTO {
  * Deletes an agent and its config/sections/memberships.
  * SectionRevision and AgentSnapshot rows are intentionally retained (rule 4).
  *
+ * ownerId is required and enforced in the same DELETE statement (constraint 1, §6.2).
+ * Returns true if the agent existed and was deleted; false if not found or owner mismatch
+ * (callers map false to 404 — constraint 3).
+ *
  * R3 (Plan 03): membership rows are NOT historical — they are a pure index.
  * Deleting an agent must also delete its membership rows so group queries
  * never return ghost agents (Plan 03 §0 R3 / §5 rule 4).
  */
-export function deleteAgent(agentId: string): void {
+export function deleteAgent(agentId: string, ownerId: string): boolean {
+  // Pre-check for existence + ownership (returns false on either miss)
+  const existing = db
+    .select({ id: schema.agent.id })
+    .from(schema.agent)
+    .where(and(eq(schema.agent.id, agentId), eq(schema.agent.ownerId, ownerId)))
+    .get();
+
+  if (!existing) return false;
+
   db.transaction((tx) => {
     tx.delete(schema.agentConfig).where(eq(schema.agentConfig.agentId, agentId)).run();
     tx.delete(schema.agentSection).where(eq(schema.agentSection.agentId, agentId)).run();
     tx.delete(schema.membership).where(eq(schema.membership.agentId, agentId)).run();
-    tx.delete(schema.agent).where(eq(schema.agent.id, agentId)).run();
+    tx.delete(schema.agent)
+      .where(and(eq(schema.agent.id, agentId), eq(schema.agent.ownerId, ownerId)))
+      .run();
     // sectionRevision and agentSnapshot rows are NOT deleted (soft ref — rule 4)
   });
+
+  return true;
 }
 
 // ─────────────────────────────  Update (PATCH)  ────────────────────────────
 
 /**
  * Updates an agent's name, description, and/or config rows.
- * Returns the updated AgentDTO, or null if the agent was not found.
+ * Returns the updated AgentDTO, or null if the agent was not found or owner mismatch.
  *
- * Throws with name 'NameExistsError' if the new name collides with another agent.
+ * ownerId is required — enforced in the same lookup (constraint 1, §6.2).
+ *
+ * Throws with name 'NameExistsError' if the new name collides with another agent
+ * of the SAME owner (§6.3 fix — the check is now per-owner, not global).
  * name stored verbatim — flag-don't-block (Rules Index #1).
  */
 export function updateAgent(
   agentId: string,
+  ownerId: string,
   updates: {
     name?: string;
     description?: string;
@@ -633,17 +718,17 @@ export function updateAgent(
   const existing = db
     .select()
     .from(schema.agent)
-    .where(eq(schema.agent.id, agentId))
+    .where(and(eq(schema.agent.id, agentId), eq(schema.agent.ownerId, ownerId)))
     .get();
 
   if (!existing) return null;
 
-  // Name collision check (only if name is actually changing)
+  // Name collision check — per-owner (§6.3 fix: was global, which leaked existence oracle)
   if (updates.name !== undefined && updates.name !== existing.name) {
     const collision = db
       .select({ id: schema.agent.id })
       .from(schema.agent)
-      .where(eq(schema.agent.name, updates.name))
+      .where(and(eq(schema.agent.name, updates.name), eq(schema.agent.ownerId, ownerId)))
       .get();
     if (collision) {
       const err = new Error('name_exists');
@@ -694,14 +779,15 @@ export function updateAgent(
  * Returns the current exported .md text for an agent — read-only, no snapshot
  * row written. Used by GET /api/agents/[id]/export (R11, Plan 03 A.4).
  *
- * Returns null if the agent does not exist.
+ * ownerId is required — enforced in the same query (constraint 1, §6.2).
+ * Returns null if the agent does not exist or owner mismatch.
  * config.value handling mirrors serializeAgentSnapshot (A3 fix — arrays passed through).
  */
-export function exportAgentMarkdown(agentId: string): string | null {
+export function exportAgentMarkdown(agentId: string, ownerId: string): string | null {
   const agentRow = db
     .select()
     .from(schema.agent)
-    .where(eq(schema.agent.id, agentId))
+    .where(and(eq(schema.agent.id, agentId), eq(schema.agent.ownerId, ownerId)))
     .get();
   if (!agentRow) return null;
 

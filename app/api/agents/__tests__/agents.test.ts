@@ -24,6 +24,18 @@ vi.mock('../../../../lib/db/client.js', async () => {
   return { db: testDb };
 });
 
+// ── Mock getSession — the single auth seam (§10.2) ────────────────────────────
+import { BOOTSTRAP_USER_ID } from '../../../../lib/auth/constants.js';
+let currentSession: { userId: string; email: string; role: 'admin' | 'user' } | null = {
+  userId: BOOTSTRAP_USER_ID,
+  email: 'bootstrap@example.test',
+  role: 'user',
+};
+
+vi.mock('../../../../lib/auth/session.js', () => ({
+  getSession: vi.fn(async () => currentSession),
+}));
+
 // ── Imports after mock ─────────────────────────────────────────────────────────
 import { eq } from 'drizzle-orm';
 import * as schema from '../../../../lib/db/schema.js';
@@ -280,7 +292,7 @@ describe('DELETE /api/agents/[id]', () => {
     expect(json.ok).toBe(true);
 
     // Agent should be gone
-    const dto = getAgentFull(id);
+    const dto = getAgentFull(id, BOOTSTRAP_USER_ID);
     expect(dto).toBeNull();
   });
 
@@ -482,5 +494,16 @@ describe('PATCH /api/agents/[id]/sections/[sectionId]', () => {
     const json = await response.json() as { error: string; current: number };
     expect(json.error).toBe('version_conflict');
     expect(typeof json.current).toBe('number');
+  });
+});
+
+// ── Auth guard: unauthenticated → 401 (§10.2, §3.6) ─────────────────────────
+
+describe('unauthenticated → 401', () => {
+  it('GET /api/agents returns 401 when there is no session', async () => {
+    currentSession = null;
+    const res = await listAgentsGET();
+    expect(res.status).toBe(401);
+    currentSession = { userId: BOOTSTRAP_USER_ID, email: 'bootstrap@example.test', role: 'user' };
   });
 });

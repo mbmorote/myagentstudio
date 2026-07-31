@@ -125,9 +125,9 @@ follow these even though you have no memory of when they were agreed:
 - **`plans/04-llm-gateway-settings.md`** — the LLM provider gateway, dry-run mode, and the
   Settings page (activity log, the "Live LLM calls" toggle).
 - **`plans/05-multi-tenant-auth.md`** — multi-tenant schema (`user` table, `ownerId`
-  scoping), JWT auth, invite-code signup. **Written, not yet reviewed with the user** —
-  §16 has 11 confirmation points to walk through before `@dev` starts; see
-  `plans/roadmap.md` TODO item 1.
+  scoping), JWT auth, invite-code signup. **Reviewed 2026-07-30, built 2026-07-30** —
+  all 11 §16 confirmation points resolved; implementation complete (Phases 0–6); real DB
+  migrated. See `CHANGELOG.md` 2026-07-30 entry for full detail.
 - **`lib/ai/CLAUDE.md`** — the gateway architecture (single choke point, one-SDK-importer
   rule), the three AI callers, and build-time prompt compilation.
 - **`lib/import/CLAUDE.md`** — the import pipeline (Stage 1 deterministic split, Strict vs.

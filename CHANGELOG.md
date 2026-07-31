@@ -7,6 +7,30 @@ its actual commit if it was verified live before being committed.
 
 ---
 
+## 2026-07-30 — Plan 05 built: multi-tenant schema, JWT auth, invite-code signup
+
+`@dev` implemented `plans/05-multi-tenant-auth.md` in six phases. All gates passed. Commit: *[pending user review]*.
+
+**What shipped:**
+- **Schema** — `user` table (email, bcrypt hash, role `admin`/`user`, `shareLogsWithAdmin`), `invite_code` table, `ownerId` on `agent` + `group` (composite unique index per owner), two new columns on `llm_call_log` (`user_id` nullable, `shared_with_admin` snapshotted at write), migration `0003_fancy_may_parker.sql` (hand-authored per §4.5).
+- **Auth subsystem** (`lib/auth/`) — `jose` HS256 JWT with `httpOnly`/`sameSite=lax` cookie; `bcryptjs` password hashing (cost 10, 72-byte cap enforced); session read hits the DB fresh on every request (no role claim in the token); `authenticate()` / `authenticateAdmin()` guard; `middleware.ts` as defense-in-depth UX layer (not the auth boundary per constraint 4); `lib/auth/rateLimit.ts` (10 attempts/15 min on public auth routes).
+- **New routes** — `POST /api/auth/login`, `POST /api/auth/signup` (with consent field), `POST /api/auth/logout`, `GET|PATCH /api/account`, `GET|POST /api/settings/invite-codes`, `DELETE /api/settings/invite-codes/[code]`.
+- **Existing routes retrofitted** — all 10 `app/api/**` route files now open with `authenticate()` or `authenticateAdmin()`. Ownership enforced in the repository layer (14 re-signed functions) — not at the route — so a forgotten check is impossible by construction. Section route bug fixed completely (§6.4 — `[id]` segment was never read; now all three of `section.id`, `section.agentId`, and `agent.ownerId` must agree).
+- **Per-user LLM call cap** (§3.9) — `maxLlmCallsPerUserPerHour` setting (default 15, admin exempt), rolling 60-minute window counted from `llm_call_log`, enforced in `lib/ai/gateway.ts` before the provider call. Cap-blocked calls write no log row. `429 llm_cap_reached` + `canDryRun: true` → client offers "Preview without sending" or "Wait."
+- **Activity-log consent model** (§5.6) — opt-in, default private, chosen at signup in a cookie-banner-style block. Consent snapshotted onto each `llm_call_log.shared_with_admin` row at write time; never updated. Admin always sees metadata; sees prompt/response content only for rows where the user consented at write time. `getCallLog(id, viewerUserId)` does the redaction in the repository layer.
+- **System Settings vs. User Settings** (§5.7) — `/settings` (admin-only, relabelled "System Settings") vs. `/account` (any session, "Account"). Topbar updated to show both links distinctly; `⚙ System Settings` visible only to admin.
+- **Bootstrap CLI** — `npm run auth:bootstrap` (idempotent, separate from `seed.ts`, never runs automatically). `instrumentation.ts` validates `JWT_SECRET` length at boot.
+- **UI** — `app/login/page.tsx`, `app/signup/page.tsx` (with consent block), `app/account/page.tsx` + `AccountView.tsx`. `lib/apiFetch.ts` wraps all 14 client-side API call sites (was 9 files, 14 sites) — redirects to `/login?next=…` on 401.
+- **Tests** — 186 existing tests remain unmodified or updated for owner semantics (total grew to ~280). New files: `migration.test.ts`, `jwt.test.ts`, `password.test.ts`, `session.test.ts`, `guard.test.ts`, `inviteCode.test.ts`, `users.test.ts`, `auth.test.ts`, `invite-codes.test.ts`, `account.test.ts`, `gateway-cap.test.ts`, `llmCallLog-redaction.test.ts`, `tenancy.test.ts` (crown jewel — covers every id-taking endpoint with both status and row-unchanged assertions), `route-guard.test.ts` (fitness function).
+
+**Real DB migration** (Phase 5) run successfully against `myagent.db`; existing agents and groups migrated to the bootstrap admin's `ownerId`. `npm run auth:bootstrap` executed; admin can log in.
+
+**Phase 5.5/5.5b manual checklist** verified with "Live LLM calls" off (no real API calls made). See plan §11 Phase 5 for the full checklist.
+
+**Phase 6 documentation** — `TechDesign.md` (Rules Index #48–#62, new entities, deferred items), `README.md` (auth setup, new settings), `docs/user-guide.md` (sign-in, invite, privacy disclosure, LLM cap), `lib/ai/CLAUDE.md` (gateway addendum). `plans/roadmap.md` to be updated after user confirms the build.
+
+---
+
 ## 2026-07-29 — Plan B (multi-tenant + auth) drafted, not yet reviewed
 
 `@analyst` validated and split the original bundled request (LLM-gateway feature became

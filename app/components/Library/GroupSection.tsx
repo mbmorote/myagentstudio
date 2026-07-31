@@ -20,6 +20,7 @@ import { useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { AgentListItem } from '@/app/components/Library/AgentListItem';
 import type { AgentLiteDTO, GroupDTO } from '@/lib/db/repository';
+import { apiFetch } from '@/lib/apiFetch';
 
 interface GroupSectionProps {
   group: GroupDTO;
@@ -52,7 +53,7 @@ export function GroupSection({
     if (!window.confirm(`Delete group "${group.name}"? Agents will not be deleted.`)) return;
 
     try {
-      const response = await fetch(`/api/groups/${group.id}`, { method: 'DELETE' });
+      const response = await apiFetch(`/api/groups/${group.id}`, { method: 'DELETE' });
       if (response.ok || response.status === 204) {
         onGroupDeleted(group.id);
       }

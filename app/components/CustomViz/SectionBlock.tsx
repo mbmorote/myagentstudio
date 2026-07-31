@@ -30,6 +30,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { AgentDTO } from '@/lib/db/repository';
 import type { InteractionLock } from '@/app/components/WorkbenchShell';
+import { apiFetch } from '@/lib/apiFetch';
 
 type SectionDTO = AgentDTO['sections'][number];
 
@@ -159,7 +160,7 @@ export function SectionBlock({
     setConflictNotice(null);
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/agents/${agentId}/sections/${section.id}`,
         {
           method: 'PATCH',

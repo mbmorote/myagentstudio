@@ -13,7 +13,7 @@ import 'server-only';
  * Stage-1 blocks by blockId; the AI only supplies labels.
  */
 
-import { getGateway, LlmDryRunBlockedError } from './gateway.js';
+import { getGateway, LlmDryRunBlockedError, LlmUserCapReachedError } from './gateway.js';
 import type { LlmCallContext } from './gateway.js';
 import { IMPORT_CONVERTER_PROMPT } from './prompts/generated/import-instructions.js';
 import { renderBlueprintForPrompt } from '../blueprint/index.js';
@@ -104,8 +104,11 @@ export async function callImportConverter(
     throw new ImportConverterUpstreamError(String(err));
   }
 
-  // Handle dry-run result (§3.6 — outside the try, cannot be misclassified as 502)
-  if (!res.ok) throw new LlmDryRunBlockedError(res.logId, ctx.kind, res.model);
+  // Handle policy-refusal results (§3.6, §3.9 — outside the try, cannot be misclassified as 502)
+  if (!res.ok) {
+    if (res.reason === 'llm_cap_reached') throw new LlmUserCapReachedError(res);
+    throw new LlmDryRunBlockedError(res.logId, ctx.kind, res.model);
+  }
 
   // Provider-level errors (no text block) are already mapped by anthropicProvider.ts —
   // any remaining upstream error would come through the catch above.

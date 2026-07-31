@@ -21,6 +21,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { apiFetch } from '@/lib/apiFetch';
 
 interface RawAgentViewProps {
   agentId: string;
@@ -71,7 +72,7 @@ export function RawAgentView({ agentId, agentName }: RawAgentViewProps) {
     setError(null);
     setMarkdown(null);
 
-    fetch(`/api/agents/${agentId}/export`)
+    apiFetch(`/api/agents/${agentId}/export`)
       .then(async (res) => {
         if (!res.ok) {
           setError(`Failed to load (${res.status})`);

@@ -33,6 +33,7 @@ import { eq } from 'drizzle-orm';
 import * as schema from '../../schema.js';
 import { CONFIG_DEFS, SECTION_DEFS } from '../../../blueprint/catalog.js';
 import { testDb } from '../../__tests__/test-db.js';
+import { createTestUser } from '../../__tests__/test-users.js';
 
 import {
   createAgent,
@@ -45,7 +46,10 @@ import {
 
 import { getConfigDefs, getSectionDefs } from '../catalog.js';
 
-// ── Seed catalog tables before any test runs ──────────────────────────────
+// Shared owner for all tests in this suite
+let owner: { id: string; email: string };
+
+// ── Seed catalog tables + create a test owner before any test runs ─────────
 beforeAll(() => {
   for (const def of CONFIG_DEFS) {
     testDb.insert(schema.configDef).values({
@@ -70,20 +74,39 @@ beforeAll(() => {
       helpText: def.helpText,
     }).onConflictDoNothing().run();
   }
+
+  owner = createTestUser('user');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('createAgent', () => {
   it('creates agent row with platform:claude by default', () => {
-    const dto = createAgent('test-agent-platform', 'A test agent for platform check');
+    const dto = createAgent(owner.id, 'test-agent-platform', 'A test agent for platform check');
     expect(dto.platform).toBe('claude');
     expect(dto.source).toBe('created');
   });
 
+  it('per-owner name uniqueness: two different owners may both own an agent with the same name', () => {
+    // Positive case required by §10.1 — the composite unique index (owner_id, name)
+    // allows the same name across owners; createAgent must succeed for the second owner.
+    const secondOwner = createTestUser('user');
+    const sharedName = `shared-name-repo-${crypto.randomUUID().slice(0, 8)}`;
+
+    // First owner creates the agent — no throw
+    const first = createAgent(owner.id, sharedName, 'first owner copy');
+    // Second owner creates an agent with the SAME name — must not throw
+    const second = createAgent(secondOwner.id, sharedName, 'second owner copy');
+
+    expect(first.name).toBe(sharedName);
+    expect(second.name).toBe(sharedName);
+    // They are distinct agents (different ids, different owners)
+    expect(first.id).not.toBe(second.id);
+  });
+
   it('seeds core sections with author:scaffold (D5)', () => {
     const coreDefs = SECTION_DEFS.filter((d) => d.isCore);
-    const dto = createAgent('scaffold-test-agent', 'Testing scaffold revisions');
+    const dto = createAgent(owner.id, 'scaffold-test-agent', 'Testing scaffold revisions');
 
     expect(dto.sections.length).toBe(coreDefs.length);
 
@@ -102,8 +125,8 @@ describe('createAgent', () => {
 
 describe('getAgentFull round-trip', () => {
   it('returns the correct AgentDTO shape after create', () => {
-    const created = createAgent('round-trip-agent', 'Description for round-trip test');
-    const dto = getAgentFull(created.id);
+    const created = createAgent(owner.id, 'round-trip-agent', 'Description for round-trip test');
+    const dto = getAgentFull(created.id, owner.id);
 
     expect(dto).not.toBeNull();
     expect(dto!.id).toBe(created.id);
@@ -130,14 +153,14 @@ describe('getAgentFull round-trip', () => {
   });
 
   it('returns null for a non-existent agentId', () => {
-    const dto = getAgentFull('00000000-0000-0000-0000-000000000000');
+    const dto = getAgentFull('00000000-0000-0000-0000-000000000000', owner.id);
     expect(dto).toBeNull();
   });
 });
 
 describe('updateSectionContent', () => {
   it('appends exactly one SectionRevision per write (rule 3)', () => {
-    const dto = createAgent('write-test-agent', 'Testing writes');
+    const dto = createAgent(owner.id, 'write-test-agent', 'Testing writes');
     const section = dto.sections[0];
 
     const before = testDb
@@ -147,7 +170,7 @@ describe('updateSectionContent', () => {
       .all();
     expect(before.length).toBe(1); // scaffold revision
 
-    updateSectionContent(section.id, 'Updated content', 'user', section.version);
+    updateSectionContent(dto.id, section.id, owner.id, 'Updated content', 'user', section.version);
 
     const after = testDb
       .select()
@@ -160,11 +183,11 @@ describe('updateSectionContent', () => {
   });
 
   it('bumps the section version after a write', () => {
-    const dto = createAgent('version-bump-agent', 'Testing version bump');
+    const dto = createAgent(owner.id, 'version-bump-agent', 'Testing version bump');
     const section = dto.sections[0];
     const originalVersion = section.version; // 0
 
-    const result = updateSectionContent(section.id, 'New content', 'ai', originalVersion);
+    const result = updateSectionContent(dto.id, section.id, owner.id, 'New content', 'ai', originalVersion);
     expect(result.version).toBe(originalVersion + 1);
 
     const rows = testDb
@@ -177,23 +200,23 @@ describe('updateSectionContent', () => {
   });
 
   it('throws VersionConflictError on version mismatch (R4)', () => {
-    const dto = createAgent('conflict-test-agent', 'Testing optimistic locking');
+    const dto = createAgent(owner.id, 'conflict-test-agent', 'Testing optimistic locking');
     const section = dto.sections[0];
 
     // Advance version to 1
-    updateSectionContent(section.id, 'First write', 'user', section.version);
+    updateSectionContent(dto.id, section.id, owner.id, 'First write', 'user', section.version);
 
     // Stale version — must throw
     expect(() =>
-      updateSectionContent(section.id, 'Second write', 'user', section.version),
+      updateSectionContent(dto.id, section.id, owner.id, 'Second write', 'user', section.version),
     ).toThrow(VersionConflictError);
   });
 
   it('does not write a revision when version conflict occurs', () => {
-    const dto = createAgent('no-write-on-conflict-agent', 'Testing no write on conflict');
+    const dto = createAgent(owner.id, 'no-write-on-conflict-agent', 'Testing no write on conflict');
     const section = dto.sections[0];
 
-    updateSectionContent(section.id, 'Advanced', 'user', section.version);
+    updateSectionContent(dto.id, section.id, owner.id, 'Advanced', 'user', section.version);
 
     const before = testDb
       .select()
@@ -202,7 +225,7 @@ describe('updateSectionContent', () => {
       .all();
 
     try {
-      updateSectionContent(section.id, 'Conflict write', 'user', 0); // stale
+      updateSectionContent(dto.id, section.id, owner.id, 'Conflict write', 'user', 0); // stale
     } catch {
       // expected VersionConflictError
     }
@@ -219,10 +242,10 @@ describe('updateSectionContent', () => {
 
 describe('deleteAgent', () => {
   it('retains SectionRevision rows after agent deletion (rule 4)', () => {
-    const dto = createAgent('to-be-deleted-agent', 'This agent will be deleted');
+    const dto = createAgent(owner.id, 'to-be-deleted-agent', 'This agent will be deleted');
     const section = dto.sections[0];
 
-    updateSectionContent(section.id, 'Content before delete', 'user', section.version);
+    updateSectionContent(dto.id, section.id, owner.id, 'Content before delete', 'user', section.version);
 
     const revisionsBefore = testDb
       .select()
@@ -231,7 +254,7 @@ describe('deleteAgent', () => {
       .all();
     expect(revisionsBefore.length).toBeGreaterThan(0);
 
-    deleteAgent(dto.id);
+    deleteAgent(dto.id, owner.id);
 
     // Agent row gone
     const agentRows = testDb
@@ -259,7 +282,7 @@ describe('deleteAgent', () => {
   });
 
   it('retains AgentSnapshot rows after agent deletion (rule 4)', () => {
-    const dto = upsertAgentFromImport({
+    const dto = upsertAgentFromImport(owner.id, {
       name: 'snapshot-delete-agent',
       description: 'Snapshot retention test',
       platform: 'claude',
@@ -278,7 +301,7 @@ describe('deleteAgent', () => {
       .all();
     expect(snapshotsBefore.length).toBeGreaterThan(0);
 
-    deleteAgent(dto.id);
+    deleteAgent(dto.id, owner.id);
 
     // AgentSnapshot rows MUST still exist (soft ref — rule 4)
     const snapshotsAfter = testDb
@@ -292,7 +315,7 @@ describe('deleteAgent', () => {
 
 describe('upsertAgentFromImport', () => {
   it('creates a new agent on first import with author:import revisions', () => {
-    const dto = upsertAgentFromImport({
+    const dto = upsertAgentFromImport(owner.id, {
       name: 'new-import-agent',
       description: 'Imported for the first time',
       platform: 'claude',
@@ -330,7 +353,7 @@ describe('upsertAgentFromImport', () => {
 
   it('updates in place on re-import and writes pre+post snapshots', () => {
     const name = 'reimport-test-agent';
-    const firstDto = upsertAgentFromImport({
+    const firstDto = upsertAgentFromImport(owner.id, {
       name,
       description: 'First import',
       platform: 'claude',
@@ -340,7 +363,7 @@ describe('upsertAgentFromImport', () => {
       sections: [{ sectionKey: 'role', heading: '# ROLE', content: 'Original.', order: 1 }],
     });
 
-    const secondDto = upsertAgentFromImport({
+    const secondDto = upsertAgentFromImport(owner.id, {
       name,
       description: 'Second import',
       platform: 'claude',
@@ -367,7 +390,7 @@ describe('upsertAgentFromImport', () => {
 
   it('deletes absent sections on re-import but retains their revisions (rules 4 + §6 rule 14)', () => {
     const name = 'section-delete-agent';
-    const firstDto = upsertAgentFromImport({
+    const firstDto = upsertAgentFromImport(owner.id, {
       name,
       description: 'Has two sections',
       platform: 'claude',
@@ -384,7 +407,7 @@ describe('upsertAgentFromImport', () => {
     const outputSectionId = outputSection.id;
 
     // Re-import without the output section
-    const secondDto = upsertAgentFromImport({
+    const secondDto = upsertAgentFromImport(owner.id, {
       name,
       description: 'Now only role',
       platform: 'claude',

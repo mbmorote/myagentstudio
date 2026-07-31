@@ -12,6 +12,19 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
+import { BOOTSTRAP_USER_ID } from '../../../../lib/auth/constants.js';
+
+// ── Mock getSession — the single auth seam (§10.2) ────────────────────────────
+let currentSession: { userId: string; email: string; role: 'admin' | 'user' } | null = {
+  userId: BOOTSTRAP_USER_ID,
+  email: 'bootstrap@example.test',
+  role: 'admin',
+};
+
+vi.mock('../../../../lib/auth/session.js', () => ({
+  getSession: vi.fn(async () => currentSession),
+}));
 
 // ── Replace lib/db/client.ts with in-memory test DB ───────────────────────────
 vi.mock('../../../../lib/db/client.js', async () => {
@@ -58,21 +71,21 @@ function insertLogRow(overrides: Partial<typeof schema.llmCallLog.$inferInsert> 
   return id;
 }
 
-function makeListRequest(params: Record<string, string> = {}): Request {
+function makeListRequest(params: Record<string, string> = {}): NextRequest {
   const url = new URL('http://localhost/api/llm-call-log');
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  return new Request(url.toString());
+  return new NextRequest(url.toString());
 }
 
-function makeDetailRequest(id: string): Request {
-  return new Request(`http://localhost/api/llm-call-log/${id}`);
+function makeDetailRequest(id: string): NextRequest {
+  return new NextRequest(`http://localhost/api/llm-call-log/${id}`);
 }
 
 // ── List route ────────────────────────────────────────────────────────────────
 
 describe('GET /api/llm-call-log', () => {
   it('returns empty entries array when no rows', async () => {
-    const res = listGET(makeListRequest());
+    const res = await listGET(makeListRequest());
     expect(res.status).toBe(200);
     const body = await res.json() as { entries: unknown[] };
     expect(body.entries).toHaveLength(0);
@@ -80,7 +93,7 @@ describe('GET /api/llm-call-log', () => {
 
   it('returns entries without requestPayload / responsePayload fields', async () => {
     insertLogRow();
-    const res = listGET(makeListRequest());
+    const res = await listGET(makeListRequest());
     const body = await res.json() as { entries: Record<string, unknown>[] };
     expect(body.entries).toHaveLength(1);
     const entry = body.entries[0];
@@ -96,7 +109,7 @@ describe('GET /api/llm-call-log', () => {
   it('filters by dryRun=true', async () => {
     insertLogRow({ dryRun: false });
     insertLogRow({ dryRun: true });
-    const res = listGET(makeListRequest({ dryRun: 'true' }));
+    const res = await listGET(makeListRequest({ dryRun: 'true' }));
     const body = await res.json() as { entries: Record<string, unknown>[] };
     expect(body.entries).toHaveLength(1);
     expect(body.entries[0].dryRun).toBe(true);
@@ -105,7 +118,7 @@ describe('GET /api/llm-call-log', () => {
   it('filters by dryRun=false', async () => {
     insertLogRow({ dryRun: false });
     insertLogRow({ dryRun: true });
-    const res = listGET(makeListRequest({ dryRun: 'false' }));
+    const res = await listGET(makeListRequest({ dryRun: 'false' }));
     const body = await res.json() as { entries: Record<string, unknown>[] };
     expect(body.entries).toHaveLength(1);
     expect(body.entries[0].dryRun).toBe(false);
@@ -114,14 +127,14 @@ describe('GET /api/llm-call-log', () => {
   it('filters by kind=import-strict', async () => {
     insertLogRow({ kind: 'chat' });
     insertLogRow({ kind: 'import-strict' });
-    const res = listGET(makeListRequest({ kind: 'import-strict' }));
+    const res = await listGET(makeListRequest({ kind: 'import-strict' }));
     const body = await res.json() as { entries: Record<string, unknown>[] };
     expect(body.entries).toHaveLength(1);
     expect(body.entries[0].kind).toBe('import-strict');
   });
 
   it('invalid dryRun param → 400', async () => {
-    const res = listGET(makeListRequest({ dryRun: 'maybe' }));
+    const res = await listGET(makeListRequest({ dryRun: 'maybe' }));
     expect(res.status).toBe(400);
     const body = await res.json() as Record<string, unknown>;
     expect(body.error).toBe('invalid_query');
@@ -129,7 +142,7 @@ describe('GET /api/llm-call-log', () => {
   });
 
   it('invalid kind param → 400', async () => {
-    const res = listGET(makeListRequest({ kind: 'unknown-kind' }));
+    const res = await listGET(makeListRequest({ kind: 'unknown-kind' }));
     expect(res.status).toBe(400);
     const body = await res.json() as Record<string, unknown>;
     expect(body.error).toBe('invalid_query');
@@ -137,7 +150,7 @@ describe('GET /api/llm-call-log', () => {
   });
 
   it('limit above 500 → 400 invalid_query', async () => {
-    const res = listGET(makeListRequest({ limit: '501' }));
+    const res = await listGET(makeListRequest({ limit: '501' }));
     expect(res.status).toBe(400);
     const body = await res.json() as Record<string, unknown>;
     expect(body.error).toBe('invalid_query');
@@ -145,7 +158,7 @@ describe('GET /api/llm-call-log', () => {
   });
 
   it('limit=0 → 400 invalid_query', async () => {
-    const res = listGET(makeListRequest({ limit: '0' }));
+    const res = await listGET(makeListRequest({ limit: '0' }));
     expect(res.status).toBe(400);
     const body = await res.json() as Record<string, unknown>;
     expect(body.error).toBe('invalid_query');
@@ -191,5 +204,16 @@ describe('GET /api/llm-call-log/[id]', () => {
     const body = await res.json() as Record<string, unknown>;
     expect(body.responsePayload).toBeNull();
     expect(body.dryRun).toBe(true);
+  });
+});
+
+// ── Auth guard: unauthenticated → 401 (§10.2, §3.6) ─────────────────────────
+
+describe('unauthenticated → 401', () => {
+  it('GET /api/llm-call-log returns 401 when there is no session', async () => {
+    currentSession = null;
+    const res = await listGET(makeListRequest());
+    expect(res.status).toBe(401);
+    currentSession = { userId: BOOTSTRAP_USER_ID, email: 'bootstrap@example.test', role: 'admin' };
   });
 });

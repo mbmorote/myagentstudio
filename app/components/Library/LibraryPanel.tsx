@@ -42,6 +42,7 @@ import { GroupSection } from '@/app/components/Library/GroupSection';
 import { CreateAgentButton } from '@/app/components/Library/CreateAgentButton';
 import { ImportButton } from '@/app/components/Library/ImportButton';
 import type { AgentLiteDTO, GroupDTO } from '@/lib/db/repository';
+import { apiFetch } from '@/lib/apiFetch';
 
 interface LibraryPanelProps {
   currentAgentId: string;
@@ -95,7 +96,7 @@ export function LibraryPanel({
     const groupId = overId.replace('group-', '');
 
     try {
-      const response = await fetch(`/api/agents/${agentId}/groups`, {
+      const response = await apiFetch(`/api/agents/${agentId}/groups`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ groupId }),
@@ -167,7 +168,7 @@ export function LibraryPanel({
     setNewGroupError(null);
 
     try {
-      const response = await fetch('/api/groups', {
+      const response = await apiFetch('/api/groups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newGroupName.trim() }),

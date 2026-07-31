@@ -49,6 +49,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { AgentDTO, GroupDTO, ConfigDefLite } from '@/lib/db/repository';
 import type { InteractionLock } from '@/app/components/WorkbenchShell';
 import { SectionBlock } from '@/app/components/CustomViz/SectionBlock';
+import { apiFetch } from '@/lib/apiFetch';
 
 // ─────────────────────────  Catalog-derived constants  ─────────────────────
 //
@@ -428,7 +429,7 @@ export function AgentView({
     setIsSavingConfig(true);
     setConfigError(null);
     try {
-      const res = await fetch(`/api/agents/${agent.id}`, {
+      const res = await apiFetch(`/api/agents/${agent.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config: newRows }),

@@ -17,6 +17,7 @@ export {
   deleteAgent,
   exportAgentMarkdown,
   VersionConflictError,
+  SectionNotFoundError,
 } from './agents.js';
 
 export type {
@@ -35,7 +36,7 @@ export type { GroupDTO } from './groups.js';
 
 export { getSetting, setSetting, getAllSettings } from './settings.js';
 
-export { writeCallLog, listCallLogs, getCallLog } from './llmCallLog.js';
+export { writeCallLog, listCallLogs, getCallLog, countLlmCallsInWindow } from './llmCallLog.js';
 export type {
   LlmCallKind,
   WriteCallLogInput,
@@ -43,3 +44,23 @@ export type {
   CallLogFull,
   ListCallLogsOptions,
 } from './llmCallLog.js';
+
+export {
+  getUserById,
+  getUserByEmail,
+  getUserCount,
+  getUserPolicy,
+  setUserPassword,
+  setUserLogSharing,
+  createUserWithInvite,
+  createInviteCode,
+  listInviteCodes,
+  revokeInviteCode,
+} from './users.js';
+export type {
+  UserRow,
+  UserPolicy,
+  InviteCodeRow,
+  CreateUserWithInviteInput,
+  CreateUserWithInviteResult,
+} from './users.js';

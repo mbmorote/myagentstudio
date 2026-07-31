@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useDraggable } from '@dnd-kit/core';
 import type { AgentLiteDTO } from '@/lib/db/repository';
+import { apiFetch } from '@/lib/apiFetch';
 
 function monogram(name: string): string {
   const parts = name.trim().split(/[\s_-]+/);
@@ -59,7 +60,7 @@ export function AgentListItem({
     if (!window.confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return;
 
     try {
-      const response = await fetch(`/api/agents/${agent.id}`, { method: 'DELETE' });
+      const response = await apiFetch(`/api/agents/${agent.id}`, { method: 'DELETE' });
       if (response.ok) {
         onDeleted(agent.id);
         // If we just deleted the current agent, navigate to root
@@ -78,7 +79,7 @@ export function AgentListItem({
     if (!groupId || !onRemoveFromGroup) return;
 
     try {
-      const response = await fetch(`/api/agents/${agent.id}/groups/${groupId}`, {
+      const response = await apiFetch(`/api/agents/${agent.id}/groups/${groupId}`, {
         method: 'DELETE',
       });
       if (response.ok || response.status === 404) {

@@ -48,9 +48,14 @@ function makeInput(overrides: Partial<WriteCallLogInput> = {}): WriteCallLogInpu
     requestPayload: REQ,
     responsePayload: RESP,
     durationMs: 100,
+    userId: null,
+    sharedWithAdmin: false,
     ...overrides,
   };
 }
+
+// Viewer id used throughout — any string works; we test redaction separately
+const VIEWER_ID = 'test-viewer-id';
 
 describe('llmCallLog repository', () => {
   it('writeCallLog returns a non-empty id string', () => {
@@ -69,7 +74,7 @@ describe('llmCallLog repository', () => {
       error: null,
       durationMs: 2,
     }));
-    const row = getCallLog(id);
+    const row = getCallLog(id, VIEWER_ID);
     expect(row).not.toBeNull();
     expect(row!.id).toBe(id);
     expect(row!.kind).toBe('import-strict');
@@ -81,7 +86,7 @@ describe('llmCallLog repository', () => {
   });
 
   it('getCallLog returns null for an unknown id', () => {
-    expect(getCallLog('does-not-exist')).toBeNull();
+    expect(getCallLog('does-not-exist', VIEWER_ID)).toBeNull();
   });
 
   it('list rows omit requestPayload and responsePayload', () => {

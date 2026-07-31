@@ -6,7 +6,7 @@
  * Implements Draft D (§7) — the agent-aware chat endpoint.
  *
  * Contract (§5):
- *   Request:  { agentId: string, instruction: string }
+ *   Request:  { agentId: string, instruction: string, dryRun?: boolean }
  *   Response: { sections: { [sectionKey]: {content, version} | {conflict:true, current, content} } }
  *
  * Key invariants (§6, §7, Rules Index #3/#7/#22/#23):
@@ -23,19 +23,22 @@
  *
  * Error codes (§5 error table):
  *   400  malformed request body
- *   404  agentId not found
+ *   401  unauthorized
+ *   404  agentId not found or not owned by caller
+ *   429  per-user LLM cap reached (§3.9)
  *   499  client cancelled (request.signal fired before the mediator resolved)
  *   502  Anthropic API upstream failure
  *   500  unexpected server error (never includes key or prompt text)
  */
 
 import { NextResponse } from 'next/server';
-import { getAgentFull, updateSectionContent, VersionConflictError } from '@/lib/db/repository';
+import { getAgentFull, updateSectionContent, VersionConflictError, SectionNotFoundError } from '@/lib/db/repository';
 import {
   callChatMediator,
   ChatMediatorUpstreamError,
 } from '@/lib/ai/chatMediator';
-import { LlmDryRunBlockedError } from '@/lib/ai/gateway';
+import { LlmDryRunBlockedError, LlmUserCapReachedError } from '@/lib/ai/gateway';
+import { authenticate } from '@/lib/auth/guard';
 
 // ── Split-level heading demotion (Rules Index #3, defense-in-depth) ──────────
 // Inlined in the route so it runs even in tests where callChatMediator is mocked.
@@ -60,6 +63,10 @@ function demoteHeadings(content: string, splitLevel: number): string {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  const auth = await authenticate();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
   // ── Parse + validate request body ─────────────────────────────────────────
   let body: unknown;
   try {
@@ -80,10 +87,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const { agentId, instruction } = body as { agentId: string; instruction: string };
+  const { agentId, instruction } = body as { agentId: string; instruction: string; dryRun?: boolean };
+  // forceDryRun: client may request dry-run mode explicitly (§8.16 — can only downgrade, never upgrade)
+  const forceDryRun = (body as { dryRun?: unknown }).dryRun === true;
 
   // ── Load whole agent server-side (Rules Index #7 — never trust client content) ──
-  const agent = getAgentFull(agentId);
+  const agent = getAgentFull(agentId, session.userId);
   if (!agent) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
@@ -111,11 +120,27 @@ export async function POST(request: Request): Promise<NextResponse> {
         instruction,
         signal: request.signal,
       },
-      // agentId is always known for chat (§5.2)
-      { kind: 'chat', agentId, agentLabel: agent.name },
+      // agentId is always known for chat (§5.2); userId from the session (§3.9)
+      { kind: 'chat', agentId, agentLabel: agent.name, userId: session.userId, forceDryRun },
     );
   } catch (err) {
-    // Dry-run block — FIRST, before ChatMediatorUpstreamError (§7.2, §3.2 catch order)
+    // Cap reached — checked FIRST (§3.9)
+    if (err instanceof LlmUserCapReachedError) {
+      return NextResponse.json(
+        {
+          error: 'llm_cap_reached',
+          limit: err.limit,
+          windowSeconds: err.windowSeconds,
+          retryAfterSeconds: err.retryAfterSeconds,
+          canDryRun: true,
+        },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(err.retryAfterSeconds) },
+        },
+      );
+    }
+    // Dry-run block — SECOND (§7.2, §3.2 catch order)
     if (err instanceof LlmDryRunBlockedError) {
       console.info('[chat] Dry-run blocked:', err.message);
       return NextResponse.json(
@@ -165,7 +190,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const safeContent = demoteHeadings(newContent, agent.splitLevel);
 
     try {
-      const { version } = updateSectionContent(base.id, safeContent, 'ai', base.version);
+      const { version } = updateSectionContent(agentId, base.id, session.userId, safeContent, 'ai', base.version);
       resultSections[sectionKey] = { content: safeContent, version };
     } catch (err) {
       if (err instanceof VersionConflictError) {
@@ -177,6 +202,9 @@ export async function POST(request: Request): Promise<NextResponse> {
           current: err.current,
           content: err.currentContent,
         };
+      } else if (err instanceof SectionNotFoundError) {
+        console.error(`[chat] Section not found for sectionKey "${sectionKey}":`, String(err));
+        return NextResponse.json({ error: 'not_found' }, { status: 404 });
       } else {
         // Unexpected write failure — surface as 500
         console.error(`[chat] Unexpected write failure for section "${sectionKey}":`, String(err));

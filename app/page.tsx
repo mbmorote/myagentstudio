@@ -6,15 +6,17 @@
  * Zero agents → render empty state.
  * One or more agents → redirect to /agents/{first.id}.
  *
- * (Phase B's shell alignment needs group data; this file is updated in C.1
- * to also redirect. The heavy lifting moves to app/agents/[id]/page.tsx.)
+ * Requires an authenticated session — unauthenticated visitors are redirected to
+ * /login?next=/ by middleware, and requirePageSession() is a second guarantee.
  */
 
 import { redirect } from 'next/navigation';
 import { listAgents } from '@/lib/db/repository';
+import { requirePageSession } from '@/lib/auth/session';
 
-export default function Home() {
-  const agents = listAgents();
+export default async function Home() {
+  const session = await requirePageSession('/');
+  const agents = listAgents(session.userId);
 
   if (agents.length === 0) {
     return (

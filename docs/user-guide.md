@@ -4,6 +4,33 @@ MyAgent is a local workbench for building Claude Code subagents. You import exis
 
 ---
 
+## Signing in
+
+MyAgent requires an account. Go to `/login` and enter your email and password.
+
+If you do not have an account yet, ask the admin (the person who runs this deployment) for an invite code. With that code in hand, go to `/signup` and create your account. The signup page will ask you to make one privacy choice — see the **Activity log** section below for what that choice means.
+
+When your session expires (after 7 days), you will be redirected to `/login` with your intended destination preserved — signing back in returns you to the page you were on.
+
+### Admin vs. user
+
+There are two roles:
+
+- **Admin** — the account created during initial setup. Has access to **System Settings** (`/settings`): the Live LLM calls toggle, the activity log, invite-code generation, and usage limits. The admin is exempt from the per-user hourly LLM call cap.
+- **User** — any account created via invite code. Has access to all workbench features and to their own **Account** page (`/account`). Cannot see System Settings.
+
+Both roles have a **Topbar** link to **Account** (your personal settings) and, for admins only, **⚙ System Settings**.
+
+---
+
+## Inviting someone
+
+Only the admin can generate invite codes. Open **⚙ System Settings** in the Topbar and scroll to the **Invite codes** section. Click **Generate** to create a new code (you can add an optional label like "for Alice"). Copy the code and send it to the person directly — codes are displayed plaintext so you can re-read them if needed.
+
+A code can only be redeemed once. Once redeemed or once the `maxUsers` cap is reached, the code is inert. You can revoke an unredeemed code from the same panel.
+
+---
+
 ## Importing an agent
 
 Click **⇪ Import .md** in the Library panel's action bar. A dialog opens.
@@ -112,9 +139,9 @@ The export format is deterministic and semantically faithful: frontmatter keys a
 
 ---
 
-## Settings: dry-run mode and the activity log
+## System Settings: dry-run mode and the activity log
 
-Click **⚙ Settings** in the top bar to open the Settings page.
+System Settings is accessible only to the admin. Click **⚙ System Settings** in the Topbar to open it.
 
 ### Live LLM calls toggle
 
@@ -127,9 +154,20 @@ When the toggle is off and you try to import a file or send a chat instruction, 
 
 The toggle takes effect immediately — the next AI call observes the new value without a server restart.
 
+### Per-user hourly LLM cap
+
+Each non-admin user may make up to **15 AI calls per rolling 60 minutes** (configurable as `maxLlmCallsPerUserPerHour` in System Settings). The admin is always exempt.
+
+When you hit the cap, the import dialog or chat panel shows two options instead of an error:
+
+- **Preview without sending** — re-sends the exact same request in dry-run mode, so you can see what the AI *would* have done without spending a call. The result looks exactly like the normal dry-run output.
+- **Wait** — dismisses the message and shows how many seconds until your oldest in-window call ages out and a slot frees up.
+
+Nothing was sent and nothing was charged either way.
+
 ### Activity log
 
-The activity log lists every AI call attempt, whether live or dry-run. Each row shows the timestamp, kind (Import/Chat), agent name, status (OK / Dry-run / Error), model, and duration.
+The activity log (admin only) lists every AI call attempt, whether live or dry-run. Each row shows the timestamp, kind (Import/Chat), agent name, status (OK / Dry-run / Error), model, and duration.
 
 **Status meanings:**
 - **OK** — the call succeeded and the response was applied.
@@ -138,6 +176,40 @@ The activity log lists every AI call attempt, whether live or dry-run. Each row 
 
 Click any row to expand it and see the full request payload (system prompt + messages) and, for live successful calls, the response payload. Dry-run rows always show a null response payload — that is correct by design.
 
+#### What the admin can and cannot see
+
+This deployment uses a single shared API key paid for by the admin. To audit that key's usage, the admin can always see every call's **metadata** — who made it, which agent, when, how many tokens, whether it succeeded — for all users. This is the minimum needed to answer "who is spending what."
+
+What the admin **cannot** see by default is the **content** of your instructions and the AI's replies. That is private unless you actively choose to share it.
+
+**Sharing is opt-in and chosen by you.** During signup you are asked to make an explicit choice: share your prompt and response content with the admin, or keep it private. There is no pre-selected answer and no way to submit the form without choosing. The default is **private**.
+
+**This choice is not retroactive in either direction.** If you start private and later turn sharing on (at `/account`), the admin sees your prompt text from that point forward — not from before. If you turn sharing back off, the admin loses access to future calls — not to the ones you already shared. Each log row permanently records the consent you had at the moment the call was made, so neither direction can surprise you.
+
+A log row whose content is private shows a "content hidden" marker in the activity log. The admin sees that the call happened, what agent it was for, and what it cost — but not what was said.
+
 You can filter the log by **All / Dry-run / Live** using the buttons above the table.
 
 **Deep links:** the notices shown in `ImportDialog` and `ChatPanel` after a dry-run block include a "View log entry →" link that opens `/settings?log=<id>`, which scrolls directly to and highlights that row in the activity log.
+
+---
+
+## Your Account page
+
+Click **Account** in the Topbar (always visible, for both admins and users) to open your personal settings at `/account`.
+
+**Log sharing with the admin.** The consent toggle mirrors the choice you made at signup: on = share your prompt and response content; off = private. You can flip it at any time. **The change is not retroactive in either direction** — past rows keep the consent value they were written with, and changing your preference only affects future calls.
+
+Your signed-in email and role are shown as read-only.
+
+---
+
+## Manual admin operations
+
+The following require direct database access (no UI — run these as SQL against `myagent.db`):
+
+| Action | SQL |
+|---|---|
+| Promote a user to admin | `UPDATE user SET role='admin' WHERE email='them@example.com';` |
+| Delete a user | First delete their agents/groups (they become unreachable orphans otherwise): `DELETE FROM agent WHERE owner_id='<id>';` `DELETE FROM "group" WHERE owner_id='<id>';` then `DELETE FROM user WHERE id='<id>';` |
+| Transfer an agent to another user | `UPDATE agent SET owner_id='<new-owner-id>' WHERE id='<agent-id>';` |
