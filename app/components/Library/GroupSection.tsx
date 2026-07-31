@@ -25,7 +25,7 @@ import { apiFetch } from '@/lib/apiFetch';
 interface GroupSectionProps {
   group: GroupDTO;
   agents: AgentLiteDTO[];
-  currentAgentId: string;
+  currentAgentId?: string;
   onMembershipRemoved: (agentId: string, groupId: string) => void;
   onAgentDeleted: (agentId: string) => void;
   onGroupDeleted: (groupId: string) => void;

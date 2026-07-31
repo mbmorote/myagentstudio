@@ -23,7 +23,7 @@
 
 import { splitBody } from '../serialize/splitBody.js';
 import { SECTION_DEFS } from '../blueprint/catalog.js';
-import type { StructuredAgent } from '../serialize/types.js';
+import type { StructuredAgent, FrontmatterEntry } from '../serialize/types.js';
 import type { ImportedAgentData } from '../db/repository/agents.js';
 
 const DESCRIPTION_PLACEHOLDER = '(no description provided)';
@@ -66,8 +66,10 @@ export function assembleStructural(
   // ── Step 6: frontmatter from original Stage-1 parse (never from model) ──
   const fmMap = new Map(original.frontmatter.map((e) => [e.key, e.rawValue]));
 
-  const toScalar = (v: string | string[] | undefined): string | undefined =>
-    v === undefined ? undefined : Array.isArray(v) ? v.join(', ') : v;
+  // name/description are expected to be scalar strings — a well-formed agent file never
+  // gives them a list or nested-json value; Array.isArray covers the (edge-case) list form.
+  const toScalar = (v: FrontmatterEntry['rawValue'] | undefined): string | undefined =>
+    v === undefined ? undefined : Array.isArray(v) ? v.join(', ') : typeof v === 'string' ? v : undefined;
 
   const name = toScalar(fmMap.get('name')) ?? '';
   const descriptionRaw = toScalar(fmMap.get('description'));
@@ -76,7 +78,8 @@ export function assembleStructural(
       ? descriptionRaw
       : DESCRIPTION_PLACEHOLDER;
 
-  // Config: all frontmatter entries except name + description (rawValue: string | string[]).
+  // Config: all frontmatter entries except name + description (rawValue may now be a
+  // nested object/array for datatype:'json' keys like hooks/mcpServers — #35/#40).
   const config: { propKey: string; value: unknown }[] = [];
   for (const entry of original.frontmatter) {
     if (entry.key === 'name' || entry.key === 'description') continue;

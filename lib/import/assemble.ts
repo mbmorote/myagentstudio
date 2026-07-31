@@ -21,7 +21,7 @@
  * - Missing description → placeholder string + descriptionMissing flag on DTO (Rules Index #12).
  */
 
-import type { StructuredAgent, BodyBlock } from '../serialize/types.js';
+import type { StructuredAgent, BodyBlock, FrontmatterEntry } from '../serialize/types.js';
 import type { ImportedAgentData } from '../db/repository/agents.js';
 import type { Stage2Labels, Stage2Mapping } from '../ai/importConverter.js';
 
@@ -47,8 +47,8 @@ export function assemble(
   // name and description are expected to be scalar strings. If a file somehow has a
   // list value for 'name'/'description', coerce to a joined string (edge case — a
   // well-formed agent file will always have scalar name/description).
-  const toScalar = (v: string | string[] | undefined): string | undefined =>
-    v === undefined ? undefined : Array.isArray(v) ? v.join(', ') : v;
+  const toScalar = (v: FrontmatterEntry['rawValue'] | undefined): string | undefined =>
+    v === undefined ? undefined : Array.isArray(v) ? v.join(', ') : typeof v === 'string' ? v : undefined;
 
   // name: verbatim (Rules Index #1 — flag-don't-block)
   const name = toScalar(fmMap.get('name')) ?? '';
@@ -64,7 +64,8 @@ export function assemble(
   const config: { propKey: string; value: unknown }[] = [];
   for (const entry of structured.frontmatter) {
     if (entry.key === 'name' || entry.key === 'description') continue;
-    // Store rawValue (string | string[]) verbatim as the config value (A3).
+    // Store rawValue verbatim as the config value (A3) — scalar, flat list, or (for
+    // datatype:'json' keys like hooks/mcpServers) a genuine nested object/array (#35/#40).
     // computeValidation handles both scalar and array forms for lists (rules.ts).
     config.push({ propKey: entry.key, value: entry.rawValue });
   }

@@ -823,22 +823,17 @@ function serializeAgentSnapshot(
     .all();
 
   // Build frontmatter: name, description, then config entries in DB row order.
-  // config.value may be a string scalar or a string[] list (A3 — pass arrays through
-  // as string[] rather than JSON.stringifying them, so exportAgent emits proper YAML).
+  // config.value may be a string scalar, a string[] list, or a genuine nested
+  // object/array (A3/#35/#40 — datatype 'json' fields like hooks/mcpServers). Nested
+  // values are passed through as-is so exportAgent emits real YAML, not a JSON.stringify'd
+  // scalar (that was a real bug: it produced a quoted JSON-string frontmatter value,
+  // which is not a valid Claude Code agent file).
   const frontmatter: FrontmatterEntry[] = [
     { key: 'name', rawValue: agentRow.name },
     { key: 'description', rawValue: agentRow.description },
     ...configRows.map((c) => ({
       key: c.propKey,
-      rawValue: ((): string | string[] => {
-        const v = c.value;
-        if (typeof v === 'string') return v;
-        if (Array.isArray(v) && (v as unknown[]).every((x) => typeof x === 'string')) {
-          return v as string[];
-        }
-        // Fallback for any other stored shape (e.g. numbers stored as JSON) — stringify.
-        return JSON.stringify(v);
-      })(),
+      rawValue: c.value as FrontmatterEntry['rawValue'],
     })),
   ];
 

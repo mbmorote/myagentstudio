@@ -18,9 +18,9 @@ Entry point: `importParse.ts`'s `parse()` function. Composes two lower-level fun
 
 Extracts the YAML block between `---` delimiters using `js-yaml` with `FAILSAFE_SCHEMA`. This schema treats all plain scalars as strings — `claude-sonnet-4-6` stays a string (not a float), `no` stays a string (not false), `true` stays a string (not boolean). This is intentional: the workbench stores and re-emits frontmatter values verbatim.
 
-Returns an ordered `{key, rawValue}[]` array. `rawValue` is `string` for scalar values and `string[]` for flat YAML lists. Nested maps or lists-of-non-scalars throw `FrontmatterParseError('unsupported_frontmatter')` — these are currently unsupported and route to a 400.
+Returns an ordered `{key, rawValue}[]` array. `rawValue` is `string` for scalar values, `string[]` for flat YAML lists, and `Record<string, unknown> | unknown[]` for a genuine nested mapping or a list containing non-scalars (e.g. an inline `mcpServers` server-config object, or `hooks`) — preserved verbatim, not rejected. This supersedes the original A3 hard-reject (Rules Index #35/#40); the deferred `__raw` escape hatch was retired in favor of catalog keys declaring `datatype: 'json'` (`lib/blueprint/catalog.ts`), which controls how such a value renders in the UI (a raw-JSON editor block) — the parser itself no longer distinguishes "supported" from "unsupported" shapes.
 
-A matched-but-unparseable frontmatter block (malformed YAML) throws `FrontmatterParseError('invalid_frontmatter')`. A file with no frontmatter block at all returns `[]` without error.
+A matched-but-unparseable frontmatter block (malformed YAML) throws `FrontmatterParseError` — the only remaining failure mode now that nested values no longer throw. A file with no frontmatter block at all returns `[]` without error.
 
 **`splitBody(body)`** (`splitBody.ts`)
 

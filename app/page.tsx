@@ -2,8 +2,14 @@
  * app/page.tsx
  *
  * Plan 03 Phase C, C.1 — Rewritten per R5.
+ * Revised 2026-07-31 (roadmap TODO item 1) — zero-agents branch now renders
+ * WorkbenchShell with initialAgent={null} instead of a bare, Topbar-less div, so a
+ * fresh signup can still log out / reach Account / import or create a first agent.
+ * WorkbenchShell and LibraryPanel already had null-agent fallbacks built in (Viz/Chat/
+ * Raw panels' "No agent loaded" states, LibraryPanel's now-optional currentAgentId) —
+ * this was previously unreachable dead code, not a new UI.
  *
- * Zero agents → render empty state.
+ * Zero agents → render WorkbenchShell in its null-agent state.
  * One or more agents → redirect to /agents/{first.id}.
  *
  * Requires an authenticated session — unauthenticated visitors are redirected to
@@ -11,38 +17,26 @@
  */
 
 import { redirect } from 'next/navigation';
-import { listAgents } from '@/lib/db/repository';
+import { listAgents, listGroups, getConfigCatalog } from '@/lib/db/repository';
 import { requirePageSession } from '@/lib/auth/session';
+import { WorkbenchShell } from '@/app/components/WorkbenchShell';
 
 export default async function Home() {
   const session = await requirePageSession('/');
   const agents = listAgents(session.userId);
 
   if (agents.length === 0) {
+    const groups = listGroups(session.userId);
+    const configCatalog = getConfigCatalog();
+
     return (
-      <div
-        style={{
-          display: 'flex',
-          height: '100vh',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--bg)',
-          color: 'var(--faint)',
-          fontFamily: 'var(--ui)',
-          fontSize: '13px',
-          flexDirection: 'column',
-          gap: '8px',
-        }}
-      >
-        <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--muted)' }}>No agents yet</p>
-        <p style={{ fontSize: '12px' }}>
-          Import an agent via{' '}
-          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent-ink)' }}>
-            POST /api/agents/import
-          </code>{' '}
-          to get started.
-        </p>
-      </div>
+      <WorkbenchShell
+        initialAgent={null}
+        agents={agents}
+        groups={groups}
+        configCatalog={configCatalog}
+        session={session}
+      />
     );
   }
 

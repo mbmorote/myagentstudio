@@ -31,14 +31,16 @@ export function exportAgent(structured: StructuredAgent): string {
   if (structured.frontmatter.length > 0) {
     // Reconstruct as a plain object preserving insertion order.
     // Object.fromEntries preserves the array order as string-key insertion order in V8+.
-    // rawValue is now string | string[] (A3 — lists survive round-trip as arrays).
-    const fmObj: Record<string, string | string[]> = Object.fromEntries(
+    // rawValue is string | string[] | Record<string, unknown> | unknown[] (A3 — lists
+    // survive round-trip as arrays; nested mappings/lists survive as real YAML, #35/#40).
+    const fmObj: Record<string, unknown> = Object.fromEntries(
       structured.frontmatter.map(({ key, rawValue }) => [key, rawValue]),
     );
 
     // yaml.dump with sortKeys:false + lineWidth:-1:
     //   - Scalars: quoted where needed for round-trip safety (DEFAULT_SCHEMA).
     //   - Arrays: emitted as YAML sequences — round-trips back to string[] via FAILSAFE_SCHEMA.
+    //   - Nested objects/arrays: emitted as real YAML mappings/sequences, not stringified.
     //   - Keys are NOT alphabetically sorted (insertion order preserved).
     //   - Long strings are NOT wrapped.
     // Use DEFAULT_SCHEMA for dumping — FAILSAFE_SCHEMA adds !!str tags to every

@@ -6,8 +6,10 @@
  * - Uses js-yaml FAILSAFE_SCHEMA: all plain scalars are kept as strings.
  *   This prevents coercions like `claude-sonnet-4-6` → float, `no` → false.
  * - Returns an ordered {key, rawValue}[] array.
- * - rawValue is string | string[]: scalar → string, block-list → string[].
- *   Nested maps or lists-of-non-scalars → FrontmatterParseError (loud, A3).
+ * - rawValue: scalar → string, flat list → string[], nested mapping or a list
+ *   containing non-scalars → Record<string, unknown> | unknown[], preserved verbatim
+ *   (Rules Index #35/#40 — superseded A3's original hard-reject; the deferred `__raw`
+ *   escape hatch is retired in favor of catalog keys declaring `datatype: 'json'`).
  * - YAML comments are silently dropped — this is documented and tested as
  *   an accepted loss per Rules Index #4.
  * - Matched-but-unparseable frontmatter throws FrontmatterParseError (A2).
@@ -25,26 +27,16 @@ import type { FrontmatterEntry } from './types.js';
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
 
 /**
- * Thrown when a frontmatter block is present but cannot be parsed (A2),
- * or when a value is of an unsupported type (nested map / non-scalar array — A3).
+ * Thrown when a frontmatter block is present but cannot be parsed as valid YAML (A2).
+ * Nested values no longer throw (Rules Index #35/#40, superseded) — this is the only
+ * remaining failure mode, so there is no error `code`/`key` discriminant to carry.
  *
- * Routes catch this and return 400 with the appropriate error code.
+ * Routes catch this and return 400 `invalid_frontmatter`.
  */
 export class FrontmatterParseError extends Error {
-  /** 'invalid_frontmatter' for malformed YAML; 'unsupported_frontmatter' for nested values. */
-  readonly code: 'invalid_frontmatter' | 'unsupported_frontmatter';
-  /** The frontmatter key that triggered the error, if applicable. */
-  readonly key?: string;
-
-  constructor(code: 'invalid_frontmatter' | 'unsupported_frontmatter', key?: string) {
-    super(
-      code === 'invalid_frontmatter'
-        ? 'Frontmatter block is present but cannot be parsed as valid YAML'
-        : `Frontmatter key "${key}" has an unsupported nested value (only scalars and flat lists are allowed)`,
-    );
+  constructor() {
+    super('Frontmatter block is present but cannot be parsed as valid YAML');
     this.name = 'FrontmatterParseError';
-    this.code = code;
-    this.key = key;
   }
 }
 
@@ -55,10 +47,8 @@ export class FrontmatterParseError extends Error {
  * Flat lists (arrays of scalars) are returned as string[].
  * Returns [] if no frontmatter block is found (regex no-match).
  *
- * @throws {FrontmatterParseError} code:'invalid_frontmatter' — frontmatter regex matched
- *   but yaml.load() threw (malformed YAML — e.g. duplicate keys, tab indentation).
- * @throws {FrontmatterParseError} code:'unsupported_frontmatter' — a value is a nested
- *   mapping or an array containing non-scalars (stated limitation until __raw hatch, A3).
+ * @throws {FrontmatterParseError} frontmatter regex matched but yaml.load() threw
+ *   (malformed YAML — e.g. duplicate keys, tab indentation).
  */
 export function parseFrontmatter(md: string): FrontmatterEntry[] {
   const match = FRONTMATTER_RE.exec(md);
@@ -72,7 +62,7 @@ export function parseFrontmatter(md: string): FrontmatterEntry[] {
   } catch {
     // Matched but unparseable — throw loudly (A2). Returning [] would silently discard
     // the entire frontmatter (including name), causing '' → collision bugs.
-    throw new FrontmatterParseError('invalid_frontmatter');
+    throw new FrontmatterParseError();
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
@@ -83,18 +73,16 @@ export function parseFrontmatter(md: string): FrontmatterEntry[] {
       // Common case: scalar string (FAILSAFE_SCHEMA ensures all plain scalars are strings).
       entries.push({ key, rawValue: value });
     } else if (Array.isArray(value)) {
-      // Flat list: each item must be a scalar string (FAILSAFE_SCHEMA → always strings
-      // for plain scalars, but nested objects/arrays inside the list are unsupported).
-      for (const item of value as unknown[]) {
-        if (typeof item !== 'string') {
-          // Non-scalar array item (e.g. a nested map inside a list) — loud rejection (A3).
-          throw new FrontmatterParseError('unsupported_frontmatter', key);
-        }
-      }
-      entries.push({ key, rawValue: value as string[] });
+      // Flat list (every item a scalar string) stays string[], matching pre-existing
+      // behavior. A list containing a nested map/array (e.g. an inline mcpServers entry)
+      // is preserved verbatim as unknown[] — supersedes A3's old rejection (#35/#40).
+      const items = value as unknown[];
+      const allScalars = items.every((item) => typeof item === 'string');
+      entries.push({ key, rawValue: allScalars ? (items as string[]) : items });
     } else {
-      // Nested mapping or other non-scalar — unsupported until __raw hatch exists (A3).
-      throw new FrontmatterParseError('unsupported_frontmatter', key);
+      // Nested mapping (FAILSAFE_SCHEMA guarantees a plain object here) — preserved
+      // verbatim, e.g. `hooks`. Supersedes A3's old rejection (#35/#40).
+      entries.push({ key, rawValue: value as Record<string, unknown> });
     }
   }
 

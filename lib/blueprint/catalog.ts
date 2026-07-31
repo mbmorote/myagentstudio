@@ -156,20 +156,16 @@ export const CONFIG_DEFS = [
     allowedValues: null,
   },
   {
-    // #40 (2026-07-28): real subagent files may declare mcpServers entries as
-    // *inline nested objects* (a full MCP server config: type/command/args/...),
-    // not just a flat list of server-name strings — confirmed against the real
-    // schema, no longer a hypothetical. lib/serialize/parseFrontmatter.ts (A3)
-    // currently rejects a nested map with a loud 400 (unsupported_frontmatter)
-    // rather than silently destroying it — correct per A3's stated limitation,
-    // but this means importing a real file with an inline mcpServers definition
-    // fails loudly today. Deferred until the __raw escape hatch exists (Plan 02
-    // Phase D); tracked here since it's now a confirmed-real gap, not spectulative.
-    // Rendered as a custom JSON block (not a structured list) because entries
-    // can be either a plain string or an inline nested server-config object.
+    // #40 (2026-07-28), resolved 2026-07-31 (roadmap TODO item 2): real subagent files
+    // may declare mcpServers entries as *inline nested objects* (a full MCP server
+    // config: type/command/args/...), not just a flat list of server-name strings.
+    // Previously blocked entirely on import (A3's old hard-reject) — now supported
+    // end-to-end via datatype 'json': parseFrontmatter preserves the nested value
+    // verbatim instead of rejecting it, and export emits real nested YAML instead of
+    // a JSON.stringify'd scalar. Rendered as a raw-JSON block in the UI, same as hooks.
     key: 'mcpServers',
     label: 'MCP servers',
-    datatype: 'list' as const,
+    datatype: 'json' as const,
     isCore: false,
     required: false,
     hint: 'String form reuses an MCP server already configured for this project/user. Inline object form defines a server scoped ONLY to this agent — connected at startup, disconnected when the agent finishes. Same schema as .mcp.json.',
@@ -203,14 +199,15 @@ export const CONFIG_DEFS = [
     allowedValues: null,
   },
   {
-    // #39 (2026-07-28): fields present in the real subagent frontmatter schema
-    // but never modeled here. hooks is a nested object (PreToolUse/PostToolUse/
-    // Stop matchers) — datatype 'any' since it doesn't fit string/enum/int/bool/
-    // list, and it will hit A3's unsupported_frontmatter guard on import today
-    // (same nested-object limitation as mcpServers, #40) until __raw exists.
+    // #39 (2026-07-28), resolved 2026-07-31 (roadmap TODO item 2): fields present in
+    // the real subagent frontmatter schema but never modeled here. hooks is a nested
+    // object (PreToolUse/PostToolUse/Stop matchers) — datatype 'json' (a real general
+    // mechanism, not the old 'any' placeholder): parseFrontmatter preserves the nested
+    // value verbatim on import instead of rejecting it (A3's old hard-reject), and
+    // export emits real nested YAML instead of a JSON.stringify'd scalar.
     key: 'hooks',
     label: 'Hooks',
-    datatype: 'any' as const,
+    datatype: 'json' as const,
     isCore: false,
     required: false,
     hint: 'Supported events: PreToolUse, PostToolUse, Stop (auto-mapped to SubagentStop at runtime). Same schema as project-level hooks in settings.json. Receives JSON on stdin; exit code 0 = allow, 2 = block.',

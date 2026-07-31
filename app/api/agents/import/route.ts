@@ -75,12 +75,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     structured = parse(rawMd);
   } catch (err) {
     if (err instanceof FrontmatterParseError) {
-      // A2: malformed YAML frontmatter — loud 400 (never silently discard).
+      // A2: malformed YAML frontmatter — loud 400 (never silently discard). Nested
+      // values no longer reach this branch (#35/#40, superseded) — only truly
+      // unparseable YAML does.
       console.error('[import] Frontmatter parse error:', err.message);
-      const code = err.code === 'unsupported_frontmatter'
-        ? 'unsupported_frontmatter'
-        : 'invalid_frontmatter';
-      return NextResponse.json({ error: code, key: err.key }, { status: 400 });
+      return NextResponse.json({ error: 'invalid_frontmatter' }, { status: 400 });
     }
     console.error('[import] Stage-1 parse failed:', err);
     return NextResponse.json({ error: 'invalid_body', field: 'md' }, { status: 400 });
@@ -110,8 +109,17 @@ async function runStructuralPipeline(
 ): Promise<NextResponse> {
   // ── Short-circuit: identical raw bytes (Rules Index #36 — B3) ────────────
   // Extract name from Stage-1 frontmatter to look up the existing agent.
+  // name is always a scalar string in a well-formed agent file; the frontmatter type
+  // now also allows nested object/array values for datatype:'json' keys (#35/#40),
+  // so narrow explicitly rather than assuming the found entry is a string.
   const fmName = structured.frontmatter.find((e) => e.key === 'name');
-  const agentName = fmName ? (Array.isArray(fmName.rawValue) ? fmName.rawValue[0] : fmName.rawValue) : '';
+  const rawName = fmName?.rawValue;
+  const agentName =
+    typeof rawName === 'string'
+      ? rawName
+      : Array.isArray(rawName) && typeof rawName[0] === 'string'
+      ? rawName[0]
+      : '';
 
   if (agentName) {
     const snapshotInfo = getAgentSnapshotInfo(agentName, userId);
@@ -213,10 +221,16 @@ async function runStrictPipeline(
   const blockRefs = structured.blocks.map((b) => ({ blockId: b.blockId, heading: b.heading }));
 
   // §5.2: agentId best-effort at call time — the agent may not exist yet.
+  // name is always a scalar string in a well-formed agent file — see the matching
+  // narrowing comment in runStructuralPipeline above.
   const fmNameStrict = structured.frontmatter.find((e) => e.key === 'name');
-  const agentNameStrict = fmNameStrict
-    ? (Array.isArray(fmNameStrict.rawValue) ? fmNameStrict.rawValue[0] : fmNameStrict.rawValue)
-    : '';
+  const rawNameStrict = fmNameStrict?.rawValue;
+  const agentNameStrict =
+    typeof rawNameStrict === 'string'
+      ? rawNameStrict
+      : Array.isArray(rawNameStrict) && typeof rawNameStrict[0] === 'string'
+      ? rawNameStrict[0]
+      : '';
   const agentIdStrict = agentNameStrict ? (getAgentSnapshotInfo(agentNameStrict, userId)?.id ?? null) : null;
 
   let labels;

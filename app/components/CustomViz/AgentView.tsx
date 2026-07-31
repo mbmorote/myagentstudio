@@ -20,7 +20,8 @@
  *     dashed border for disallowedTools entries.
  *   - Unset keys have no row; set via the "+" add-key button.
  *   - initialPrompt: click-to-expand textarea block with Save/Cancel and outside-click-confirm.
- *   - hooks / mcpServers: raw-JSON textarea blocks (same expand/save/confirm pattern).
+ *   - Any datatype:'json' key (hooks, mcpServers): raw-JSON textarea blocks (same
+ *     expand/save/confirm pattern), derived from the catalog — not a hardcoded key set.
  *   - Unknown config keys (not in catalog): shown as warn pills.
  *
  * Model+effort header control (decision 12):
@@ -64,8 +65,6 @@ import { apiFetch } from '@/lib/apiFetch';
 const SCALAR_KEY_ORDER = ['permissionMode', 'maxTurns', 'memory', 'background', 'isolation', 'color'];
 // Display order for list-row fields (full-width)
 const LIST_KEY_ORDER = ['tools', 'disallowedTools', 'skills'];
-// Keys rendered as raw-JSON textarea blocks
-const CUSTOM_BLOCK_KEYS = new Set(['hooks', 'mcpServers']);
 // Keys handled in the header (not in the config zone)
 const HEADER_KEYS = new Set(['model', 'effort']);
 const INITIAL_PROMPT_KEY = 'initialPrompt';
@@ -133,6 +132,12 @@ function makeCatalogHelpers(configCatalog: ConfigDefLite[]) {
   const builtinTools = new Set((toolsDef?.allowedValues ?? []) as readonly string[]);
   // All catalog keys (for "unknown key" detection).
   const catalogKeySet: Set<string> = new Set(configCatalog.map((d) => d.key));
+  // Keys whose datatype is 'json' — rendered as raw-JSON textarea blocks. Derived from
+  // the catalog (not a hardcoded key-name set) so any key can opt into this rendering
+  // by declaring datatype: 'json' — currently hooks + mcpServers (roadmap TODO item 2).
+  const jsonKeys: Set<string> = new Set(
+    configCatalog.filter((d) => d.datatype === 'json').map((d) => d.key),
+  );
 
   function getCatalogDef(key: string): ConfigDefLite | null {
     return configCatalog.find((d) => d.key === key) ?? null;
@@ -152,7 +157,7 @@ function makeCatalogHelpers(configCatalog: ConfigDefLite[]) {
     return false; // skills: open vocabulary, no closed list to check against
   }
 
-  return { modelDef, toolsDef, builtinTools, catalogKeySet, getCatalogDef, isBadListItem };
+  return { modelDef, toolsDef, builtinTools, catalogKeySet, jsonKeys, getCatalogDef, isBadListItem };
 }
 
 // List-item cap (prototyped 2026-07-29) — confirmed real gap: a `dev`-style agent with
@@ -203,7 +208,7 @@ export function AgentView({
 }: AgentViewProps) {
 
   // ── Derived data ──────────────────────────────────────────────────────────
-  const { modelDef, builtinTools, catalogKeySet, getCatalogDef, isBadListItem } =
+  const { modelDef, builtinTools, catalogKeySet, jsonKeys, getCatalogDef, isBadListItem } =
     makeCatalogHelpers(configCatalog);
   const agentGroups = groups.filter((g) => g.memberAgentIds.includes(agent.id));
   const configMap = new Map(agent.config.map((c) => [c.propKey, c.value]));
@@ -222,7 +227,7 @@ export function AgentView({
   // List keys that are set
   const setListKeys = LIST_KEY_ORDER.filter((k) => configMap.has(k));
   // Custom JSON block keys that are set
-  const setCustomKeys = Array.from(CUSTOM_BLOCK_KEYS).filter((k) => configMap.has(k));
+  const setCustomKeys = Array.from(jsonKeys).filter((k) => configMap.has(k));
   const hasInitialPrompt = configMap.has(INITIAL_PROMPT_KEY);
 
   // Unknown keys: in agent config but not in any known category
@@ -609,17 +614,17 @@ export function AgentView({
     else if (def.datatype === 'int') initialValue = 10;
     else if (def.datatype === 'enum') initialValue = (def.allowedValues as readonly string[])[0];
     else if (def.datatype === 'string') initialValue = '';
-    else initialValue = {}; // 'any' → hooks gets {}
-
-    // For mcpServers (stored as list but rendered as JSON block): use []
-    if (key === 'mcpServers') initialValue = [];
+    // json: mcpServers is naturally a list of server entries; other json keys (hooks)
+    // default to an empty object.
+    else if (def.datatype === 'json') initialValue = key === 'mcpServers' ? [] : {};
+    else initialValue = {};
 
     saveConfig([
       ...currentConfigPairs().filter((c) => c.propKey !== key),
       { propKey: key, value: initialValue },
     ]).then(() => {
       // Open the relevant editor after the key is saved
-      if (CUSTOM_BLOCK_KEYS.has(key)) {
+      if (jsonKeys.has(key)) {
         setExpandedCustomKey(key);
         setCustomJsonDraft(JSON.stringify(initialValue, null, 2));
         setCustomJsonError(null);
@@ -1124,7 +1129,7 @@ export function AgentView({
     );
   }
 
-  // ── Render: custom JSON block (hooks, mcpServers) ─────────────────────────
+  // ── Render: custom JSON block (any datatype:'json' key — hooks, mcpServers) ────
   function renderCustomBlock(key: string) {
     if (!configMap.has(key) && expandedCustomKey !== key) return null;
     const def = getCatalogDef(key)!;
@@ -1139,12 +1144,9 @@ export function AgentView({
     );
 
     if (!isExpanded) {
-      const summary =
-        key === 'hooks'
-          ? `${Object.keys((value as Record<string, unknown>) ?? {}).length} event(s) configured`
-          : Array.isArray(value)
-          ? `${(value as unknown[]).length} entries`
-          : `${Object.keys((value as Record<string, unknown>) ?? {}).length} entries`;
+      const summary = Array.isArray(value)
+        ? `${(value as unknown[]).length} entries`
+        : `${Object.keys((value as Record<string, unknown>) ?? {}).length} entries`;
 
       return (
         <div
@@ -1337,7 +1339,7 @@ export function AgentView({
                   className="flex items-center gap-[6px] w-full px-[12px] py-[7px] text-[12px] font-sans text-[var(--text)] hover:bg-[var(--accent-wash)] cursor-pointer text-left"
                 >
                   {d.label}
-                  {CUSTOM_BLOCK_KEYS.has(d.key) && (
+                  {jsonKeys.has(d.key) && (
                     <span className="text-[10px] text-[var(--faint)] ml-[4px]">custom</span>
                   )}
                 </button>
@@ -1486,8 +1488,8 @@ export function AgentView({
         {/* initialPrompt block: always visible (outside collapse, per design decision 3) */}
         {renderInitialPromptBlock()}
 
-        {/* Custom JSON blocks (hooks, mcpServers): also always visible */}
-        {Array.from(CUSTOM_BLOCK_KEYS).map((k) => renderCustomBlock(k))}
+        {/* Custom JSON blocks (hooks, mcpServers, any other json-datatype key): always visible */}
+        {Array.from(jsonKeys).map((k) => renderCustomBlock(k))}
 
         {/* Config save error */}
         {configError && (

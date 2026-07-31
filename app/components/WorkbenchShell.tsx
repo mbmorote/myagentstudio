@@ -136,16 +136,12 @@ export function WorkbenchShell({
               className="flex-none"
               style={{ width: leftWidth }}
             >
-              {agent ? (
-                <LibraryPanel
-                  currentAgentId={agent.id}
-                  agents={agents}
-                  groups={groups}
-                  mode={libraryMode}
-                />
-              ) : (
-                <div className="p-4 text-[12px] text-[var(--faint)]">No agent loaded.</div>
-              )}
+              <LibraryPanel
+                currentAgentId={agent?.id}
+                agents={agents}
+                groups={groups}
+                mode={libraryMode}
+              />
             </Panel>
             <Gutter
               orientation="vertical"

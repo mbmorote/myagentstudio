@@ -21,10 +21,15 @@ export type FrontmatterEntry = {
    * The value preserved from YAML — no type coercion (Rules Index #4, #35).
    * - string: a scalar value (all plain scalars under FAILSAFE_SCHEMA are already strings).
    * - string[]: a flat list of scalars (e.g. `tools: [Read, Write]` or block-list style).
-   * Nested maps or lists-of-non-scalars are rejected by parseFrontmatter with a
-   * FrontmatterParseError('unsupported_frontmatter') before they ever reach this type.
+   * - Record<string, unknown> / unknown[]: a genuine nested mapping or a list containing
+   *   non-scalar items (e.g. `mcpServers`, `hooks`). Preserved verbatim through
+   *   parse → store → export for catalog keys whose ConfigDef.datatype is 'json' — this
+   *   supersedes A3's original hard-reject (Rules Index #35/#40; the deferred `__raw`
+   *   escape hatch was retired in favor of this). FAILSAFE_SCHEMA guarantees every YAML
+   *   value — nested or not — resolves to only string/array/object, never a bare
+   *   null/number/boolean, so these two shapes are exhaustive.
    */
-  rawValue: string | string[];
+  rawValue: string | string[] | Record<string, unknown> | unknown[];
 };
 
 export type BodyBlock = {

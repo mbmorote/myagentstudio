@@ -45,7 +45,7 @@ The route (`app/api/agents/import/route.ts`) orchestrates this and handles all H
 
 Three files compose the Stage 1 parse:
 
-**`parseFrontmatter.ts`** — extracts the YAML block between the `---` delimiters using `js-yaml` with `FAILSAFE_SCHEMA`. All scalar values come out as strings (no coercion of `claude-sonnet-4-6` into a float, no `no` into `false`). Flat lists (`string[]`) are preserved. Nested maps or lists-of-non-scalars throw `FrontmatterParseError('unsupported_frontmatter')` — a loud 400, never silently discarded.
+**`parseFrontmatter.ts`** — extracts the YAML block between the `---` delimiters using `js-yaml` with `FAILSAFE_SCHEMA`. All scalar values come out as strings (no coercion of `claude-sonnet-4-6` into a float, no `no` into `false`). Flat lists (`string[]`) are preserved. A genuine nested mapping or a list containing non-scalars (e.g. an inline `mcpServers` server-config object, or `hooks`) is preserved verbatim as `Record<string, unknown> | unknown[]` — supported end-to-end for any catalog key declaring `datatype: 'json'` (`lib/blueprint/catalog.ts`), not rejected. Only genuinely unparseable YAML still throws `FrontmatterParseError` (loud 400, never silently discarded).
 
 **`splitBody.ts`** — splits the body at the shallowest heading level actually present. Tracks fenced code blocks (`` ``` `` and `~~~`) so a `#` line inside a code fence is not treated as a heading. Returns `{splitLevel, blocks}` where each block has a stable `blockId` ("block-0", "block-1", …), heading text (or `null` for a headingless preamble), content bytes, and order.
 

@@ -45,7 +45,8 @@ import type { AgentLiteDTO, GroupDTO } from '@/lib/db/repository';
 import { apiFetch } from '@/lib/apiFetch';
 
 interface LibraryPanelProps {
-  currentAgentId: string;
+  /** Undefined when no agent is currently loaded (e.g. the zero-agents empty state). */
+  currentAgentId?: string;
   agents: AgentLiteDTO[];
   groups: GroupDTO[];
   /**

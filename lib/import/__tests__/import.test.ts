@@ -648,8 +648,6 @@ describe('A2 — FrontmatterParseError and missing_name rejection', () => {
     // Tab-indented YAML is invalid under the YAML spec and will throw with FAILSAFE_SCHEMA.
     const tabIndentedMd = '---\nname: foo\n\tmodel: claude\n---\n# ROLE\ncontent\n';
     expect(() => parseFrontmatter(tabIndentedMd)).toThrow(FPE);
-    const err = (() => { try { parseFrontmatter(tabIndentedMd); } catch (e) { return e; } })();
-    expect((err as InstanceType<typeof FPE>).code).toBe('invalid_frontmatter');
   });
 
   it('upsertAgentFromImport throws MissingNameError on empty name', () => {
@@ -717,15 +715,50 @@ describe('A3 — block-list frontmatter value round-trip', () => {
     expect(toolsEntry2?.rawValue).toEqual(['Read', 'Write', 'Edit']);
   });
 
-  it('nested map frontmatter value throws FrontmatterParseError with unsupported_frontmatter', async () => {
-    const { parseFrontmatter, FrontmatterParseError: FPE } = await import('../../serialize/parseFrontmatter.js');
+  it('nested map frontmatter value is preserved verbatim, not rejected (supersedes A3, #35/#40)', async () => {
+    const { parseFrontmatter } = await import('../../serialize/parseFrontmatter.js');
     // Note: FAILSAFE_SCHEMA parses nested mappings as objects.
     // A nested map looks like: key:\n  subkey: value
     const md = '---\nname: foo\nmcpServers:\n  server1: value1\n---\n';
-    expect(() => parseFrontmatter(md)).toThrow(FPE);
-    const err = (() => { try { parseFrontmatter(md); } catch (e) { return e; } })();
-    expect((err as InstanceType<typeof FPE>).code).toBe('unsupported_frontmatter');
-    expect((err as InstanceType<typeof FPE>).key).toBe('mcpServers');
+    const parsed = parseFrontmatter(md);
+    const entry = parsed.find((e) => e.key === 'mcpServers');
+    expect(entry?.rawValue).toEqual({ server1: 'value1' });
+  });
+
+  it('nested map round-trips through export → re-parse as the same object', async () => {
+    const { parseFrontmatter } = await import('../../serialize/parseFrontmatter.js');
+    const { exportAgent } = await import('../../serialize/export.js');
+
+    const md = [
+      '---',
+      'name: mcp-test',
+      'description: mcpServers round-trip',
+      'mcpServers:',
+      '  inline-server:',
+      '    type: stdio',
+      '    command: node',
+      '    args:',
+      '      - server.js',
+      '---',
+      '# ROLE',
+      'Content here.',
+      '',
+    ].join('\n');
+
+    const parsed1 = parseFrontmatter(md);
+    const mcpEntry1 = parsed1.find((e) => e.key === 'mcpServers');
+    expect(mcpEntry1?.rawValue).toEqual({
+      'inline-server': { type: 'stdio', command: 'node', args: ['server.js'] },
+    });
+
+    const exported = exportAgent({
+      frontmatter: parsed1,
+      splitLevel: 1,
+      blocks: [{ blockId: 'block-0', heading: '# ROLE', content: 'Content here.\n', order: 0 }],
+    });
+    const parsed2 = parseFrontmatter(exported);
+    const mcpEntry2 = parsed2.find((e) => e.key === 'mcpServers');
+    expect(mcpEntry2?.rawValue).toEqual(mcpEntry1?.rawValue);
   });
 });
 
