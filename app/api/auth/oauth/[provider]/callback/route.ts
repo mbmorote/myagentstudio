@@ -48,6 +48,7 @@ import { getOAuthAccount, linkOAuthAccount } from '@/lib/db/repository/oauthAcco
 import { getMaxUsers } from '@/lib/settings';
 import { signSessionToken } from '@/lib/auth/jwt';
 import { SESSION_COOKIE, NO_PASSWORD_SENTINEL, getSessionTtlSeconds } from '@/lib/auth/constants';
+import { NEW_ACCOUNT_QUERY_PARAM } from '@/lib/auth/consentPopupFlag';
 
 type Params = { provider: string };
 
@@ -162,6 +163,10 @@ export async function GET(
   // Steps 7–10: Resolve to exactly one user row.
   // All three outcomes converge at step 11.
   let resolvedUser: UserRow | undefined;
+  // True only for a genuinely new account (outcome 3, non-race path) — tells
+  // step 11 to flag the redirect so WorkbenchShell offers the activity-log-sharing
+  // popup once. Login (outcome 1) and auto-link (outcome 2) never set this.
+  let isNewAccount = false;
 
   // Step 7: Existing oauth_account row → OUTCOME 1: login
   const existingLink = getOAuthAccount(provider, profile.providerAccountId);
@@ -282,6 +287,7 @@ export async function GET(
         }
       } else {
         resolvedUser = result.user;
+        isNewAccount = true;
         // → fall through to step 11
       }
     }
@@ -304,6 +310,12 @@ export async function GET(
 
   const token = await signSessionToken({ sub: resolvedUser.id, email: resolvedUser.email });
   const dest = safeNext(tx.next) ?? '/';
+  // New-account flag rides as a one-time query param — this redirect is server-issued,
+  // so it cannot use the sessionStorage handoff the password-signup path uses.
+  // WorkbenchShell reads it once on mount and strips it via history.replaceState.
+  const finalDest = isNewAccount
+    ? `${dest}${dest.includes('?') ? '&' : '?'}${NEW_ACCOUNT_QUERY_PARAM}=1`
+    : dest;
 
-  return redirectTo(dest, token);
+  return redirectTo(finalDest, token);
 }

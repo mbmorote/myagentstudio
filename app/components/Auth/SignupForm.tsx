@@ -13,12 +13,14 @@
  * redirects to /signup (§7.3). The server page.tsx wraps this component in
  * <Suspense> so Next 15 static rendering does not throw on useSearchParams().
  *
- * The Google button's precondition (§7.2): disabled until BOTH the invite code
- * field is filled AND the consent question is answered — identical to the
- * password submit button's preconditions, because both lead to the same account
- * creation transaction. A UI that lets the Google button be clicked before
- * consent is answered violates §5.6 even though the server fails closed
- * (tx.consent === true is the server-side guard — the UI must still ask).
+ * Activity-log-sharing consent (§5.6) is deliberately NOT asked here. Every new
+ * account is created with shareLogsWithAdmin: false ("keep private"); the choice
+ * is offered afterward as a dismissible popup on first load of the main app
+ * (WorkbenchShell), so it never blocks or gates account creation. This is a
+ * conscious supersession of §5.6/§7.2's original "must answer before submit"
+ * design — see plans/06-auth-review-google-oauth.md's Phase 5 note for context.
+ * SIGNUP_CONSENT_FLAG_KEY is the handoff: set here right before navigating to
+ * '/', read once by WorkbenchShell, then cleared.
  *
  * Note: bare fetch() for /api/auth/signup is intentional — NOT apiFetch. This
  * endpoint returns 401 for session issues but also returns non-401 errors for
@@ -31,8 +33,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { GoogleButton } from './GoogleButton';
-
-type ConsentChoice = 'share' | 'private' | null;
+import { SIGNUP_CONSENT_FLAG_KEY } from '@/lib/auth/consentPopupFlag';
 
 /**
  * Closed vocabulary of ?error= codes sent by the OAuth callback to /signup (§7.3).
@@ -65,19 +66,14 @@ export function SignupForm({ oauthConfigured }: SignupFormProps) {
   const [inviteCode, setInviteCode] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [consent, setConsent] = useState<ConsentChoice>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Precondition for the password submit button:
-  //   - consent answered (invite code enforced by HTML `required` on the field)
-  const canSubmit = !submitting && consent !== null;
+  const canSubmit = !submitting;
 
-  // Precondition for the Google button (§7.2 — identical conditions to password submit,
-  // plus explicit invite code check since the Google button bypasses form validation):
-  //   - invite code field is filled
-  //   - consent answered
-  const canSubmitGoogle = !submitting && consent !== null && inviteCode.trim() !== '';
+  // Precondition for the Google button: invite code field filled (the Google
+  // button bypasses HTML form validation, so this is checked explicitly).
+  const canSubmitGoogle = !submitting && inviteCode.trim() !== '';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -93,7 +89,7 @@ export function SignupForm({ oauthConfigured }: SignupFormProps) {
           inviteCode: inviteCode.trim(),
           email: email.trim(),
           password,
-          shareLogsWithAdmin: consent === 'share',
+          shareLogsWithAdmin: false,
         }),
       });
 
@@ -135,6 +131,7 @@ export function SignupForm({ oauthConfigured }: SignupFormProps) {
         return;
       }
 
+      sessionStorage.setItem(SIGNUP_CONSENT_FLAG_KEY, '1');
       window.location.href = '/';
     } catch {
       setError('Network error. Please try again.');
@@ -145,7 +142,7 @@ export function SignupForm({ oauthConfigured }: SignupFormProps) {
 
   return (
     <div className="flex min-h-screen items-start justify-center bg-[var(--bg)] py-12 px-4">
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-sm border border-[var(--border)] rounded-[14px] bg-[var(--elev)] p-8">
         {/* Brand */}
         <div className="flex items-center gap-[9px] mb-8">
           <span
@@ -214,64 +211,11 @@ export function SignupForm({ oauthConfigured }: SignupFormProps) {
             <p className="mt-1 text-[11px] text-[var(--faint)]">At least 12 characters.</p>
           </div>
 
-          {/* ── Consent block — cookie-banner style (§5.6) ─────────────────── */}
-          <div className="border-2 border-[var(--border)] rounded-[9px] p-4 bg-[var(--elev)] space-y-3">
-            <div>
-              <h2 className="text-[13px] font-semibold text-[var(--text)] mb-1">
-                Activity log sharing
-              </h2>
-              <p className="text-[12px] text-[var(--muted)] leading-[1.5]">
-                This workbench uses one shared API key paid for by the admin (the person who set up
-                this deployment). To audit usage, the admin can see <strong>metadata</strong> for
-                every AI call — which agent, when, how many tokens — regardless of your choice here.
-              </p>
-              <p className="text-[12px] text-[var(--muted)] leading-[1.5] mt-2">
-                You can also allow the admin to read the <strong>text of your instructions and the
-                AI&apos;s replies</strong>. This is optional and off by default.
-              </p>
-              <p className="text-[11px] text-[var(--faint)] mt-2">
-                You can change this choice later at any time in your Account settings. Changing it
-                is not retroactive in either direction.
-              </p>
-            </div>
-
-            {/* Two explicit actions — no pre-selection */}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setConsent('private')}
-                disabled={submitting}
-                className={[
-                  'flex-1 py-2 text-[12px] font-medium rounded-[7px] border transition-colors cursor-pointer disabled:opacity-50',
-                  consent === 'private'
-                    ? 'bg-[var(--text)] text-[var(--bg)] border-[var(--text)]'
-                    : 'bg-[var(--bg)] text-[var(--text)] border-[var(--border)] hover:border-[var(--text)]',
-                ].join(' ')}
-              >
-                Keep private
-              </button>
-              <button
-                type="button"
-                onClick={() => setConsent('share')}
-                disabled={submitting}
-                className={[
-                  'flex-1 py-2 text-[12px] font-medium rounded-[7px] border transition-colors cursor-pointer disabled:opacity-50',
-                  consent === 'share'
-                    ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
-                    : 'bg-[var(--bg)] text-[var(--text)] border-[var(--border)] hover:border-[var(--accent)]',
-                ].join(' ')}
-              >
-                Share with admin
-              </button>
-            </div>
-
-            {consent === null && (
-              <p className="text-[11px] text-[var(--warn)]">
-                Please choose one of the options above before continuing.
-              </p>
-            )}
-          </div>
-          {/* ── End consent block ──────────────────────────────────────────── */}
+          {/*
+            No consent block here — every account is created with
+            shareLogsWithAdmin: false (see file header). The choice is offered
+            afterward as a dismissible popup on first load of the main app.
+          */}
 
           {error && (
             <p className="text-[12px] text-[var(--err)] bg-[var(--elev)] border border-[var(--err)] rounded-[6px] px-3 py-2">
@@ -279,17 +223,12 @@ export function SignupForm({ oauthConfigured }: SignupFormProps) {
             </p>
           )}
 
-          {/*
-            Google sign-in — shown after the consent block so the user can see
-            both preconditions (invite code, consent) are needed before the
-            button becomes active (§7.2). Disabled until canSubmitGoogle is true.
-          */}
+          {/* Google sign-in — disabled until the invite code field is filled. */}
           {oauthConfigured && (
             <>
               <GoogleButton
                 mode="signup"
                 inviteCode={inviteCode.trim()}
-                shareLogsWithAdmin={consent === 'share'}
                 disabled={!canSubmitGoogle}
               />
               <div className="flex items-center gap-3">

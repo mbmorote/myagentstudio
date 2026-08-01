@@ -11,7 +11,8 @@
     "lint": "next lint",
     "test": "vitest run",
     "db:seed": "tsx lib/db/seed.ts",
-    "auth:bootstrap": "tsx scripts/bootstrap-user.ts"
+    "auth:bootstrap": "tsx scripts/bootstrap-user.ts",
+    "cleanup:test-users": "tsx scripts/cleanup-test-users.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

@@ -23,7 +23,7 @@
  *   - null: idle
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { AgentDTO, AgentLiteDTO, GroupDTO, ConfigDefLite } from '@/lib/db/repository';
 import type { Session } from '@/lib/auth/session';
 import { AgentView } from '@/app/components/CustomViz/AgentView';
@@ -34,6 +34,8 @@ import { Rail } from '@/app/components/shell/Rail';
 import { Gutter } from '@/app/components/shell/Gutter';
 import { RawAgentView } from '@/app/components/Raw/RawAgentView';
 import { LibraryPanel } from '@/app/components/Library/LibraryPanel';
+import { ConsentPopup } from '@/app/components/Auth/ConsentPopup';
+import { SIGNUP_CONSENT_FLAG_KEY, NEW_ACCOUNT_QUERY_PARAM } from '@/lib/auth/consentPopupFlag';
 
 export type InteractionLock = 'chat' | 'edit' | null;
 
@@ -67,6 +69,26 @@ export function WorkbenchShell({
 }: WorkbenchShellProps) {
   const [agent, setAgent] = useState<AgentDTO | null>(initialAgent);
   const [interactionLock, setInteractionLock] = useState<InteractionLock>(null);
+
+  // ── Post-signup activity-log-sharing popup (SignupForm.tsx header comment) ──
+  // Fires once per fresh signup: password path leaves a sessionStorage flag,
+  // Google path leaves a one-time ?newAccount=1 query param. Whichever is
+  // present is consumed and cleared immediately so a page refresh never re-shows it.
+  const [showConsentPopup, setShowConsentPopup] = useState(false);
+  useEffect(() => {
+    const fromPassword = sessionStorage.getItem(SIGNUP_CONSENT_FLAG_KEY);
+    if (fromPassword) {
+      sessionStorage.removeItem(SIGNUP_CONSENT_FLAG_KEY);
+      setShowConsentPopup(true);
+      return;
+    }
+    const url = new URL(window.location.href);
+    if (url.searchParams.has(NEW_ACCOUNT_QUERY_PARAM)) {
+      url.searchParams.delete(NEW_ACCOUNT_QUERY_PARAM);
+      window.history.replaceState({}, '', url.toString());
+      setShowConsentPopup(true);
+    }
+  }, []);
 
   // ── Fold state (R15 — local only) ──────────────────────────────────────────
   const [leftFolded, setLeftFolded] = useState(false);
@@ -107,6 +129,8 @@ export function WorkbenchShell({
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg)]">
+      {showConsentPopup && <ConsentPopup onClose={() => setShowConsentPopup(false)} />}
+
       {/* ── Topbar ──────────────────────────────────────────────────────── */}
       <Topbar session={session} />
 

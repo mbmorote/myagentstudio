@@ -105,7 +105,7 @@ export function LoginForm({ oauthConfigured }: LoginFormProps) {
 
   return (
     <div className="flex h-screen items-center justify-center bg-[var(--bg)]">
-      <div className="w-full max-w-sm px-6">
+      <div className="w-full max-w-sm mx-6 border border-[var(--border)] rounded-[14px] bg-[var(--elev)] p-8">
         {/* Brand */}
         <div className="flex items-center gap-[9px] mb-8">
           <span

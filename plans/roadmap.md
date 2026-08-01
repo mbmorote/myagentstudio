@@ -24,11 +24,16 @@ live code, for iteration speed (see `CLAUDE.md` standing rule 4).
 **Phases 0–4 built and committed** (`1d77019`, `ea2867f`, `a937297`, `9aee4bf`, `d1a29cc`) —
 middleware JWT dedup + configurable session TTL, the OAuth foundations, the `oauth_account`
 schema, the start/callback routes, and the login/signup UI. Each phase independently verified:
-`tsc` clean, 502/502 tests green, `npm run build` passing. **Phase 5 (live verification against
-real Google endpoints) and the rest of Phase 6 (doc sync) are not started** — Phase 5 needs a
-user-created Google Cloud OAuth client plus explicit go-ahead before any real external call is
-made, per the standing no-real-external-call rule. See `CHANGELOG.md` 2026-07-31 entry for full
-detail.
+`tsc` clean, 502/502 tests green, `npm run build` passing. **Phase 5.3 (live verification
+against real Google endpoints) is now done** — real Google Cloud OAuth client created by the
+user, live login/auto-link/signup/refusal paths all confirmed against real Google
+infrastructure (see the plan's Phase 5 table). **Phase 5.4 (`SESSION_TTL_SECONDS` live check)
+and the rest of Phase 6 (doc sync) are still open.** Same session also added: card-styled
+`/login` and `/signup`, the activity-log-sharing consent flow moved from a blocking inline
+form field to a dismissible post-login popup (defaults to private), a `cleanup:test-users`
+dev script, and new TODO item 8 below (Settings sidebar layout + Activity log User column).
+None of this session's changes are committed yet — see `CHANGELOG.md` 2026-07-31 entry for the
+Phases 0–4 detail that IS committed.
 
 **Last reviewed:** 2026-07-30 — reorganized. Every item from `architecture/TechDesign.md`'s
 Deferred Decisions table + Rules Index (previously compressed into one summary paragraph
@@ -215,7 +220,24 @@ Flat list, no sub-headers — one section, one list, per the 2026-07-30 simplifi
    (Plan 01 review, 2026-07-26). Natural to do together with item 6 above, since re-scoping
    to per-section touches exactly this file's Guardrails, but worth reviewing as its own
    pass even independent of that decision.
-8. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
+8. **Settings page — sidebar-navigated layout + Activity log "User" column.** Added
+   2026-07-31 at the user's request. Two related changes to
+   `app/components/Settings/SettingsView.tsx` (currently one 705-line page, three stacked
+   `<section>` blocks — Settings/General, Invite codes, Activity log — no navigation chrome):
+   **(A)** the Activity log table needs a **User** column. `CallLogListItem`
+   (`lib/db/repository/llmCallLog.ts`) already carries the raw `userId` per row (used today
+   only for the §5.6 redaction check) — it's never resolved to an email or rendered. Needs
+   resolving `userId` → email (join or lookup map) in `listCallLogs` / `GET
+   /api/llm-call-log`, plus a new column in the table (~line 509). Deliberately minimum-scope
+   for now — just the column; additional filters (by user, date range, etc.) are explicitly
+   deferred to a later pass, not this item. **(B)** restructure `/settings` into a
+   sidebar-navigated layout — a left-side section list (General / Invite codes / Activity,
+   the same three sections that already exist today, not new ones) with each becoming its
+   own full-height content pane, replacing the current single stacked-page layout. Claude.ai's
+   own Settings modal (sidebar list + content pane) was shown as the visual reference. **Real
+   layout restructure — prototype in `architecture/layout/Layout-Workbench.html` first per
+   standing rule 4**, not a one-line style tweak.
+9. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
    now (whatever the smallest real hosting step is); the *automated* version of this is
    CI/CD, tracked under FUTURE, not blocking this first deploy.
 
@@ -338,9 +360,9 @@ understood scope, let alone TODO. Each entry tagged with which case applies.
 
 Plan 05 is done. Two TODO items are done — zero-agents empty state Topbar, and the `__raw`
 frontmatter escape hatch (built as a real `datatype: 'json'` instead) — see "What's built".
-Items 1–7 are independent enough to pick off in any order, or in parallel — item 8 (deploy
+Items 1–8 are independent enough to pick off in any order, or in parallel — item 9 (deploy
 online) is next per this file's own ordering rule once those are clear, or sooner if you'd
-rather deploy first and treat 1–7 as immediate post-launch fixes. **Item 2's code is
+rather deploy first and treat 1–8 as immediate post-launch fixes. **Item 2's code is
 built** (`plans/06-auth-review-google-oauth.md` Phases 0–4, commits `1d77019`/`ea2867f`/
 `a937297`/`9aee4bf`/`d1a29cc`) but **not yet fully closed**: Phase 5 is a live pass against
 real Google endpoints that needs a user-created Google Cloud OAuth client and explicit
