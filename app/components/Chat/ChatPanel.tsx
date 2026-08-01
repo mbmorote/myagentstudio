@@ -28,7 +28,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import type { InteractionLock, SectionUpdateResult } from '@/app/components/WorkbenchShell';
+import type { InteractionLock, SectionUpdateResult, CitedItem } from '@/app/components/WorkbenchShell';
 import { apiFetch } from '@/lib/apiFetch';
 
 interface ChatMessage {
@@ -48,12 +48,19 @@ interface CapPrompt {
   retryAfterSeconds: number;
   /** Whether the preview fallback is available (should always be true here, but guard it) */
   canDryRun: boolean;
+  /** Preserves the citation the blocked attempt used, for the "Preview" retry (2026-07-31) */
+  citedSectionKeys?: string[];
 }
 
 interface ChatPanelProps {
   agentId: string;
   agentName: string;
   interactionLock: InteractionLock;
+  /** Sections/config blocks currently cited (WorkbenchShell) — display-only here. */
+  citedItems: CitedItem[];
+  onRemoveCite: (item: CitedItem) => void;
+  /** Called once the citation has been captured for an outgoing message. */
+  onClearCited: () => void;
   onChatStart: () => void;
   onChatEnd: () => void;
   onSectionsUpdated: (updates: Record<string, SectionUpdateResult>) => void;
@@ -63,6 +70,9 @@ export function ChatPanel({
   agentId,
   agentName,
   interactionLock,
+  citedItems,
+  onRemoveCite,
+  onClearCited,
   onChatStart,
   onChatEnd,
   onSectionsUpdated,
@@ -83,7 +93,7 @@ export function ChatPanel({
 
   /** Core send logic — separated so it can be called both for normal sends and
    *  the dry-run re-send on cap-reached "Preview" (§3.9). */
-  async function doSend(text: string, dryRun = false) {
+  async function doSend(text: string, dryRun = false, citedSectionKeys?: string[]) {
     setIsInFlight(true);
     setCapPrompt(null);
     onChatStart();
@@ -95,7 +105,12 @@ export function ChatPanel({
       const response = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId, instruction: text, ...(dryRun ? { dryRun: true } : {}) }),
+        body: JSON.stringify({
+          agentId,
+          instruction: text,
+          ...(dryRun ? { dryRun: true } : {}),
+          ...(citedSectionKeys && citedSectionKeys.length > 0 ? { citedSectionKeys } : {}),
+        }),
         signal: controller.signal,
       });
 
@@ -119,6 +134,7 @@ export function ChatPanel({
           instruction: text,
           retryAfterSeconds: body.retryAfterSeconds ?? 60,
           canDryRun: body.canDryRun ?? true,
+          citedSectionKeys,
         });
         return;
       }
@@ -194,17 +210,23 @@ export function ChatPanel({
     const trimmed = instruction.trim();
     if (!trimmed) return;
 
+    // Capture the citation for this message, then clear it — a citation applies
+    // to the message it was visible for, not to whatever's sent next (2026-07-31).
+    const citedSectionKeys = citedItems.filter((c) => c.type === 'section').map((c) => c.key);
+    onClearCited();
+
     setMessages((prev) => [...prev, { role: 'user', text: trimmed }]);
     setInstruction('');
-    await doSend(trimmed);
+    await doSend(trimmed, false, citedSectionKeys);
   }
 
   /** "Preview without sending" — re-sends the blocked instruction as dry-run (§3.9) */
   async function handleCapPreview() {
     if (!capPrompt) return;
     const text = capPrompt.instruction;
+    const citedSectionKeys = capPrompt.citedSectionKeys;
     setCapPrompt(null);
-    await doSend(text, true);
+    await doSend(text, true, citedSectionKeys);
   }
 
   /** "Wait" — dismiss the cap prompt */
@@ -239,7 +261,7 @@ export function ChatPanel({
 
   return (
     /* .chat */
-    <div className="flex flex-col h-full">
+    <div data-chat-panel className="flex flex-col h-full">
       {/* Message scroll area — .chat-scroll */}
       <div className="flex-1 min-h-0 overflow-auto px-[14px] pt-[14px] pb-[6px] flex flex-col gap-3">
         {messages.length === 0 && !capPrompt && (
@@ -361,6 +383,23 @@ export function ChatPanel({
 
       {/* Prompt bar — .prompt */}
       <div className="flex-none border-t border-[var(--border)] p-[10px] bg-[var(--elev)]">
+        {/* Citation chips — what's cited for the next message, not its content (2026-07-31) */}
+        {citedItems.length > 0 && (
+          <div className="flex flex-wrap gap-[4px] mb-[6px]">
+            {citedItems.map((item) => (
+              <button
+                key={`${item.type}-${item.key}`}
+                type="button"
+                onClick={() => onRemoveCite(item)}
+                title={`Remove ${item.label} from this message's citation`}
+                className="inline-flex items-center gap-[5px] text-[10.5px] text-[var(--accent-ink)] bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[6px] px-[7px] py-[2px] cursor-pointer hover:opacity-80"
+              >
+                ◆ {item.type} · {item.label}
+                <span aria-hidden>×</span>
+              </button>
+            ))}
+          </div>
+        )}
         {interactionLock === 'edit' && (
           <p className="text-[11px] text-[var(--warn)] mb-[6px]">
             Chat disabled — a section has unsaved edits.

@@ -38,9 +38,20 @@ export type MediatorSection = {
 
 export type MediatorInput = {
   agentName: string;
+  agentDescription: string;
   splitLevel: number;
   sections: MediatorSection[];
   instruction: string;
+  /**
+   * Section-scoped chat selection (2026-07-31, first backend pass — plans/roadmap.md
+   * TODO item 2). When present and non-empty, only these sections' content is sent
+   * to the model instead of every section — name + description are always sent
+   * regardless, as baseline identity context. Config citation is not wired here:
+   * the mediator has never had visibility into the agent's actual config values
+   * (only the catalog schema via renderBlueprintForPrompt) and doesn't edit config,
+   * so a config citation has no prompt effect yet.
+   */
+  citedSectionKeys?: string[];
   signal?: AbortSignal;
 };
 
@@ -137,16 +148,31 @@ export async function callChatMediator(
  */
 function buildUserMessage(input: MediatorInput, blueprint: string): string {
   const splitPrefix = '#'.repeat(input.splitLevel);
+  const citedKeys = input.citedSectionKeys;
+  const scoped = !!citedKeys && citedKeys.length > 0;
+  const sectionsToShow = scoped
+    ? input.sections.filter((s) => citedKeys!.includes(s.sectionKey))
+    : input.sections;
+
   const lines: string[] = [
     `Agent: ${input.agentName}`,
+    `Description: ${input.agentDescription}`,
     `Split level: ${input.splitLevel} (the file's top-level heading is \`${splitPrefix}\`; ` +
       `never write \`${splitPrefix} \` headings inside section content)`,
-    '',
-    '## Current sections',
-    '',
   ];
 
-  for (const section of input.sections) {
+  if (scoped) {
+    lines.push(
+      '',
+      `The user has focused this instruction on: ${citedKeys!.join(', ')}. Only those ` +
+        'sections are shown below — you have not been given the content of the agent\'s ' +
+        'other sections, so do not reference or attempt to rewrite them.',
+    );
+  }
+
+  lines.push('', '## Current sections', '');
+
+  for (const section of sectionsToShow) {
     lines.push(`### sectionKey: ${section.sectionKey}`);
     if (section.heading) {
       lines.push(`Heading: ${section.heading}`);

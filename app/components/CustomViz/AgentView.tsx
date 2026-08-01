@@ -48,7 +48,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import type { AgentDTO, GroupDTO, ConfigDefLite } from '@/lib/db/repository';
-import type { InteractionLock } from '@/app/components/WorkbenchShell';
+import type { InteractionLock, CitedItem } from '@/app/components/WorkbenchShell';
 import { SectionBlock } from '@/app/components/CustomViz/SectionBlock';
 import { apiFetch } from '@/lib/apiFetch';
 
@@ -185,6 +185,9 @@ interface AgentViewProps {
   /** Full config catalog, loaded fresh from the DB per page request (2026-07-29). */
   configCatalog: ConfigDefLite[];
   interactionLock: InteractionLock;
+  /** Sections/config blocks currently cited for chat (2026-07-31, frontend-only). */
+  citedItems: CitedItem[];
+  onToggleCite: (item: CitedItem, additive: boolean) => void;
   onEditStart: () => void;
   onEditEnd: () => void;
   onSectionSaved: (sectionId: string, content: string, newVersion: number) => void;
@@ -200,6 +203,8 @@ export function AgentView({
   groups,
   configCatalog,
   interactionLock,
+  citedItems,
+  onToggleCite,
   onEditStart,
   onEditEnd,
   onSectionSaved,
@@ -272,9 +277,11 @@ export function AgentView({
   // ── Special block state ───────────────────────────────────────────────────
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [promptDraft, setPromptDraft] = useState('');
-  const [expandedCustomKey, setExpandedCustomKey] = useState<string | null>(null);
-  const [customJsonDraft, setCustomJsonDraft] = useState('');
-  const [customJsonError, setCustomJsonError] = useState<string | null>(null);
+  // Custom JSON blocks (hooks, mcpServers) are always shown open/editable — no
+  // collapse/expand step (2026-07-31 redesign) — so drafts are keyed per key,
+  // not a single "which one is open" slot.
+  const [customJsonDrafts, setCustomJsonDrafts] = useState<Record<string, string>>({});
+  const [customJsonErrors, setCustomJsonErrors] = useState<Record<string, string | null>>({});
 
   // ── Zone / menu state ─────────────────────────────────────────────────────
   const [keysCollapsed, setKeysCollapsed] = useState(false);
@@ -291,7 +298,6 @@ export function AgentView({
   // ── Stable outside-click handler refs (updated every render) ─────────────
   const meOutsideRef = useRef<() => void>(() => {});
   const promptOutsideRef = useRef<() => void>(() => {});
-  const customOutsideRef = useRef<() => void>(() => {});
 
   meOutsideRef.current = () => {
     setMeOpen(false);
@@ -306,24 +312,6 @@ export function AgentView({
       }
     }
     setPromptExpanded(false);
-  };
-
-  customOutsideRef.current = () => {
-    if (!expandedCustomKey) return;
-    const original = JSON.stringify(configMap.get(expandedCustomKey), null, 2);
-    if (customJsonDraft !== original) {
-      const def = getCatalogDef(expandedCustomKey);
-      if (window.confirm(`Save changes to ${def?.label ?? expandedCustomKey}?`)) {
-        try {
-          const parsed: unknown = JSON.parse(customJsonDraft);
-          void saveConfigKey(expandedCustomKey, parsed);
-        } catch {
-          // Invalid JSON — just close without saving rather than losing the original
-        }
-      }
-    }
-    setExpandedCustomKey(null);
-    setCustomJsonError(null);
   };
 
   // ── Effects: outside-click listeners ─────────────────────────────────────
@@ -363,17 +351,6 @@ export function AgentView({
     return () => document.removeEventListener('mousedown', handler);
   }, [promptExpanded]);
 
-  // Close custom JSON block on outside click (confirm if changed)
-  useEffect(() => {
-    if (!expandedCustomKey) return;
-    const handler = (e: MouseEvent) => {
-      const el = document.querySelector(`[data-cfg-block="${expandedCustomKey}"]`);
-      if (el && !el.contains(e.target as Node)) customOutsideRef.current();
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [expandedCustomKey]);
-
   // Deselect selected list-item pill on any click
   useEffect(() => {
     if (!selectedItem) return;
@@ -409,10 +386,10 @@ export function AgentView({
 
   // ── Config editor resolution helpers ─────────────────────────────────────
 
-  /** Resolve any open config editor (prompt or custom JSON block) before opening another. */
+  /** Resolve any open config editor (prompt block) before opening another. Custom JSON
+   *  blocks are always open/editable (2026-07-31) so there's nothing to resolve for them. */
   function resolveConfigEditors() {
     if (promptExpanded) promptOutsideRef.current();
-    if (expandedCustomKey) customOutsideRef.current();
   }
 
   /** Resolve every open editor (config + current section). */
@@ -625,9 +602,7 @@ export function AgentView({
     ]).then(() => {
       // Open the relevant editor after the key is saved
       if (jsonKeys.has(key)) {
-        setExpandedCustomKey(key);
-        setCustomJsonDraft(JSON.stringify(initialValue, null, 2));
-        setCustomJsonError(null);
+        // Custom JSON blocks render always-open — nothing to do here, it just appears.
       } else if (key === INITIAL_PROMPT_KEY) {
         setPromptExpanded(true);
         setPromptDraft(initialValue as string);
@@ -644,25 +619,56 @@ export function AgentView({
     });
   }
 
-  // ── Custom JSON block ─────────────────────────────────────────────────────
+  // ── Custom JSON block ────────────────────────────────────────────────────
+  //
+  // Content is always visible (no "N entries" summary, no click-to-view step —
+  // 2026-07-31 redesign), but starts read-only: an explicit "Edit" click is what
+  // enters edit mode (textarea + Save/Cancel). A key is "in edit mode" exactly
+  // when it has an entry in customJsonDrafts.
 
-  function openCustomBlock(e: React.MouseEvent, key: string) {
-    e.stopPropagation();
+  function isCustomEditing(key: string): boolean {
+    return key in customJsonDrafts;
+  }
+
+  /** Enters edit mode: seeds the draft from the stored value. */
+  function openCustomBlock(key: string) {
     resolveAllEditors();
-    setExpandedCustomKey(key);
+    setCustomDraft(key, getCustomDraft(key));
+  }
+
+  /** The block's current draft text — the live edit if one exists, else the stored value. */
+  function getCustomDraft(key: string): string {
+    if (key in customJsonDrafts) return customJsonDrafts[key];
     const raw = configMap.get(key);
-    setCustomJsonDraft(raw !== undefined ? JSON.stringify(raw, null, 2) : '{}');
-    setCustomJsonError(null);
+    return raw !== undefined ? JSON.stringify(raw, null, 2) : '{}';
+  }
+
+  function setCustomDraft(key: string, text: string) {
+    setCustomJsonDrafts((prev) => ({ ...prev, [key]: text }));
+    setCustomJsonErrors((prev) => ({ ...prev, [key]: null }));
+  }
+
+  /** Drops the key's draft/error — the block then re-derives its text from the stored value. */
+  function clearCustomDraft(key: string) {
+    setCustomJsonDrafts((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setCustomJsonErrors((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   }
 
   async function saveCustomJson(key: string) {
     try {
-      const parsed: unknown = JSON.parse(customJsonDraft);
+      const parsed: unknown = JSON.parse(getCustomDraft(key));
       await saveConfigKey(key, parsed);
-      setExpandedCustomKey(null);
-      setCustomJsonError(null);
+      clearCustomDraft(key);
     } catch (err) {
-      setCustomJsonError('Invalid JSON: ' + (err as Error).message);
+      setCustomJsonErrors((prev) => ({ ...prev, [key]: 'Invalid JSON: ' + (err as Error).message }));
     }
   }
 
@@ -1130,12 +1136,17 @@ export function AgentView({
   }
 
   // ── Render: custom JSON block (any datatype:'json' key — hooks, mcpServers) ────
+  //
+  // Content is always visible (no "N entries" summary — 2026-07-31 redesign), but
+  // starts read-only. Clicking "Edit" (top right) — or the content itself — enters
+  // edit mode: a textarea plus Save/Cancel, same top-right slot "Edit" occupied.
   function renderCustomBlock(key: string) {
-    if (!configMap.has(key) && expandedCustomKey !== key) return null;
+    if (!configMap.has(key)) return null;
     const def = getCatalogDef(key)!;
     const hint = 'hint' in def ? String(def.hint) : '';
-    const value = configMap.get(key);
-    const isExpanded = expandedCustomKey === key;
+    const draft = getCustomDraft(key);
+    const error = customJsonErrors[key] ?? null;
+    const editing = isCustomEditing(key);
 
     const customNote = (
       <span className="font-normal text-[var(--faint)] text-[10px] normal-case tracking-normal ml-[4px]">
@@ -1143,72 +1154,81 @@ export function AgentView({
       </span>
     );
 
-    if (!isExpanded) {
-      const summary = Array.isArray(value)
-        ? `${(value as unknown[]).length} entries`
-        : `${Object.keys((value as Record<string, unknown>) ?? {}).length} entries`;
+    const removeButton = (
+      <button
+        type="button"
+        title={`Remove ${def.label}`}
+        onClick={() => { if (window.confirm(`Remove ${def.label} from this agent?`)) void removeConfigKey(key); }}
+        className="opacity-0 group-hover:opacity-100 transition-opacity w-[16px] h-[16px] rounded-[4px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[11px] grid place-items-center cursor-pointer hover:text-[var(--err)] hover:border-[var(--err)] p-0"
+      >
+        ×
+      </button>
+    );
 
-      return (
-        <div
-          key={key}
-          data-cfg-block={key}
-          onClick={(e) => openCustomBlock(e, key)}
-          className="mt-[14px] border border-[var(--border)] rounded-[9px] bg-[var(--elev)] px-[12px] py-[9px] cursor-pointer group"
-        >
-          <div className="flex items-center gap-[7px] text-[10px] text-[var(--faint)] uppercase tracking-[.06em] font-bold mb-[4px]">
-            <span title={hint}>{def.label}</span>
-            {customNote}
-            <span className="ml-auto text-[var(--accent-ink)] font-semibold normal-case tracking-normal text-[10.5px]">⌯ view / edit JSON</span>
-            <button
-              type="button"
-              title={`Remove ${def.label}`}
-              onClick={(e) => { e.stopPropagation(); if (window.confirm(`Remove ${def.label} from this agent?`)) void removeConfigKey(key); }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity w-[16px] h-[16px] rounded-[4px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[11px] grid place-items-center cursor-pointer hover:text-[var(--err)] hover:border-[var(--err)] p-0"
-            >
-              ×
-            </button>
-          </div>
-          <p className="m-0 text-[12px] font-mono text-[var(--muted)]">{summary}</p>
-        </div>
-      );
-    }
+    const isCited = citedItems.some((c) => c.type === 'config' && c.key === key);
 
     return (
       <div
         key={key}
         data-cfg-block={key}
-        onClick={(e) => e.stopPropagation()}
-        className="mt-[14px] border border-[var(--border)] rounded-[9px] bg-[var(--elev)] px-[12px] py-[9px]"
+        data-citable
+        className={`mt-[14px] border rounded-[9px] bg-[var(--elev)] px-[12px] py-[9px] group ${
+          isCited ? 'border-[var(--accent)]' : 'border-[var(--border)]'
+        }`}
       >
-        <div className="flex items-center gap-[7px] text-[10px] text-[var(--faint)] uppercase tracking-[.06em] font-bold mb-[4px]">
+        <div className="flex items-center gap-[7px] text-[10px] text-[var(--faint)] uppercase tracking-[.06em] font-bold mb-[7px]">
           <span title={hint}>{def.label}</span>
           {customNote}
+          <span className="ml-auto flex items-center gap-[6px] normal-case tracking-normal">
+            {editing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void saveCustomJson(key)}
+                  className="rounded-[6px] px-[9px] py-[3px] text-[10.5px] font-semibold bg-[var(--accent)] text-white border-none cursor-pointer"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => clearCustomDraft(key)}
+                  className="rounded-[6px] px-[9px] py-[3px] text-[10.5px] bg-transparent text-[var(--muted)] border-none cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openCustomBlock(key)}
+                className="rounded-[6px] px-[9px] py-[3px] text-[10.5px] font-semibold text-[var(--accent-ink)] bg-transparent border-none cursor-pointer"
+              >
+                Edit
+              </button>
+            )}
+            {removeButton}
+          </span>
         </div>
-        <textarea
-          autoFocus
-          value={customJsonDraft}
-          onChange={(e) => { setCustomJsonDraft(e.target.value); setCustomJsonError(null); }}
-          className="w-full min-h-[130px] font-mono text-[11.5px] border border-[var(--accent)] rounded-[7px] p-[8px] bg-[var(--bg)] text-[var(--text)] outline-none resize-y"
-        />
-        <div className="mt-[7px] flex gap-[8px] items-center">
-          <button
-            type="button"
-            onClick={() => void saveCustomJson(key)}
-            className="rounded-[6px] px-[11px] py-[5px] text-[11px] font-semibold bg-[var(--accent)] text-white border-none cursor-pointer"
+        {editing ? (
+          <textarea
+            autoFocus
+            value={draft}
+            onChange={(e) => setCustomDraft(key, e.target.value)}
+            className="w-full min-h-[130px] font-mono text-[11.5px] border border-[var(--accent)] rounded-[7px] p-[8px] bg-[var(--bg)] text-[var(--text)] outline-none resize-y"
+          />
+        ) : (
+          <pre
+            onClick={(e) => { e.stopPropagation(); onToggleCite({ type: 'config', key, label: def.label }, e.ctrlKey || e.metaKey); }}
+            onDoubleClick={(e) => { e.stopPropagation(); openCustomBlock(key); }}
+            title="Click to cite in chat · double-click to edit"
+            className="m-0 w-full min-h-[40px] font-mono text-[11.5px] whitespace-pre-wrap break-words text-[var(--muted)] cursor-pointer"
           >
-            Save
-          </button>
-          <button
-            type="button"
-            onClick={() => { setExpandedCustomKey(null); setCustomJsonError(null); }}
-            className="rounded-[6px] px-[11px] py-[5px] text-[11px] bg-transparent text-[var(--muted)] border-none cursor-pointer"
-          >
-            Cancel
-          </button>
-          {customJsonError && (
-            <span className="text-[11px] text-[var(--err)]">{customJsonError}</span>
-          )}
-        </div>
+            {draft}
+          </pre>
+        )}
+        {error && (
+          <p className="mt-[6px] mb-0 text-[11px] text-[var(--err)]">{error}</p>
+        )}
       </div>
     );
   }
@@ -1521,6 +1541,13 @@ export function AgentView({
                 agentId={agent.id}
                 section={section}
                 interactionLock={interactionLock}
+                isCited={citedItems.some((c) => c.type === 'section' && c.key === section.sectionKey)}
+                onToggleCite={(additive) =>
+                  onToggleCite(
+                    { type: 'section', key: section.sectionKey, label: section.def?.label ?? section.sectionKey },
+                    additive,
+                  )
+                }
                 onEditStart={onEditStart}
                 onEditEnd={onEditEnd}
                 resolveEditorRef={resolveEditorRef}

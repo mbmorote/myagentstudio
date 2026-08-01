@@ -43,6 +43,19 @@ export type SectionUpdateResult =
   | { content: string; version: number }
   | { conflict: true; current: number; content: string };
 
+/**
+ * A section or config block "cited" for the chat — frontend-only for now
+ * (2026-07-31): purely a UI citation, shown as a chip near the chat input.
+ * The chat request still sends the whole agent as context, unchanged; whether
+ * a citation should actually narrow what's sent to the LLM is a deferred
+ * follow-up (plans/roadmap.md TODO item 2).
+ */
+export interface CitedItem {
+  type: 'section' | 'config';
+  key: string;
+  label: string;
+}
+
 interface WorkbenchShellProps {
   initialAgent: AgentDTO | null;
   /** Flat list of all agents for the Library panel */
@@ -69,6 +82,45 @@ export function WorkbenchShell({
 }: WorkbenchShellProps) {
   const [agent, setAgent] = useState<AgentDTO | null>(initialAgent);
   const [interactionLock, setInteractionLock] = useState<InteractionLock>(null);
+
+  // ── Chat citation selection (frontend-only, 2026-07-31 — see CitedItem) ─────
+  const [citedItems, setCitedItems] = useState<CitedItem[]>([]);
+
+  const toggleCite = useCallback((item: CitedItem, additive: boolean) => {
+    setCitedItems((prev) => {
+      const idx = prev.findIndex((c) => c.type === item.type && c.key === item.key);
+      if (additive) {
+        // Ctrl/Cmd-click: add to the selection, or remove if already selected.
+        return idx >= 0 ? prev.filter((_, i) => i !== idx) : [...prev, item];
+      }
+      // Plain click: clicking the only selected item deselects it; otherwise
+      // replace the whole selection with just this one.
+      if (idx >= 0 && prev.length === 1) return [];
+      return [item];
+    });
+  }, []);
+
+  const removeCite = useCallback((item: CitedItem) => {
+    setCitedItems((prev) => prev.filter((c) => !(c.type === item.type && c.key === item.key)));
+  }, []);
+
+  const clearAllCited = useCallback(() => setCitedItems([]), []);
+
+  // Clicking outside every citable block AND outside the chat panel clears the
+  // selection. Citable blocks manage their own toggle in their click handler
+  // (which fires after this mousedown handler) — this only needs to ignore them,
+  // not clear them itself, or the two would fight over the next click.
+  useEffect(() => {
+    if (citedItems.length === 0) return;
+    function handler(e: MouseEvent) {
+      const target = e.target as Element | null;
+      if (target?.closest?.('[data-citable]')) return;
+      if (target?.closest?.('[data-chat-panel]')) return;
+      setCitedItems([]);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [citedItems.length]);
 
   // ── Post-signup activity-log-sharing popup (SignupForm.tsx header comment) ──
   // Fires once per fresh signup: password path leaves a sessionStorage flag,
@@ -192,6 +244,8 @@ export function WorkbenchShell({
                   groups={groups}
                   configCatalog={configCatalog}
                   interactionLock={interactionLock}
+                  citedItems={citedItems}
+                  onToggleCite={toggleCite}
                   onEditStart={() => setInteractionLock('edit')}
                   onEditEnd={() => setInteractionLock(null)}
                   onSectionSaved={(sectionId, content, newVersion) => {
@@ -246,6 +300,9 @@ export function WorkbenchShell({
                 agentId={agent.id}
                 agentName={agent.name}
                 interactionLock={interactionLock}
+                citedItems={citedItems}
+                onRemoveCite={removeCite}
+                onClearCited={clearAllCited}
                 onChatStart={() => setInteractionLock('chat')}
                 onChatEnd={() => setInteractionLock(null)}
                 onSectionsUpdated={onSectionsUpdated}

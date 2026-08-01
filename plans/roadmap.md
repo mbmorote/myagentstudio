@@ -24,29 +24,22 @@ timing decision is not the same as a design decision.
 live code, for iteration speed (see `CLAUDE.md` standing rule 4).
 
 **Last updated:** 2026-07-31 — full retriage at the user's request. Every open TODO/FUTURE/IDEA
-item (40 total) was flattened into `plans/roadmap-priority-260731.md` (a temporary triage
-file — id/topic/explanation columns filled by the assistant, a classification number filled
-by the user: **1 = before v1 online, 2 = soon after v1 launches, 3 = long-tail/low urgency**)
-and re-sorted here on that basis. This introduces the new **NEXT** bucket (tier 2) — timing
-work "soon after launch" was previously conflated with unprioritized FUTURE work, which lost
-the distinction. Net effect on the previous 2026-07-31 TODO list: **Component/UI test
-coverage** flips from "just before deploy" to **first thing done after deploy** — the user's
-call, on the reasoning that a "beta" audience can tolerate a couple of early bugs, so it's
-better to ship and harden against real usage than delay for pre-launch test coverage; **Doc
-sync** and **readable `build-prompts.ts` output** stay as the last two steps *before* deploy
-(the latter promoted from FUTURE — the user wants to be able to audit the real compiled system
-prompt once live users are on it); five items promoted from FUTURE straight into TODO tier 1
-(ESLint config, manual-edit save frequency, display-label lookup for `model`, propose-preview
-before applying a mediator rewrite, second LLM provider, incremental streaming, Settings modal
-— see each item below for why); four former-IDEA items (demo for prospective users, interactive
-tour, optional log-persistence toggle, MCP server) and one former-IDEA item (organizations/
-teams) were given timing tiers (NEXT and FUTURE respectively) while keeping their unresolved
-design-decision caveat. Two open threads flagged during triage, not yet resolved: **AI chat
-persistence** (tier 2) — cookie/localStorage vs. a real `Conversation`/`Message` DB table is
-still an open implementation choice, deliberately deferred; **compliance-grade logging**
-(tier 2) — the user wants to gauge real-user impact before deciding if this is worth building
-at all. Also carried forward from the same-day auth-framework-review closure: Phase 5.4
-(`SESSION_TTL_SECONDS` live check) sits in NEXT now, not FUTURE, per the same tier-2 logic.
+item (40 total, at the time) was flattened into a temporary triage file, classified by launch
+timing (**1 = before v1 online, 2 = soon after v1 launches, 3 = long-tail/low urgency**), and
+re-sorted into the buckets below on that basis — introducing the new **NEXT** bucket (tier 2),
+since "soon after launch" work was previously conflated with unprioritized FUTURE work. Each
+item promoted or moved during the retriage carries an inline `*(Promoted/Moved ...)*` tag in
+its own bullet — that's the source of truth for what moved and why, not this note. Two open
+implementation/product threads flagged during triage, still unresolved: **AI chat persistence**
+(NEXT) — cookie/localStorage vs. a real `Conversation`/`Message` DB table; **compliance-grade
+logging** (NEXT) — still deciding if it's worth building at all, pending real-user impact.
+Same day, two follow-ups: **company signature on the platform** added as new TODO item 12
+(branding somewhere on the live site — placement/content TBD), sequenced right before deploy;
+**display-label lookup for `model`** un-promoted back out of TODO after confirming the current
+raw display (`claude-sonnet-5`, etc.) is already legible and correctly aligned with real
+Anthropic naming — relocated next to **Export translation to other platforms** in NEXT, since
+both are the same underlying problem (mapping a platform-specific representation to something
+else) and worth scoping together.
 
 **Last reviewed:** 2026-07-30 — reorganized. Every item from `architecture/TechDesign.md`'s
 Deferred Decisions table + Rules Index (previously compressed into one summary paragraph
@@ -199,11 +192,51 @@ here were promoted from FUTURE on that basis, tagged below.
    the chat mediator from per-section to agent-wide scope (Plan 01 review, D2). Building this
    means consciously reversing or qualifying that call, not just adding a UI toggle on top of
    it — read the supersession note's own reasoning before starting.
+   **UX design, worked out 2026-07-31 (not yet built):**
+   - A single click on a section **or a config block** (any Tier 1 key, not just Sections)
+     "cites" it — that block becomes the scoped context sent to the agent on the next chat
+     message. Sections and config keys are both selectable, same mechanism.
+   - The full content is never echoed into the chat transcript — instead a small chip
+     (e.g. "ROLE") appears near the chat input, naming what's cited without displaying it.
+   - Deselect: clicking the same block again, or clicking anywhere else outside it and
+     outside the chat panel, clears the selection. Clicking into the chat panel itself must
+     NOT deselect — otherwise citing something and then clicking in to type the message
+     would immediately lose the citation.
+   - Multi-select: Ctrl+click adds another section/config to the current selection instead
+     of replacing it, with one chip per selected block.
+   **Frontend built and verified live, 2026-07-31**: click-to-select / double-click-to-edit
+   on both `SectionBlock.tsx` and `AgentView.tsx`'s custom JSON blocks, Ctrl-multiselect,
+   citation chips in `ChatPanel.tsx`, deselect-on-outside-click with the chat-panel exception
+   — all confirmed working via live browser testing.
+   **Backend, first pass built and verified live, 2026-07-31**: `agentName` +
+   `agentDescription` now always sent to the mediator (previously description wasn't sent at
+   all); citing one or more sections narrows `buildUserMessage` to only their content instead
+   of every section, with an explicit note telling the model it hasn't seen the rest; no
+   citation → unchanged full-agent behavior. `app/api/chat/route.ts` validates
+   `citedSectionKeys` defensively and, in scoped mode, skips applying any returned edit
+   outside the cited set (the model was never shown that section's content, so an edit to it
+   can't be a grounded diff). **Config citation is still UI-only** — confirmed with the user
+   it should eventually follow the same rule as sections, but one sub-question is open before
+   building it: if nothing is cited, does *all* config get sent by default (a real new cost,
+   since config values have never been sent to the mediator, cited or not, until now), or does
+   config stay sent-only-when-cited (additive, no new default cost)? Needs an explicit answer
+   before implementing.
+   **Confirmed next direction, not yet built**: restructure so the **system prompt** is built
+   dynamically per request — mediator behavior/rules (today's static `CHAT_MEDIATOR_PROMPT`)
+   **plus** the actual content (name, description, cited sections, cited config once resolved,
+   catalog reference) — and the **user message** shrinks to just the typed instruction. This
+   is a real code change to `chatMediator.ts`'s `system` field (goes from static to built
+   per-call) and is tightly coupled to item 3 below, since `chat-mediator.md`'s rule text was
+   written assuming today's shape (static system prompt, everything else bundled into one user
+   message).
 3. **Review the chat-mediator system agent.** `lib/ai/prompts/system-agents/chat-mediator.md`
    — its rule-set hasn't had a dedicated review pass since it was widened to agent-wide scope
    (Plan 01 review, 2026-07-26). Natural to do together with item 2 above, since re-scoping
    to per-section touches exactly this file's Guardrails, but worth reviewing as its own
-   pass even independent of that decision.
+   pass even independent of that decision. **Now has a second, more concrete trigger
+   (2026-07-31): item 2's confirmed system-prompt restructuring changes what shape of content
+   this file's rules need to describe** — do this review together with that work, not before
+   or after it in isolation.
 4. **ESLint config.** *(Promoted from FUTURE 2026-07-31.)* Script wired (`next lint`) but
    never configured — running it drops into an interactive setup prompt. Typecheck + tests
    are the real gate today; this closes that gap before real users touch the app.
@@ -212,26 +245,23 @@ here were promoted from FUTURE on that basis, tagged below.
    autosave-on-every-keystroke or a debounced background save. Worth a quick check whether
    this was already effectively decided when manual editing shipped (unclear from a quick
    pass over `SectionBlock.tsx`) before implementing.
-6. **Display-label lookup for `model`.** *(Promoted from FUTURE 2026-07-31 — was Deferred
-   Decisions #20.)* Short label in the UI (e.g. "Opus" instead of the full model ID); storage
-   stays the full ID. Cosmetic but decided worth doing before launch rather than after.
-7. **Propose-preview before applying a mediator rewrite.** *(Promoted from FUTURE 2026-07-31
+6. **Propose-preview before applying a mediator rewrite.** *(Promoted from FUTURE 2026-07-31
    — was Deferred Decisions #24.)* Per-user setting, not a global toggle: off = the mediator
    applies directly to the agent being edited, exactly as today; on = the proposed response is
    shown in a modal first, nothing written until the user explicitly applies it. Same
    underlying mechanism either way (apply-then-history), gated behind the per-user choice.
-8. **Second LLM provider.** *(Promoted from FUTURE 2026-07-31 — was P04a.)* A non-Anthropic,
+7. **Second LLM provider.** *(Promoted from FUTURE 2026-07-31 — was P04a.)* A non-Anthropic,
    OpenAI-compatible or NVIDIA provider behind the existing `LLMProvider` interface.
-9. **Incremental streaming.** *(Promoted from FUTURE 2026-07-31 — was P04b.)* Token-by-token
+8. **Incremental streaming.** *(Promoted from FUTURE 2026-07-31 — was P04b.)* Token-by-token
    chat responses (`streamChunks()`) instead of waiting for the full reply.
-10. **Settings modal instead of full-page navigation.** *(Promoted from FUTURE 2026-07-31 —
-    was P04f.)* Avoids losing `ChatPanel`'s local message history when a user opens Settings.
-11. **`scripts/build-prompts.ts` readable output.** TechDesign #26, tagged **[HIGH
+9. **Settings modal instead of full-page navigation.** *(Promoted from FUTURE 2026-07-31 —
+   was P04f.)* Avoids losing `ChatPanel`'s local message history when a user opens Settings.
+10. **`scripts/build-prompts.ts` readable output.** TechDesign #26, tagged **[HIGH
     PRIORITY]** there — currently emits one giant escaped-string line. Sequenced as the
     second-to-last step before deploy: the user wants to be able to read the real compiled
     system prompt to sanity-check what's actually being sent to the LLM once live users are on
     it, so this needs to be fixed before that audit, not after.
-12. **Doc sync — Plan 06 Phase 6 remainder + the consent-popup supersession.** Two pieces:
+11. **Doc sync — Plan 06 Phase 6 remainder + the consent-popup supersession.** Two pieces:
     **(a)** the 2026-07-31 partial doc-sync commit covered Phase 6 for Phases 0–4 only (its
     own commit message says so) — `TechDesign.md`'s Rules Index #63–71 and Deferred Decisions
     table, `README.md`, and `docs/user-guide.md` should be checked against what Phase 5.3's
@@ -241,7 +271,13 @@ here were promoted from FUTURE on that basis, tagged below.
     defaults every new account to private — a real supersession of an already-locked rule, not
     yet reflected anywhere in `TechDesign.md`'s Rules Index (needs a supersession note,
     matching how Rules Index #7 documents the chat-mediator scope reversal) or in
-    `docs/user-guide.md`'s signup walkthrough. Deliberately the last step before deploy.
+    `docs/user-guide.md`'s signup walkthrough.
+12. **Company signature on the platform.** Added 2026-07-31 — the user's real branding needs
+    to appear somewhere on the live site before v1 goes online (footer, login/signup pages,
+    Topbar — placement and exact content, e.g. name/logo/tagline/copyright line, not yet
+    decided). Deliberately the last step before deploy — same rationale as the doc-sync item
+    above, done right before real users see the product. Scope details (what asset, where it
+    renders) to be worked out when this is picked up.
 13. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
     now (whatever the smallest real hosting step is); the *automated* version of this is
     CI/CD, tracked under FUTURE, not blocking this first deploy.
@@ -293,20 +329,27 @@ free to reorder within this bucket.
    Strict import path, Structural has been default since Plan 02.
 6. **Export translation to other platforms** (Copilot, etc.) — build-order #4. Real format
    translation, not a file copy.
-7. **`AgentSnapshot(kind:'export')` capture + import/export diff-view UI** — Deferred
+7. **Display-label lookup for `model`.** *(Moved back out of TODO 2026-07-31, linked here.)*
+   Short label in the UI (e.g. "Opus" instead of the full model ID); storage stays the full
+   ID. Confirmed the current raw display (`claude-sonnet-5`, etc.) is already legible and
+   correctly aligned with real Anthropic naming, so it's no longer a pre-launch blocker.
+   Grouped next to item 6 above deliberately — both are the same underlying problem (mapping a
+   platform-specific representation to something else, whether that's Anthropic's model IDs to
+   a friendly label, or this app's config schema to Copilot's), worth scoping together.
+8. **`AgentSnapshot(kind:'export')` capture + import/export diff-view UI** — Deferred
    Decisions #16. The export route this was waiting on is now built; ready to scope.
-8. **AI-assisted config-key mapping** — Deferred Decisions #30. Label a messy frontmatter key
+9. **AI-assisted config-key mapping** — Deferred Decisions #30. Label a messy frontmatter key
    to its canonical `propKey`, same content-never-touched pattern as section classification.
-9. **Log retention / pruning / pagination** — P04c. Revisit past 5,000 `llm_call_log` rows or
-   `myagent.db` exceeding ~200MB — worth scoping once real usage gives a sense of actual
-   growth rate.
-10. **Cost estimation in currency on log rows** — P04d. Once token counts stop being
+10. **Log retention / pruning / pagination** — P04c. Revisit past 5,000 `llm_call_log` rows or
+    `myagent.db` exceeding ~200MB — worth scoping once real usage gives a sense of actual
+    growth rate.
+11. **Cost estimation in currency on log rows** — P04d. Once token counts stop being
     sufficient to answer "what did that cost."
-11. **Compliance-grade (non-droppable) logging** — P04h. Today a failed log write on a live
+12. **Compliance-grade (non-droppable) logging** — P04h. Today a failed log write on a live
     call is deliberately swallowed (diagnostics, not an evidence ledger). **Still an open
     "if" as of 2026-07-31** — the user wants to see the actual impact/need with real users
     before deciding whether this is worth building at all.
-12. **Refactor this roadmap's format** — added 2026-07-31, revisit once v1 has actually
+13. **Refactor this roadmap's format** — added 2026-07-31, revisit once v1 has actually
     shipped. Reference: `github.com/mbmorote/PMFlow`'s `refactor/ROADMAP.md` — a phase table
     (`#` / Name / Status badge / Depends-on / link to a per-phase detail `.md`), one short
     description per phase, an Execution Rules section, and a "Known Technical Debt" table.
@@ -320,18 +363,18 @@ free to reorder within this bucket.
     section (currently prose, in "Stability snapshot" above) is a good first candidate to
     convert to a "Known Technical Debt"-style table, independent of whether the rest of the
     file migrates.
-13. **Presentation for prospective (non-signed-up) users** *(still decided-but-not-how — see
+14. **Presentation for prospective (non-signed-up) users** *(still decided-but-not-how — see
     IDEA note below)* — a video/demo-style presentation showing how to import and edit an
     agent, for visitors without an account yet. The "we want this" part is settled, the
     format/production isn't; timing-wise the user wants this soon after launch.
-14. **Interactive tour for signed-up users** *(still decided-but-not-how — see IDEA note
+15. **Interactive tour for signed-up users** *(still decided-but-not-how — see IDEA note
     below)* — step-by-step, in-app, dismissible, likely after first signup/login. Wanted, but
     the step sequence and trigger conditions aren't designed yet.
-15. **Optional call-log persistence toggle** *(still not decided-if — see IDEA note below)* —
+16. **Optional call-log persistence toggle** *(still not decided-if — see IDEA note below)* —
     a flag controlling whether `llm_call_log` entries get written to the database at all, vs.
     shown only transiently. Not settled that this is worth the complexity; timing-wise the
     user wants to revisit this soon after launch rather than let it drift indefinitely.
-16. **MCP server exposing MyAgent's agents** *(still not decided-if — see IDEA note below)* —
+17. **MCP server exposing MyAgent's agents** *(still not decided-if — see IDEA note below)* —
     an MCP server so Claude (Claude Code, Claude Desktop, etc.) could access and update a
     user's agents directly from outside the web UI, instead of only through the app's own chat
     panel. Would need its own auth story (an MCP client isn't a browser session — API keys?

@@ -91,6 +91,16 @@ export async function POST(request: Request): Promise<NextResponse> {
   // forceDryRun: client may request dry-run mode explicitly (§8.16 — can only downgrade, never upgrade)
   const forceDryRun = (body as { dryRun?: unknown }).dryRun === true;
 
+  // Section-scoped chat selection (2026-07-31, first backend pass — plans/roadmap.md
+  // TODO item 2). Optional, client-supplied — validated defensively (array of strings
+  // only); an invalid/malformed value is simply ignored, falling back to unscoped
+  // (send-everything) behavior rather than rejecting the whole request over it.
+  const rawCited = (body as { citedSectionKeys?: unknown }).citedSectionKeys;
+  const citedSectionKeys =
+    Array.isArray(rawCited) && rawCited.every((k) => typeof k === 'string') && rawCited.length > 0
+      ? (rawCited as string[])
+      : undefined;
+
   // ── Load whole agent server-side (Rules Index #7 — never trust client content) ──
   const agent = getAgentFull(agentId, session.userId);
   if (!agent) {
@@ -111,6 +121,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     mediatorResult = await callChatMediator(
       {
         agentName: agent.name,
+        agentDescription: agent.description,
         splitLevel: agent.splitLevel,
         sections: agent.sections.map((s) => ({
           sectionKey: s.sectionKey,
@@ -118,6 +129,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           content: s.content,
         })),
         instruction,
+        citedSectionKeys,
         signal: request.signal,
       },
       // agentId is always known for chat (§5.2); userId from the session (§3.9)
@@ -177,6 +189,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   > = {};
 
   for (const [sectionKey, newContent] of Object.entries(mediatorResult.sections)) {
+    // Defense-in-depth: in scoped mode the model was never shown this section's
+    // content, so an edit to it can't be a grounded diff — skip it even if returned.
+    if (citedSectionKeys && !citedSectionKeys.includes(sectionKey)) {
+      console.warn(`[chat] Mediator returned out-of-scope sectionKey "${sectionKey}" for agent ${agentId} — skipped`);
+      continue;
+    }
     const base = baseline.get(sectionKey);
     if (!base) {
       // Mediator returned a sectionKey that doesn't exist on this agent — skip.

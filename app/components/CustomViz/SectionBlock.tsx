@@ -47,6 +47,10 @@ interface SectionBlockProps {
    *  stored here (to resolve the previously open editor), then stores its own
    *  resolve function so the next caller can do the same. */
   resolveEditorRef: React.MutableRefObject<(() => void) | null>;
+  /** Whether this section is currently cited for the chat (2026-07-31, frontend-only). */
+  isCited: boolean;
+  /** Click (replace-select) / Ctrl-click (add-to-selection) toggles citation. */
+  onToggleCite: (additive: boolean) => void;
 }
 
 export function SectionBlock({
@@ -57,6 +61,8 @@ export function SectionBlock({
   onEditEnd,
   onSaved,
   resolveEditorRef,
+  isCited,
+  onToggleCite,
 }: SectionBlockProps) {
   // R14: chevron expand/collapse, default expanded, local state only (R15)
   const [expanded, setExpanded] = useState(true);
@@ -203,7 +209,13 @@ export function SectionBlock({
 
   return (
     /* .sec — matches mockup's section block */
-    <div ref={blockRef} className="border border-[var(--border)] rounded-[9px] mb-[9px] bg-[var(--elev)] overflow-hidden">
+    <div
+      ref={blockRef}
+      data-citable
+      className={`border rounded-[9px] mb-[9px] bg-[var(--elev)] overflow-hidden ${
+        isCited ? 'border-[var(--accent)]' : 'border-[var(--border)]'
+      }`}
+    >
       {/* .sec-h — header with chevron */}
       <div
         className="flex items-center gap-2 px-3 py-[9px] cursor-pointer"
@@ -225,8 +237,29 @@ export function SectionBlock({
             edited
           </span>
         )}
-        {/* Edit button — shown in header when not editing */}
-        {!isEditing && (
+        {/* Edit / Save+Cancel — shown top-right of the header, same slot either way
+            (2026-07-31: matches the custom JSON block's top-right Save/Cancel). */}
+        {isEditing ? (
+          <span
+            onClick={(e) => e.stopPropagation()}
+            className="ml-2 flex items-center gap-[6px]"
+          >
+            <button
+              onClick={handleSave}
+              disabled={isSaving || !hasUnsavedChanges}
+              className="rounded px-2 py-0.5 text-[11px] font-semibold bg-[var(--accent)] text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSaving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={handleCancel}
+              disabled={isSaving}
+              className="rounded px-2 py-0.5 text-[11px] text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </span>
+        ) : (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -260,34 +293,23 @@ export function SectionBlock({
                   {conflictNotice}
                 </p>
               )}
-              <div className="mt-2 flex items-center gap-2">
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving || !hasUnsavedChanges}
-                  className="rounded bg-[var(--accent)] px-3 py-1 text-[12px] font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSaving ? 'Saving…' : 'Save'}
-                </button>
-                <button
-                  onClick={handleCancel}
-                  disabled={isSaving}
-                  className="rounded px-3 py-1 text-[12px] text-[var(--muted)] hover:bg-[var(--bg)] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </div>
             </div>
           ) : (
-            /* Item 15: clicking the body text enters edit mode */
+            /* 2026-07-31: click cites this section for the chat; double-click edits
+               (was: click to edit — that's now the Edit button or a double-click). */
             <pre
               onClick={(e) => {
+                e.stopPropagation();
+                onToggleCite(e.ctrlKey || e.metaKey);
+              }}
+              onDoubleClick={(e) => {
                 e.stopPropagation();
                 if (!canEdit) return;
                 if (!expanded) setExpanded(true);
                 handleEditToggle();
               }}
-              title={canEdit ? 'Click to edit' : undefined}
-              className={`whitespace-pre-wrap px-3 pb-3 pl-[30px] font-mono text-[12px] leading-[1.5] text-[var(--muted)] ${canEdit ? 'cursor-text hover:text-[var(--text)]' : ''}`}
+              title="Click to cite in chat · double-click to edit"
+              className="whitespace-pre-wrap px-3 pb-3 pl-[30px] font-mono text-[12px] leading-[1.5] text-[var(--muted)] cursor-pointer hover:text-[var(--text)]"
             >
               {section.content || (
                 <span className="italic text-[var(--faint)]">(empty)</span>
