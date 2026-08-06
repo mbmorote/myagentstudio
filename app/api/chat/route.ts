@@ -9,7 +9,7 @@
  *   Request:  { agentId, instruction, dryRun?, citedSectionKeys?, citedConfigKeys? }
  *   Response: { proposal: { message, modifications, warnings }, meta }
  *
- * TRANSITIONAL BEHAVIOR (Phase 2 only — Phase 3 removes the write loop):
+ * TRANSITIONAL BEHAVIOR (Phase 2 only — plans/08-prometheus-apply.md Phase 1 removes the write loop):
  *   modifications.sections are still auto-applied to the database (same write loop as
  *   before). modifications.description and modifications.config are parsed, filtered,
  *   and included in the response but NOT written anywhere — they are proposals only.
@@ -24,7 +24,7 @@
  *     callPrometheus is mocked in tests (§4.4). prometheus.ts also demotes internally.
  *   - The API key is never in the response body or any log statement.
  *
- * Error codes (§11):
+ * Error codes (plans/08-prometheus-apply.md §8):
  *   400  malformed request body
  *   401  unauthorized
  *   404  agentId not found or not owned by caller
@@ -100,7 +100,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       ? (rawCited as string[])
       : undefined;
 
-  // citedConfigKeys: same defensive validation as citedSectionKeys (§6.1)
+  // citedConfigKeys: same defensive validation as citedSectionKeys — array of strings or
+  // ignored entirely, falling back to unscoped (plans/08-prometheus-apply.md §3.1)
   const rawCitedConfig = (body as { citedConfigKeys?: unknown }).citedConfigKeys;
   const citedConfigKeys =
     Array.isArray(rawCitedConfig) &&
@@ -196,7 +197,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'internal' }, { status: 500 });
   }
 
-  // ── TRANSITIONAL: auto-apply sections (Phase 2 only — Phase 3 removes this) ──
+  // ── TRANSITIONAL: auto-apply sections (Phase 2 only — plans/08-prometheus-apply.md Phase 1 removes this) ──
   // modifications.sections from parsePrometheusResponse are already:
   //   - out-of-scope filtered (§5.4)
   //   - split-level demoted (§4.4)
@@ -226,7 +227,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     } catch (err) {
       if (err instanceof VersionConflictError) {
         // Concurrent edit mid-turn — log and skip. The new response shape has no
-        // per-section conflict report; this path is transitional (removed in Phase 3).
+        // per-section conflict report; this path is transitional (removed in Plan 08 Phase 1).
         console.warn(
           `[chat] Version conflict for sectionKey "${sectionKey}" — section not applied`,
         );

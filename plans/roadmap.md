@@ -355,8 +355,9 @@ here were promoted from FUTURE on that basis, tagged below.
    large, dated decision-log where many rows are point-in-time historical statements (like
    `CHANGELOG.md`); rewriting old rows to the new names would misrepresent when those names
    existed. Same treatment `plans/07-prometheus-propose-apply.md` already gives that file
-   under "Phase 7 doc sync" (also not yet done, for the same reason). Both system agents'
-   `model` field stays unset in frontmatter — the same §17.2 deferral Prometheus already has.
+   under `plans/08-prometheus-apply.md`'s doc-sync phase (also not yet done, for the same
+   reason). Both system agents' `model` field stays unset in frontmatter — the same
+   deferral Prometheus already has (`plans/07-prometheus-propose-apply.md` §8 point 2).
 3. **Review the chat-mediator system agent.** `lib/ai/prompts/system-agents/chat-mediator.md`
    — its rule-set hasn't had a dedicated review pass since it was widened to agent-wide scope
    (Plan 01 review, 2026-07-26). Natural to do together with item 2 above, since re-scoping

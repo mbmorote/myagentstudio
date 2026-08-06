@@ -154,7 +154,7 @@ Sends the agent's **full raw markdown text** plus the Blueprint to Claude via `g
 
 Sends the agent's name, description, sections (full or cited), and config values (full or cited) to Claude via `getGateway().complete(req, { kind: 'chat' })` and returns a `PrometheusProposal` (`{ message, modifications, warnings }`) via `callPrometheus()`. Forwards `request.signal` through `LlmRequest.signal` for cancellation support (Rules Index #23).
 
-Key behaviors: agent-wide or cited scope, no tools, split-level heading demotion applied at propose time, the out-of-scope filter runs inside `parsePrometheusResponse()` (exported for unit tests). `POST /api/chat` performs zero writes — see `plans/07-prometheus-propose-apply.md` for the full output-contract and propose-then-apply design (Phases 0–2 built; the apply endpoint and lock are a future plan).
+Key behaviors: agent-wide or cited scope, no tools, split-level heading demotion applied at propose time, the out-of-scope filter runs inside `parsePrometheusResponse()` (exported for unit tests). **`POST /api/chat` does not yet perform zero writes** — `modifications.sections` is still auto-applied to the DB transitionally; `description`/`config` are computed and returned but not written. See `plans/07-prometheus-propose-apply.md` for the built rename + output-contract design (Phases 0–2), and `plans/08-prometheus-apply.md` for the not-yet-built propose/apply split, config-merge fix, client lock, and ChatPanel UI that finish this.
 
 ## Files in this folder
 

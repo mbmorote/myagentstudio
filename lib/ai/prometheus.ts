@@ -232,7 +232,8 @@ function buildUserMessage(input: PrometheusInput, blueprint: string): string {
 
 /**
  * Extracts, validates, and normalises Prometheus's JSON response into a
- * PrometheusProposal. Exported so unit tests can call it directly (§13.2).
+ * PrometheusProposal. Exported so unit tests can call it directly
+ * (plans/07-prometheus-propose-apply.md §6.2).
  *
  * Extraction is a three-step ordered attempt (§4.2):
  *   1. JSON.parse(responseText.trim())        — normal well-behaved model output
