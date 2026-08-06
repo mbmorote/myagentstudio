@@ -3,51 +3,51 @@
  *
  * POST /api/chat
  *
- * Implements Draft D (§7) — the agent-aware chat endpoint.
+ * Phase 2 (transitional) — the agent-aware chat endpoint.
  *
- * Contract (§5):
- *   Request:  { agentId: string, instruction: string, dryRun?: boolean }
- *   Response: { sections: { [sectionKey]: {content, version} | {conflict:true, current, content} } }
+ * Contract:
+ *   Request:  { agentId, instruction, dryRun?, citedSectionKeys?, citedConfigKeys? }
+ *   Response: { proposal: { message, modifications, warnings }, meta }
  *
- * Key invariants (§6, §7, Rules Index #3/#7/#22/#23):
+ * TRANSITIONAL BEHAVIOR (Phase 2 only — Phase 3 removes the write loop):
+ *   modifications.sections are still auto-applied to the database (same write loop as
+ *   before). modifications.description and modifications.config are parsed, filtered,
+ *   and included in the response but NOT written anywhere — they are proposals only.
+ *
+ * Key invariants (Rules Index #3/#7/#22/#23):
  *   - Server ALWAYS loads the full agent from DB (never trusts client-supplied content).
- *   - apply-then-history: updateSectionContent writes the revision BEFORE this response
- *     returns. If the client disconnects (cancellation), the mediator call is also
- *     cancelled via request.signal, and nothing is written (safe by construction).
- *   - Per-section optimistic concurrency: each section carries its baseline version
- *     (read at the start of this handler). A VersionConflictError on one section does
- *     NOT block the others — it is reported as {conflict:true, current, content} in the
- *     response while the other sections still apply.
- *   - Split-level demotion double-check runs inside chatMediator (Rules Index #3).
+ *   - callPrometheus is cancelled via request.signal if the client disconnects (Rules
+ *     Index #23). Nothing is written before callPrometheus resolves.
+ *   - The out-of-scope filter runs inside parsePrometheusResponse (§5.4) — the sections
+ *     in proposal.modifications are already filtered by the time the route gets them.
+ *   - Split-level demotion double-check is inlined below and runs even when
+ *     callPrometheus is mocked in tests (§4.4). prometheus.ts also demotes internally.
  *   - The API key is never in the response body or any log statement.
  *
- * Error codes (§5 error table):
+ * Error codes (§11):
  *   400  malformed request body
  *   401  unauthorized
  *   404  agentId not found or not owned by caller
  *   429  per-user LLM cap reached (§3.9)
- *   499  client cancelled (request.signal fired before the mediator resolved)
- *   502  Anthropic API upstream failure
+ *   499  client cancelled (request.signal fired before callPrometheus resolved)
+ *   502  Anthropic API upstream failure or unparseable model response
  *   500  unexpected server error (never includes key or prompt text)
  */
 
 import { NextResponse } from 'next/server';
 import { getAgentFull, updateSectionContent, VersionConflictError, SectionNotFoundError } from '@/lib/db/repository';
 import {
-  callChatMediator,
-  ChatMediatorUpstreamError,
-} from '@/lib/ai/chatMediator';
+  callPrometheus,
+  PrometheusUpstreamError,
+  PrometheusInvalidResponseError,
+} from '@/lib/ai/prometheus';
 import { LlmDryRunBlockedError, LlmUserCapReachedError } from '@/lib/ai/gateway';
 import { authenticate } from '@/lib/auth/guard';
 
 // ── Split-level heading demotion (Rules Index #3, defense-in-depth) ──────────
-// Inlined in the route so it runs even in tests where callChatMediator is mocked.
-// callChatMediator also does this internally; the route is the authoritative gate.
-//
-// A heading at `splitLevel` means exactly that many `#` followed by a space:
-//   splitLevel=1 → `# ` (never appears inside section content)
-//   splitLevel=2 → `## ` etc.
-// Demotion: prepend one additional `#` to bring it one level deeper.
+// Inlined in the route so it runs even when callPrometheus is mocked in tests.
+// prometheus.ts also demotes at parse time (§4.4); two implementations are
+// intentional — the apply route is the authoritative write gate.
 function demoteHeadings(content: string, splitLevel: number): string {
   const exactPrefix = '#'.repeat(splitLevel) + ' ';
   const nextLevelPrefix = '#'.repeat(splitLevel + 1);
@@ -87,18 +87,26 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const { agentId, instruction } = body as { agentId: string; instruction: string; dryRun?: boolean };
-  // forceDryRun: client may request dry-run mode explicitly (§8.16 — can only downgrade, never upgrade)
+  const { agentId, instruction } = body as { agentId: string; instruction: string };
+  // forceDryRun: client may request dry-run mode explicitly (may only downgrade, Rules Index #61)
   const forceDryRun = (body as { dryRun?: unknown }).dryRun === true;
 
-  // Section-scoped chat selection (2026-07-31, first backend pass — plans/roadmap.md
-  // TODO item 2). Optional, client-supplied — validated defensively (array of strings
-  // only); an invalid/malformed value is simply ignored, falling back to unscoped
-  // (send-everything) behavior rather than rejecting the whole request over it.
+  // citedSectionKeys: optional, validated defensively — array of strings or ignored (unscoped fallback).
   const rawCited = (body as { citedSectionKeys?: unknown }).citedSectionKeys;
   const citedSectionKeys =
-    Array.isArray(rawCited) && rawCited.every((k) => typeof k === 'string') && rawCited.length > 0
+    Array.isArray(rawCited) &&
+    rawCited.every((k) => typeof k === 'string') &&
+    rawCited.length > 0
       ? (rawCited as string[])
+      : undefined;
+
+  // citedConfigKeys: same defensive validation as citedSectionKeys (§6.1)
+  const rawCitedConfig = (body as { citedConfigKeys?: unknown }).citedConfigKeys;
+  const citedConfigKeys =
+    Array.isArray(rawCitedConfig) &&
+    rawCitedConfig.every((k) => typeof k === 'string') &&
+    rawCitedConfig.length > 0
+      ? (rawCitedConfig as string[])
       : undefined;
 
   // ── Load whole agent server-side (Rules Index #7 — never trust client content) ──
@@ -115,10 +123,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     baseline.set(section.sectionKey, { id: section.id, version: section.version });
   }
 
-  // ── Call the mediator (signal passthrough for cancellation — Rules Index #23) ───
-  let mediatorResult;
+  // ── Call Prometheus (signal passthrough for cancellation — Rules Index #23) ──
+  let proposal;
   try {
-    mediatorResult = await callChatMediator(
+    proposal = await callPrometheus(
       {
         agentName: agent.name,
         agentDescription: agent.description,
@@ -128,11 +136,14 @@ export async function POST(request: Request): Promise<NextResponse> {
           heading: s.heading,
           content: s.content,
         })),
+        // Map AgentDTO config entries to the { propKey, value } shape prometheus.ts expects
+        config: agent.config.map((c) => ({ propKey: c.propKey, value: c.value })),
         instruction,
         citedSectionKeys,
+        citedConfigKeys,
         signal: request.signal,
       },
-      // agentId is always known for chat (§5.2); userId from the session (§3.9)
+      // agentId always known for chat (§5.2); userId from the session (§3.9)
       { kind: 'chat', agentId, agentLabel: agent.name, userId: session.userId, forceDryRun },
     );
   } catch (err) {
@@ -152,7 +163,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         },
       );
     }
-    // Dry-run block — SECOND (§7.2, §3.2 catch order)
+    // Dry-run block — SECOND
     if (err instanceof LlmDryRunBlockedError) {
       console.info('[chat] Dry-run blocked:', err.message);
       return NextResponse.json(
@@ -167,69 +178,102 @@ export async function POST(request: Request): Promise<NextResponse> {
         { status: 409 },
       );
     }
-    if (err instanceof ChatMediatorUpstreamError) {
-      console.error('[chat] Mediator upstream error:', err.message);
+    if (err instanceof PrometheusUpstreamError) {
+      console.error('[chat] Prometheus upstream error:', err.message);
       return NextResponse.json({ error: 'ai_upstream' }, { status: 502 });
     }
-    // AbortError: client cancelled — nothing has been written yet (apply-then-history
-    // guarantees no writes before the mediator fully resolves), so we simply return.
-    // Status 499 is the de-facto convention for client-closed-request.
+    if (err instanceof PrometheusInvalidResponseError) {
+      // Log reason (not the raw response — it contains agent content, Rules Index #59 reasoning)
+      console.error('[chat] Prometheus response parse failure:', err.message);
+      return NextResponse.json({ error: 'ai_upstream' }, { status: 502 });
+    }
+    // AbortError: client cancelled — callPrometheus resolved early with AbortError.
+    // Nothing has been written yet (callPrometheus performs no writes), so simply return.
     if (err instanceof Error && err.name === 'AbortError') {
       return NextResponse.json({ error: 'cancelled' }, { status: 499 });
     }
-    console.error('[chat] Unexpected mediator error:', String(err));
+    console.error('[chat] Unexpected error:', String(err));
     return NextResponse.json({ error: 'internal' }, { status: 500 });
   }
 
-  // ── Apply each changed section — per-section conflict handling (§7 Draft D) ──
-  const resultSections: Record<
-    string,
-    | { content: string; version: number }
-    | { conflict: true; current: number; content: string }
-  > = {};
+  // ── TRANSITIONAL: auto-apply sections (Phase 2 only — Phase 3 removes this) ──
+  // modifications.sections from parsePrometheusResponse are already:
+  //   - out-of-scope filtered (§5.4)
+  //   - split-level demoted (§4.4)
+  // The route's demoteHeadings below is a second pass (idempotent, defense-in-depth).
+  const appliedSections: Record<string, string> = {};
+  const sectionWarnings: string[] = [];
 
-  for (const [sectionKey, newContent] of Object.entries(mediatorResult.sections)) {
-    // Defense-in-depth: in scoped mode the model was never shown this section's
-    // content, so an edit to it can't be a grounded diff — skip it even if returned.
-    if (citedSectionKeys && !citedSectionKeys.includes(sectionKey)) {
-      console.warn(`[chat] Mediator returned out-of-scope sectionKey "${sectionKey}" for agent ${agentId} — skipped`);
-      continue;
-    }
+  for (const [sectionKey, newContent] of Object.entries(
+    proposal.modifications.sections ?? {},
+  )) {
     const base = baseline.get(sectionKey);
     if (!base) {
-      // Mediator returned a sectionKey that doesn't exist on this agent — skip.
-      // (Shouldn't happen with a well-behaved model; logged for visibility.)
-      console.warn(`[chat] Mediator returned unknown sectionKey "${sectionKey}" for agent ${agentId} — skipped`);
+      // Prometheus returned a sectionKey that doesn't exist on this agent — skip.
+      console.warn(
+        `[chat] Prometheus returned unknown sectionKey "${sectionKey}" for agent ${agentId} — skipped`,
+      );
+      sectionWarnings.push(`Unknown section "${sectionKey}" was dropped.`);
       continue;
     }
 
-    // Route-level demotion double-check (§4.7, Rules Index #3 — runs even when
-    // callChatMediator is mocked in tests; chatMediator also demotes internally).
+    // Route-level demotion double-check (§4.4 — runs even when callPrometheus is mocked).
     const safeContent = demoteHeadings(newContent, agent.splitLevel);
 
     try {
-      const { version } = updateSectionContent(agentId, base.id, session.userId, safeContent, 'ai', base.version);
-      resultSections[sectionKey] = { content: safeContent, version };
+      updateSectionContent(agentId, base.id, session.userId, safeContent, 'ai', base.version);
+      appliedSections[sectionKey] = safeContent;
     } catch (err) {
       if (err instanceof VersionConflictError) {
-        // This section's version moved since our baseline read (e.g. a concurrent
-        // manual edit landed mid-turn). Report it individually; other sections still
-        // applied above. The currentContent is carried by the error (§5, Draft D).
-        resultSections[sectionKey] = {
-          conflict: true,
-          current: err.current,
-          content: err.currentContent,
-        };
+        // Concurrent edit mid-turn — log and skip. The new response shape has no
+        // per-section conflict report; this path is transitional (removed in Phase 3).
+        console.warn(
+          `[chat] Version conflict for sectionKey "${sectionKey}" — section not applied`,
+        );
+        sectionWarnings.push(
+          `Section "${sectionKey}" had a version conflict and was not applied.`,
+        );
       } else if (err instanceof SectionNotFoundError) {
-        console.error(`[chat] Section not found for sectionKey "${sectionKey}":`, String(err));
+        console.error(
+          `[chat] Section not found for sectionKey "${sectionKey}":`,
+          String(err),
+        );
         return NextResponse.json({ error: 'not_found' }, { status: 404 });
       } else {
-        // Unexpected write failure — surface as 500
         console.error(`[chat] Unexpected write failure for section "${sectionKey}":`, String(err));
         return NextResponse.json({ error: 'internal' }, { status: 500 });
       }
     }
   }
 
-  return NextResponse.json({ sections: resultSections }, { status: 200 });
+  // Build the response modifications: applied sections + proposed (not written) description/config
+  const responseModifications = {
+    ...(Object.keys(appliedSections).length > 0 ? { sections: appliedSections } : {}),
+    ...(proposal.modifications.description !== undefined
+      ? { description: proposal.modifications.description }
+      : {}),
+    ...(proposal.modifications.config !== undefined
+      ? { config: proposal.modifications.config }
+      : {}),
+  };
+
+  const allWarnings = [...proposal.warnings, ...sectionWarnings];
+
+  return NextResponse.json(
+    {
+      proposal: {
+        message: proposal.message,
+        modifications: responseModifications,
+        warnings: allWarnings,
+      },
+      meta: {
+        agentId,
+        proposedAt: new Date().toISOString(),
+        scoped: !!(citedSectionKeys?.length || citedConfigKeys?.length),
+        citedSectionKeys: citedSectionKeys ?? [],
+        citedConfigKeys: citedConfigKeys ?? [],
+      },
+    },
+    { status: 200 },
+  );
 }

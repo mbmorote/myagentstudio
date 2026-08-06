@@ -3,7 +3,7 @@
  *
  * Builds ImportedAgentData from Structural Import's output (Phase B3, step 4–6).
  *
- * After callStructuralConverter() returns the restructured body document:
+ * After callDaedalus() returns the restructured body document:
  *
  * Step 4: splitBody(returnedDoc) — parse the model's output body into blocks.
  *   Map each block: heading exactly matches a SECTION_DEFS.defaultHeading → that

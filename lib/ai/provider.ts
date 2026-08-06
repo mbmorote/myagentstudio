@@ -66,7 +66,7 @@ export interface LLMProvider {
   complete(req: ResolvedLlmRequest): Promise<LlmResponse>;
   /**
    * Streaming transport, awaited to completion. Same return shape.
-   * The streaming transport is used for large responses (structuralConverter)
+   * The streaming transport is used for large responses (daedalus.ts)
    * but the result shape is identical — no incremental deltas yet (§3.5, §14).
    */
   stream(req: ResolvedLlmRequest): Promise<LlmResponse>;

@@ -3,7 +3,7 @@
  *
  * Phase B6 — mocked pipeline tests for the Structural Import mode.
  *
- * The Anthropic API is NEVER called — callStructuralConverter is mocked.
+ * The Anthropic API is NEVER called — callDaedalus is mocked.
  * Tests the assembleStructural + checkCoverage + upsertAgentFromImport pipeline.
  *
  * dev.md block structure (from parse() of the fixture file):
@@ -20,7 +20,7 @@
  *      sectionKeys, config from original frontmatter, snapshots/revisions per §6 rule 7,
  *      coverage warnings empty.
  *   2. Short-circuit: re-import identical bytes → mock not called, no new snapshots/revisions.
- *   3. Truncation: mock throws StructuralConverterTruncatedError → nothing written to DB.
+ *   3. Truncation: mock throws DaedalusTruncatedError → nothing written to DB.
  */
 
 import { readFileSync } from 'fs';
@@ -35,17 +35,17 @@ vi.mock('../../db/client.js', async () => {
   return { db: testDb };
 });
 
-// ── Mock callStructuralConverter — never calls the real Anthropic API ──────
-vi.mock('../../ai/structuralConverter.js', () => ({
-  callStructuralConverter: vi.fn(),
-  StructuralConverterUpstreamError: class StructuralConverterUpstreamError extends Error {
-    constructor(msg: string) { super(msg); this.name = 'StructuralConverterUpstreamError'; }
+// ── Mock callDaedalus — never calls the real Anthropic API ──────
+vi.mock('../../ai/daedalus.js', () => ({
+  callDaedalus: vi.fn(),
+  DaedalusUpstreamError: class DaedalusUpstreamError extends Error {
+    constructor(msg: string) { super(msg); this.name = 'DaedalusUpstreamError'; }
   },
-  StructuralConverterTruncatedError: class StructuralConverterTruncatedError extends Error {
-    constructor() { super('truncated'); this.name = 'StructuralConverterTruncatedError'; }
+  DaedalusTruncatedError: class DaedalusTruncatedError extends Error {
+    constructor() { super('truncated'); this.name = 'DaedalusTruncatedError'; }
   },
-  StructuralConverterInvalidResponseError: class StructuralConverterInvalidResponseError extends Error {
-    constructor(msg: string) { super(msg); this.name = 'StructuralConverterInvalidResponseError'; }
+  DaedalusInvalidResponseError: class DaedalusInvalidResponseError extends Error {
+    constructor(msg: string) { super(msg); this.name = 'DaedalusInvalidResponseError'; }
   },
 }));
 
@@ -58,7 +58,7 @@ import { BOOTSTRAP_USER_ID } from '../../auth/constants.js';
 import { parse } from '../../serialize/index.js';
 import { assembleStructural } from '../assembleStructural.js';
 import { checkCoverage } from '../coverage.js';
-import { callStructuralConverter, StructuralConverterTruncatedError } from '../../ai/structuralConverter.js';
+import { callDaedalus, DaedalusTruncatedError } from '../../ai/daedalus.js';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -129,7 +129,7 @@ describe('structural import pipeline — first import of dev.md (mocked)', () =>
   let agentId: string;
 
   beforeAll(() => {
-    vi.mocked(callStructuralConverter).mockResolvedValue(CANONICAL_RESTRUCTURED_BODY);
+    vi.mocked(callDaedalus).mockResolvedValue(CANONICAL_RESTRUCTURED_BODY);
     const importData = assembleStructural(devParsed, CANONICAL_RESTRUCTURED_BODY, devMdRaw);
     const dto = upsertAgentFromImport(BOOTSTRAP_USER_ID, importData);
     agentId = dto.id;
@@ -229,12 +229,12 @@ describe('structural import short-circuit — identical rawSourceSnapshot', () =
       .all();
 
     // Simulate route short-circuit: rawSourceSnapshot === rawMd → return current DTO without calling converter.
-    vi.mocked(callStructuralConverter).mockClear();
+    vi.mocked(callDaedalus).mockClear();
     const dto = getAgentFull(snapshotInfo!.id, BOOTSTRAP_USER_ID);
     expect(dto).not.toBeNull();
 
     // No converter call should happen in the short-circuit path.
-    expect(callStructuralConverter).not.toHaveBeenCalled();
+    expect(callDaedalus).not.toHaveBeenCalled();
 
     // No new snapshots written (short-circuit writes nothing).
     const snapshotsAfter = testDb
@@ -247,14 +247,14 @@ describe('structural import short-circuit — identical rawSourceSnapshot', () =
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Test 3: Truncation — StructuralConverterTruncatedError → nothing written
+// Test 3: Truncation — DaedalusTruncatedError → nothing written
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('structural import truncation — StructuralConverterTruncatedError', () => {
-  it('throws StructuralConverterTruncatedError when max_tokens is hit (never stored)', async () => {
+describe('structural import truncation — DaedalusTruncatedError', () => {
+  it('throws DaedalusTruncatedError when max_tokens is hit (never stored)', async () => {
     // Mock the converter to throw the truncation error.
-    vi.mocked(callStructuralConverter).mockRejectedValueOnce(
-      new StructuralConverterTruncatedError(),
+    vi.mocked(callDaedalus).mockRejectedValueOnce(
+      new DaedalusTruncatedError(),
     );
 
     // Count DB state before to verify nothing is written.
@@ -262,8 +262,8 @@ describe('structural import truncation — StructuralConverterTruncatedError', (
     const snapshotCountBefore = testDb.select().from(schema.agentSnapshot).all().length;
 
     // Calling the mocked converter should throw.
-    await expect(callStructuralConverter(devMdRaw)).rejects.toBeInstanceOf(
-      StructuralConverterTruncatedError,
+    await expect(callDaedalus(devMdRaw)).rejects.toBeInstanceOf(
+      DaedalusTruncatedError,
     );
 
     // Nothing should have been written to the DB.

@@ -4,7 +4,7 @@
  * Phase 3, step 3.6 — Import pipeline tests.
  *
  * Uses an in-memory SQLite DB (same test-db.ts pattern as repo.test.ts).
- * The Anthropic API is NEVER called — callImportConverter is mocked with a fixed
+ * The Anthropic API is NEVER called — callHermes is mocked with a fixed
  * hand-written label map for dev.md's actual blocks (the four # headings).
  *
  * dev.md block structure (from parse() of the fixture file):
@@ -41,14 +41,14 @@ vi.mock('../../db/client.js', async () => {
   return { db: testDb };
 });
 
-// ── Mock callImportConverter — never calls the real Anthropic API ─────────
-vi.mock('../../ai/importConverter.js', () => ({
-  callImportConverter: vi.fn(),
-  ImportConverterUpstreamError: class ImportConverterUpstreamError extends Error {
-    constructor(msg: string) { super(msg); this.name = 'ImportConverterUpstreamError'; }
+// ── Mock callHermes — never calls the real Anthropic API ─────────
+vi.mock('../../ai/hermes.js', () => ({
+  callHermes: vi.fn(),
+  HermesUpstreamError: class HermesUpstreamError extends Error {
+    constructor(msg: string) { super(msg); this.name = 'HermesUpstreamError'; }
   },
-  ImportConverterInvalidResponseError: class ImportConverterInvalidResponseError extends Error {
-    constructor(msg: string) { super(msg); this.name = 'ImportConverterInvalidResponseError'; }
+  HermesInvalidResponseError: class HermesInvalidResponseError extends Error {
+    constructor(msg: string) { super(msg); this.name = 'HermesInvalidResponseError'; }
   },
 }));
 
@@ -63,7 +63,7 @@ import {
 import { BOOTSTRAP_USER_ID } from '../../auth/constants.js';
 import { parse, exportAgent } from '../../serialize/index.js';
 import { assemble } from '../assemble.js';
-import { callImportConverter } from '../../ai/importConverter.js';
+import { callHermes } from '../../ai/hermes.js';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -120,7 +120,7 @@ describe('assemble + upsertAgentFromImport (dev.md, first import)', () => {
 
   beforeAll(() => {
     // Configure the mock for this suite.
-    vi.mocked(callImportConverter).mockResolvedValue(DEV_LABELS);
+    vi.mocked(callHermes).mockResolvedValue(DEV_LABELS);
 
     const importData = assemble(devParsed, DEV_LABELS, devMdRaw);
     dto = upsertAgentFromImport(BOOTSTRAP_USER_ID,importData);
@@ -763,15 +763,15 @@ describe('A3 — block-list frontmatter value round-trip', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// A4 — overlapping mapping entries → ImportConverterInvalidResponseError
+// A4 — overlapping mapping entries → HermesInvalidResponseError
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('A4 — overlapping blockIds in Stage-2 mappings', () => {
-  it('parseAndValidateLabels via callImportConverter rejects overlapping blockId mappings', async () => {
+  it('parseAndValidateLabels via callHermes rejects overlapping blockId mappings', async () => {
     // We test the validator by mocking the Anthropic client response with an overlapping mapping.
-    // The actual callImportConverter is mocked globally, so we test the internal logic directly
+    // The actual callHermes is mocked globally, so we test the internal logic directly
     // by importing the real module's internals via a workaround.
-    // Instead, verify the route-level behavior: the mock callImportConverter can be configured
+    // Instead, verify the route-level behavior: the mock callHermes can be configured
     // to return overlapping mappings to simulate the validator catching it.
     //
     // The cleanest test: call the validator via the assemble pipeline by checking that
@@ -779,15 +779,15 @@ describe('A4 — overlapping blockIds in Stage-2 mappings', () => {
     // de-duplicates them correctly (since the validator now rejects such responses, we
     // verify the assemble fallback handles any surviving unprocessed blocks).
     //
-    // Since callImportConverter is mocked, we directly test the ImportConverterInvalidResponseError
+    // Since callHermes is mocked, we directly test the HermesInvalidResponseError
     // is thrown when the mock produces an overlapping response:
-    const { ImportConverterInvalidResponseError: ICError } = await import('../../ai/importConverter.js');
+    const { HermesInvalidResponseError: ICError } = await import('../../ai/hermes.js');
 
-    vi.mocked(callImportConverter).mockRejectedValueOnce(
+    vi.mocked(callHermes).mockRejectedValueOnce(
       new ICError('blockId "block-0" appears in more than one mapping entry (overlapping groups)'),
     );
 
-    // Calling the mock should now throw ImportConverterInvalidResponseError.
-    await expect(callImportConverter([])).rejects.toBeInstanceOf(ICError);
+    // Calling the mock should now throw HermesInvalidResponseError.
+    await expect(callHermes([])).rejects.toBeInstanceOf(ICError);
   });
 });

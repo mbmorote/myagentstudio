@@ -229,6 +229,134 @@ here were promoted from FUTURE on that basis, tagged below.
    per-call) and is tightly coupled to item 3 below, since `chat-mediator.md`'s rule text was
    written assuming today's shape (static system prompt, everything else bundled into one user
    message).
+   **Design session 2026-08-05 — mediator rework, decided, not yet built:**
+   - **Output contract expands beyond `{ sections }`.** The mediator gains a `message` field
+     — its actual natural-language answer, always present, shown as the real chat bubble text
+     (replacing today's client-synthesized "Updated: X" summary). Alongside it, edit payloads
+     for whichever parts of the agent changed.
+   - **Editable surface via chat: everything except `name`.** Previously only `sections` could
+     be rewritten. Now `description` and `config` values are chat-editable too — `name` is the
+     one fixed exception, to be stated explicitly as a `chat-mediator.md` guardrail.
+   - **Unscoped (nothing cited) → the platform attaches the full agent to the LLM call,
+     including config values**, not just sections — a real, deliberate new default cost.
+     Cited instructions still narrow to just what's cited, unchanged from the existing build.
+   - **Propose-then-apply replaces auto-apply — unconditionally, no per-user setting.** The
+     chat call (`POST /api/chat`) no longer writes to the DB in the same request — it returns
+     a proposal (`message` + whatever changed). A separate explicit "Apply" action performs
+     the write. This is what TODO item 6 (propose-preview) envisioned, built now as the only
+     mode rather than a deferred opt-in toggle — **item 6's own entry below is superseded by
+     this decision**, not additive to it.
+   - **Apply granularity: apply-all only for now.** One button applies every changed part of
+     the turn's proposal together. Per-part (per-section/per-config-key) apply is deferred —
+     moved to FUTURE.
+   - **Stale-proposal handling:** sending a new chat message discards/disables the previous
+     turn's pending Apply button. Only the latest turn's proposal is ever actionable.
+   - **Conflict resolution: lock-based, not version-based.** While a proposal is pending
+     (returned, not yet applied or superseded), manual section/config editing is blocked — a
+     new state on the existing `interactionLock` mechanism (which already has `'chat'` and
+     `'edit'` states). Removes the need for an apply-time version-conflict check: nothing else
+     can change underneath a pending proposal.
+   - **Pending proposal survives reload via `localStorage`, no DB.** Resolved 2026-08-05
+     (edge 1a). The proposal (`message` + whatever changed) and the pending-lock flag are
+     both written to `localStorage`, keyed per `userId`+`agentId` (e.g.
+     `myagent:proposal:<userId>:<agentId>`) so a stale proposal never bleeds across agents or
+     accounts on a shared browser. Restored **synchronously** on load (read during initial
+     state setup, not in a post-paint effect) so there's no flash where editing looks briefly
+     available before the lock reasserts. Cleared on Apply and on discard (new message sent,
+     or explicit dismiss). Bonus: since `localStorage` is shared across same-origin tabs, this
+     also covers a second tab open on the same agent, which pure in-memory state never would
+     have. Two residual gaps accepted as known, not blocking, moved to FUTURE for later
+     review: (1) the lock has only ever been client-side/cooperative, never server-enforced —
+     true of `interactionLock` generally, not a new weakness from this decision; (2)
+     `localStorage` doesn't sync across devices/browsers, so a pending proposal on one device
+     doesn't block a manual edit on another — accepted given the app's real scale (a handful
+     of users, effectively one device at a time per person).
+   - **Chat/prompt history already exists — just not replayed.** `llm_call_log` already stores
+     the full request (`system` + `messages`) and response `text` for every chat call, tied to
+     `agentId`/`userId`/`createdAt`. The gap is UI replay: `ChatPanel` never reads it back on
+     load. Narrows NEXT item 2 to a replay-approach question — see open edges below.
+
+   **Open edges, not yet resolved:**
+   1. Chat history replay: reuse `llm_call_log` rows (parse `requestPayload`/`responsePayload`
+      back into bubbles) vs. build a dedicated `Conversation`/`Message` table. Feeds NEXT
+      item 2.
+   2. ~~Config-edit validation~~ **Resolved 2026-08-05.** No new validation — reuses the
+      project's existing "flag, don't block" convention (already in the schema comments,
+      `agent.name`'s Rules #1, and `isBadListItem`'s client-side-only flagging). Checked: the
+      real `PATCH /api/agents/[id]` route today never validates a config value against
+      `configDef`'s `datatype`/`allowedValues`/`required` server-side, even for manual edits —
+      only shape (`config` is an array) is checked. So an AI-proposed config edit gets written
+      exactly like a manually-typed one: zero new server-side gatekeeping, same existing
+      client-side visual flagging catches anomalies after the fact. No asymmetric strictness
+      for AI-authored values. **Established as a standing principle for this whole rework, not
+      just this edge** — see the new "never block" note below, which also resolves edge 3.
+   3. ~~Model posture on ambiguous instructions~~ **Resolved 2026-08-05.** Same "never block"
+      principle as edge 2 — `chat-mediator.md` should tell
+      the model to propose a concrete edit whenever it reasonably can, even on vague/ambiguous
+      instructions, rather than holding back out of caution. The human Apply click is already
+      the safety net; adding model-side conservatism on top would be redundant gatekeeping,
+      the same asymmetry edge 2 just rejected for config values. (A pure question/no-edit-
+      possible instruction like "review my agent" still naturally yields `sections`/`config`
+      empty and only `message` populated — this is about not *withholding* a proposal when one
+      is genuinely warranted, not forcing an edit out of every turn.)
+   4. Exact output contract shape: literal field names/structure for the description and
+      config edit payloads (e.g. is a config edit a flat `{key: value}` map keyed by
+      `propKey`? is a description edit the whole replacement string?) — needed before
+      `chat-mediator.md`/`chatMediator.ts` get rewritten.
+   5. Interaction-lock UX: does the new "proposal pending" lock state need its own visible
+      signal (vs. today's plain 'chat'/'edit' states), e.g. "Proposal pending — apply or send
+      a new message to discard"?
+   6. Apply-write plumbing: confirm which repository functions the Apply action calls for each
+      changed part (`updateSectionContent` exists for sections; description and config need
+      their write paths identified or built).
+   7. ~~The actual `chat-mediator.md` prose~~ **Drafted 2026-08-05** at
+      `lib/ai/prompts/system-agents/prometheus.md` — a **new** file, sitting alongside the
+      still-live `chat-mediator.md` (untouched, still what's actually compiled/used). Content
+      only, no code changed yet.
+
+   **Concept reframe, 2026-08-05:** this system agent is no longer "the chat mediator" — it's
+   being redefined as a real agent, named **Prometheus**, authored using MyAgent's own Agent
+   pattern (name/description/model + Role/Behavior/Guardrails/Output sections) instead of an
+   ad-hoc rule-set shape — the tool that helps build agents, built the way it teaches agents
+   to be built. Same reframe applies to the import converters eventually (see FUTURE bucket).
+   Checked what's actually wireable into the real API call before committing to this shape:
+   `LlmRequest.model` is a real, already-supported field (worth declaring per-agent); `tools`
+   has no plumbing anywhere in this app's LLM call chain (`lib/ai/provider.ts` has no `tools`
+   field at all) — so Prometheus's "no tools" guardrail is structurally true, not aspirational
+   prose. Still explicitly deferred, not started: **(a)** the actual code wiring — parsing
+   this new `{ message, modifications }` shape in `chatMediator.ts`, the propose/apply split
+   in `route.ts`, threading a declared model value into the real call; **(b)** the full
+   rename — retiring `chat-mediator.md`, updating `scripts/build-prompts.ts`,
+   `lib/ai/chatMediator.ts` and its callers/tests, and every doc reference
+   (`CLAUDE.md`, `lib/ai/CLAUDE.md`, `TechDesign.md`'s Rules Index). Both are real code
+   changes, scoped as the next deliberate step once this content draft is reviewed.
+
+   **2026-08-05, later same day — real-agent reformat done, and extended to the import
+   converters (closes the "eventually" in the reframe note above, ahead of schedule):**
+   `prometheus.md` was rewritten to true real-agent shape — YAML frontmatter (`name`,
+   `description`, `tools: []`) + `#`-level body sections (`ROLE`/`BEHAVIOR`/`GUARDRAILS`/
+   `OUTPUT FORMAT`), replacing the old `## IDENTITY` prose section. `build-prompts.ts` now
+   detects a leading `---` frontmatter block and strips it, using the body verbatim as the
+   compiled prompt — the old "strip to first `##`" logic is a fallback, no longer the norm.
+   The user then decided to name and reformat the two import converters the same way,
+   choosing distinct persona names (they have genuinely different contracts, not just a mode
+   flag): **Hermes** (Strict Import — a messenger, carries labels without touching content)
+   and **Daedalus** (Structural Import — a craftsman, rebuilds the full body). Full rename
+   through the `.ts` layer, same treatment Prometheus got in Plan 07 Phase 1: `importConverter.ts`
+   → `lib/ai/hermes.ts` (`callImportConverter` → `callHermes`, `ImportConverter*Error` →
+   `Hermes*Error`), `structuralConverter.ts` → `lib/ai/daedalus.ts` (`callStructuralConverter`
+   → `callDaedalus`, `StructuralConverter*Error` → `Daedalus*Error`); prompt files
+   `import-instructions.md`/`import-instructions-structural.md` → `hermes.md`/`daedalus.md`.
+   All call sites updated (`app/api/agents/import/route.ts`, `lib/import/assemble.ts`,
+   `lib/import/assembleStructural.ts`, both import test suites,
+   `scripts/test-structural-import.ts`) plus `CLAUDE.md`, `lib/ai/CLAUDE.md`,
+   `lib/import/CLAUDE.md`. Gate passed: `tsc --noEmit` clean, 541/541 tests unchanged.
+   **Not updated, deliberately deferred:** `architecture/TechDesign.md`'s Rules Index — a
+   large, dated decision-log where many rows are point-in-time historical statements (like
+   `CHANGELOG.md`); rewriting old rows to the new names would misrepresent when those names
+   existed. Same treatment `plans/07-prometheus-propose-apply.md` already gives that file
+   under "Phase 7 doc sync" (also not yet done, for the same reason). Both system agents'
+   `model` field stays unset in frontmatter — the same §17.2 deferral Prometheus already has.
 3. **Review the chat-mediator system agent.** `lib/ai/prompts/system-agents/chat-mediator.md`
    — its rule-set hasn't had a dedicated review pass since it was widened to agent-wide scope
    (Plan 01 review, 2026-07-26). Natural to do together with item 2 above, since re-scoping
@@ -250,6 +378,11 @@ here were promoted from FUTURE on that basis, tagged below.
    applies directly to the agent being edited, exactly as today; on = the proposed response is
    shown in a modal first, nothing written until the user explicitly applies it. Same
    underlying mechanism either way (apply-then-history), gated behind the per-user choice.
+   **Superseded 2026-08-05** — see item 2's "Design session 2026-08-05" block above.
+   Propose-then-apply is now being built as item 2's unconditional default behavior, not a
+   per-user setting or a modal; this item's original "off = auto-apply" framing is dropped.
+   The idea of restoring an instant-apply option later is kept alive only as a FUTURE-bucket
+   note, undecided.
 7. **Second LLM provider.** *(Promoted from FUTURE 2026-07-31 — was P04a.)* A non-Anthropic,
    OpenAI-compatible or NVIDIA provider behind the existing `LLMProvider` interface.
 8. **Incremental streaming.** *(Promoted from FUTURE 2026-07-31 — was P04b.)* Token-by-token
@@ -278,7 +411,16 @@ here were promoted from FUTURE on that basis, tagged below.
     decided). Deliberately the last step before deploy — same rationale as the doc-sync item
     above, done right before real users see the product. Scope details (what asset, where it
     renders) to be worked out when this is picked up.
-13. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
+13. **Section add/delete via chat — review.** *(Added 2026-08-05, from Plan 07's confirmation
+    point 3.)* Neither is possible via chat today — an unknown `sectionKey` from the model is
+    skipped, and no repository primitive exists to add a section outside import
+    (`updateSectionContent` only updates). Plan 07 deliberately ships without either (chat
+    stays edit-only for existing sections). Kept here in TODO — not FUTURE — specifically so
+    it gets revisited before v1, not left to drift: review whether either is actually needed
+    before launch, or whether it's fine to genuinely defer. If wanted, it's real new work —
+    new repository functions, new contract fields (e.g. `sections: { key: string | null }` for
+    deletion), and new `prometheus.md` guardrail rules.
+14. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
     now (whatever the smallest real hosting step is); the *automated* version of this is
     CI/CD, tracked under FUTURE, not blocking this first deploy.
 
@@ -328,7 +470,11 @@ free to reorder within this bucket.
    never re-checked since. Lower risk than when first flagged: only affects the secondary
    Strict import path, Structural has been default since Plan 02.
 6. **Export translation to other platforms** (Copilot, etc.) — build-order #4. Real format
-   translation, not a file copy.
+   translation, not a file copy. Each target platform would naturally become its own
+   import/export system agent under the reframed Agent pattern (see FUTURE bucket, "System
+   agents become real, platform-managed agents") — same specialty
+   ("convert/import/export between formats"), different platform-specific technical detail
+   per agent, one shared authoring pattern making each one easy to add.
 7. **Display-label lookup for `model`.** *(Moved back out of TODO 2026-07-31, linked here.)*
    Short label in the UI (e.g. "Opus" instead of the full model ID); storage stays the full
    ID. Confirmed the current raw display (`claude-sonnet-5`, etc.) is already legible and
@@ -386,6 +532,46 @@ free to reorder within this bucket.
 Flat list, no sub-headers. Lower urgency than NEXT — genuinely free to reorder. Full "why" for
 the TechDesign-numbered ones lives in `TechDesign.md`'s Deferred Decisions table / Rules Index.
 
+- **Server-enforced editing lock during a pending chat proposal (revisit).** *(Added
+  2026-08-05.)* Today's `interactionLock` (and its `localStorage`-persisted pending-proposal
+  extension, item 2 edge 1a) is purely client-side/cooperative — no route rejects a manual
+  edit because a proposal is pending. Not a problem at current scale; revisit if this app ever
+  needs to defend against a client that doesn't cooperate (a second official client, a public
+  API, adversarial use).
+- **Session management — view/log-out other active sessions (bucket TBD).** *(Added
+  2026-08-05, from the Plan 07 review — user flagged this as future?/todo?, not settled which.)*
+  A section (likely `/account`) listing a user's other active logged-in sessions, with a
+  remote log-out control. Surfaced by discussing the cross-device pending-proposal gap below —
+  related but a distinct feature (session/device management, not proposal awareness). Needs
+  its own scoping (how sessions are identified/listed — today's JWT is stateless, so this may
+  need a sessions table) before it can move to TODO or a firmer FUTURE slot.
+- **Cross-device/cross-browser awareness of a pending chat proposal (revisit).** *(Added
+  2026-08-05.)* A pending proposal + lock lives in one browser's `localStorage` only — a
+  second device or browser for the same account has no idea it exists and could manually edit
+  underneath it. Accepted at current scale (a handful of users, effectively one device at a
+  time); revisit if real usage shows this causing actual overwrites.
+- **Instant auto-apply mode (revisit).** *(Added 2026-08-05.)* Propose-then-apply became the
+  unconditional default mediator behavior (TODO item 2), superseding item 6's original
+  per-user-toggle framing. Restoring an instant/auto-apply option was deliberately dropped for
+  the initial build, not forgotten — revisit if the confirm-click proves to be friction in
+  practice.
+- **Apply-by-section/per-field granularity.** *(Added 2026-08-05.)* TODO item 2's propose/apply
+  flow ships apply-all only first; applying a subset of a turn's proposed changes (one section,
+  one config key) is a deferred refinement.
+- **System agents (Prometheus, Hermes, Daedalus) become real, platform-managed agents.**
+  *(Added 2026-08-05.)* All three system-agent prompt files (`lib/ai/prompts/system-agents/`)
+  were restructured, same day, to follow MyAgent's own Agent pattern — real-agent shape (YAML
+  frontmatter + `#`-level Role/Behavior/Guardrails/Output sections) — instead of an ad-hoc
+  rule-set shape; see TODO item 2's 2026-08-05 addendum for the full detail on both passes
+  (Prometheus first, then Hermes/Daedalus the same day). Deliberate scope limit still holds:
+  they stay build-time-compiled static prompts (`scripts/build-prompts.ts`), edited by hand, by
+  using the platform on itself, or outside it, then recompiled and checked — **not** stored as
+  real DB `agent` rows or editable live through the workbench UI. Making them fully
+  configurable, in-platform-editable agents (the app managing its own agent-builder-agent
+  through itself) is confirmed wanted eventually but explicitly deferred — "far far away,"
+  introduces too much complexity for now. Directly motivates the multi-platform import/export
+  item below: a consistent per-agent pattern is what makes adding a new platform-specific
+  import/export agent easy later, even while execution stays static/compiled today.
 - **Sharing / forking** — build-order #5. `ownerId` was the prerequisite this was waiting
   for — now satisfied by Plan 05.
 - **Skill module** — build-order #6. Sibling entity to `Agent` for `SKILL.md` files; full

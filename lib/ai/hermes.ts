@@ -1,21 +1,21 @@
 import 'server-only';
 
 /**
- * lib/ai/importConverter.ts
+ * lib/ai/hermes.ts
  *
  * Stage-2 import caller. Sends each Stage-1 block's blockId + heading text (never
- * content) + the Agent Blueprint + the compiled IMPORT_CONVERTER_PROMPT to Claude
+ * content) + the Agent Blueprint + the compiled HERMES_PROMPT to Claude
  * and parses the labels-only JSON.
  *
  * Hard rule (Rules Index #5): the AI response must NEVER contain a `content` or `text`
  * field at the top level or inside any mapping entry. If it does, we throw
- * ImportConverterInvalidResponseError — the server always copies content bytes from
+ * HermesInvalidResponseError — the server always copies content bytes from
  * Stage-1 blocks by blockId; the AI only supplies labels.
  */
 
 import { getGateway, LlmDryRunBlockedError, LlmUserCapReachedError } from './gateway.js';
 import type { LlmCallContext } from './gateway.js';
-import { IMPORT_CONVERTER_PROMPT } from './prompts/generated/import-instructions.js';
+import { HERMES_PROMPT } from './prompts/generated/hermes.js';
 import { renderBlueprintForPrompt } from '../blueprint/index.js';
 
 // ─────────────────────────────  Types  ────────────────────────────────────────
@@ -32,10 +32,10 @@ export type Stage2Labels = {
 // ─────────────────────────────  Errors  ────────────────────────────────────────
 
 /** Thrown when the Anthropic API call itself fails (network, auth, timeout, etc.). */
-export class ImportConverterUpstreamError extends Error {
+export class HermesUpstreamError extends Error {
   constructor(cause: string) {
     super(`Anthropic API failure: ${cause}`);
-    this.name = 'ImportConverterUpstreamError';
+    this.name = 'HermesUpstreamError';
   }
 }
 
@@ -43,10 +43,10 @@ export class ImportConverterUpstreamError extends Error {
  * Thrown when the AI returns a structurally invalid response, or when it includes
  * forbidden content/text fields (defense-in-depth on Rules Index #5).
  */
-export class ImportConverterInvalidResponseError extends Error {
+export class HermesInvalidResponseError extends Error {
   constructor(reason: string) {
     super(`Invalid AI label response: ${reason}`);
-    this.name = 'ImportConverterInvalidResponseError';
+    this.name = 'HermesInvalidResponseError';
   }
 }
 
@@ -66,10 +66,10 @@ export type Stage2BlockRef = {
  * @param ctx     Gateway context for logging (§5.2 — agentId best-effort at call time)
  * @returns       Parsed and validated Stage2Labels
  * @throws        LlmDryRunBlockedError          when live LLM calls are disabled
- * @throws        ImportConverterUpstreamError   on API failure
- * @throws        ImportConverterInvalidResponseError  on bad/content-bearing AI output
+ * @throws        HermesUpstreamError   on API failure
+ * @throws        HermesInvalidResponseError  on bad/content-bearing AI output
  */
-export async function callImportConverter(
+export async function callHermes(
   blocks: Stage2BlockRef[],
   ctx: LlmCallContext = { kind: 'import-strict' },
 ): Promise<Stage2Labels> {
@@ -92,7 +92,7 @@ export async function callImportConverter(
   try {
     res = await getGateway().complete(
       {
-        system: IMPORT_CONVERTER_PROMPT,
+        system: HERMES_PROMPT,
         messages: [{ role: 'user', content: userMessage }],
         maxTokens: 4096,
       },
@@ -101,7 +101,7 @@ export async function callImportConverter(
   } catch (err) {
     // Belt-and-braces: re-throw LlmDryRunBlockedError unchanged if it somehow ends up here
     if (err instanceof LlmDryRunBlockedError) throw err;
-    throw new ImportConverterUpstreamError(String(err));
+    throw new HermesUpstreamError(String(err));
   }
 
   // Handle policy-refusal results (§3.6, §3.9 — outside the try, cannot be misclassified as 502)
@@ -112,56 +112,56 @@ export async function callImportConverter(
 
   // Provider-level errors (no text block) are already mapped by anthropicProvider.ts —
   // any remaining upstream error would come through the catch above.
-  return parseAndValidateLabels(res.response.text);
+  return parseHermesLabels(res.response.text);
 }
 
 // ─────────────────────────────  Internal validation  ──────────────────────────
 
-function parseAndValidateLabels(responseText: string): Stage2Labels {
+function parseHermesLabels(responseText: string): Stage2Labels {
   // Extract the JSON object — the AI may wrap it in a code fence.
   const jsonMatch = responseText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    throw new ImportConverterInvalidResponseError('No JSON object found in AI response');
+    throw new HermesInvalidResponseError('No JSON object found in AI response');
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(jsonMatch[0]);
   } catch {
-    throw new ImportConverterInvalidResponseError('AI response is not valid JSON');
+    throw new HermesInvalidResponseError('AI response is not valid JSON');
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new ImportConverterInvalidResponseError('AI response root is not a JSON object');
+    throw new HermesInvalidResponseError('AI response root is not a JSON object');
   }
 
   const obj = parsed as Record<string, unknown>;
 
   // Defense-in-depth: top-level content/text fields are forbidden (Rules Index #5).
   if ('content' in obj || 'text' in obj) {
-    throw new ImportConverterInvalidResponseError(
+    throw new HermesInvalidResponseError(
       'AI response contains forbidden "content" or "text" field at top level',
     );
   }
 
   if (!Array.isArray(obj.mappings)) {
-    throw new ImportConverterInvalidResponseError('AI response missing "mappings" array');
+    throw new HermesInvalidResponseError('AI response missing "mappings" array');
   }
 
   if (!Array.isArray(obj.unmapped)) {
-    throw new ImportConverterInvalidResponseError('AI response missing "unmapped" array');
+    throw new HermesInvalidResponseError('AI response missing "unmapped" array');
   }
 
   // Validate each mapping entry.
   for (const entry of obj.mappings as unknown[]) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-      throw new ImportConverterInvalidResponseError('Mapping entry is not an object');
+      throw new HermesInvalidResponseError('Mapping entry is not an object');
     }
     const m = entry as Record<string, unknown>;
 
     // Forbidden fields inside a mapping (Rules Index #5 — defense-in-depth).
     if ('content' in m || 'text' in m) {
-      throw new ImportConverterInvalidResponseError(
+      throw new HermesInvalidResponseError(
         'Mapping entry contains forbidden "content" or "text" field',
       );
     }
@@ -174,7 +174,7 @@ function parseAndValidateLabels(responseText: string): Stage2Labels {
       (m.blockIds as unknown[]).every((x) => typeof x === 'string');
 
     if (!hasBlockId && !hasBlockIds) {
-      throw new ImportConverterInvalidResponseError(
+      throw new HermesInvalidResponseError(
         'Mapping entry missing valid "blockId" (string) or "blockIds" (string[])',
       );
     }
@@ -183,7 +183,7 @@ function parseAndValidateLabels(responseText: string): Stage2Labels {
     // deterministic from frontmatter; see TechDesign.md Rules Index #28.)
     const hasSectionKey = 'sectionKey' in m && typeof m.sectionKey === 'string';
     if (!hasSectionKey) {
-      throw new ImportConverterInvalidResponseError('Mapping entry missing "sectionKey"');
+      throw new HermesInvalidResponseError('Mapping entry missing "sectionKey"');
     }
   }
 
@@ -194,7 +194,7 @@ function parseAndValidateLabels(responseText: string): Stage2Labels {
     const ids = 'blockIds' in entry ? entry.blockIds : [entry.blockId];
     for (const id of ids) {
       if (seenBlockIds.has(id)) {
-        throw new ImportConverterInvalidResponseError(
+        throw new HermesInvalidResponseError(
           `blockId "${id}" appears in more than one mapping entry (overlapping groups)`,
         );
       }

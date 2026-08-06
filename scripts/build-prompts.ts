@@ -29,26 +29,48 @@ interface AgentSpec {
 }
 
 const AGENTS: AgentSpec[] = [
-  { file: 'import-instructions', constName: 'IMPORT_CONVERTER_PROMPT' },
-  { file: 'import-instructions-structural', constName: 'STRUCTURAL_IMPORT_PROMPT' },
-  { file: 'chat-mediator',    constName: 'CHAT_MEDIATOR_PROMPT' },
+  { file: 'hermes',    constName: 'HERMES_PROMPT' },
+  { file: 'daedalus',  constName: 'DAEDALUS_PROMPT' },
+  { file: 'prometheus', constName: 'PROMETHEUS_PROMPT' },
 ];
 
 /**
- * Strips the leading title line and any `>` blockquote lines that precede the
- * first `##` heading. Everything from the first `##` onward is prompt content.
+ * Extracts the prompt content from a source file, supporting two conventions:
  *
- * Throws if no `##` heading is found — this would mean the source file was
+ *   1. Real-agent format (YAML frontmatter): `---\n...\n---\n` followed by the
+ *      system prompt body, verbatim — same split as a real Claude Code subagent
+ *      file (architecture/Agent-Full-Reference.md). Everything after the closing
+ *      `---` is the prompt, unmodified.
+ *   2. Legacy format: a leading `# Title` line with content starting at the first
+ *      `##` heading. Everything before that first `##` is stripped.
+ *
+ * Throws if a file matches neither shape — that would mean the source file was
  * restructured in a way that would silently deliver an empty prompt.
  */
 function extractPromptContent(markdown: string, sourcePath: string): string {
   const lines = markdown.split('\n');
+
+  // Real-agent format: leading `---` frontmatter block.
+  if (lines[0]?.trim() === '---') {
+    const closingOffset = lines.slice(1).findIndex((line) => line.trim() === '---');
+    if (closingOffset === -1) {
+      throw new Error(
+        `[build-prompts] Unterminated frontmatter in "${sourcePath}" — found an ` +
+          'opening "---" with no matching closing "---".',
+      );
+    }
+    const bodyStart = closingOffset + 2; // skip the opening `---` and the closing `---`
+    return lines.slice(bodyStart).join('\n').trim();
+  }
+
+  // Legacy format: strip everything before the first `##` heading.
   const firstH2Index = lines.findIndex((line) => /^## /.test(line));
 
   if (firstH2Index === -1) {
     throw new Error(
       `[build-prompts] No ## heading found in "${sourcePath}". ` +
-        'The source file must have at least one ## section for the prompt content.',
+        'The source file must have either a leading YAML frontmatter block or at ' +
+        'least one ## section for the prompt content.',
     );
   }
 

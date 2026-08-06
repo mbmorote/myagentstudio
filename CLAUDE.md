@@ -16,7 +16,7 @@ follow these even though you have no memory of when they were agreed:
    because a phase/gate/milestone completed — report status and wait for the user to say
    "commit this."
 2. **Never make a real Anthropic API call without explicit ask, first.** This project's
-   import pipeline (Strict + Structural) and chat mediator all call the real Anthropic API
+   import pipeline (Hermes — Strict, Daedalus — Structural) and Prometheus (chat) all call the real Anthropic API
    and spend the user's money. During implementation, testing, or verification work in this
    repo: keep all automated tests mocked (already the existing pattern — see
    `vi.mock('.../ai/*.js', ...)` in the test suites), and if a task would require an actual
@@ -66,12 +66,13 @@ follow these even though you have no memory of when they were agreed:
   file: **`plans/roadmap.md`** — **start here for "what's next."** TODO (core work + small
   layout adjustments needed before going online) vs. FUTURE (flexible priority, includes big
   layout redesigns and deployment-process maturity).
-- **`lib/ai/prompts/system-agents/`** — the AI-facing rule-sets for the two system agents
-  (import converter, chat mediator), as source `.md` files. **This is source code, not
-  documentation** — moved out of `architecture/` (2026-07-29) because `scripts/build-prompts.ts`
-  compiles it into `lib/ai/prompts/generated/*.ts` at build time; it lives next to that
-  generated output rather than in a folder meant for passive reference material. See
-  `lib/ai/CLAUDE.md`.
+- **`lib/ai/prompts/system-agents/`** — the AI-facing rule-sets for the three platform
+  agents (Hermes — Strict Import, Daedalus — Structural Import, Prometheus — chat), as
+  source `.md` files in real-agent shape (YAML frontmatter + `#`-level sections, mirroring
+  `architecture/Agent-Full-Reference.md`). **This is source code, not documentation** —
+  moved out of `architecture/` (2026-07-29) because `scripts/build-prompts.ts` compiles it
+  into `lib/ai/prompts/generated/*.ts` at build time; it lives next to that generated output
+  rather than in a folder meant for passive reference material. See `lib/ai/CLAUDE.md`.
 - **`lib/ai/`, `lib/import/`, `lib/serialize/`** — each has its own `CLAUDE.md`; see Files
   below.
 
@@ -101,14 +102,14 @@ follow these even though you have no memory of when they were agreed:
   hardening pass (2026-07-28): a current-state audit of the built import pipeline plus a
   head-to-head comparison of two Structural Import rule-set drafts. Same historical role as
   `DesignReview.md`, for Plan 02 instead of Plan 01.
-- **`lib/ai/prompts/system-agents/import-instructions.md`** — the import-converter's Strict
-  Import rule-set (Stage 2: labels-only, never content).
-- **`lib/ai/prompts/system-agents/import-instructions-structural.md`** — the Structural
-  Import (Stage 2b) rule-set: the AI sees full content and returns one restructured document
-  body, not a mapping.
-- **`lib/ai/prompts/system-agents/chat-mediator.md`** — the chat-mediator's rule-set
-  (server-scoped to the whole agent, may rewrite any number of sections per instruction, no
-  tools, split-level heading guard).
+- **`lib/ai/prompts/system-agents/hermes.md`** — Hermes, the Strict Import agent (Stage 2:
+  labels-only, never content). Real-agent shape: YAML frontmatter + `#`-level sections.
+- **`lib/ai/prompts/system-agents/daedalus.md`** — Daedalus, the Structural Import agent
+  (Stage 2b): sees full content and returns one restructured document body, not a mapping.
+  Real-agent shape, same as Hermes.
+- **`lib/ai/prompts/system-agents/prometheus.md`** — Prometheus, the chat agent (server-scoped
+  to one agent per conversation, proposes changes to description/sections/config — never
+  `name` — no tools, split-level heading guard). Real-agent shape, same as the other two.
 - **`architecture/layout/Layout-Workbench.html`** — the *look*. Interactive, self-contained
   mockup of the settled 4-pane UI. Demos the `dev` agent across the panels. Authoritative
   behavior spec for any UI detail that needs re-checking, per standing rule 4.

@@ -2,7 +2,7 @@
  * lib/import/assemble.ts
  *
  * Deterministic reassembly: takes Stage-1 blocks (from parse()) + Stage-2 labels
- * (from callImportConverter()) and produces the ImportedAgentData shape expected
+ * (from callHermes()) and produces the ImportedAgentData shape expected
  * by repository.upsertAgentFromImport().
  *
  * Key invariants (§6 rule 2, Rules Index #5/#6):
@@ -10,7 +10,7 @@
  * - The AI's labels only determine sectionKey assignment — never content.
  * - Unmapped / low-confidence blocks → sectionKey: "custom".
  * - The order-0 headingless block (heading: null) passes through as sectionKey: "custom",
- *   heading: null (per import-instructions guardrail #3 — the AI never assigns it a key).
+ *   heading: null (per hermes.md guardrail #3 — the AI never assigns it a key).
  * - Config values come from the deterministically-parsed frontmatter only — Stage 2 never
  *   classifies config data (Rules Index #28, 2026-07-26: the propKey mapping capability
  *   was removed — frontmatter keys are already exact, unambiguous strings, so there was
@@ -23,7 +23,7 @@
 
 import type { StructuredAgent, BodyBlock, FrontmatterEntry } from '../serialize/types.js';
 import type { ImportedAgentData } from '../db/repository/agents.js';
-import type { Stage2Labels, Stage2Mapping } from '../ai/importConverter.js';
+import type { Stage2Labels, Stage2Mapping } from '../ai/hermes.js';
 
 const DESCRIPTION_PLACEHOLDER = '(no description provided)';
 
@@ -33,7 +33,7 @@ const DESCRIPTION_PLACEHOLDER = '(no description provided)';
  * Assembles Stage-1 parse output + Stage-2 label map into ImportedAgentData.
  *
  * @param structured  Stage-1 StructuredAgent (from parse(md))
- * @param labels      Stage-2 label map (from callImportConverter)
+ * @param labels      Stage-2 label map (from callHermes)
  * @param rawMd       The raw original markdown string (byte-for-byte, for rawSourceSnapshot)
  */
 export function assemble(

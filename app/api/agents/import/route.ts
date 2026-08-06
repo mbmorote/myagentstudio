@@ -31,8 +31,8 @@
 import { NextResponse } from 'next/server';
 import { parse } from '@/lib/serialize';
 import { FrontmatterParseError } from '@/lib/serialize/parseFrontmatter';
-import { callImportConverter, ImportConverterUpstreamError, ImportConverterInvalidResponseError } from '@/lib/ai/importConverter';
-import { callStructuralConverter, StructuralConverterTruncatedError, StructuralConverterUpstreamError } from '@/lib/ai/structuralConverter';
+import { callHermes, HermesUpstreamError, HermesInvalidResponseError } from '@/lib/ai/hermes';
+import { callDaedalus, DaedalusTruncatedError, DaedalusUpstreamError } from '@/lib/ai/daedalus';
 import { LlmDryRunBlockedError, LlmUserCapReachedError } from '@/lib/ai/gateway';
 import { assemble } from '@/lib/import/assemble';
 import { assembleStructural } from '@/lib/import/assembleStructural';
@@ -136,7 +136,7 @@ async function runStructuralPipeline(
 
   let restructuredBody: string;
   try {
-    restructuredBody = await callStructuralConverter(rawMd, {
+    restructuredBody = await callDaedalus(rawMd, {
       kind: 'import-structural',
       agentId,
       agentLabel: agentName || null,
@@ -175,11 +175,11 @@ async function runStructuralPipeline(
         { status: 409 },
       );
     }
-    if (err instanceof StructuralConverterTruncatedError) {
+    if (err instanceof DaedalusTruncatedError) {
       console.error('[import/structural] Response truncated (max_tokens):', err.message);
       return NextResponse.json({ error: 'structural_truncated' }, { status: 422 });
     }
-    if (err instanceof StructuralConverterUpstreamError) {
+    if (err instanceof DaedalusUpstreamError) {
       console.error('[import/structural] Upstream failure:', err.message);
       return NextResponse.json({ error: 'ai_upstream' }, { status: 502 });
     }
@@ -235,7 +235,7 @@ async function runStrictPipeline(
 
   let labels;
   try {
-    labels = await callImportConverter(blockRefs, {
+    labels = await callHermes(blockRefs, {
       kind: 'import-strict',
       agentId: agentIdStrict,
       agentLabel: agentNameStrict || null,
@@ -274,11 +274,11 @@ async function runStrictPipeline(
         { status: 409 },
       );
     }
-    if (err instanceof ImportConverterInvalidResponseError) {
+    if (err instanceof HermesInvalidResponseError) {
       console.error('[import/strict] Stage-2 invalid AI labels:', err.message);
       return NextResponse.json({ error: 'invalid_ai_labels' }, { status: 422 });
     }
-    if (err instanceof ImportConverterUpstreamError) {
+    if (err instanceof HermesUpstreamError) {
       console.error('[import/strict] Stage-2 upstream failure:', err.message);
       return NextResponse.json({ error: 'ai_upstream' }, { status: 502 });
     }

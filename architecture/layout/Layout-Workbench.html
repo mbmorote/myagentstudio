@@ -327,6 +327,13 @@
   .msg.ai .bubble{background:var(--elev);border:1px solid var(--border);border-bottom-left-radius:3px}
   .msg.ai .bubble .target{display:inline-flex;align-items:center;gap:5px;margin-top:6px;font-size:10.5px;
       color:var(--accent-ink);background:var(--accent-wash);border:1px solid var(--accent);border-radius:6px;padding:2px 7px}
+  /* ── proposal preview (read-only, non-interactive) ── */
+  .proposal-preview{margin-top:8px;border:1px solid var(--border);border-radius:7px;overflow:hidden;background:var(--bg)}
+  .pp-head{padding:5px 10px;font-size:10.5px;font-weight:600;color:var(--faint);border-bottom:1px solid var(--border);background:var(--panel)}
+  .pp-part{padding:6px 10px;border-bottom:1px solid var(--border)}
+  .pp-part:last-child{border-bottom:none}
+  .pp-label{font-size:10px;color:var(--faint);display:block;margin-bottom:3px;letter-spacing:.03em}
+  .pp-code{font-family:var(--mono);font-size:10.5px;margin:0;white-space:pre-wrap;color:var(--text);line-height:1.5}
   .prompt{flex:0 0 auto;border-top:1px solid var(--border);padding:10px;background:var(--elev)}
   .prompt .box{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);
                border-radius:9px;padding:8px 10px}
@@ -437,11 +444,36 @@
   <div class="phead"><span class="glyph">✦</span> AI Chat <span class="role">agent‑aware · edits sections in place</span></div>
   <div class="chat">
     <div class="chat-scroll">
-      <div class="msg ai"><span class="who">✦ Mediator</span><div class="bubble">Editing <b>secure-code-auditor</b>. I can see all its sections.</div></div>
+      <div class="msg ai"><span class="who">✦ Prometheus</span><div class="bubble">Editing <b>secure-code-auditor</b>. I can see all its sections.</div></div>
       <div class="msg you"><span class="who">You</span><div class="bubble">make PROCESS call out secret leaks specifically, not just "common vulnerabilities"</div></div>
-      <div class="msg ai"><span class="who">✦ Mediator</span><div class="bubble">Split step 3 into injection/XSS/auth-bypass and a dedicated secret-leak check.<span class="target">◆ process</span></div></div>
+      <div class="msg ai"><span class="who">✦ Prometheus</span><div class="bubble">Split step 3 into injection/XSS/auth-bypass and a dedicated secret-leak check.<span class="target">◆ process</span></div></div>
       <div class="msg you"><span class="who">You</span><div class="bubble">tighten OUTPUT FORMAT — same structure, fewer words</div></div>
-      <div class="msg ai"><span class="who">✦ Mediator</span><div class="bubble">Trimmed OUTPUT FORMAT to one sentence.<span class="target">◆ output</span></div></div>
+      <div class="msg ai"><span class="who">✦ Prometheus</span><div class="bubble">Trimmed OUTPUT FORMAT to one sentence.<span class="target">◆ output</span></div></div>
+      <div class="msg you"><span class="who">You</span><div class="bubble">switch model to claude-opus-5 and tighten GUARDRAILS — be more specific about read-only enforcement</div></div>
+      <div class="msg ai"><span class="who">✦ Prometheus</span>
+        <div class="bubble">
+          Switched the model to <code>claude-opus-5</code> and rewrote GUARDRAILS to make the read-only constraint explicit — it now calls out which tools are intentionally excluded and why.
+          <span class="target">◆ guardrails</span><span class="target">◆ config · model</span>
+          <div class="proposal-preview">
+            <div class="pp-head">Proposed changes · 1 section · 1 config key</div>
+            <div class="pp-part">
+              <span class="pp-label">Section · guardrails</span>
+              <pre class="pp-code">You have read-only access to the codebase. Do not use Edit, Write,
+or any tool that modifies files — these tools are intentionally
+excluded from your allowed set. If a finding requires a fix,
+document it clearly and stop: remediation is for a human or a
+separate write-capable agent.
+
+Do not execute arbitrary shell commands. Bash is available for
+targeted inspection (git diff, grep) — use it narrowly.</pre>
+            </div>
+            <div class="pp-part">
+              <span class="pp-label">Config · model</span>
+              <pre class="pp-code">"claude-opus-5"</pre>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="prompt">
       <div class="box">

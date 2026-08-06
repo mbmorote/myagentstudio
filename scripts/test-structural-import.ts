@@ -11,7 +11,7 @@
  *   1. Run this script against all 15 golden fixtures.
  *   2. Read the per-fixture output in the scratch folder.
  *   3. If coverage warnings or restructuring issues appear, edit:
- *        lib/ai/prompts/system-agents/import-instructions-structural.md
+ *        lib/ai/prompts/system-agents/daedalus.md
  *   4. Restart dev server (or re-run build-prompts.ts) to recompile the prompt.
  *   5. Re-run this script and iterate.
  *
@@ -49,7 +49,7 @@ try {
 }
 
 // Import AI modules after build-prompts has run.
-const { callStructuralConverter } = await import('../lib/ai/structuralConverter.js');
+const { callDaedalus } = await import('../lib/ai/daedalus.js');
 const { parse } = await import('../lib/serialize/index.js');
 const { checkCoverage } = await import('../lib/import/coverage.js');
 
@@ -110,7 +110,7 @@ for (const fixturePath of fixtureFiles) {
   // Stage 2b: call structural converter.
   let restructuredBody: string;
   try {
-    restructuredBody = await callStructuralConverter(rawMd, { kind: 'import-structural', userId: null });
+    restructuredBody = await callDaedalus(rawMd, { kind: 'import-structural', userId: null });
   } catch (err) {
     console.error(`  ✗ Structural converter error: ${err}`);
     continue;
@@ -141,7 +141,7 @@ console.log(`[harness] Done. ${fixtureFiles.length} fixtures processed.`);
 console.log(`  Fixtures with full coverage: ${totalFixed}/${fixtureFiles.length}`);
 console.log(`  Total coverage warnings:      ${totalWarnings}`);
 if (totalWarnings > 0) {
-  console.log('\n  Refine the rule-set in lib/ai/prompts/system-agents/import-instructions-structural.md');
+  console.log('\n  Refine the rule-set in lib/ai/prompts/system-agents/daedalus.md');
   console.log('  then re-run this script to iterate.');
 }
 console.log('');

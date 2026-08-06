@@ -20,8 +20,8 @@ Stage 1: parse(rawMd)               ← lib/serialize/importParse.ts
   │                                                               │
   ▼                                                               ▼
 Stage 2 Strict                                       Stage 2b Structural
-callImportConverter(blockRefs)                       callStructuralConverter(rawMd)
-  ← lib/ai/importConverter.ts                          ← lib/ai/structuralConverter.ts
+callHermes(blockRefs)                                callDaedalus(rawMd)
+  ← lib/ai/hermes.ts                                   ← lib/ai/daedalus.ts
   → Stage2Labels {mappings, unmapped}                  → restructuredBody (markdown string)
   │                                                               │
   ▼                                                               ▼

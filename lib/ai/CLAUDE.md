@@ -6,7 +6,7 @@ This folder contains the single gateway through which every AI call in the app p
 
 ```
 route (app/api/…)
-  └─ caller (importConverter.ts, structuralConverter.ts, chatMediator.ts)
+  └─ caller (hermes.ts, daedalus.ts, prometheus.ts)
         ← knows the domain (prompts, JSON parsing, stop_reason rules, demotion)
         └─ gateway (gateway.ts)
               ← the single choke point. Gate check + audit log. The ONLY lib/ai file
@@ -101,55 +101,60 @@ The `llm_cap_reached` branch is checked first because it is a different refusal 
 
 ## System agents: the source of truth
 
-MyAgent uses two system agents — the import converter and the chat mediator. Their actual
-rule-sets (Role, Behavior, Guardrails, Output) live in `lib/ai/prompts/system-agents/` —
+MyAgent uses three platform agents — Hermes (Strict Import), Daedalus (Structural Import),
+and Prometheus (chat). Their actual rule-sets live in `lib/ai/prompts/system-agents/` —
 source `.md` files, not documentation (moved out of `architecture/` 2026-07-29 for exactly
 this reason: this content is compiled into the running app, so it sits next to the generated
-output it produces, not in a folder meant for passive reference material):
+output it produces, not in a folder meant for passive reference material). Each is written
+in **real-agent shape**: YAML frontmatter (`name`, `description`, `tools: []`) followed by
+`#`-level body sections (`ROLE`, `BEHAVIOR`, `GUARDRAILS`, `OUTPUT FORMAT`, plus `INPUT` for
+Daedalus) — the same split as a real Claude Code subagent file
+(`architecture/Agent-Full-Reference.md`). `build-prompts.ts` strips the frontmatter block and
+compiles the body verbatim as the prompt.
 
 ```
-lib/ai/prompts/system-agents/import-instructions.md          ← Strict Import prompt
-lib/ai/prompts/system-agents/import-instructions-structural.md  ← Structural Import prompt
-lib/ai/prompts/system-agents/chat-mediator.md                ← Chat mediator prompt
+lib/ai/prompts/system-agents/hermes.md      ← Strict Import prompt
+lib/ai/prompts/system-agents/daedalus.md    ← Structural Import prompt
+lib/ai/prompts/system-agents/prometheus.md  ← Chat prompt
 ```
 
 **These files are the one and only place those rules are ever reviewed or edited.** Never edit the generated files under `lib/ai/prompts/generated/` — they are regenerated on every `npm run dev` / `npm run build` and are gitignored.
 
 ## Build-time compilation
 
-`scripts/build-prompts.ts` runs as a `predev` / `prebuild` npm hook. It reads each `lib/ai/prompts/system-agents/*.md` file and writes the content as a TypeScript string constant:
+`scripts/build-prompts.ts` runs as a `predev` / `prebuild` npm hook. It reads each `lib/ai/prompts/system-agents/*.md` file and writes the content as a TypeScript string constant. For a file with a leading `---` frontmatter block, everything after the closing `---` is used verbatim; otherwise (no source file currently uses this) it falls back to stripping everything before the first `##` heading.
 
 ```
-lib/ai/prompts/system-agents/import-instructions.md
-  → lib/ai/prompts/generated/import-instructions.ts
-     exports: IMPORT_CONVERTER_PROMPT
+lib/ai/prompts/system-agents/hermes.md
+  → lib/ai/prompts/generated/hermes.ts
+     exports: HERMES_PROMPT
 
-lib/ai/prompts/system-agents/import-instructions-structural.md
-  → lib/ai/prompts/generated/import-instructions-structural.ts
-     exports: STRUCTURAL_IMPORT_PROMPT
+lib/ai/prompts/system-agents/daedalus.md
+  → lib/ai/prompts/generated/daedalus.ts
+     exports: DAEDALUS_PROMPT
 
-lib/ai/prompts/system-agents/chat-mediator.md
-  → lib/ai/prompts/generated/chat-mediator.ts
-     exports: CHAT_MEDIATOR_PROMPT
+lib/ai/prompts/system-agents/prometheus.md
+  → lib/ai/prompts/generated/prometheus.ts
+     exports: PROMETHEUS_PROMPT
 ```
 
 The running server never reads the source `.md` files at runtime — only the compiled output.
 
 **To change a prompt:** edit the relevant `lib/ai/prompts/system-agents/*.md` file and restart the dev server.
 
-## importConverter.ts — Strict Import caller
+## hermes.ts — Strict Import caller
 
-Sends each Stage-1 block's `blockId` and `heading` text (never the body content) to Claude via `getGateway().complete(req, { kind: 'import-strict' })`. Parses and validates the returned JSON label map. The AI only ever supplies labels; content bytes come from Stage-1 blocks.
+Sends each Stage-1 block's `blockId` and `heading` text (never the body content) to Claude via `getGateway().complete(req, { kind: 'import-strict' })`. Parses and validates the returned JSON label map (`callHermes()`, throws `HermesUpstreamError` / `HermesInvalidResponseError`). The AI only ever supplies labels; content bytes come from Stage-1 blocks.
 
-## structuralConverter.ts — Structural Import caller
+## daedalus.ts — Structural Import caller
 
-Sends the agent's **full raw markdown text** plus the Blueprint to Claude via `getGateway().stream(req, { kind: 'import-structural' })`. Returns the entire restructured agent body as one markdown string. Checks `stopReason === 'max_tokens'` (domain rule, stays in this caller) and throws `StructuralConverterTruncatedError` if the response was truncated.
+Sends the agent's **full raw markdown text** plus the Blueprint to Claude via `getGateway().stream(req, { kind: 'import-structural' })`. Returns the entire restructured agent body as one markdown string (`callDaedalus()`). Checks `stopReason === 'max_tokens'` (domain rule, stays in this caller) and throws `DaedalusTruncatedError` if the response was truncated.
 
-## chatMediator.ts — Chat mediator caller
+## prometheus.ts — Chat caller
 
-Sends the **full current content of every section** to Claude via `getGateway().complete(req, { kind: 'chat' })`. Forwards `request.signal` through `LlmRequest.signal` for cancellation support (Rules Index #23).
+Sends the agent's name, description, sections (full or cited), and config values (full or cited) to Claude via `getGateway().complete(req, { kind: 'chat' })` and returns a `PrometheusProposal` (`{ message, modifications, warnings }`) via `callPrometheus()`. Forwards `request.signal` through `LlmRequest.signal` for cancellation support (Rules Index #23).
 
-Key behaviors: agent-wide scope, no tools, split-level heading demotion, optimistic concurrency per section — all unchanged from before Plan 04. See the previous section-level detail for each; only the transport layer changed.
+Key behaviors: agent-wide or cited scope, no tools, split-level heading demotion applied at propose time, the out-of-scope filter runs inside `parsePrometheusResponse()` (exported for unit tests). `POST /api/chat` performs zero writes — see `plans/07-prometheus-propose-apply.md` for the full output-contract and propose-then-apply design (Phases 0–2 built; the apply endpoint and lock are a future plan).
 
 ## Files in this folder
 
@@ -158,9 +163,9 @@ Key behaviors: agent-wide scope, no tools, split-level heading demotion, optimis
 | `provider.ts` | `LLMProvider` interface + provider-agnostic types (`LlmRequest`, `LlmResponse`, etc.) |
 | `anthropicProvider.ts` | The ONLY `@anthropic-ai/sdk` importer. Lazy singleton, `complete()`, `stream()`. |
 | `gateway.ts` | Gate check, audit log, `LlmDryRunBlockedError`. The choke point. |
-| `importConverter.ts` | Strict Import Stage-2 caller (labels-only) |
-| `structuralConverter.ts` | Structural Import Stage-2b caller (full content, streaming transport) |
-| `chatMediator.ts` | Chat mediator caller (agent-wide, all sections, signal forwarded) |
+| `hermes.ts` | Strict Import Stage-2 caller (labels-only) |
+| `daedalus.ts` | Structural Import Stage-2b caller (full content, streaming transport) |
+| `prometheus.ts` | Chat caller (agent-wide or cited scope, proposes — never writes, signal forwarded) |
 | `prompts/generated/` | Auto-generated by `scripts/build-prompts.ts` — do not edit |
 | `__tests__/gateway.test.ts` | Existing gateway behaviour cases via fake provider (no SDK) — **unmodified by Plan 05** (§10.6) |
 | `__tests__/gateway-cap.test.ts` | Per-user LLM cap cases: under/at cap, admin exempt, `userId: null` skips, dry-run rows don't count, rolling-window boundary cases, `retryAfterSeconds` derivation, `forceDryRun` with live calls on |

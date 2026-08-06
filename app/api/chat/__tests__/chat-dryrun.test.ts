@@ -3,14 +3,14 @@
  *
  * Dry-run end-to-end test for POST /api/chat (§10.4).
  *
- * Mocks the PROVIDER module (not the caller) so the real chatMediator.ts,
+ * Mocks the PROVIDER module (not the caller) so the real prometheus.ts,
  * real gateway.ts, and real route.ts all execute. With liveLlmCalls='false':
  *   - response is 409 with error:'llm_dry_run', dryRun:true, kind:'chat', logId non-null
  *   - fake.complete was never called
  *   - exactly one llm_call_log row with dryRun:true
  *   - zero agent-side writes (no new sectionRevision, no version bump)
  *
- * Kept separate from chat.test.ts because that file mocks at the chatMediator
+ * Kept separate from chat.test.ts because that file mocks at the prometheus
  * level, which would prevent the gateway from executing.
  */
 
@@ -33,6 +33,13 @@ vi.mock('../../../../lib/db/client.js', async () => {
   const { testDb } = await import('../../../../lib/db/__tests__/test-db.js');
   return { db: testDb };
 });
+
+// ── Mock the generated PROMETHEUS_PROMPT so the suite never needs a prior build ──
+// prometheus.ts imports PROMETHEUS_PROMPT at module-load time; without this mock,
+// running `npm test` without `npm run dev` first would fail with a module-not-found error.
+vi.mock('../../../../lib/ai/prompts/generated/prometheus.js', () => ({
+  PROMETHEUS_PROMPT: '<test prompt — dryrun suite>',
+}));
 
 // ── Mock the PROVIDER (not the caller) — real gateway and real caller execute ──
 const fakeComplete = vi.fn(async () => {
