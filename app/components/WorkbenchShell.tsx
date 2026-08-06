@@ -233,7 +233,7 @@ export function WorkbenchShell({
 
   // ── Resize state (R15 — local only, same initial values as mockup) ─────────
   const [leftWidth, setLeftWidth] = useState(218);    // matches mockup .left { flex: 0 0 218px }
-  const [rightWidth, setRightWidth] = useState(340);  // matches mockup .right { flex: 0 0 340px }
+  const [rightWidth, setRightWidth] = useState(400);  // matches mockup .right { flex: 0 0 400px } (2026-08-06, was 340)
   const [chatHeight, setChatHeight] = useState(240);  // matches mockup .center-bottom { flex: 0 0 240px }
 
   // onSectionsUpdated removed in Plan 08 Phase 3: sections no longer auto-apply
@@ -391,6 +391,7 @@ export function WorkbenchShell({
               size={rightWidth}
               setSize={setRightWidth}
               invert={true}
+              min={200}
             />
             <Panel
               glyph="≡"
@@ -403,7 +404,7 @@ export function WorkbenchShell({
               style={{ width: rightWidth }}
             >
               {agent ? (
-                <RawAgentView agentId={agent.id} agentName={agent.name} />
+                <RawAgentView agentId={agent.id} agentName={agent.name} panelWidth={rightWidth} />
               ) : (
                 <div className="p-4 text-[12px] text-[var(--faint)]">
                   No agent loaded.

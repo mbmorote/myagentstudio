@@ -262,26 +262,43 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
             <label className="block text-[11px] font-semibold text-[var(--muted)] uppercase tracking-[.05em] mb-2">
               Import mode
             </label>
-            <div className="flex gap-4">
+            <p className="text-[11px] text-[var(--muted)] leading-relaxed bg-[var(--bg)] border border-[var(--border)] rounded-[7px] px-3 py-2 mb-3">
+              <strong className="text-[var(--text)]">Name, description, and every config value</strong> (model,
+              tools, permissions, maxTurns, etc.) always come straight from your file&apos;s frontmatter — in{' '}
+              <strong className="text-[var(--text)]">both</strong> modes, never rewritten or reviewed by AI. Only
+              how the <strong className="text-[var(--text)]">body</strong> content is handled differs below:
+            </p>
+            <div className="space-y-2">
               {(['structural', 'strict'] as ImportMode[]).map((m) => (
-                <label key={m} className="flex items-center gap-2 cursor-pointer text-[12px] text-[var(--text)]">
-                  <input
-                    type="radio"
-                    name="import-mode"
-                    value={m}
-                    checked={mode === m}
-                    onChange={() => setMode(m)}
-                    className="accent-[var(--accent)]"
-                  />
-                  {m === 'structural' ? 'Structural (recommended)' : 'Strict (verbatim)'}
+                <label
+                  key={m}
+                  className={[
+                    'flex flex-col gap-1 cursor-pointer text-[12px] text-[var(--text)] border rounded-[7px] px-3 py-2',
+                    mode === m ? 'border-[var(--accent)] bg-[var(--accent-wash)]' : 'border-[var(--border)]',
+                  ].join(' ')}
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="import-mode"
+                      value={m}
+                      checked={mode === m}
+                      onChange={() => setMode(m)}
+                      className="accent-[var(--accent)]"
+                    />
+                    <span className="font-semibold">{m === 'structural' ? 'Daedalus' : 'Hermes'}</span>
+                    <span className="text-[var(--faint)]">
+                      {m === 'structural' ? '— Structural (recommended)' : '— Strict (verbatim)'}
+                    </span>
+                  </span>
+                  <span className="text-[11px] text-[var(--faint)] ml-[22px] leading-relaxed">
+                    {m === 'structural'
+                      ? "AI reorganizes the body into the platform's recognized sections — best for files from other tools that don't already follow this structure."
+                      : 'Keeps your body content byte-for-byte; AI only labels which existing headings map to which section — best for files that already follow this structure.'}
+                  </span>
                 </label>
               ))}
             </div>
-            <p className="text-[11px] text-[var(--faint)] mt-1">
-              {mode === 'structural'
-                ? 'AI restructures the file into recognized sections — best for files from other tools.'
-                : 'Labels existing headings without rewriting content — for files already structured correctly.'}
-            </p>
           </div>
 
           {/* Status messages */}

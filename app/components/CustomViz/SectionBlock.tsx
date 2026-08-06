@@ -216,9 +216,10 @@ export function SectionBlock({
         isCited ? 'border-[var(--accent)]' : 'border-[var(--border)]'
       }`}
     >
-      {/* .sec-h — header with chevron */}
+      {/* .sec-h — header with chevron. cursor-pointer + hover bg (2026-08-06): a
+          structural/toggle zone, distinct from the cite zone below (cursor-alias). */}
       <div
-        className="flex items-center gap-2 px-3 py-[9px] cursor-pointer"
+        className="flex items-center gap-2 px-3 py-[9px] cursor-pointer hover:bg-[var(--bg)]"
         onClick={handleChevronClick}
       >
         <span className="text-[var(--faint)] text-[10px]">
@@ -309,7 +310,7 @@ export function SectionBlock({
                 handleEditToggle();
               }}
               title="Click to cite in chat · double-click to edit"
-              className="whitespace-pre-wrap px-3 pb-3 pl-[30px] font-mono text-[12px] leading-[1.5] text-[var(--muted)] cursor-pointer hover:text-[var(--text)]"
+              className="whitespace-pre-wrap px-3 pb-3 pl-[30px] font-mono text-[12px] leading-[1.5] text-[var(--muted)] cursor-alias hover:text-[var(--text)] hover:bg-[var(--accent-wash)]"
             >
               {section.content || (
                 <span className="italic text-[var(--faint)]">(empty)</span>

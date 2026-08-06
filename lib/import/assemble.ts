@@ -24,8 +24,32 @@
 import type { StructuredAgent, BodyBlock, FrontmatterEntry } from '../serialize/types.js';
 import type { ImportedAgentData } from '../db/repository/agents.js';
 import type { Stage2Labels, Stage2Mapping } from '../ai/hermes.js';
+import { CONFIG_DEFS } from '../blueprint/catalog.js';
 
 const DESCRIPTION_PLACEHOLDER = '(no description provided)';
+
+const CONFIG_DATATYPE = new Map(CONFIG_DEFS.map((d) => [d.key, d.datatype]));
+
+/**
+ * Stage 1's YAML parse deliberately returns every scalar as a string, with no
+ * coercion (lib/import/CLAUDE.md — avoids e.g. a model string like "4-6" turning
+ * into a float). That's correct for Stage 1, but 'int'/'bool' catalog fields
+ * (maxTurns, background) need their real JS type restored before they become
+ * config rows, or the UI's malformed-value flagging (AgentView.tsx isInvalidInt)
+ * and the bool pill's truthiness check both misread a perfectly valid imported
+ * value. A value that doesn't cleanly parse is left as the original string, so
+ * genuinely malformed input still gets flagged rather than silently coerced.
+ */
+function coerceConfigValue(key: string, value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const datatype = CONFIG_DATATYPE.get(key);
+  if (datatype === 'int' && /^-?\d+$/.test(value)) return parseInt(value, 10);
+  if (datatype === 'bool') {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+  }
+  return value;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -67,7 +91,8 @@ export function assemble(
     // Store rawValue verbatim as the config value (A3) — scalar, flat list, or (for
     // datatype:'json' keys like hooks/mcpServers) a genuine nested object/array (#35/#40).
     // computeValidation handles both scalar and array forms for lists (rules.ts).
-    config.push({ propKey: entry.key, value: entry.rawValue });
+    // coerceConfigValue restores real number/boolean types for 'int'/'bool' fields.
+    config.push({ propKey: entry.key, value: coerceConfigValue(entry.key, entry.rawValue) });
   }
 
   // ── Build blockId → BodyBlock lookup ────────────────────────────────────

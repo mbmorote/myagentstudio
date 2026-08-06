@@ -22,12 +22,15 @@ interface GutterProps {
   setSize: (size: number) => void;
   /** If true, dragging in the positive direction shrinks the target */
   invert?: boolean;
+  /** Overrides the default clamp floor/ceiling (150–640 for vertical, 120–520 for horizontal). */
+  min?: number;
+  max?: number;
 }
 
-export function Gutter({ orientation, size, setSize, invert = false }: GutterProps) {
+export function Gutter({ orientation, size, setSize, invert = false, min, max }: GutterProps) {
   const [isDragging, setIsDragging] = useState(false);
   const prop = orientation === 'vertical' ? 'w' : 'h';
-  const { onMouseDown: baseMouseDown } = useResizable({ size, setSize, prop, invert });
+  const { onMouseDown: baseMouseDown } = useResizable({ size, setSize, prop, invert, min, max });
 
   function handleMouseDown(e: React.MouseEvent) {
     setIsDragging(true);

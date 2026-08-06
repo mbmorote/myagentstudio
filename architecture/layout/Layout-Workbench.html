@@ -80,7 +80,9 @@
   .col{display:flex; flex-direction:column; min-width:0; min-height:0}
   .left{flex:0 0 218px}
   .center{flex:1 1 auto}
-  .right{flex:0 0 340px}
+  .right{flex:0 0 400px; container-type:inline-size} /* container-type (2026-08-06): lets
+    .rband's @container rule below hide the Download button's label once this panel gets
+    dragged narrow — a pure-CSS equivalent of the real app's width-prop check. */
   .center-top{flex:1 1 auto; min-height:0}
   .center-bottom{flex:0 0 240px; min-height:0}
 
@@ -91,7 +93,11 @@
     font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted);
   }
   .phead .glyph{color:var(--accent)}
-  .phead .role{margin-left:auto; font-weight:500; letter-spacing:.03em; text-transform:none; color:var(--faint); font-size:10px}
+  /* min-width:0 + ellipsis (2026-08-06): a long role string (e.g. a long agent filename)
+     was wrapping onto a second line instead of eliding — one line + "…" regardless of
+     content length, same header area either way. */
+  .phead .role{margin-left:auto; font-weight:500; letter-spacing:.03em; text-transform:none; color:var(--faint); font-size:10px;
+    min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
   /* Library's Agents/Grouped toggle — the phead role word itself is the control (revised
      2026-07-29; replaced the earlier separate two-button segmented control). */
   .phead .role.lib-toggle{cursor:pointer; color:var(--accent-ink); font-weight:700}
@@ -248,13 +254,30 @@
          text-transform:uppercase;padding:2px 7px;border-radius:5px;flex:none}
   .badge.main-only{color:var(--muted);background:var(--bg);border:1px solid var(--border)}
 
+  /* Same header/body split as .sec/.sec-h (2026-08-06) — chevron toggles body visibility
+     only, Save/Cancel/Edit live top-right in the header (.ipk), never at the bottom. */
   .initial-prompt-block,.custom-json-block{margin-top:14px;border:1px solid var(--border);border-radius:9px;
-    background:var(--elev);padding:9px 12px;cursor:pointer}
+    background:var(--elev);overflow:hidden}
+  .initial-prompt-block.cited,.custom-json-block.cited{border-color:var(--accent)}
+  /* .ipk = toggle zone: pointer + hover tint. .ip-body's citable content (p, pills below)
+     = cite zone: alias + hover accent-wash — same pairing as .sec-h/.sec-b (2026-08-06). */
   .initial-prompt-block .ipk,.custom-json-block .ipk{font-size:10px;color:var(--faint);text-transform:uppercase;
-    letter-spacing:.06em;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:7px}
-  .initial-prompt-block .ipk .expandhint,.custom-json-block .ipk .expandhint{margin-left:auto;color:var(--accent-ink);
-    font-weight:600;text-transform:none;letter-spacing:0}
-  .initial-prompt-block p,.custom-json-block p{margin:0;color:var(--muted);font-size:12px;font-family:var(--mono)}
+    letter-spacing:.06em;font-weight:700;display:flex;align-items:center;gap:7px;padding:9px 12px;cursor:pointer}
+  .initial-prompt-block .ipk:hover,.custom-json-block .ipk:hover{background:var(--bg)}
+  .initial-prompt-block .ipk .chev,.custom-json-block .ipk .chev{color:var(--faint);font-size:10px;text-transform:none}
+  .initial-prompt-block .ip-body,.custom-json-block .ip-body{padding:0 12px 9px;cursor:default}
+  .initial-prompt-block p,.custom-json-block p{margin:0;color:var(--muted);font-size:12px;font-family:var(--mono);
+    cursor:alias}
+  .initial-prompt-block p:hover{background:var(--accent-wash)}
+  /* Row-level cite target (2026-08-06 — was per-pill): the whole row is one click
+     target, individual pills are inert display chips. */
+  .custom-json-block .ip-body .pills.cite{cursor:alias;border-radius:6px;padding:3px}
+  .custom-json-block .ip-body .pills.cite:hover{background:var(--accent-wash)}
+  /* Full tier (2026-08-06) — expanded-not-editing shows the whole JSON, read-only. */
+  .custom-json-block .ip-body pre.cjb-full{margin:0;width:100%;font-family:var(--mono);font-size:11.5px;
+    white-space:pre-wrap;word-break:break-word;color:var(--muted);cursor:alias;border-radius:6px;padding:3px}
+  .custom-json-block .ip-body pre.cjb-full:hover{background:var(--accent-wash)}
+  .clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .initial-prompt-block textarea,.custom-json-block textarea{width:100%;min-height:90px;font-family:var(--mono);
     font-size:11.5px;border:1px solid var(--accent);border-radius:7px;padding:8px;background:var(--bg);
     color:var(--text);outline:none;resize:vertical}
@@ -264,6 +287,16 @@
   .ip-actions .save{background:var(--accent);color:#fff;font-weight:600}
   .ip-actions .cancel{background:transparent;color:var(--muted)}
   .ip-actions .jerr{color:var(--err);font-size:11px}
+  /* Header-inline button cluster (top-right) for initialPrompt/custom-JSON blocks —
+     distinct from .ip-actions above, which stays bottom-positioned for sections. */
+  .ipk-actions{margin-left:auto;display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0}
+  .ipk-actions button{font:inherit;font-size:10.5px;border-radius:6px;padding:3px 9px;cursor:pointer;border:none}
+  .ipk-actions .save{background:var(--accent);color:#fff;font-weight:600}
+  .ipk-actions .cancel{background:transparent;color:var(--muted)}
+  .ipk-actions .edit{background:transparent;color:var(--accent-ink);font-weight:600}
+  .ipk-actions .rm{width:16px;height:16px;border-radius:4px;border:1px solid var(--border);background:var(--elev);
+    color:var(--faint);font-size:11px;display:grid;place-items:center;padding:0}
+  .ipk-actions .rm:hover{color:var(--err);border-color:var(--err)}
 
   .add-key-btn{width:16px;height:16px;border-radius:5px;border:1px solid var(--border);background:var(--elev);
     color:var(--faint);font-size:12px;font-weight:700;line-height:1;cursor:pointer;display:grid;place-items:center;
@@ -288,14 +321,20 @@
                     font-size:9px;letter-spacing:.03em}
 
   .sec{border:1px solid var(--border);border-radius:9px;margin-bottom:9px;background:var(--elev);overflow:hidden}
+  .sec.cited{border-color:var(--accent)}
+  /* .sec-h = toggle zone: pointer + hover tint. .sec-b[onclick] (view mode) = cite zone:
+     alias + hover accent-wash (2026-08-06 — same pairing on initial-prompt-block/
+     custom-json-block, so a click's effect is guessable from the cursor alone). */
   .sec-h{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer}
+  .sec-h:hover{background:var(--bg)}
   .sec-h .chev{color:var(--faint);font-size:10px}
   .sec-h .h{font-weight:600;font-size:12px;letter-spacing:.02em}
   .sec-h .core{margin-left:auto;font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
   .sec-h .edited{margin-left:auto;font-size:9.5px;color:var(--accent-ink);background:var(--accent-wash);
                  border:1px solid var(--accent);border-radius:5px;padding:1px 7px;letter-spacing:.02em}
   .sec-b{padding:0 12px 12px 30px;color:var(--muted);font-size:12px}
-  .sec-b[onclick]{cursor:pointer}
+  .sec-b.cite{cursor:alias}
+  .sec-b.cite:hover{background:var(--accent-wash)}
   .sec-b textarea{width:100%;min-height:110px;font-family:var(--ui);font-size:12px;border:1px solid var(--accent);
     border-radius:7px;padding:8px;background:var(--bg);color:var(--text);outline:none;resize:vertical;box-sizing:border-box}
   .sec-b p{margin:0 0 6px}
@@ -314,7 +353,24 @@
   .s{color:var(--ok)}
   .h1{color:var(--warn);font-weight:600}
   .rband{padding:6px 14px;color:var(--faint);font-size:10.5px;border-bottom:1px solid var(--border);
-         font-family:var(--mono);display:flex;gap:10px}
+         font-family:var(--mono);display:flex;align-items:center;gap:10px}
+  .rband .rband-txt{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rband .rzoom{margin-left:auto;flex:none;font-size:12px;background:none;border:none;color:var(--faint);cursor:pointer;padding:0}
+  .rband .rzoom:hover{color:var(--text)}
+  .rband .dl{flex:none;font-family:var(--ui);font-size:10.5px;font-weight:600;color:var(--accent-ink);
+    background:var(--accent-wash);border:1px solid var(--accent);border-radius:6px;padding:2px 8px;cursor:pointer}
+  .rband .dl:hover{opacity:.9}
+  /* Below ~260px the "Download" word doesn't fit alongside the band text + 🔍 — same
+     260px threshold as the real app's panelWidth check (2026-08-06), done here with a
+     container query since the mockup has no JS width state to key off. */
+  @container (max-width:260px){ .rband .dl-word{display:none} }
+  /* Zoom modal — same .raw content, larger (2026-08-06) */
+  .raw-zoom{width:820px;max-width:92vw;max-height:85vh;overflow:auto;font-family:var(--mono);
+    font-size:15px;line-height:1.8;padding:16px 18px}
+  .raw-zoom .rn{width:48px}
+  .raw-zoom-title{padding:12px 18px 0;font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text)}
+  .raw-zoom-sub{padding:2px 18px 10px;font-family:var(--mono);font-size:11px;color:var(--faint);
+    border-bottom:1px solid var(--border)}
 
   /* ================= chat ================= */
   .chat{display:flex;flex-direction:column;height:100%}
@@ -424,6 +480,50 @@
         color:var(--faint);font-size:11px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
   .foot .chip{display:inline-flex;align-items:center;gap:6px}
   .foot .sw{width:9px;height:9px;border-radius:3px}
+
+  /* ── Import modal (Plan 08 doc-sync follow-up, 2026-08-06 — mockup had no import
+     modal at all before this; built here first per standing rule 4 before the copy/
+     naming changes land in app/components/Library/ImportDialog.tsx) ── */
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,14,20,.45);
+    display:flex;align-items:center;justify-content:center;z-index:50}
+  .modal-overlay[hidden]{display:none}
+  .modal{width:560px;max-width:92vw;max-height:88vh;overflow:auto;
+    background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    box-shadow:0 12px 40px rgba(0,0,0,.28);display:flex;flex-direction:column}
+  .modal-head{padding:14px 18px;border-bottom:1px solid var(--border)}
+  .modal-title{font-size:14px;font-weight:700;color:var(--text)}
+  .modal-desc{font-size:11.5px;color:var(--faint);margin-top:3px;line-height:1.5}
+  .modal-body{padding:16px 18px;display:flex;flex-direction:column;gap:16px}
+  .modal-field label.flabel{display:block;font-size:10.5px;font-weight:700;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+  .modal-field input[type="file"]{font-size:11.5px;color:var(--muted)}
+  .modal-field textarea{width:100%;min-height:130px;font-family:var(--mono);font-size:11.5px;
+    background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;
+    padding:8px 10px;resize:vertical}
+  .modal-field textarea:focus{outline:none;border-color:var(--accent)}
+  /* Standing clarification banner — always visible above the two mode options, not tied
+     to whichever mode is selected: name/description/config never cross the AI boundary
+     in either mode (see lib/import/CLAUDE.md — "config comes from Stage 1, not the AI"). */
+  .mode-note{font-size:11px;color:var(--muted);line-height:1.5;background:var(--bg);
+    border:1px solid var(--border);border-radius:7px;padding:8px 10px;margin-bottom:9px}
+  .mode-note b{color:var(--text)}
+  .mode-opt{display:flex;flex-direction:column;gap:3px;padding:9px 10px;border:1px solid var(--border);
+    border-radius:7px;cursor:pointer;margin-bottom:7px}
+  .mode-opt:last-child{margin-bottom:0}
+  .mode-opt:hover{border-color:var(--accent)}
+  .mode-opt.selected{border-color:var(--accent);background:var(--accent-wash)}
+  .mode-opt .mo-head{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text)}
+  .mode-opt .mo-agent{font-weight:700}
+  .mode-opt .mo-tag{font-weight:400;color:var(--faint)}
+  .mode-opt .mo-help{font-size:11px;color:var(--faint);margin-left:22px;line-height:1.45}
+  .modal-foot{padding:12px 18px;border-top:1px solid var(--border);
+    display:flex;justify-content:flex-end;gap:9px}
+  .modal-btn-cancel{font:inherit;font-size:12px;color:var(--muted);background:transparent;
+    border:none;padding:6px 10px;cursor:pointer}
+  .modal-btn-cancel:hover{color:var(--text)}
+  .modal-btn-import{font:inherit;font-size:12px;font-weight:600;color:#fff;background:var(--accent);
+    border:none;border-radius:7px;padding:7px 16px;cursor:pointer}
+  .modal-btn-import:hover{filter:brightness(1.08)}
 </style>
 
 <!--
@@ -511,7 +611,7 @@
 
 <template id="tpl-raw">
   <div class="phead"><span class="glyph">≡</span> Raw agent <span class="role">anthropic-test-agent-.md · export preview</span></div>
-  <div class="rband">Markdown · UTF‑8 · read reference</div>
+  <div class="rband"><span class="rband-txt" title="Markdown · UTF‑8 · read reference">Markdown · UTF‑8 · read reference</span><button class="rzoom" title="Open a larger view" onclick="window.__openRawZoom()">🔍</button><button class="dl" title="Download anthropic-test-agent-.md">⇩<span class="dl-word"> Download</span></button></div>
   <div class="pbody"><div class="raw" id="rawlines"></div></div>
 </template>
 
@@ -726,6 +826,65 @@ or any tool that modifies files — intentionally excluded.</pre>
   </div>
 </template>
 
+<!-- ── Import modal ── mockup-only: no file read, no fetch, mode toggle is the only
+     live behavior. Copy here is the source of truth to port into
+     app/components/Library/ImportDialog.tsx once approved. -->
+<div class="modal-overlay" id="importModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+    <div class="modal-head">
+      <div class="modal-title" id="importModalTitle">Import .md agent file</div>
+      <div class="modal-desc">Paste the content of an agent .md file or pick a file. The import pipeline reads its frontmatter and body.</div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-field">
+        <label class="flabel">Pick a file</label>
+        <input type="file" accept=".md" />
+      </div>
+      <div class="modal-field">
+        <label class="flabel">Or paste content</label>
+        <textarea placeholder="---&#10;name: my-agent&#10;description: ...&#10;---&#10;&#10;# ROLE&#10;..."></textarea>
+      </div>
+      <div class="modal-field">
+        <label class="flabel">Import mode</label>
+        <div class="mode-note">
+          <b>Name, description, and every config value</b> (model, tools, permissions, maxTurns, etc.)
+          always come straight from your file's frontmatter — in <b>both</b> modes, never rewritten
+          or reviewed by AI. Only how the <b>body</b> content is handled differs below:
+        </div>
+        <label class="mode-opt selected" id="modeOptStructural" for="modeStructural">
+          <div class="mo-head">
+            <input type="radio" name="importMode" id="modeStructural" checked />
+            <span class="mo-agent">Daedalus</span> <span class="mo-tag">— Structural (recommended)</span>
+          </div>
+          <div class="mo-help">AI reorganizes the body into the platform's recognized sections — best for files from other tools that don't already follow this structure.</div>
+        </label>
+        <label class="mode-opt" id="modeOptStrict" for="modeStrict">
+          <div class="mo-head">
+            <input type="radio" name="importMode" id="modeStrict" />
+            <span class="mo-agent">Hermes</span> <span class="mo-tag">— Strict (verbatim)</span>
+          </div>
+          <div class="mo-help">Keeps your body content byte-for-byte; AI only labels which existing headings map to which section — best for files that already follow this structure.</div>
+        </label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="modal-btn-cancel" id="importModalCancel">Cancel</button>
+      <button class="modal-btn-import" id="importModalSubmit">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Raw agent zoom modal ── read-only: same content/format as the panel, just bigger.
+     No Save/Cancel — click the overlay backdrop to close (see the delegated click
+     handler below, same pattern as the import modal). -->
+<div class="modal-overlay" id="rawZoomModal" hidden>
+  <div class="modal" style="width:auto" role="dialog" aria-modal="true" aria-labelledby="rawZoomTitle">
+    <div class="raw-zoom-title" id="rawZoomTitle">anthropic-test-agent-.md</div>
+    <div class="raw-zoom-sub">Markdown · UTF‑8 · read reference</div>
+    <div class="raw-zoom" id="rawlinesZoom"></div>
+  </div>
+</div>
+
 <script>
   // ---------- raw markdown content ----------
   // Real agent, ImportTestAgent/TestAgent.md (loaded 2026-08-06). Frontmatter list/object
@@ -791,8 +950,10 @@ or any tool that modifies files — intentionally excluded.</pre>
     ['','guardrails (agent/hook patterns, permission & isolation, monitoring & audit), and'],
     ['','Next steps (immediate actions, short-term improvements, long-term governance).'],
   ];
-  function buildRaw(host){
-    const box = host.querySelector('#rawlines'); if(!box) return;
+  // Shared line renderer (2026-08-06) — takes the actual container, used by both the
+  // panel (#rawlines) and the zoom modal (#rawlinesZoom) so they can't drift.
+  function buildRawInto(box){
+    if(!box) return;
     box.innerHTML='';
     RAW.forEach((row,i)=>{
       const line=document.createElement('div'); line.className='rline';
@@ -806,6 +967,9 @@ or any tool that modifies files — intentionally excluded.</pre>
       line.appendChild(n); line.appendChild(c); box.appendChild(line);
     });
   }
+  function buildRaw(host){ buildRawInto(host.querySelector('#rawlines')); }
+  window.__openRawZoom = function(){ document.getElementById('rawZoomModal').hidden=false; buildRawInto(document.getElementById('rawlinesZoom')); };
+  window.__closeRawZoom = function(){ document.getElementById('rawZoomModal').hidden=true; };
 
   // ---------- Library panel (Flat/Grouped) ----------
   // Prototyped 2026-07-29 per the queued redesign note. Toggle is independent of selection
@@ -852,7 +1016,7 @@ or any tool that modifies files — intentionally excluded.</pre>
         (ungrouped.length ? `<div class="lgroup">▾ Ungrouped</div>${ungrouped.map(libRow).join('')}` : '');
     }
     const manage = `<div class="zone-label">Manage</div>` +
-      `<div class="laction">＋ New agent</div><div class="laction">＋ New group</div><div class="laction">⇪ Import agent</div>`;
+      `<div class="laction">＋ New agent</div><div class="laction">＋ New group</div><div class="laction" id="importAgentTrigger">⇪ Import agent</div>`;
     body.innerHTML = listHtml + manage;
   }
 
@@ -901,6 +1065,27 @@ or any tool that modifies files — intentionally excluded.</pre>
     mcpServers:  { label: 'MCP servers', datatype: 'list', tier: 'custom', required: false, allowed: null,
       hint: 'String form reuses an MCP server already configured for this project/user. Inline object form defines a server scoped ONLY to this agent — connected at startup, disconnected when the agent finishes. Same schema as .mcp.json.' },
   };
+  // Shared "⌘" badge hint (Agent(...) tools-pill + initialPrompt) — one string so a wording
+  // change only has to happen here. Keep in sync with the mirrored constant in
+  // app/components/CustomViz/AgentView.tsx (MAIN_AGENT_ONLY_HINT).
+  const MAIN_AGENT_ONLY_HINT = 'Only applies when this agent runs as the main agent';
+  // Fake chat-citation (2026-08-06, presentational only — mirrors WorkbenchShell's real
+  // toggleCite/citedItems, single-select, no chat wiring). Re-renders both zones on every
+  // toggle since either a section or a config block may hold the citation.
+  function cfgIsCited(type, key) { return !!(cfgState.cited && cfgState.cited.type === type && cfgState.cited.key === key); }
+  window.__cfgToggleCite = function (type, key) {
+    const same = cfgIsCited(type, key);
+    cfgState.cited = same ? null : { type, key };
+    buildSections(document.getElementById('centerTop'));
+    cfgRerender();
+  };
+  document.addEventListener('mousedown', (e) => {
+    if (!cfgState.cited) return;
+    if (e.target.closest('[data-citable]')) return;
+    cfgState.cited = null;
+    buildSections(document.getElementById('centerTop'));
+    cfgRerender();
+  });
   const CFG_SCALAR_KEYS = ['permissionMode', 'maxTurns', 'memory', 'background', 'isolation', 'color'];
   const CFG_LIST_KEYS = ['tools', 'disallowedTools', 'skills'];
   const CFG_CUSTOM_KEYS = ['hooks', 'mcpServers'];
@@ -929,6 +1114,29 @@ or any tool that modifies files — intentionally excluded.</pre>
     return false; // skills — open vocabulary, no closed catalog to check against
   }
   function cfgEsc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  // First-level entry names out of a datatype:'json' value, for the collapsed custom-JSON
+  // block's pill row (2026-08-06 — mirrors customBlockEntryNames in AgentView.tsx). View
+  // only; editing still opens the full raw-JSON textarea for the whole block, unchanged.
+  function cfgCustomEntryNames(value) {
+    if (Array.isArray(value)) {
+      return value.map((item) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object') {
+          const k = Object.keys(item)[0];
+          if (k) return k;
+        }
+        return JSON.stringify(item);
+      });
+    }
+    if (value && typeof value === 'object') return Object.keys(value);
+    return [];
+  }
+  // Defaults to collapsed (2026-08-06) for any key not yet toggled — can't use `|| false`
+  // here since that would also treat an explicit `false` (user expanded it) as falsy and
+  // snap it back to the true default on every re-render.
+  function cfgCustomCollapsedFor(key) {
+    return key in cfgState.customCollapsed ? cfgState.customCollapsed[key] : true;
+  }
 
   // Real agent, ImportTestAgent/TestAgent.md, loaded verbatim 2026-08-06 to compare this
   // mock against a real import of the same file in the running app. Replaces the earlier
@@ -967,7 +1175,13 @@ or any tool that modifies files — intentionally excluded.</pre>
   const cfgState = { editing: null, addingItem: null, toolPickerOpen: false, toolPickerFilter: '',
                       editingRestriction: false, expandedCustom: null, expandedPrompt: false, addKeyMenuOpen: false,
                       editingSection: null, keysCollapsed: false, sectionsCollapsed: false, selectedItem: null,
-                      listExpanded: {} };
+                      listExpanded: {},
+                      // Chevron state (2026-08-06) — separate from expandedCustom/expandedPrompt
+                      // ("is editing"), same relationship as SectionBlock.tsx's expanded/isEditing.
+                      promptCollapsed: true, customCollapsed: {},
+                      // Fake chat-citation selection (2026-08-06, presentational only — mirrors
+                      // WorkbenchShell's real citedItems, single-select, no real chat wiring here).
+                      cited: null };
   // list-item cap — prototyped 2026-07-29. Confirmed real gap: `dev`'s actual `tools` list
   // (8 base tools + ~40 atlassian-mcp-server__* MCP tools) rendered as an unbroken wrap with
   // no cap at all. Applies to every list key (tools/disallowedTools/skills), not just tools —
@@ -1073,7 +1287,7 @@ or any tool that modifies files — intentionally excluded.</pre>
         `onblur="window.__cfgSaveRestriction(this.value)"></span>`;
     }
     return `<span class="pill" title="Agent tool · restricts which subagent types this agent may spawn — only when THIS agent runs as the MAIN session agent, no effect when invoked as a subagent" onclick="window.__cfgEditRestriction(event)">` +
-      `${cfgEsc(item)}<span class="badge main-only" title="Only takes effect via claude --agent, not @-mention/Agent-tool invocation">⌘ main-agent only</span>` +
+      `${cfgEsc(item)}<span class="badge main-only" title="${MAIN_AGENT_ONLY_HINT}">⌘</span>` +
       `<span class="x" onclick="event.stopPropagation();window.__cfgRemoveItem('tools', ${JSON.stringify(item)})">×</span></span>`;
   }
   window.__cfgEditRestriction = function (e) { e.stopPropagation(); cfgState.editingRestriction = true; cfgRerender(); };
@@ -1171,25 +1385,47 @@ or any tool that modifies files — intentionally excluded.</pre>
   });
 
   // ---- initialPrompt block ----
+  // Same chevron/header/body split as .sec/.sec-h (2026-08-06, corrected from an earlier
+  // bottom-Save/Cancel pass): chevron toggles body visibility only, never edit mode.
+  // Edit/Save+Cancel live top-right in the header (.ipk), same slot either way.
   function cfgInitialPrompt() {
     const def = CFG_CATALOG.initialPrompt;
     const set = Object.prototype.hasOwnProperty.call(CFG_AGENT, 'initialPrompt');
     if (!set && !cfgState.expandedPrompt) return '';
     const value = CFG_AGENT.initialPrompt || '';
-    const badge = `<span class="badge main-only" title="Only used when this agent runs as the MAIN session agent (claude --agent &lt;name&gt;) — ignored when invoked as a subagent via @-mention or the Agent tool, which is the common case here">⌘ main-agent only</span>`;
+    const badge = `<span class="badge main-only" title="${MAIN_AGENT_ONLY_HINT}">⌘</span>`;
     const labelHtml = `<span title="${cfgEsc(def.hint || '')}">${def.label}</span>`;
-    if (!cfgState.expandedPrompt) {
-      const truncated = value.length > 110 ? value.slice(0, 110) + '…' : value;
-      return `<div class="initial-prompt-block" onclick="window.__cfgExpandPrompt(event)">` +
-        `<div class="ipk">${labelHtml} ${badge}<span class="expandhint">⌯ expand</span></div>` +
-        `<p>${cfgEsc(truncated) || '<i>(empty)</i>'}</p></div>`;
-    }
-    return `<div class="initial-prompt-block" style="cursor:default" onclick="event.stopPropagation()">` +
-      `<div class="ipk">${labelHtml} ${badge}</div>` +
-      `<textarea id="cfgIpTextarea">${cfgEsc(value)}</textarea>` +
-      `<div class="ip-actions"><button class="save" onclick="window.__cfgSavePrompt()">Save</button><button class="cancel" onclick="window.__cfgCancelPrompt()">Cancel</button></div></div>`;
+    const editing = cfgState.expandedPrompt;
+    const collapsed = !editing && cfgState.promptCollapsed;
+    const chev = collapsed ? '▸' : '▾';
+    const actionsHtml = editing
+      ? `<span class="ipk-actions" onclick="event.stopPropagation()">` +
+        `<button class="save" onclick="window.__cfgSavePrompt()">Save</button>` +
+        `<button class="cancel" onclick="window.__cfgCancelPrompt()">Cancel</button></span>`
+      : `<span class="ipk-actions">` +
+        `<button class="edit" onclick="event.stopPropagation();window.__cfgExpandPrompt(event)">Edit</button>` +
+        `<button class="rm" title="Remove ${def.label}" onclick="event.stopPropagation();window.__cfgRemoveConfigKey('initialPrompt')">×</button></span>`;
+    const headerHtml = `<div class="ipk" onclick="window.__cfgTogglePromptCollapse()"><span class="chev">${chev}</span>${labelHtml} ${badge}${actionsHtml}</div>`;
+    // Collapsed state still peeks 2 lines (clamp2) rather than hiding the body outright —
+    // the chevron only matters once the content is actually taller than that (2026-08-06).
+    // Body click cites, double-click edits (2026-08-06 — was click-to-edit; now matches
+    // Sections/custom blocks, which both already worked this way).
+    const bodyHtml = editing
+      ? `<textarea id="cfgIpTextarea">${cfgEsc(value)}</textarea>`
+      : `<p class="${collapsed ? 'clamp2' : ''}" onclick="window.__cfgToggleCite('config','initialPrompt')" ondblclick="window.__cfgExpandPrompt(event)" ` +
+        `title="${collapsed ? 'Click ▾ to see the full prompt' : 'Click to cite in chat · double-click to edit'}">${cfgEsc(value) || '<i>(empty)</i>'}</p>`;
+    return `<div class="initial-prompt-block${cfgIsCited('config', 'initialPrompt') ? ' cited' : ''}" data-citable>${headerHtml}<div class="ip-body">${bodyHtml}</div></div>`;
   }
-  window.__cfgExpandPrompt = function (e) { e && e.stopPropagation(); cfgResolveAnyOpenEditor(); cfgState.expandedPrompt = true; cfgRerender(); document.getElementById('cfgIpTextarea')?.focus(); };
+  window.__cfgTogglePromptCollapse = function () {
+    if (cfgState.expandedPrompt) return;
+    cfgState.promptCollapsed = !cfgState.promptCollapsed;
+    cfgRerender();
+  };
+  window.__cfgExpandPrompt = function (e) {
+    e && e.stopPropagation(); cfgResolveAnyOpenEditor();
+    cfgState.expandedPrompt = true; cfgState.promptCollapsed = false; cfgRerender();
+    setTimeout(() => document.getElementById('cfgIpTextarea')?.focus(), 0);
+  };
   window.__cfgSavePrompt = function () { CFG_AGENT.initialPrompt = document.getElementById('cfgIpTextarea').value; cfgState.expandedPrompt = false; cfgRerender(); };
   window.__cfgCancelPrompt = function () { cfgState.expandedPrompt = false; cfgRerender(); };
   // Click outside an expanded initialPrompt block: silently exit if unchanged, otherwise
@@ -1209,27 +1445,61 @@ or any tool that modifies files — intentionally excluded.</pre>
   });
 
   // ---- custom-JSON blocks (hooks, mcpServers) ----
+  // Three tiers (2026-08-06): collapsed = pill row (cfgCustomEntryNames, compact glance),
+  // expanded-not-editing = the full JSON read-only, editing = the textarea. The chevron
+  // only ever toggles between the first two — it never opens edit mode. Edit/Save+Cancel
+  // live top-right in the header (.ipk) regardless of tier.
   function cfgCustomBlock(key) {
     const def = CFG_CATALOG[key];
     const set = Object.prototype.hasOwnProperty.call(CFG_AGENT, key);
     if (!set && cfgState.expandedCustom !== key) return '';
     const value = CFG_AGENT[key];
-    const summary = key === 'hooks'
-      ? Object.keys(value || {}).length + ' event' + (Object.keys(value || {}).length === 1 ? '' : 's') + ' configured'
-      : (Array.isArray(value) ? value.length : Object.keys(value || {}).length) + ' entries';
     const labelHtml = `<span title="${cfgEsc(def.hint || '')}">${def.label}</span>`;
-    if (cfgState.expandedCustom !== key) {
-      return `<div class="custom-json-block" data-key="${key}" onclick="window.__cfgExpandCustom(event,'${key}')">` +
-        `<div class="ipk">${labelHtml} <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--faint)">· custom · saved as-is</span><span class="expandhint">⌯ view / edit JSON</span></div>` +
-        `<p>${cfgEsc(summary)}</p></div>`;
+    const note = `<span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--faint)">· custom · saved as-is</span>`;
+    const editing = cfgState.expandedCustom === key;
+    const collapsed = !editing && cfgCustomCollapsedFor(key);
+    const chev = collapsed ? '▸' : '▾';
+    const actionsHtml = editing
+      ? `<span class="ipk-actions" onclick="event.stopPropagation()">` +
+        `<button class="save" onclick="window.__cfgSaveCustom('${key}')">Save</button>` +
+        `<button class="cancel" onclick="window.__cfgCancelCustom()">Cancel</button></span>`
+      : `<span class="ipk-actions">` +
+        `<button class="edit" onclick="event.stopPropagation();window.__cfgExpandCustom(event,'${key}')">Edit</button>` +
+        `<button class="rm" title="Remove ${def.label}" onclick="event.stopPropagation();window.__cfgRemoveConfigKey('${key}')">×</button></span>`;
+    const headerHtml = `<div class="ipk" onclick="window.__cfgToggleCustomCollapse('${key}')"><span class="chev">${chev}</span>${labelHtml} ${note}${actionsHtml}</div>`;
+    const citedClass = cfgIsCited('config', key) ? ' cited' : '';
+    if (editing) {
+      return `<div class="custom-json-block${citedClass}" data-key="${key}" data-citable>${headerHtml}` +
+        `<div class="ip-body"><textarea id="cfgCustomTextarea">${cfgEsc(JSON.stringify(value, null, 2))}</textarea>` +
+        `<span class="jerr" id="cfgCustomErr"></span></div></div>`;
     }
-    return `<div class="custom-json-block" data-key="${key}" style="cursor:default" onclick="event.stopPropagation()">` +
-      `<div class="ipk">${labelHtml} <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--faint)">· custom · saved as-is</span></div>` +
-      `<textarea id="cfgCustomTextarea">${cfgEsc(JSON.stringify(value, null, 2))}</textarea>` +
-      `<div class="ip-actions"><button class="save" onclick="window.__cfgSaveCustom('${key}')">Save</button>` +
-      `<button class="cancel" onclick="window.__cfgCancelCustom()">Cancel</button><span class="jerr" id="cfgCustomErr"></span></div></div>`;
+    // Three tiers, not two (2026-08-06): collapsed = pill row (compact glance),
+    // expanded-not-editing = the full JSON read-only, editing = the textarea above. The
+    // chevron only ever toggles between the first two — it never opens edit mode. Either
+    // tier cites the whole block on click (not per-pill — a citation always sends the
+    // entire key's value, never one entry); double-click either one to edit.
+    if (collapsed) {
+      const pillsHtml = cfgCustomEntryNames(value).map((name) =>
+        `<span class="pill">${cfgEsc(name)}</span>`
+      ).join('');
+      return `<div class="custom-json-block${citedClass}" data-key="${key}" data-citable>${headerHtml}` +
+        `<div class="ip-body"><div class="pills cite" title="Click to cite in chat · double-click to edit the full block" ` +
+        `onclick="window.__cfgToggleCite('config','${key}')" ondblclick="window.__cfgExpandCustom(event,'${key}')">${pillsHtml}</div></div></div>`;
+    }
+    return `<div class="custom-json-block${citedClass}" data-key="${key}" data-citable>${headerHtml}` +
+      `<div class="ip-body"><pre class="cjb-full cite" title="Click to cite in chat · double-click to edit" ` +
+      `onclick="window.__cfgToggleCite('config','${key}')" ondblclick="window.__cfgExpandCustom(event,'${key}')">${cfgEsc(JSON.stringify(value, null, 2))}</pre></div></div>`;
   }
-  window.__cfgExpandCustom = function (e, key) { e && e.stopPropagation(); cfgResolveAnyOpenEditor(); cfgState.expandedCustom = key; cfgRerender(); setTimeout(() => document.getElementById('cfgCustomTextarea')?.focus(), 0); };
+  window.__cfgToggleCustomCollapse = function (key) {
+    if (cfgState.expandedCustom === key) return;
+    cfgState.customCollapsed[key] = !cfgCustomCollapsedFor(key);
+    cfgRerender();
+  };
+  window.__cfgExpandCustom = function (e, key) {
+    e && e.stopPropagation(); cfgResolveAnyOpenEditor();
+    cfgState.expandedCustom = key; cfgState.customCollapsed[key] = false; cfgRerender();
+    setTimeout(() => document.getElementById('cfgCustomTextarea')?.focus(), 0);
+  };
   window.__cfgCancelCustom = function () { cfgState.expandedCustom = null; cfgRerender(); };
   window.__cfgSaveCustom = function (key) {
     try {
@@ -1371,7 +1641,7 @@ or any tool that modifies files — intentionally excluded.</pre>
   }
   function cfgSectionHtml(sec) {
     if (cfgState.editingSection === sec.key) {
-      return `<div class="sec" data-key="${sec.key}">` +
+      return `<div class="sec" data-key="${sec.key}" data-citable>` +
         `<div class="sec-h"><span class="h">${sec.heading}</span><span class="core">${sec.core ? 'core' : 'optional'}</span></div>` +
         `<div class="sec-b" style="cursor:default" onclick="event.stopPropagation()">` +
         `<textarea id="cfgSecTextarea" autofocus>${cfgEsc(sec.text)}</textarea>` +
@@ -1379,8 +1649,9 @@ or any tool that modifies files — intentionally excluded.</pre>
         `</div></div>`;
     }
     const chev = sec.collapsed ? '▸' : '▾';
-    const bodyHtml = sec.collapsed ? '' : `<div class="sec-b" title="Click to edit" onclick="window.__cfgEditSection(event,'${sec.key}')">${cfgSectionBodyHtml(sec.text)}</div>`;
-    return `<div class="sec" data-key="${sec.key}">` +
+    const bodyHtml = sec.collapsed ? '' : `<div class="sec-b cite" title="Click to cite in chat · double-click to edit" ` +
+      `onclick="window.__cfgToggleCite('section','${sec.key}')" ondblclick="window.__cfgEditSection(event,'${sec.key}')">${cfgSectionBodyHtml(sec.text)}</div>`;
+    return `<div class="sec${cfgIsCited('section', sec.key) ? ' cited' : ''}" data-key="${sec.key}" data-citable>` +
       `<div class="sec-h" onclick="window.__cfgToggleSectionCollapse('${sec.key}')"><span class="chev">${chev}</span><span class="h">${sec.heading}</span><span class="core">${sec.core ? 'core' : 'optional'}</span></div>` +
       bodyHtml + `</div>`;
   }
@@ -1530,9 +1801,9 @@ or any tool that modifies files — intentionally excluded.</pre>
     const key=g.dataset.resize; const vertical=g.classList.contains('gh');
     let target, prop;
     if(key==='left'){ target=document.getElementById('left'); prop='w'; }
-    else if(key==='center'){ target=document.getElementById('right'); prop='w'; drag={target,prop,vertical:false,start:e.clientX,size:target.getBoundingClientRect().width,invert:true}; }
-    else if(key==='centerTop'){ target=document.getElementById('centerBottom'); prop='h'; drag={target,prop,vertical:true,start:e.clientY,size:target.getBoundingClientRect().height,invert:true}; }
-    if(key==='left'){ drag={target,prop,vertical:false,start:e.clientX,size:target.getBoundingClientRect().width,invert:false}; }
+    else if(key==='center'){ target=document.getElementById('right'); prop='w'; drag={target,prop,key,vertical:false,start:e.clientX,size:target.getBoundingClientRect().width,invert:true}; }
+    else if(key==='centerTop'){ target=document.getElementById('centerBottom'); prop='h'; drag={target,prop,key,vertical:true,start:e.clientY,size:target.getBoundingClientRect().height,invert:true}; }
+    if(key==='left'){ drag={target,prop,key,vertical:false,start:e.clientX,size:target.getBoundingClientRect().width,invert:false}; }
     if(!drag) return;
     g.classList.add('dragging');
     document.body.classList.add('resizing'); if(vertical) document.body.classList.add('rows');
@@ -1543,7 +1814,10 @@ or any tool that modifies files — intentionally excluded.</pre>
     if(!drag) return;
     if(drag.prop==='w'){
       const d=(e.clientX-drag.start)*(drag.invert?-1:1);
-      const v=Math.max(150,Math.min(640,drag.size+d));
+      // Raw panel (key 'center', the gutter between center and right) gets a taller
+      // floor (2026-08-06) — 150 was too narrow for the raw view to stay readable.
+      const min = drag.key==='center' ? 200 : 150;
+      const v=Math.max(min,Math.min(640,drag.size+d));
       drag.target.style.flex='0 0 '+v+'px';
     } else {
       const d=(e.clientY-drag.start)*(drag.invert?-1:1);
@@ -1596,6 +1870,24 @@ or any tool that modifies files — intentionally excluded.</pre>
       card.replaceWith(wrapper);
     } else if (discardBtn) {
       discardBtn.closest('.proposal-card.live').remove();
+    }
+  });
+
+  // ---------- Import modal (mockup-only wiring) ----------
+  const importModal = document.getElementById('importModal');
+  function openImportModal(){ importModal.hidden = false; }
+  function closeImportModal(){ importModal.hidden = true; }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('#importAgentTrigger')) { openImportModal(); return; }
+    if (e.target.closest('#importModalCancel')) { closeImportModal(); return; }
+    if (e.target === importModal) { closeImportModal(); return; } // click on overlay backdrop
+    if (e.target === document.getElementById('rawZoomModal')) { window.__closeRawZoom(); return; } // overlay backdrop
+    const modeOpt = e.target.closest('.mode-opt');
+    if (modeOpt) {
+      document.querySelectorAll('.mode-opt').forEach(el => el.classList.remove('selected'));
+      modeOpt.classList.add('selected');
+      const radio = modeOpt.querySelector('input[type="radio"]');
+      if (radio) radio.checked = true;
     }
   });
 

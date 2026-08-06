@@ -20,8 +20,10 @@
  *     dashed border for disallowedTools entries.
  *   - Unset keys have no row; set via the "+" add-key button.
  *   - initialPrompt: click-to-expand textarea block with Save/Cancel and outside-click-confirm.
- *   - Any datatype:'json' key (hooks, mcpServers): raw-JSON textarea blocks (same
- *     expand/save/confirm pattern), derived from the catalog — not a hardcoded key set.
+ *   - Any datatype:'json' key (hooks, mcpServers): view mode shows a compact pill row of
+ *     first-level entry names (2026-08-06 — the full JSON was unreadably large at a glance);
+ *     editing is unchanged — a raw-JSON textarea for the whole block (same expand/save/
+ *     confirm pattern), derived from the catalog, not a hardcoded key set.
  *   - Unknown config keys (not in catalog): shown as warn pills.
  *
  * Model+effort header control (decision 12):
@@ -68,6 +70,10 @@ const LIST_KEY_ORDER = ['tools', 'disallowedTools', 'skills'];
 // Keys handled in the header (not in the config zone)
 const HEADER_KEYS = new Set(['model', 'effort']);
 const INITIAL_PROMPT_KEY = 'initialPrompt';
+// Shared "⌘" badge hint (Agent(...) tools-pill + initialPrompt) — one string so a wording
+// change only has to happen here. Keep in sync with the mirrored constant in
+// architecture/layout/Layout-Workbench.html (MAIN_AGENT_ONLY_HINT).
+const MAIN_AGENT_ONLY_HINT = 'Only applies when this agent runs as the main agent';
 
 // Color hex values for the `color` field swatch
 const COLOR_HEX: Record<string, string> = {
@@ -113,6 +119,30 @@ function listItemsOf(value: unknown): string[] {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/**
+ * First-level entry names out of a datatype:'json' config value, for the compact
+ * view-mode pill row (mcpServers, hooks) — view only, editing still opens the full
+ * raw-JSON block unchanged. Array form (mcpServers): each entry is a bare string or
+ * a single-key object naming the server. Object form (hooks): the top-level keys
+ * themselves (PreToolUse, PostToolUse, ...).
+ */
+function customBlockEntryNames(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => {
+      if (typeof item === 'string') return item;
+      if (item && typeof item === 'object') {
+        const k = Object.keys(item as Record<string, unknown>)[0];
+        if (k) return k;
+      }
+      return JSON.stringify(item);
+    });
+  }
+  if (value && typeof value === 'object') {
+    return Object.keys(value as Record<string, unknown>);
+  }
+  return [];
 }
 
 /**
@@ -278,13 +308,20 @@ export function AgentView({
   const [restrictionDraft, setRestrictionDraft] = useState('');
 
   // ── Special block state ───────────────────────────────────────────────────
+  // promptExpanded doubles as "is editing" (matches SectionBlock's isEditing) —
+  // promptCollapsed is the separate chevron state (2026-08-06, matches SectionBlock's
+  // expanded): collapsed hides the body entirely; expanded-but-not-editing shows the
+  // read-only content; editing always implies not-collapsed.
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [promptDraft, setPromptDraft] = useState('');
-  // Custom JSON blocks (hooks, mcpServers) are always shown open/editable — no
-  // collapse/expand step (2026-07-31 redesign) — so drafts are keyed per key,
-  // not a single "which one is open" slot.
+  const [promptCollapsed, setPromptCollapsed] = useState(true);
+  // Custom JSON blocks (hooks, mcpServers) — drafts keyed per key, not a single
+  // "which one is open" slot (still only one edited at a time in practice — see
+  // resolveConfigEditors). customCollapsed is the chevron state, same relationship
+  // to isCustomEditing(key) as promptCollapsed has to promptExpanded above.
   const [customJsonDrafts, setCustomJsonDrafts] = useState<Record<string, string>>({});
   const [customJsonErrors, setCustomJsonErrors] = useState<Record<string, string | null>>({});
+  const [customCollapsed, setCustomCollapsed] = useState<Record<string, boolean>>({});
 
   // ── Zone / menu state ─────────────────────────────────────────────────────
   const [keysCollapsed, setKeysCollapsed] = useState(false);
@@ -301,6 +338,7 @@ export function AgentView({
   // ── Stable outside-click handler refs (updated every render) ─────────────
   const meOutsideRef = useRef<() => void>(() => {});
   const promptOutsideRef = useRef<() => void>(() => {});
+  const customOutsideRef = useRef<(key: string) => void>(() => {});
 
   meOutsideRef.current = () => {
     setMeOpen(false);
@@ -315,6 +353,31 @@ export function AgentView({
       }
     }
     setPromptExpanded(false);
+  };
+
+  // Same "confirm if changed" pattern as promptOutsideRef, but invalid JSON stays open
+  // with the error shown rather than silently discarding a typo the user asked to keep
+  // (matches architecture/layout/Layout-Workbench.html's __cfgOutsideCloseCustom).
+  customOutsideRef.current = (key: string) => {
+    const draftText = customJsonDrafts[key];
+    if (draftText === undefined) return;
+    const raw = configMap.get(key);
+    const original = raw !== undefined ? JSON.stringify(raw, null, 2) : '{}';
+    if (draftText === original) {
+      clearCustomDraft(key);
+      return;
+    }
+    if (window.confirm(`Save changes to ${getCatalogDef(key)?.label ?? key}?`)) {
+      try {
+        const parsed: unknown = JSON.parse(draftText);
+        void saveConfigKey(key, parsed);
+        clearCustomDraft(key);
+      } catch (err) {
+        setCustomJsonErrors((prev) => ({ ...prev, [key]: `Invalid JSON: ${(err as Error).message}` }));
+      }
+    } else {
+      clearCustomDraft(key);
+    }
   };
 
   // ── Effects: outside-click listeners ─────────────────────────────────────
@@ -354,6 +417,20 @@ export function AgentView({
     return () => document.removeEventListener('mousedown', handler);
   }, [promptExpanded]);
 
+  // Close a custom-JSON block (hooks, mcpServers, ...) on outside click (confirm if
+  // changed) — same pattern as initialPrompt above. At most one custom key is ever
+  // being edited at a time (openCustomBlock resolves any other editor first).
+  const editingCustomKey = Object.keys(customJsonDrafts)[0] ?? null;
+  useEffect(() => {
+    if (!editingCustomKey) return;
+    const handler = (e: MouseEvent) => {
+      const el = document.querySelector(`[data-cfg-block="${editingCustomKey}"]`);
+      if (el && !el.contains(e.target as Node)) customOutsideRef.current(editingCustomKey);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [editingCustomKey]);
+
   // Deselect selected list-item pill on any click
   useEffect(() => {
     if (!selectedItem) return;
@@ -389,10 +466,12 @@ export function AgentView({
 
   // ── Config editor resolution helpers ─────────────────────────────────────
 
-  /** Resolve any open config editor (prompt block) before opening another. Custom JSON
-   *  blocks are always open/editable (2026-07-31) so there's nothing to resolve for them. */
+  /** Resolve any open config editor (prompt block, a custom-JSON block) before opening
+   *  another — same "confirm if changed" behavior as their outside-click handlers. */
   function resolveConfigEditors() {
     if (promptExpanded) promptOutsideRef.current();
+    const editingKey = Object.keys(customJsonDrafts)[0];
+    if (editingKey) customOutsideRef.current(editingKey);
   }
 
   /** Resolve every open editor (config + current section). */
@@ -879,11 +958,11 @@ export function AgentView({
         >
           {item}
           <span
-            className="text-[9px] font-bold uppercase tracking-[.03em] text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] rounded-[5px] px-[5px] py-[1px] cursor-pointer"
+            className="text-[9px] font-bold text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] rounded-[5px] px-[5px] py-[1px] cursor-pointer"
             onClick={(e) => { e.stopPropagation(); if (!canEdit) return; setRestrictionDraft(restriction); setEditingRestriction(true); setSelectedItem({ key: propKey, item }); }}
-            title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : 'Click to edit subagent type restrictions'}
+            title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : `${MAIN_AGENT_ONLY_HINT} · click to edit`}
           >
-            ⌘ main-agent only
+            ⌘
           </span>
           <button
             type="button"
@@ -1079,73 +1158,96 @@ export function AgentView({
   }
 
   // ── Render: initialPrompt block ───────────────────────────────────────────
+  // Same chevron/header/body split as SectionBlock.tsx: chevron toggles the body's
+  // visibility only, never edit mode; Edit/Save+Cancel live top-right in the header,
+  // same slot either way (2026-08-06 — was bottom-of-body; corrected to match Sections).
+  // Citation (2026-08-06) — this block was never wired for it despite Sections and the
+  // custom-JSON blocks both supporting it; now matches: click the body cites, double-click
+  // edits, border turns accent when cited. Header (toggle) keeps cursor-pointer + a hover
+  // tint; the body (cite) uses cursor-alias + an accent-wash hover — same pairing on
+  // Sections and the custom blocks, so a click's effect is guessable from the cursor alone.
   function renderInitialPromptBlock() {
     if (!hasInitialPrompt && !promptExpanded) return null;
     const def = getCatalogDef(INITIAL_PROMPT_KEY)!;
     const currentValue = (configMap.get(INITIAL_PROMPT_KEY) as string) ?? '';
     const hint = 'hint' in def ? String(def.hint) : '';
-
-    if (!promptExpanded) {
-      const truncated = currentValue.length > 110 ? currentValue.slice(0, 110) + '…' : currentValue;
-      return (
-        <div
-          data-cfg-block="initialPrompt"
-          onClick={openPrompt}
-          className="mt-[14px] border border-[var(--border)] rounded-[9px] bg-[var(--elev)] px-[12px] py-[9px] cursor-pointer group"
-        >
-          <div className="flex items-center gap-[7px] text-[10px] text-[var(--faint)] uppercase tracking-[.06em] font-bold mb-[4px]">
-            <span title={hint}>{def.label}</span>
-            <span className="text-[9px] font-bold uppercase tracking-[.03em] text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] rounded-[5px] px-[5px] py-[1px]">⌘ main-agent only</span>
-            <span className="ml-auto text-[var(--accent-ink)] font-semibold normal-case tracking-normal text-[10.5px]">⌯ expand</span>
-            {/* Row-level × */}
-            <button
-              type="button"
-              disabled={!canEdit}
-              title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : 'Remove Initial prompt'}
-              onClick={(e) => { e.stopPropagation(); if (window.confirm('Remove Initial prompt from this agent?')) void removeConfigKey(INITIAL_PROMPT_KEY); }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity w-[16px] h-[16px] rounded-[4px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[11px] grid place-items-center cursor-pointer hover:text-[var(--err)] hover:border-[var(--err)] p-0 disabled:cursor-not-allowed"
-            >
-              ×
-            </button>
-          </div>
-          <p className="m-0 text-[12px] font-mono text-[var(--muted)]">
-            {truncated || <em>(empty)</em>}
-          </p>
-        </div>
-      );
-    }
+    const editing = promptExpanded;
+    const collapsed = !editing && promptCollapsed;
+    const isCited = citedItems.some((c) => c.type === 'config' && c.key === INITIAL_PROMPT_KEY);
 
     return (
       <div
         data-cfg-block="initialPrompt"
-        onClick={(e) => e.stopPropagation()}
-        className="mt-[14px] border border-[var(--border)] rounded-[9px] bg-[var(--elev)] px-[12px] py-[9px]"
+        data-citable
+        className={`mt-[14px] border rounded-[9px] bg-[var(--elev)] overflow-hidden group ${
+          isCited ? 'border-[var(--accent)]' : 'border-[var(--border)]'
+        }`}
       >
-        <div className="flex items-center gap-[7px] text-[10px] text-[var(--faint)] uppercase tracking-[.06em] font-bold mb-[4px]">
+        <div
+          className="flex items-center gap-[7px] text-[10px] text-[var(--faint)] uppercase tracking-[.06em] font-bold px-[12px] py-[9px] cursor-pointer hover:bg-[var(--bg)]"
+          onClick={() => { if (!editing) setPromptCollapsed((v) => !v); }}
+        >
+          <span className="text-[var(--faint)] text-[10px] normal-case">{collapsed ? '▸' : '▾'}</span>
           <span title={hint}>{def.label}</span>
-          <span className="text-[9px] font-bold uppercase tracking-[.03em] text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] rounded-[5px] px-[5px] py-[1px]">⌘ main-agent only</span>
+          <span title={MAIN_AGENT_ONLY_HINT} className="text-[9px] font-bold text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] rounded-[5px] px-[5px] py-[1px]">⌘</span>
+          {editing ? (
+            <span onClick={(e) => e.stopPropagation()} className="ml-auto flex items-center gap-[6px] normal-case tracking-normal">
+              <button
+                type="button"
+                onClick={() => void savePrompt()}
+                className="rounded-[6px] px-[9px] py-[3px] text-[10.5px] font-semibold bg-[var(--accent)] text-white border-none cursor-pointer"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={cancelPrompt}
+                className="rounded-[6px] px-[9px] py-[3px] text-[10.5px] bg-transparent text-[var(--muted)] border-none cursor-pointer"
+              >
+                Cancel
+              </button>
+            </span>
+          ) : (
+            <span className="ml-auto flex items-center gap-[6px] normal-case tracking-normal">
+              <button
+                type="button"
+                disabled={!canEdit}
+                onClick={(e) => { e.stopPropagation(); setPromptCollapsed(false); openPrompt(e); }}
+                title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : `Edit ${def.label}`}
+                className="rounded-[6px] px-[9px] py-[3px] text-[10.5px] font-semibold text-[var(--accent-ink)] bg-transparent border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                disabled={!canEdit}
+                title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : 'Remove Initial prompt'}
+                onClick={(e) => { e.stopPropagation(); if (window.confirm('Remove Initial prompt from this agent?')) void removeConfigKey(INITIAL_PROMPT_KEY); }}
+                className="opacity-0 group-hover:opacity-100 transition-opacity w-[16px] h-[16px] rounded-[4px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[11px] grid place-items-center cursor-pointer hover:text-[var(--err)] hover:border-[var(--err)] p-0 disabled:cursor-not-allowed"
+              >
+                ×
+              </button>
+            </span>
+          )}
         </div>
-        <textarea
-          autoFocus
-          value={promptDraft}
-          onChange={(e) => setPromptDraft(e.target.value)}
-          className="w-full min-h-[90px] font-mono text-[11.5px] border border-[var(--accent)] rounded-[7px] p-[8px] bg-[var(--bg)] text-[var(--text)] outline-none resize-y"
-        />
-        <div className="mt-[7px] flex gap-[8px] items-center">
-          <button
-            type="button"
-            onClick={() => void savePrompt()}
-            className="rounded-[6px] px-[11px] py-[5px] text-[11px] font-semibold bg-[var(--accent)] text-white border-none cursor-pointer"
-          >
-            Save
-          </button>
-          <button
-            type="button"
-            onClick={cancelPrompt}
-            className="rounded-[6px] px-[11px] py-[5px] text-[11px] bg-transparent text-[var(--muted)] border-none cursor-pointer"
-          >
-            Cancel
-          </button>
+        <div className="px-[12px] pb-[9px]" onClick={(e) => e.stopPropagation()}>
+          {editing ? (
+            <textarea
+              autoFocus
+              value={promptDraft}
+              onChange={(e) => setPromptDraft(e.target.value)}
+              className="w-full min-h-[90px] font-mono text-[11.5px] border border-[var(--accent)] rounded-[7px] p-[8px] bg-[var(--bg)] text-[var(--text)] outline-none resize-y"
+            />
+          ) : (
+            <p
+              onClick={(e) => { e.stopPropagation(); onToggleCite({ type: 'config', key: INITIAL_PROMPT_KEY, label: def.label }, e.ctrlKey || e.metaKey); }}
+              onDoubleClick={(e) => { e.stopPropagation(); openPrompt(e); }}
+              title={collapsed ? 'Click ▾ to see the full prompt' : 'Click to cite in chat · double-click to edit'}
+              className={`m-0 font-mono text-[12px] text-[var(--muted)] cursor-alias whitespace-pre-wrap hover:text-[var(--text)] hover:bg-[var(--accent-wash)] ${collapsed ? 'line-clamp-2' : ''}`}
+            >
+              {currentValue || <em>(empty)</em>}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -1153,9 +1255,14 @@ export function AgentView({
 
   // ── Render: custom JSON block (any datatype:'json' key — hooks, mcpServers) ────
   //
-  // Content is always visible (no "N entries" summary — 2026-07-31 redesign), but
-  // starts read-only. Clicking "Edit" (top right) — or the content itself — enters
-  // edit mode: a textarea plus Save/Cancel, same top-right slot "Edit" occupied.
+  // Three tiers, not two (2026-08-06): collapsed = pill row (compact glance — first-level
+  // entry names via customBlockEntryNames), expanded-not-editing = the full JSON,
+  // read-only, editing = the textarea. The chevron only ever toggles between the first
+  // two — it never opens edit mode. Edit/Save+Cancel live top-right in the header, same
+  // slot regardless of tier. Clicking the pill row OR the full-JSON view cites the whole
+  // block (not per-pill — a citation always sends the entire key's value, never one
+  // entry); double-click either one to edit. Cursor pairing: header = pointer + hover
+  // tint (toggle), body (either tier) = alias + hover accent-wash (cite).
   function renderCustomBlock(key: string) {
     if (!configMap.has(key)) return null;
     const def = getCatalogDef(key)!;
@@ -1163,6 +1270,7 @@ export function AgentView({
     const draft = getCustomDraft(key);
     const error = customJsonErrors[key] ?? null;
     const editing = isCustomEditing(key);
+    const collapsed = !editing && (customCollapsed[key] ?? true);
 
     const customNote = (
       <span className="font-normal text-[var(--faint)] text-[10px] normal-case tracking-normal ml-[4px]">
@@ -1189,65 +1297,91 @@ export function AgentView({
         key={key}
         data-cfg-block={key}
         data-citable
-        className={`mt-[14px] border rounded-[9px] bg-[var(--elev)] px-[12px] py-[9px] group ${
+        className={`mt-[14px] border rounded-[9px] bg-[var(--elev)] overflow-hidden group ${
           isCited ? 'border-[var(--accent)]' : 'border-[var(--border)]'
         }`}
       >
-        <div className="flex items-center gap-[7px] text-[10px] text-[var(--faint)] uppercase tracking-[.06em] font-bold mb-[7px]">
+        <div
+          className="flex items-center gap-[7px] text-[10px] text-[var(--faint)] uppercase tracking-[.06em] font-bold px-[12px] py-[9px] cursor-pointer hover:bg-[var(--bg)]"
+          onClick={() => { if (!editing) setCustomCollapsed((prev) => ({ ...prev, [key]: !(prev[key] ?? true) })); }}
+        >
+          <span className="text-[var(--faint)] text-[10px] normal-case">{collapsed ? '▸' : '▾'}</span>
           <span title={hint}>{def.label}</span>
           {customNote}
-          <span className="ml-auto flex items-center gap-[6px] normal-case tracking-normal">
-            {editing ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void saveCustomJson(key)}
-                  className="rounded-[6px] px-[9px] py-[3px] text-[10.5px] font-semibold bg-[var(--accent)] text-white border-none cursor-pointer"
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  onClick={() => clearCustomDraft(key)}
-                  className="rounded-[6px] px-[9px] py-[3px] text-[10.5px] bg-transparent text-[var(--muted)] border-none cursor-pointer"
-                >
-                  Cancel
-                </button>
-              </>
-            ) : (
+          {editing ? (
+            <span onClick={(e) => e.stopPropagation()} className="ml-auto flex items-center gap-[6px] normal-case tracking-normal">
+              <button
+                type="button"
+                onClick={() => void saveCustomJson(key)}
+                className="rounded-[6px] px-[9px] py-[3px] text-[10.5px] font-semibold bg-[var(--accent)] text-white border-none cursor-pointer"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => clearCustomDraft(key)}
+                className="rounded-[6px] px-[9px] py-[3px] text-[10.5px] bg-transparent text-[var(--muted)] border-none cursor-pointer"
+              >
+                Cancel
+              </button>
+            </span>
+          ) : (
+            <span className="ml-auto flex items-center gap-[6px] normal-case tracking-normal">
               <button
                 type="button"
                 disabled={!canEdit}
-                onClick={() => openCustomBlock(key)}
+                onClick={(e) => { e.stopPropagation(); setCustomCollapsed((prev) => ({ ...prev, [key]: false })); openCustomBlock(key); }}
                 title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : `Edit ${def.label}`}
                 className="rounded-[6px] px-[9px] py-[3px] text-[10.5px] font-semibold text-[var(--accent-ink)] bg-transparent border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Edit
               </button>
-            )}
-            {removeButton}
-          </span>
+              {removeButton}
+            </span>
+          )}
         </div>
-        {editing ? (
-          <textarea
-            autoFocus
-            value={draft}
-            onChange={(e) => setCustomDraft(key, e.target.value)}
-            className="w-full min-h-[130px] font-mono text-[11.5px] border border-[var(--accent)] rounded-[7px] p-[8px] bg-[var(--bg)] text-[var(--text)] outline-none resize-y"
-          />
-        ) : (
-          <pre
-            onClick={(e) => { e.stopPropagation(); onToggleCite({ type: 'config', key, label: def.label }, e.ctrlKey || e.metaKey); }}
-            onDoubleClick={(e) => { e.stopPropagation(); openCustomBlock(key); }}
-            title="Click to cite in chat · double-click to edit"
-            className="m-0 w-full min-h-[40px] font-mono text-[11.5px] whitespace-pre-wrap break-words text-[var(--muted)] cursor-pointer"
-          >
-            {draft}
-          </pre>
-        )}
-        {error && (
-          <p className="mt-[6px] mb-0 text-[11px] text-[var(--err)]">{error}</p>
-        )}
+        <div className="px-[12px] pb-[9px]" onClick={(e) => e.stopPropagation()}>
+          {editing ? (
+            <>
+              <textarea
+                autoFocus
+                value={draft}
+                onChange={(e) => setCustomDraft(key, e.target.value)}
+                className="w-full min-h-[130px] font-mono text-[11.5px] border border-[var(--accent)] rounded-[7px] p-[8px] bg-[var(--bg)] text-[var(--text)] outline-none resize-y"
+              />
+              {error && <p className="mt-[6px] mb-0 text-[11px] text-[var(--err)]">{error}</p>}
+            </>
+          ) : collapsed ? (
+            // Pill row — the compact tier. No "+ add" pill (2026-08-06 — removed;
+            // adding an entry here always meant opening the same full-block editor as
+            // "Edit", a redundant second entry point into the same action).
+            <div
+              onClick={(e) => { e.stopPropagation(); onToggleCite({ type: 'config', key, label: def.label }, e.ctrlKey || e.metaKey); }}
+              onDoubleClick={(e) => { e.stopPropagation(); openCustomBlock(key); }}
+              title="Click to cite in chat · double-click to edit the full block"
+              className="flex flex-wrap items-center gap-[6px] cursor-alias hover:bg-[var(--accent-wash)] rounded-[6px] p-[3px]"
+            >
+              {customBlockEntryNames(configMap.get(key)).map((name, i) => (
+                <span
+                  key={`${name}-${i}`}
+                  className="inline-flex items-center text-[10.5px] font-mono px-[8px] py-[2px] rounded-full border border-[var(--border)] text-[var(--text)] bg-[var(--elev)] select-none"
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
+          ) : (
+            // Expanded, not editing — the full tier: the whole JSON, read-only.
+            <pre
+              onClick={(e) => { e.stopPropagation(); onToggleCite({ type: 'config', key, label: def.label }, e.ctrlKey || e.metaKey); }}
+              onDoubleClick={(e) => { e.stopPropagation(); openCustomBlock(key); }}
+              title="Click to cite in chat · double-click to edit"
+              className="m-0 w-full font-mono text-[11.5px] whitespace-pre-wrap break-words text-[var(--muted)] cursor-alias hover:bg-[var(--accent-wash)] rounded-[6px] p-[3px]"
+            >
+              {draft}
+            </pre>
+          )}
+        </div>
       </div>
     );
   }

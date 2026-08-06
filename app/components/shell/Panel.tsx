@@ -59,9 +59,15 @@ export function Panel({
         className="flex-none flex items-center gap-2 px-3 py-2 border-b border-[var(--border)] bg-[var(--elev)] text-[11px] font-semibold tracking-[.06em] uppercase text-[var(--muted)]"
       >
         <span className="text-[var(--accent)]">{glyph}</span>
-        <span>{label}</span>
+        <span className="flex-none">{label}</span>
         {role && (
-          <span className="ml-auto font-medium tracking-[.03em] normal-case text-[var(--faint)] text-[10px]">
+          // truncate + min-w-0 (2026-08-06): a long role string (e.g. a long agent
+          // filename) was wrapping onto a second line instead of eliding — this keeps
+          // it to one line with "…", same header area regardless of content length.
+          <span
+            className="ml-auto min-w-0 truncate font-medium tracking-[.03em] normal-case text-[var(--faint)] text-[10px]"
+            title={typeof role === 'string' ? role : undefined}
+          >
             {role}
           </span>
         )}
