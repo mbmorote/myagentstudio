@@ -79,24 +79,29 @@ Both modes share the same deterministic frontmatter parse. `name`, `description`
 
 Select an agent in the Library panel to open it. Type an instruction in the **AI Chat** panel at the bottom of the center column and press Enter (or click Send).
 
-The mediator reads the full current content of every section, decides which ones the instruction actually requires changing, and rewrites only those. Changes appear immediately in the Visualization pane.
+**Chat proposes — it never writes directly.** ✦ Prometheus (the chat agent) reads the agent's current description, sections, and config, and replies with a natural-language message plus a **proposal**: a card listing exactly what it wants to change. Nothing is written to the agent until you click **Apply** on that card.
 
 **Examples of instructions that work:**
 
 - "Tighten the guardrails — make them more specific and fewer words."
 - "Add a Sources section listing the files this agent typically reads."
-- "Rename the agent to code-reviewer and update the Role section to match."
+- "Switch the model to opus and update the description to match."
 - "The Output section is missing a table format — add one."
+- "What do you think of my tools list?" — a pure question produces just a reply, no proposal card, and does not lock editing.
 
-**What the mediator will and will not do:**
+**What Prometheus can and cannot propose:**
 
-- It may rewrite any number of sections a single instruction genuinely requires. An instruction that touches Role and Guardrails simultaneously is fine.
-- It will not invent sections that are not there, and it will not silently drop content from sections the instruction did not ask to change.
+- **Editable via chat:** any number of sections, the description, and config values (model, tools, and every other config key) in one turn.
+- **Never editable via chat:** the agent's **name** — this is enforced by the server at Apply time, not just by a prompt instruction, so it can't be bypassed even by an unusual request.
+- It will not invent sections that are not there (adding or removing a section is not possible via chat today), and it will not silently drop content from parts the instruction did not ask to change.
 - It has no tools and cannot read files, call other agents, or reach anything outside the current agent's content.
+- Each proposed value is a **complete replacement**, never a partial diff — a config change updates only the keys it names, everything else survives untouched.
 
-**Cancellation:** If a chat request is in flight and you want to stop it, close the browser tab or navigate away. Nothing is written until the mediator completes and the server applies its response, so a cancelled request leaves the agent unchanged.
+**Reviewing and applying a proposal:** the card is collapsed by default (one line per changed part when expanded — description, each section, each config key), with a "show current" toggle per row to compare against what's there today before you commit. Click **Apply** to write every changed part in the proposal at once (there's no way to apply only part of it), or **Discard** to drop it. Sending a new chat message before applying or discarding also discards the pending proposal — only the latest turn's proposal is ever actionable. **Apply is last-write-wins**: if you've made no other changes since the proposal was returned (guaranteed by the lock below), there's nothing to conflict with.
 
-**Interaction lock:** While a chat request is in progress, the "Edit" button on each section is disabled. While you have an unsaved manual edit open, the Chat input is disabled. The two editing paths cannot overlap.
+**Cancellation:** click the ✕ button, or close the tab. Nothing is ever written by the chat call itself — cancelling just stops waiting for a reply that would have produced a proposal, same as any other interrupted request.
+
+**Interaction lock:** while a chat request is in flight, or while a proposal is pending review, every manual editor is disabled — section raw-edit, the name, and every config control (model/effort, tools, lists, JSON blocks). While you have an unsaved manual edit open, the Chat input is disabled. The three states (chat in flight / proposal pending / manual edit open) never overlap. A pending proposal survives a page reload (it's kept in your browser until you apply or discard it) and stays in sync across multiple tabs open on the same agent.
 
 ---
 
@@ -110,7 +115,7 @@ Click **Save** to write the change. The server checks that no other edit arrived
 
 Click **Cancel** to discard your changes and close the editor without saving.
 
-The Edit button is grayed out while a chat request is in progress.
+The Edit button is grayed out while a chat request is in progress, or while a chat proposal is pending review (see above).
 
 ---
 

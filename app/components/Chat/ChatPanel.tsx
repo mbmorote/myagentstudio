@@ -4,57 +4,71 @@
  * app/components/Chat/ChatPanel.tsx
  *
  * Plan 03 Phase B, B.10 — Restyled with message bubbles and section target chips.
+ * Plan 08 Phase 3 — Proposal card: ports Phase 0 mockup into real React; replaces
+ *   the Phase 2 placeholder. Full five-state proposal card (Pending / Applying /
+ *   Applied / Failed / Restored), before/after disclosure per row, warnings,
+ *   show-more truncation past ~12 lines, ✦ Prometheus label.
  *
  * Matches the mockup's .msg/.bubble/.who layout:
  *   - User messages: right-aligned, accent background
  *   - Assistant messages: left-aligned, elev background with border
  *
- * Target chips (R13): each section the mediator actually changed gets a
- * `◆ section · <sectionKey>` chip. Only section changes are chipped — never
- * config, regardless of what the mockup's demo dialogue shows. (The real
- * mediator doesn't edit config; this plan does not add that capability.)
+ * Target chips: ◆ section · <key>, ◆ config · <key>, ◆ description.
+ * Sourced from Object.keys(modifications.sections), Object.keys(modifications.config),
+ * and modifications.description presence (replaces the old sections-only R13 chips).
  *
- * Sends { agentId, instruction } to POST /api/chat via AbortController (Rules Index #23).
+ * Sends { agentId, instruction, citedSectionKeys?, citedConfigKeys? } to
+ * POST /api/chat via AbortController (Rules Index #23).
+ * Response shape: { proposal: { message, modifications, warnings }, meta }
+ * (old { sections: {...} } shape removed in Plan 08 Phase 1).
+ *
  * Interaction lock (§6 rule 12, Rules Index #22):
  *   - In flight: onChatStart() → lock='chat', edit disabled.
  *   - Done: onChatEnd() → lock released.
  *   - Cancel: abort() → lock released immediately.
  *   - lock='edit': send disabled.
+ *   - lock='proposal': send is ALLOWED — sending discards the pending proposal
+ *     first, then proceeds (§5.4 Decision F).
  *
  * Plan 05 Phase 4.1 — fetch → apiFetch (§5.4).
  * Plan 05 Phase 4.7 — cap-reached 429 handling (§3.9): two-action prompt
  *   "Preview without sending" (re-sends with dryRun:true) or "Wait" (dismiss).
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
-import type { InteractionLock, SectionUpdateResult, CitedItem } from '@/app/components/WorkbenchShell';
+import type { InteractionLock, CitedItem } from '@/app/components/WorkbenchShell';
+import type { PendingProposal } from '@/lib/proposalStore';
+import type { AgentDTO } from '@/lib/db/repository';
 import { apiFetch } from '@/lib/apiFetch';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
-  /** Sections that were actually changed in this turn */
+  /** Section keys changed in this turn → ◆ section · <key> chips */
   changedSectionKeys?: string[];
+  /** Config keys changed in this turn → ◆ config · <key> chips */
+  changedConfigKeys?: string[];
+  /** True when description was changed in this turn → ◆ description chip */
+  hasDescriptionChange?: boolean;
   /** Non-null when this message is a dry-run notice (§5.2) */
   dryRunLogId?: string | null;
 }
 
 /** State for a cap-reached prompt, shown in place of a message bubble (§3.9). */
 interface CapPrompt {
-  /** The instruction that was blocked, so we can re-send it as dry-run */
   instruction: string;
-  /** Human-readable time until a slot frees up */
   retryAfterSeconds: number;
-  /** Whether the preview fallback is available (should always be true here, but guard it) */
   canDryRun: boolean;
-  /** Preserves the citation the blocked attempt used, for the "Preview" retry (2026-07-31) */
   citedSectionKeys?: string[];
+  citedConfigKeys?: string[];
 }
 
 interface ChatPanelProps {
   agentId: string;
   agentName: string;
+  /** Full agent DTO — needed for before/after display in the proposal card. */
+  agent: AgentDTO | null;
   interactionLock: InteractionLock;
   /** Sections/config blocks currently cited (WorkbenchShell) — display-only here. */
   citedItems: CitedItem[];
@@ -63,19 +77,93 @@ interface ChatPanelProps {
   onClearCited: () => void;
   onChatStart: () => void;
   onChatEnd: () => void;
-  onSectionsUpdated: (updates: Record<string, SectionUpdateResult>) => void;
+  /**
+   * Called when a 200 response with non-empty modifications arrives.
+   * WorkbenchShell owns the write to proposalStore — not ChatPanel.
+   * Keeps storage ownership centralized in the same place as Apply/Discard.
+   */
+  onProposalReceived: (
+    message: string,
+    modifications: PendingProposal['modifications'],
+    warnings: string[],
+  ) => void;
+  /** Plan 08 Phase 2: pending proposal from WorkbenchShell's proposalStore. */
+  pendingProposal?: PendingProposal | null;
+  /** True while the apply POST is in flight. */
+  isApplying?: boolean;
+  onApplyProposal?: () => Promise<void>;
+  onDiscardProposal?: () => void;
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Build the "2 sections · 1 config key · description" summary string. */
+function buildModSummary(mods: PendingProposal['modifications']): string {
+  const parts: string[] = [];
+  const sectionCount = Object.keys(mods.sections ?? {}).length;
+  const configCount = Object.keys(mods.config ?? {}).length;
+  if (sectionCount > 0) parts.push(`${sectionCount} section${sectionCount !== 1 ? 's' : ''}`);
+  if (configCount > 0) parts.push(`${configCount} config key${configCount !== 1 ? 's' : ''}`);
+  if (mods.description !== undefined) parts.push('description');
+  return parts.join(' · ') || 'no changes';
+}
+
+/** Format a config value for display. */
+function formatConfigValue(value: unknown): { isNull: boolean; text: string } {
+  if (value === null) return { isNull: true, text: 'Remove this key' };
+  try {
+    return { isNull: false, text: JSON.stringify(value, null, 2) };
+  } catch {
+    return { isNull: false, text: String(value) };
+  }
+}
+
+/** Count newline-separated lines in a string. */
+function countLines(str: string): number {
+  return str.split('\n').length;
+}
+
+/** Return a relative time string ("2 hours ago", "5 minutes ago", etc.). */
+function relativeTime(isoString: string): string {
+  const diffMs = Date.now() - new Date(isoString).getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return 'just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} minute${diffMin !== 1 ? 's' : ''} ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hour${diffHr !== 1 ? 's' : ''} ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  return `${diffDay} day${diffDay !== 1 ? 's' : ''} ago`;
+}
+
+/** True when the proposal is older than 60 s — treat as "restored from last session". */
+function isRestoredProposal(proposedAt: string): boolean {
+  return Date.now() - new Date(proposedAt).getTime() > 60_000;
+}
+
+function humanizeSecs(secs: number): string {
+  if (secs < 60) return `${secs} second${secs !== 1 ? 's' : ''}`;
+  const m = Math.floor(secs / 60);
+  return `${m} minute${m !== 1 ? 's' : ''}`;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export function ChatPanel({
   agentId,
   agentName,
+  agent,
   interactionLock,
   citedItems,
   onRemoveCite,
   onClearCited,
   onChatStart,
   onChatEnd,
-  onSectionsUpdated,
+  onProposalReceived,
+  pendingProposal,
+  isApplying,
+  onApplyProposal,
+  onDiscardProposal,
 }: ChatPanelProps) {
   const [instruction, setInstruction] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -84,16 +172,303 @@ export function ChatPanel({
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // ── Proposal card local state ─────────────────────────────────────────────
+  /** Error message set when Apply fails; cleared on new proposal or Discard. */
+  const [applyError, setApplyError] = useState<string | null>(null);
+  /** Brief "✓ Applied" flash after a successful apply; auto-clears after 2.5 s. */
+  const [appliedTransient, setAppliedTransient] = useState(false);
+  /** Previous isApplying value — lets the effect detect the true→false transition. */
+  const prevIsApplyingRef = useRef(false);
+  /** Rows with "show current (before)" expanded. Keyed by rowId. */
+  const [openBeforeRows, setOpenBeforeRows] = useState<Set<string>>(new Set());
+  /** Rows with long-value "show more" expanded. Keyed by rowId. */
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  // Reset per-row UI toggles (and stale error/applied state) whenever a new proposal
+  // arrives — identified by its (agentId, proposedAt) pair.
+  const proposalKey = pendingProposal
+    ? `${pendingProposal.agentId}:${pendingProposal.proposedAt}`
+    : null;
+  const prevProposalKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (proposalKey === prevProposalKeyRef.current) return;
+    prevProposalKeyRef.current = proposalKey;
+    setOpenBeforeRows(new Set());
+    setExpandedRows(new Set());
+    if (proposalKey !== null) {
+      // New proposal replaced an old one — clear any stale error/applied state.
+      setApplyError(null);
+      setAppliedTransient(false);
+    }
+  }, [proposalKey]);
+
+  // Detect Apply success/failure by watching isApplying transition true → false.
+  // In React 18, setIsApplying(false) and clearProposal() (→ useSyncExternalStore)
+  // batch into one render, so the check below sees both final values at once.
+  useEffect(() => {
+    const wasApplying = prevIsApplyingRef.current;
+    prevIsApplyingRef.current = !!isApplying;
+
+    if (!wasApplying || isApplying) return; // no transition, nothing to do
+
+    if (pendingProposal != null) {
+      // isApplying went false but proposal still exists → apply failed
+      setApplyError('Apply failed — your changes were not saved. Try again.');
+      return;
+    }
+
+    // Proposal cleared → success
+    setApplyError(null);
+    setAppliedTransient(true);
+    const t = setTimeout(() => setAppliedTransient(false), 2500);
+    return () => clearTimeout(t);
+  }, [isApplying, pendingProposal]);
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  const canSend = !isInFlight && interactionLock !== 'edit' && instruction.trim().length > 0;
+  // 'proposal' lock: send is ALLOWED (§5.4 Decision F — discards proposal first).
+  const canSend =
+    !isInFlight &&
+    interactionLock !== 'edit' &&
+    instruction.trim().length > 0;
   const canCancel = isInFlight;
 
-  /** Core send logic — separated so it can be called both for normal sends and
-   *  the dry-run re-send on cap-reached "Preview" (§3.9). */
-  async function doSend(text: string, dryRun = false, citedSectionKeys?: string[]) {
+  // ── Per-row toggle helpers ────────────────────────────────────────────────
+  function toggleBefore(rowId: string) {
+    setOpenBeforeRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowId)) next.delete(rowId); else next.add(rowId);
+      return next;
+    });
+  }
+  function toggleExpanded(rowId: string) {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowId)) next.delete(rowId); else next.add(rowId);
+      return next;
+    });
+  }
+
+  // ── Proposal card renderer ────────────────────────────────────────────────
+  /**
+   * Renders the proposal card in one of five states:
+   *   Applied (transient), Pending, Applying, Failed, or Restored.
+   * Returns null when neither pendingProposal nor appliedTransient is active.
+   */
+  function renderProposalCard() {
+    // Applied transient: collapse to a single "✓ Applied" line
+    if (!pendingProposal && appliedTransient) {
+      return (
+        <div className="mt-[8px] border border-[var(--border)] rounded-[9px] overflow-hidden bg-[var(--bg)]">
+          <div className="px-[10px] py-[5px] text-[11px] text-[var(--faint)] flex items-center gap-[5px]">
+            <span className="text-[var(--ok)] font-semibold">✓</span> Applied
+          </div>
+        </div>
+      );
+    }
+
+    if (!pendingProposal) return null;
+
+    const mods = pendingProposal.modifications;
+    const summary = buildModSummary(mods);
+    const applying = !!isApplying;
+    const restored = isRestoredProposal(pendingProposal.proposedAt);
+
+    const sectionEntries = Object.entries(mods.sections ?? {});
+    const configEntries = Object.entries(mods.config ?? {});
+    const descriptionValue = mods.description;
+
+    return (
+      <details className="mt-[8px] border border-[var(--border)] rounded-[9px] overflow-hidden bg-[var(--bg)]">
+        <summary className="flex items-center gap-[7px] px-[10px] py-[6px] bg-[var(--panel)] border-b border-[var(--border)] list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none">
+          <span className="text-[11px] font-semibold text-[var(--text)]">Proposed changes</span>
+          <span className="text-[10.5px] text-[var(--faint)]">{summary}</span>
+          <span className="text-[10px] text-[var(--faint)] ml-auto">▾</span>
+        </summary>
+
+        {/* Restored-from-localStorage note */}
+        {restored && (
+          <div className="px-[10px] py-[5px] text-[10px] text-[var(--warn)] flex items-center gap-[5px] border-b border-[var(--border)]">
+            ⟳ Proposed {relativeTime(pendingProposal.proposedAt)} — restored from your last session.
+          </div>
+        )}
+
+        {/* Description row */}
+        {descriptionValue !== undefined &&
+          renderContentRow(
+            'description',
+            'Description',
+            descriptionValue,
+            false,
+            agent?.description ?? null,
+          )}
+
+        {/* Section rows */}
+        {sectionEntries.map(([key, content]) =>
+          renderContentRow(
+            `section:${key}`,
+            `Section · ${key}`,
+            content,
+            false,
+            agent?.sections.find((s) => s.sectionKey === key)?.content ?? null,
+          ),
+        )}
+
+        {/* Config rows */}
+        {configEntries.map(([key, rawValue]) => {
+          const { isNull, text } = formatConfigValue(rawValue);
+          const existing = agent?.config.find((c) => c.propKey === key);
+          const beforeText = existing != null ? formatConfigValue(existing.value).text : null;
+          return renderContentRow(`config:${key}`, `Config · ${key}`, text, isNull, beforeText);
+        })}
+
+        {/* Server-side warnings */}
+        {(pendingProposal.warnings ?? []).map((w, wi) => (
+          <div
+            key={wi}
+            className="px-[10px] py-[5px] text-[10.5px] text-[var(--warn)] border-b border-[var(--border)] bg-[rgba(179,128,28,0.07)]"
+          >
+            ⚠ {w}
+          </div>
+        ))}
+
+        {/* Apply-failed error line (§6.3 Failed state) */}
+        {applyError && (
+          <div className="px-[10px] py-[5px] text-[10.5px] text-[var(--err)] border-b border-[var(--border)] bg-[rgba(207,75,65,0.07)]">
+            ⚠ {applyError}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="px-[10px] py-[7px] border-t border-[var(--border)] bg-[var(--panel)]">
+          <div className="flex items-center gap-[7px] flex-wrap">
+            <button
+              type="button"
+              disabled={applying}
+              onClick={() => void onApplyProposal?.()}
+              className={`font-[inherit] text-[11.5px] rounded-[6px] px-[12px] py-[5px] border-none bg-[var(--accent)] text-white font-semibold ${
+                applying
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'cursor-pointer hover:brightness-110'
+              }`}
+            >
+              {applying ? (
+                <>
+                  <span className="inline-block w-[9px] h-[9px] border-[1.5px] border-white/35 border-t-white rounded-full animate-spin align-middle mr-[4px]" />
+                  Applying…
+                </>
+              ) : (
+                'Apply'
+              )}
+            </button>
+            <button
+              type="button"
+              disabled={applying}
+              onClick={() => {
+                setApplyError(null);
+                onDiscardProposal?.();
+              }}
+              className={`font-[inherit] text-[11.5px] rounded-[6px] px-[12px] py-[5px] border border-[var(--border)] bg-[var(--elev)] text-[var(--muted)] ${
+                applying
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'cursor-pointer hover:text-[var(--text)] hover:border-[var(--text)]'
+              }`}
+            >
+              Discard
+            </button>
+            <span className="text-[10px] text-[var(--faint)] ml-[4px]">
+              Editing is locked until you apply or discard.
+            </span>
+          </div>
+        </div>
+      </details>
+    );
+  }
+
+  /**
+   * Renders one row inside the proposal card (description, section, or config).
+   * The key prop is set on the returned div so React reconciles arrays correctly.
+   */
+  function renderContentRow(
+    rowId: string,
+    label: string,
+    value: string,
+    isNullRemoval: boolean,
+    beforeValue: string | null,
+  ) {
+    const isLong = countLines(value) > 12;
+    const isExpanded = expandedRows.has(rowId);
+    const showBefore = openBeforeRows.has(rowId);
+
+    return (
+      <div key={rowId} className="px-[10px] py-[7px] border-b border-[var(--border)] last:border-b-0">
+        {/* Row header: label + optional "show/hide current" toggle */}
+        <div className="flex items-center mb-[4px]">
+          <span className="text-[10px] text-[var(--faint)] tracking-[.04em] uppercase">
+            {label}
+          </span>
+          {beforeValue !== null && (
+            <button
+              type="button"
+              onClick={() => toggleBefore(rowId)}
+              className="ml-auto text-[10px] text-[var(--accent-ink)] bg-transparent border-none p-0 font-[inherit] cursor-pointer hover:underline"
+            >
+              {showBefore ? 'hide current ▴' : 'show current ▾'}
+            </button>
+          )}
+        </div>
+
+        {/* New value */}
+        {isNullRemoval ? (
+          <pre className="font-[var(--mono,monospace)] text-[10.5px] whitespace-pre-wrap text-[var(--text)] m-0 bg-[var(--elev)] border border-[var(--border)] rounded-[5px] px-[8px] py-[5px] leading-[1.5] block">
+            <em className="not-italic text-[var(--muted)]">Remove this key</em>
+          </pre>
+        ) : (
+          <div className="relative">
+            <pre
+              className={`font-[var(--mono,monospace)] text-[10.5px] whitespace-pre-wrap text-[var(--text)] m-0 bg-[var(--elev)] border border-[var(--border)] rounded-[5px] px-[8px] py-[5px] leading-[1.5] block${isLong && !isExpanded ? ' max-h-[185px] overflow-hidden' : ''}`}
+            >
+              {value}
+            </pre>
+            {isLong && !isExpanded && (
+              <div className="absolute bottom-0 left-0 right-0 h-[36px] bg-gradient-to-t from-[var(--bg)] to-transparent rounded-b-[5px] pointer-events-none" />
+            )}
+            {isLong && (
+              <button
+                type="button"
+                onClick={() => toggleExpanded(rowId)}
+                className="block text-right w-full text-[10px] italic text-[var(--accent-ink)] mt-[2px] bg-transparent border-none p-0 cursor-pointer font-[inherit] hover:underline"
+              >
+                {isExpanded ? 'show less…' : 'show more…'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Before value (current) */}
+        {showBefore && beforeValue !== null && (
+          <div className="mt-[6px] pt-[6px] border-t border-dashed border-[var(--border)]">
+            <span className="text-[10px] text-[var(--faint)] mb-[3px] italic block">
+              Current value
+            </span>
+            <pre className="font-[var(--mono,monospace)] text-[10.5px] whitespace-pre-wrap text-[var(--text)] m-0 bg-[var(--elev)] border border-[var(--border)] rounded-[5px] px-[8px] py-[5px] leading-[1.5] block opacity-70">
+              {beforeValue}
+            </pre>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Core send logic ───────────────────────────────────────────────────────
+  async function doSend(
+    text: string,
+    dryRun = false,
+    citedSectionKeys?: string[],
+    citedConfigKeys?: string[],
+  ) {
     setIsInFlight(true);
     setCapPrompt(null);
     onChatStart();
@@ -110,6 +485,7 @@ export function ChatPanel({
           instruction: text,
           ...(dryRun ? { dryRun: true } : {}),
           ...(citedSectionKeys && citedSectionKeys.length > 0 ? { citedSectionKeys } : {}),
+          ...(citedConfigKeys && citedConfigKeys.length > 0 ? { citedConfigKeys } : {}),
         }),
         signal: controller.signal,
       });
@@ -121,26 +497,30 @@ export function ChatPanel({
         error?: string;
         dryRun?: boolean;
         logId?: string | null;
-        sections?: Record<string, SectionUpdateResult>;
+        proposal?: {
+          message: string;
+          modifications: PendingProposal['modifications'];
+          warnings: string[];
+        };
         limit?: number;
         windowSeconds?: number;
         retryAfterSeconds?: number;
         canDryRun?: boolean;
       };
 
-      // Per-user LLM cap reached (§3.9) — offer two choices instead of showing an error
+      // Per-user LLM cap reached (§3.9)
       if (response.status === 429 && body.error === 'llm_cap_reached') {
         setCapPrompt({
           instruction: text,
           retryAfterSeconds: body.retryAfterSeconds ?? 60,
           canDryRun: body.canDryRun ?? true,
           citedSectionKeys,
+          citedConfigKeys,
         });
         return;
       }
 
       // Dry-run blocked: render as assistant notice bubble with link (§5.2)
-      // The finally block still runs → interaction lock is released.
       if (body.dryRun) {
         setMessages((prev) => [
           ...prev,
@@ -161,36 +541,40 @@ export function ChatPanel({
         return;
       }
 
-      const result = { sections: body.sections ?? {} } as {
-        sections: Record<string, SectionUpdateResult>;
-      };
+      // ── 200 success — new propose-only contract (Plan 08 Phase 1) ──────────
+      const proposal = body.proposal;
+      if (!proposal) {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', text: 'Error: unexpected response shape from server.' },
+        ]);
+        return;
+      }
 
-      const changedKeys = Object.keys(result.sections);
-      const successKeys = changedKeys.filter((k) => !('conflict' in result.sections[k]));
-      const conflictKeys = changedKeys.filter((k) => 'conflict' in result.sections[k]);
-
-      let summary = '';
-      if (successKeys.length > 0) {
-        summary += `Updated: ${successKeys.join(', ')}.`;
-      }
-      if (conflictKeys.length > 0) {
-        summary += ` Conflict on: ${conflictKeys.join(', ')} (showing current server content).`;
-      }
-      if (changedKeys.length === 0) {
-        summary = 'No sections changed.';
-      }
+      const mods = proposal.modifications ?? {};
+      const changedSectionKeys = Object.keys(mods.sections ?? {});
+      const changedConfigKeys = Object.keys(mods.config ?? {});
+      const hasDescriptionChange = mods.description !== undefined;
+      const hasModifications =
+        changedSectionKeys.length > 0 || changedConfigKeys.length > 0 || hasDescriptionChange;
 
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          text: summary,
-          // R13: only section keys go in chips — never config
-          changedSectionKeys: successKeys,
+          text: proposal.message,
+          changedSectionKeys: changedSectionKeys.length > 0 ? changedSectionKeys : undefined,
+          changedConfigKeys: changedConfigKeys.length > 0 ? changedConfigKeys : undefined,
+          hasDescriptionChange: hasDescriptionChange || undefined,
         },
       ]);
 
-      onSectionsUpdated(result.sections);
+      if (hasModifications) {
+        // Report proposal upward — WorkbenchShell writes to proposalStore (§6.2)
+        onProposalReceived(proposal.message, mods, proposal.warnings ?? []);
+      }
+      // Empty modifications → question-only turn; no card, no lock (§5.4)
+
       setTimeout(scrollToBottom, 50);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
@@ -210,26 +594,37 @@ export function ChatPanel({
     const trimmed = instruction.trim();
     if (!trimmed) return;
 
-    // Capture the citation for this message, then clear it — a citation applies
+    // Decision F (§5.4): sending while a proposal is pending discards it first.
+    if (pendingProposal) {
+      onDiscardProposal?.();
+      setApplyError(null);
+      setAppliedTransient(false);
+    }
+
+    // Capture citations for this message, then clear — a citation applies
     // to the message it was visible for, not to whatever's sent next (2026-07-31).
-    const citedSectionKeys = citedItems.filter((c) => c.type === 'section').map((c) => c.key);
+    const secKeys = citedItems.filter((c) => c.type === 'section').map((c) => c.key);
+    const cfgKeys = citedItems.filter((c) => c.type === 'config').map((c) => c.key);
     onClearCited();
 
     setMessages((prev) => [...prev, { role: 'user', text: trimmed }]);
     setInstruction('');
-    await doSend(trimmed, false, citedSectionKeys);
+    await doSend(
+      trimmed,
+      false,
+      secKeys.length > 0 ? secKeys : undefined,
+      cfgKeys.length > 0 ? cfgKeys : undefined,
+    );
   }
 
   /** "Preview without sending" — re-sends the blocked instruction as dry-run (§3.9) */
   async function handleCapPreview() {
     if (!capPrompt) return;
-    const text = capPrompt.instruction;
-    const citedSectionKeys = capPrompt.citedSectionKeys;
+    const { instruction: text, citedSectionKeys, citedConfigKeys } = capPrompt;
     setCapPrompt(null);
-    await doSend(text, true, citedSectionKeys);
+    await doSend(text, true, citedSectionKeys, citedConfigKeys);
   }
 
-  /** "Wait" — dismiss the cap prompt */
   function handleCapDismiss() {
     setCapPrompt(null);
   }
@@ -240,31 +635,34 @@ export function ChatPanel({
     abortControllerRef.current = null;
     setIsInFlight(false);
     onChatEnd();
-    setMessages((prev) => [
-      ...prev,
-      { role: 'assistant', text: '(Cancelled)' },
-    ]);
+    setMessages((prev) => [...prev, { role: 'assistant', text: '(Cancelled)' }]);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   }
 
-  function humanizeSecs(secs: number): string {
-    if (secs < 60) return `${secs} second${secs !== 1 ? 's' : ''}`;
-    const m = Math.floor(secs / 60);
-    return `${m} minute${m !== 1 ? 's' : ''}`;
-  }
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     /* .chat */
     <div data-chat-panel className="flex flex-col h-full">
       {/* Message scroll area — .chat-scroll */}
       <div className="flex-1 min-h-0 overflow-auto px-[14px] pt-[14px] pb-[6px] flex flex-col gap-3">
-        {messages.length === 0 && !capPrompt && (
+
+        {/* Standalone proposal card — restore case: no messages in this session yet */}
+        {messages.length === 0 && (pendingProposal || appliedTransient) && (
+          <div className="self-start w-full max-w-[92%]">
+            <span className="text-[10px] text-[var(--faint)] tracking-[.04em] mb-[4px] block">
+              ✦ Prometheus
+            </span>
+            {renderProposalCard()}
+          </div>
+        )}
+
+        {messages.length === 0 && !capPrompt && !pendingProposal && !appliedTransient && (
           <p className="text-[12px] text-[var(--faint)] text-center pt-8">
             Edit {agentName}…
             <br />
@@ -272,70 +670,94 @@ export function ChatPanel({
           </p>
         )}
 
-        {messages.map((msg, i) => (
-          /* .msg */
-          <div
-            key={i}
-            className={`flex flex-col gap-1 max-w-[92%] ${
-              msg.role === 'user' ? 'self-end items-end' : 'self-start items-start'
-            }`}
-          >
-            {/* .who */}
-            <span className="text-[10px] text-[var(--faint)] tracking-[.04em] flex items-center gap-[6px]">
-              {msg.role === 'user' ? 'You' : '✦ Mediator'}
-            </span>
-
-            {/* .bubble */}
+        {messages.map((msg, i) => {
+          const isLastAssistant = msg.role === 'assistant' && i === messages.length - 1;
+          return (
+            /* .msg */
             <div
-              className={`px-[11px] py-[8px] rounded-[10px] text-[12px] leading-[1.5] ${
-                msg.role === 'user'
-                  ? 'bg-[var(--accent)] text-white rounded-br-[3px]'
-                  : 'bg-[var(--elev)] border border-[var(--border)] text-[var(--text)] rounded-bl-[3px]'
+              key={i}
+              className={`flex flex-col gap-1 max-w-[92%] ${
+                msg.role === 'user' ? 'self-end items-end' : 'self-start items-start'
               }`}
             >
-              {msg.text}
+              {/* .who */}
+              <span className="text-[10px] text-[var(--faint)] tracking-[.04em] flex items-center gap-[6px]">
+                {msg.role === 'user' ? 'You' : '✦ Prometheus'}
+              </span>
 
-              {/* Dry-run notice link (§5.2) */}
-              {msg.role === 'assistant' && msg.dryRunLogId !== undefined && (
-                <div className="mt-[6px] text-[11px] text-[var(--muted)]">
-                  {msg.dryRunLogId ? (
-                    <Link
-                      href={`/settings?log=${msg.dryRunLogId}`}
-                      className="text-[var(--accent)] hover:underline"
-                    >
-                      View log entry →
+              {/* .bubble */}
+              <div
+                className={`px-[11px] py-[8px] rounded-[10px] text-[12px] leading-[1.5] ${
+                  msg.role === 'user'
+                    ? 'bg-[var(--accent)] text-white rounded-br-[3px]'
+                    : 'bg-[var(--elev)] border border-[var(--border)] text-[var(--text)] rounded-bl-[3px]'
+                }`}
+              >
+                {msg.text}
+
+                {/* Dry-run notice link (§5.2) */}
+                {msg.role === 'assistant' && msg.dryRunLogId !== undefined && (
+                  <div className="mt-[6px] text-[11px] text-[var(--muted)]">
+                    {msg.dryRunLogId ? (
+                      <Link
+                        href={`/settings?log=${msg.dryRunLogId}`}
+                        className="text-[var(--accent)] hover:underline"
+                      >
+                        View log entry →
+                      </Link>
+                    ) : (
+                      <span className="text-[var(--faint)]">(log entry could not be written)</span>
+                    )}
+                    {' · '}
+                    <Link href="/settings" className="text-[var(--accent)] hover:underline">
+                      Open Settings
                     </Link>
-                  ) : (
-                    <span className="text-[var(--faint)]">(log entry could not be written)</span>
-                  )}
-                  {' · '}
-                  <Link href="/settings" className="text-[var(--accent)] hover:underline">
-                    Open Settings
-                  </Link>
-                </div>
-              )}
+                  </div>
+                )}
 
-              {/* R13: target chips — sections only, never config */}
-              {msg.role === 'assistant' && msg.changedSectionKeys && msg.changedSectionKeys.length > 0 && (
-                <div className="flex flex-wrap gap-[4px] mt-[6px]">
-                  {msg.changedSectionKeys.map((key) => (
-                    <span
-                      key={key}
-                      className="inline-flex items-center gap-[5px] text-[10.5px] text-[var(--accent-ink)] bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[6px] px-[7px] py-[2px]"
-                    >
-                      ◆ section · {key}
-                    </span>
-                  ))}
-                </div>
-              )}
+                {/* Target chips: ◆ section · <key>, ◆ config · <key>, ◆ description */}
+                {msg.role === 'assistant' &&
+                  (msg.changedSectionKeys?.length ||
+                    msg.changedConfigKeys?.length ||
+                    msg.hasDescriptionChange) && (
+                    <div className="flex flex-wrap gap-[4px] mt-[6px]">
+                      {msg.changedSectionKeys?.map((k) => (
+                        <span
+                          key={`s:${k}`}
+                          className="inline-flex items-center gap-[5px] text-[10.5px] text-[var(--accent-ink)] bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[6px] px-[7px] py-[2px]"
+                        >
+                          ◆ section · {k}
+                        </span>
+                      ))}
+                      {msg.changedConfigKeys?.map((k) => (
+                        <span
+                          key={`c:${k}`}
+                          className="inline-flex items-center gap-[5px] text-[10.5px] text-[var(--accent-ink)] bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[6px] px-[7px] py-[2px]"
+                        >
+                          ◆ config · {k}
+                        </span>
+                      ))}
+                      {msg.hasDescriptionChange && (
+                        <span className="inline-flex items-center gap-[5px] text-[10.5px] text-[var(--accent-ink)] bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[6px] px-[7px] py-[2px]">
+                          ◆ description
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                {/* Proposal card — inside the last assistant bubble (§6.2) */}
+                {isLastAssistant && renderProposalCard()}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Cap-reached prompt (§3.9) — two actions instead of an error */}
         {capPrompt && (
           <div className="self-start max-w-[92%]">
-            <span className="text-[10px] text-[var(--faint)] tracking-[.04em] mb-1 block">✦ Mediator</span>
+            <span className="text-[10px] text-[var(--faint)] tracking-[.04em] mb-1 block">
+              ✦ Prometheus
+            </span>
             <div className="bg-[var(--elev)] border border-[var(--warn)] rounded-[10px] rounded-bl-[3px] px-[11px] py-[8px] text-[12px] leading-[1.5] space-y-2">
               <p className="text-[var(--text)] font-medium">Hourly call limit reached</p>
               <p className="text-[var(--muted)]">
@@ -383,7 +805,7 @@ export function ChatPanel({
 
       {/* Prompt bar — .prompt */}
       <div className="flex-none border-t border-[var(--border)] p-[10px] bg-[var(--elev)]">
-        {/* Citation chips — what's cited for the next message, not its content (2026-07-31) */}
+        {/* Citation chips — what's cited for the next message (2026-07-31) */}
         {citedItems.length > 0 && (
           <div className="flex flex-wrap gap-[4px] mb-[6px]">
             {citedItems.map((item) => (
@@ -405,9 +827,7 @@ export function ChatPanel({
             Chat disabled — a section has unsaved edits.
           </p>
         )}
-        <div
-          className="flex items-center gap-2 bg-[var(--bg)] border border-[var(--border)] rounded-[9px] px-[10px] py-[8px] focus-within:border-[var(--accent)] focus-within:[box-shadow:0_0_0_3px_var(--accent-wash)]"
-        >
+        <div className="flex items-center gap-2 bg-[var(--bg)] border border-[var(--border)] rounded-[9px] px-[10px] py-[8px] focus-within:border-[var(--accent)] focus-within:[box-shadow:0_0_0_3px_var(--accent-wash)]">
           <input
             value={instruction}
             onChange={(e) => setInstruction(e.target.value)}
@@ -436,7 +856,7 @@ export function ChatPanel({
           )}
         </div>
         <div className="mt-[6px] text-[var(--faint)] text-[10px] pl-[2px]">
-          Targets the selected agent · changes land in the panels above
+          Targets the selected agent · proposes changes · Apply or Discard to apply
         </div>
       </div>
     </div>

@@ -98,7 +98,7 @@ The UI is a four-pane IDE layout:
 
 - **Library** (left, foldable) — your agent list, organized into collapsible groups. Drag an agent onto a group to add it as a member. Create groups and import files from the action bar at the bottom.
 - **Custom Visualization** (center top) — the currently selected agent split into its named sections (Role, Behavior, Guardrails, Output, and any optional or custom sections). Each section can be expanded, collapsed, or edited in place.
-- **AI Chat** (center bottom) — type an instruction and the mediator rewrites whichever sections the instruction requires. Changes appear immediately in the Visualization pane above.
+- **AI Chat** (center bottom) — type an instruction and ✦ Prometheus proposes a change to the description, sections, and/or config. Review the proposal card and click Apply (or Discard) — nothing lands until you do.
 - **Raw** (right, foldable) — a live read-only export preview of the agent as it would be written to a `.md` file. Updates after every save.
 
 All four panels resize via drag gutters. Library and Raw fold to rails to reclaim space.

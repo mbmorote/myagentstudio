@@ -246,7 +246,10 @@ export function AgentView({
   );
 
   // ── Interaction lock ──────────────────────────────────────────────────────
-  const canEdit = interactionLock !== 'chat';
+  // Extended in Plan 08 Phase 2 to also block on 'proposal' — closes the pre-existing
+  // gap where config was editable mid-chat-call (§5.5), and blocks all editors while
+  // a proposal is pending (§5.4).
+  const canEdit = interactionLock !== 'chat' && interactionLock !== 'proposal';
 
   // ── Name editing state ────────────────────────────────────────────────────
   const [isEditingName, setIsEditingName] = useState(false);
@@ -509,6 +512,7 @@ export function AgentView({
 
   function openScalarPick(e: React.MouseEvent, key: string) {
     e.stopPropagation();
+    if (!canEdit) return;
     resolveConfigEditors();
     if (editingScalarKey === key) {
       setEditingScalarKey(null);
@@ -582,6 +586,7 @@ export function AgentView({
   // ── Add key ───────────────────────────────────────────────────────────────
 
   function addKey(key: string) {
+    if (!canEdit) return;
     setAddKeyMenuOpen(false);
     const def = getCatalogDef(key);
     if (!def) return;
@@ -632,6 +637,7 @@ export function AgentView({
 
   /** Enters edit mode: seeds the draft from the stored value. */
   function openCustomBlock(key: string) {
+    if (!canEdit) return;
     resolveAllEditors();
     setCustomDraft(key, getCustomDraft(key));
   }
@@ -676,6 +682,7 @@ export function AgentView({
 
   function openPrompt(e: React.MouseEvent) {
     e.stopPropagation();
+    if (!canEdit) return;
     resolveAllEditors();
     setPromptExpanded(true);
     setPromptDraft((configMap.get(INITIAL_PROMPT_KEY) as string) ?? '');
@@ -821,9 +828,10 @@ export function AgentView({
         ) : (
           <button
             type="button"
-            title={`Remove ${def.label}`}
+            disabled={!canEdit}
+            title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : `Remove ${def.label}`}
             onClick={(e) => { e.stopPropagation(); if (window.confirm(`Remove ${def.label} from this agent?`)) void removeConfigKey(key); }}
-            className="opacity-0 group-hover:opacity-100 transition-opacity flex-none w-[16px] h-[16px] rounded-[4px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[11px] grid place-items-center cursor-pointer hover:text-[var(--err)] hover:border-[var(--err)] p-0"
+            className="opacity-0 group-hover:opacity-100 transition-opacity flex-none w-[16px] h-[16px] rounded-[4px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[11px] grid place-items-center cursor-pointer hover:text-[var(--err)] hover:border-[var(--err)] p-0 disabled:cursor-not-allowed"
           >
             ×
           </button>
@@ -872,16 +880,17 @@ export function AgentView({
           {item}
           <span
             className="text-[9px] font-bold uppercase tracking-[.03em] text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] rounded-[5px] px-[5px] py-[1px] cursor-pointer"
-            onClick={(e) => { e.stopPropagation(); setRestrictionDraft(restriction); setEditingRestriction(true); setSelectedItem({ key: propKey, item }); }}
-            title="Click to edit subagent type restrictions"
+            onClick={(e) => { e.stopPropagation(); if (!canEdit) return; setRestrictionDraft(restriction); setEditingRestriction(true); setSelectedItem({ key: propKey, item }); }}
+            title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : 'Click to edit subagent type restrictions'}
           >
             ⌘ main-agent only
           </span>
           <button
             type="button"
+            disabled={!canEdit}
             onClick={(e) => { e.stopPropagation(); void removeListItem(propKey, item); }}
-            className="opacity-60 hover:opacity-100 font-bold ml-[1px]"
-            title={`Remove ${item}`}
+            className="opacity-60 hover:opacity-100 font-bold ml-[1px] disabled:cursor-not-allowed"
+            title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : `Remove ${item}`}
           >
             ×
           </button>
@@ -914,9 +923,10 @@ export function AgentView({
         {displayText}
         <button
           type="button"
+          disabled={!canEdit}
           onClick={(e) => { e.stopPropagation(); void removeListItem(propKey, item); }}
-          className="opacity-60 hover:opacity-100 font-bold ml-[1px]"
-          title={`Remove ${item}`}
+          className="opacity-60 hover:opacity-100 font-bold ml-[1px] disabled:cursor-not-allowed"
+          title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : `Remove ${item}`}
         >
           ×
         </button>
@@ -986,8 +996,10 @@ export function AgentView({
         <span className="relative inline-block" data-tool-picker-anchor>
           <button
             type="button"
+            disabled={!canEdit}
             onClick={(e) => { e.stopPropagation(); setToolPickerOpen((v) => !v); setToolPickerFilter(''); }}
-            className="inline-flex items-center gap-[4px] text-[10.5px] font-sans font-semibold px-[8px] py-[2px] rounded-full border border-[var(--accent)] text-[var(--accent-ink)] bg-[var(--accent-wash)] cursor-pointer"
+            title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : 'Add a tool'}
+            className="inline-flex items-center gap-[4px] text-[10.5px] font-sans font-semibold px-[8px] py-[2px] rounded-full border border-[var(--accent)] text-[var(--accent-ink)] bg-[var(--accent-wash)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             + add
           </button>
@@ -1009,8 +1021,10 @@ export function AgentView({
       ) : (
         <button
           type="button"
+          disabled={!canEdit}
           onClick={(e) => { e.stopPropagation(); setAddingItemKey(key); setAddItemDraft(''); }}
-          className="inline-flex items-center gap-[4px] text-[10.5px] font-sans font-semibold px-[8px] py-[2px] rounded-full border border-[var(--accent)] text-[var(--accent-ink)] bg-[var(--accent-wash)] cursor-pointer"
+          title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : `Add ${key} item`}
+          className="inline-flex items-center gap-[4px] text-[10.5px] font-sans font-semibold px-[8px] py-[2px] rounded-full border border-[var(--accent)] text-[var(--accent-ink)] bg-[var(--accent-wash)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           + add
         </button>
@@ -1052,9 +1066,10 @@ export function AgentView({
         ) : (
           <button
             type="button"
-            title={`Remove ${def.label}`}
+            disabled={!canEdit}
+            title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : `Remove ${def.label}`}
             onClick={(e) => { e.stopPropagation(); if (window.confirm(`Remove ${def.label} from this agent?`)) void removeConfigKey(key); }}
-            className="opacity-0 group-hover:opacity-100 transition-opacity flex-none w-[16px] h-[16px] rounded-[4px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[11px] grid place-items-center cursor-pointer hover:text-[var(--err)] hover:border-[var(--err)] p-0 mt-[2px]"
+            className="opacity-0 group-hover:opacity-100 transition-opacity flex-none w-[16px] h-[16px] rounded-[4px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[11px] grid place-items-center cursor-pointer hover:text-[var(--err)] hover:border-[var(--err)] p-0 mt-[2px] disabled:cursor-not-allowed"
           >
             ×
           </button>
@@ -1085,9 +1100,10 @@ export function AgentView({
             {/* Row-level × */}
             <button
               type="button"
-              title="Remove Initial prompt"
+              disabled={!canEdit}
+              title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : 'Remove Initial prompt'}
               onClick={(e) => { e.stopPropagation(); if (window.confirm('Remove Initial prompt from this agent?')) void removeConfigKey(INITIAL_PROMPT_KEY); }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity w-[16px] h-[16px] rounded-[4px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[11px] grid place-items-center cursor-pointer hover:text-[var(--err)] hover:border-[var(--err)] p-0"
+              className="opacity-0 group-hover:opacity-100 transition-opacity w-[16px] h-[16px] rounded-[4px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[11px] grid place-items-center cursor-pointer hover:text-[var(--err)] hover:border-[var(--err)] p-0 disabled:cursor-not-allowed"
             >
               ×
             </button>
@@ -1157,9 +1173,10 @@ export function AgentView({
     const removeButton = (
       <button
         type="button"
-        title={`Remove ${def.label}`}
+        disabled={!canEdit}
+        title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : `Remove ${def.label}`}
         onClick={() => { if (window.confirm(`Remove ${def.label} from this agent?`)) void removeConfigKey(key); }}
-        className="opacity-0 group-hover:opacity-100 transition-opacity w-[16px] h-[16px] rounded-[4px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[11px] grid place-items-center cursor-pointer hover:text-[var(--err)] hover:border-[var(--err)] p-0"
+        className="opacity-0 group-hover:opacity-100 transition-opacity w-[16px] h-[16px] rounded-[4px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[11px] grid place-items-center cursor-pointer hover:text-[var(--err)] hover:border-[var(--err)] p-0 disabled:cursor-not-allowed"
       >
         ×
       </button>
@@ -1200,8 +1217,10 @@ export function AgentView({
             ) : (
               <button
                 type="button"
+                disabled={!canEdit}
                 onClick={() => openCustomBlock(key)}
-                className="rounded-[6px] px-[9px] py-[3px] text-[10.5px] font-semibold text-[var(--accent-ink)] bg-transparent border-none cursor-pointer"
+                title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : `Edit ${def.label}`}
+                className="rounded-[6px] px-[9px] py-[3px] text-[10.5px] font-semibold text-[var(--accent-ink)] bg-transparent border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Edit
               </button>
@@ -1249,9 +1268,12 @@ export function AgentView({
         {/* Trigger button */}
         <button
           type="button"
+          disabled={!canEdit}
           onClick={(e) => { e.stopPropagation(); setMeOpen((v) => !v); setMeFilter(''); setMeEffortOpen(false); }}
-          title={modelBad ? `'${modelValue}' is not a current recognized model value.` : 'Model & effort'}
-          className={`flex items-center gap-[8px] font-mono text-[11px] border rounded-[7px] px-[10px] py-[5px] bg-[var(--elev)] cursor-pointer appearance-none ${
+          title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress — model edit disabled') : (modelBad ? `'${modelValue}' is not a current recognized model value.` : 'Model & effort')}
+          className={`flex items-center gap-[8px] font-mono text-[11px] border rounded-[7px] px-[10px] py-[5px] bg-[var(--elev)] appearance-none disabled:opacity-50 disabled:cursor-not-allowed ${
+            canEdit ? 'cursor-pointer' : ''
+          } ${
             modelBad
               ? 'border-[var(--warn)] text-[var(--warn)]'
               : 'border-[var(--border)] text-[var(--text)]'
@@ -1339,9 +1361,10 @@ export function AgentView({
       <span data-addkey-anchor className="relative inline-block ml-[6px]">
         <button
           type="button"
-          title="Add a config key"
+          disabled={!canEdit}
+          title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : 'Add a config key'}
           onClick={(e) => { e.stopPropagation(); setAddKeyMenuOpen((v) => !v); }}
-          className="w-[16px] h-[16px] rounded-[5px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[12px] font-bold grid place-items-center cursor-pointer hover:text-[var(--text)] hover:border-[var(--text)] p-0"
+          className="w-[16px] h-[16px] rounded-[5px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[12px] font-bold grid place-items-center cursor-pointer hover:text-[var(--text)] hover:border-[var(--text)] p-0 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           +
         </button>
@@ -1408,7 +1431,7 @@ export function AgentView({
           ) : (
             <h1
               onClick={startNameEdit}
-              title={canEdit ? 'Click to rename' : 'Chat is in progress — rename disabled'}
+              title={canEdit ? 'Click to rename' : (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress — rename disabled')}
               className={`m-0 text-[19px] font-semibold tracking-[-0.02em] text-[var(--text)] rounded-[6px] px-[6px] py-[1px] -mx-[6px] ${
                 canEdit ? 'cursor-text hover:bg-[var(--bg)]' : ''
               }`}

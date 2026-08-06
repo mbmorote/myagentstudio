@@ -6,6 +6,12 @@ state, standing rules, and pointers to where detail actually lives. It does not 
 session narrative; **see `CHANGELOG.md` for what happened and when**, and **`plans/roadmap.md`
 for what's built and what's next**.
 
+**Chat proposes, it doesn't apply directly** (as of Plans 07–08, 2026-08-06): sending a chat
+instruction never writes to the agent. It returns a proposal (`message` + whatever changed),
+shown as a card in the ChatPanel with **Apply**/**Discard** — nothing lands until Apply is
+clicked. While a proposal is pending, manual editing is locked (a third `'proposal'` state on
+the existing interaction lock). See `plans/08-prometheus-apply.md`.
+
 ## Standing project rules
 
 These apply to **every** session and every subagent (`@dev`, `@architect`, etc.) working in
@@ -162,6 +168,16 @@ follow these even though you have no memory of when they were agreed:
   (live verification against real Google endpoints — needs a user-created Google Cloud OAuth
   client and explicit go-ahead per the standing no-real-external-call rule) **and Phase 6**
   (remaining doc sync) are not started.
+- **`plans/07-prometheus-propose-apply.md`** — renamed the chat mediator to **Prometheus** and
+  gave it a new output contract (`{ message, modifications, warnings }`) covering description
+  and config, not just sections. Phases 0–2 built and gated 2026-08-05. Trimmed to what it
+  actually built when the apply mechanism was split out; see `plans/08-*` for the rest.
+- **`plans/08-prometheus-apply.md`** — the propose/apply split (`POST /api/chat` now writes
+  nothing; `POST /api/agents/[id]/apply-proposal` does, including the config-merge fix), the
+  client `'proposal'` interaction-lock + `localStorage` proposal store, and the ChatPanel UI.
+  **Phases 0–3 and 5 built and verified 2026-08-06.** Phase 4 (live LLM verification of the
+  propose/apply flow against the real Anthropic API) is **deferred, folded into**
+  `plans/roadmap.md` TODO's pre-deploy "big flow test" item rather than run as its own step.
 - **`plans/Evaluation-260730.md`** — a point-in-time outside opinion on the idea and
   project (requested by the user, 2026-07-30), not a build plan. Verdict: strong idea,
   good architecture, but infrastructure (multi-tenant auth) has outpaced dogfooding the

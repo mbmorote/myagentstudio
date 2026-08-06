@@ -205,7 +205,7 @@ export function SectionBlock({
     await doSave(editContent);
   }
 
-  const canEdit = interactionLock !== 'chat';
+  const canEdit = interactionLock !== 'chat' && interactionLock !== 'proposal';
 
   return (
     /* .sec — matches mockup's section block */
@@ -267,7 +267,7 @@ export function SectionBlock({
               handleEditToggle();
             }}
             disabled={!canEdit}
-            title={!canEdit ? 'Chat is in progress — raw edit disabled' : 'Edit raw content'}
+            title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress — raw edit disabled') : 'Edit raw content'}
             className="ml-2 rounded px-2 py-0.5 text-[11px] text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             Edit

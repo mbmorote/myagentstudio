@@ -23,7 +23,16 @@ timing decision is not the same as a design decision.
 **Layout work still prototypes first** — `architecture/layout/Layout-Workbench.html` before
 live code, for iteration speed (see `CLAUDE.md` standing rule 4).
 
-**Last updated:** 2026-07-31 — full retriage at the user's request. Every open TODO/FUTURE/IDEA
+**Last updated:** 2026-08-06 — TODO items 2, 3, and 6 (the chat-mediator/Prometheus rework)
+closed out into "What's built" now that Plans 07–08 are built and doc-synced (Plan 08 Phases
+0–3 and 5; Phase 4's live-LLM verification is deferred, folded into a new item rather than run
+separately — see below). One new TODO item added at the user's request: a **"big flow test"**
+(import → manual edit → chat edit, add/edit/remove at each stage) as the explicit last
+functional validation gate before "Deploy online," positioned right before it. Remaining TODO
+items renumbered 1–12 with no other reordering — this was a removal-and-append pass, not a
+re-prioritization of what stayed.
+
+**Last updated (prior):** 2026-07-31 — full retriage at the user's request. Every open TODO/FUTURE/IDEA
 item (40 total, at the time) was flattened into a temporary triage file, classified by launch
 timing (**1 = before v1 online, 2 = soon after v1 launches, 3 = long-tail/low urgency**), and
 re-sorted into the buckets below on that basis — introducing the new **NEXT** bucket (tier 2),
@@ -172,6 +181,27 @@ Condensed — full detail lives at each pointer, not repeated here.
   knowingly accepted, with a revisit trigger recorded (Plan 06 §3.7/§16.5, Rules Index #72).
   **Two follow-ups spun out, not part of this item's closure:** Phase 5.4 (live
   `SESSION_TTL_SECONDS` check) now sits in NEXT; the remaining Phase 6 doc sync is TODO.
+- **Chat editing rework: propose/apply flow, Prometheus rename, section-scoped citation** —
+  Plans 07 & 08, closed 2026-08-06 (was TODO items 2, 3, and 6). Chat editing widened from
+  sections-only to sections + config + description (never `name`, enforced server-side), given
+  a real output contract (`{ message, modifications, warnings }`), and switched from auto-apply
+  to **propose-then-apply, unconditionally**: `POST /api/chat` performs zero writes; a separate
+  `POST /api/agents/[id]/apply-proposal` does the actual write, including the config-merge fix
+  (a partial config edit no longer wipes untouched keys — the single highest-risk item in the
+  feature, regression-tested by watching it fail before the fix). A third `'proposal'`
+  interaction-lock state blocks manual editing (now including config, which had no lock check
+  at all before this) while a proposal is pending, persisted across reloads and synced across
+  tabs via `localStorage`. Section/config click-to-cite narrows what's sent to the model. The
+  chat system agent was renamed **Prometheus** and rewritten in MyAgent's own real-agent shape
+  (frontmatter + Role/Behavior/Guardrails/Output), the same pass that renamed the import
+  converters **Hermes** (Strict) and **Daedalus** (Structural). Full history:
+  `plans/07-prometheus-propose-apply.md`, `plans/08-prometheus-apply.md`. `tsc` clean, 551/551
+  tests, and live manual passes (including DB-level checks) for everything except actually
+  sending a chat message, which needs real spend. **Not closed by this item — folded into the
+  new pre-deploy "big flow test" TODO item instead of run as a separate step:** Plan 08's own
+  Phase 4 (live verification that a real Prometheus reply produces a correct proposal end to
+  end). **Also still explicitly open, out of scope for this rework:** adding or deleting a
+  section via chat — see TODO item 9 below.
 
 ## TODO — before v1 goes online
 
@@ -185,243 +215,74 @@ here were promoted from FUTURE on that basis, tagged below.
    contradicting the intent of letting the user create it). Scope broadened 2026-07-30: also
    cover *removing* a custom/JSON key, not just adding — half the feature without the other
    is awkward. `CHANGELOG.md`'s 2026-07-29 Tier 1 redesign entry has the original detail.
-2. **Section-scoped chat selection.** Moved from IDEA 2026-07-30 — clicking a specific
-   section (Role, Tools, etc.) in the structured view would scope/show that section's
-   context in the chat panel, instead of chat always being agent-wide. Directly reopens a
-   locked decision: `TechDesign.md` Rules Index #7's supersession note deliberately widened
-   the chat mediator from per-section to agent-wide scope (Plan 01 review, D2). Building this
-   means consciously reversing or qualifying that call, not just adding a UI toggle on top of
-   it — read the supersession note's own reasoning before starting.
-   **UX design, worked out 2026-07-31 (not yet built):**
-   - A single click on a section **or a config block** (any Tier 1 key, not just Sections)
-     "cites" it — that block becomes the scoped context sent to the agent on the next chat
-     message. Sections and config keys are both selectable, same mechanism.
-   - The full content is never echoed into the chat transcript — instead a small chip
-     (e.g. "ROLE") appears near the chat input, naming what's cited without displaying it.
-   - Deselect: clicking the same block again, or clicking anywhere else outside it and
-     outside the chat panel, clears the selection. Clicking into the chat panel itself must
-     NOT deselect — otherwise citing something and then clicking in to type the message
-     would immediately lose the citation.
-   - Multi-select: Ctrl+click adds another section/config to the current selection instead
-     of replacing it, with one chip per selected block.
-   **Frontend built and verified live, 2026-07-31**: click-to-select / double-click-to-edit
-   on both `SectionBlock.tsx` and `AgentView.tsx`'s custom JSON blocks, Ctrl-multiselect,
-   citation chips in `ChatPanel.tsx`, deselect-on-outside-click with the chat-panel exception
-   — all confirmed working via live browser testing.
-   **Backend, first pass built and verified live, 2026-07-31**: `agentName` +
-   `agentDescription` now always sent to the mediator (previously description wasn't sent at
-   all); citing one or more sections narrows `buildUserMessage` to only their content instead
-   of every section, with an explicit note telling the model it hasn't seen the rest; no
-   citation → unchanged full-agent behavior. `app/api/chat/route.ts` validates
-   `citedSectionKeys` defensively and, in scoped mode, skips applying any returned edit
-   outside the cited set (the model was never shown that section's content, so an edit to it
-   can't be a grounded diff). **Config citation is still UI-only** — confirmed with the user
-   it should eventually follow the same rule as sections, but one sub-question is open before
-   building it: if nothing is cited, does *all* config get sent by default (a real new cost,
-   since config values have never been sent to the mediator, cited or not, until now), or does
-   config stay sent-only-when-cited (additive, no new default cost)? Needs an explicit answer
-   before implementing.
-   **Confirmed next direction, not yet built**: restructure so the **system prompt** is built
-   dynamically per request — mediator behavior/rules (today's static `CHAT_MEDIATOR_PROMPT`)
-   **plus** the actual content (name, description, cited sections, cited config once resolved,
-   catalog reference) — and the **user message** shrinks to just the typed instruction. This
-   is a real code change to `chatMediator.ts`'s `system` field (goes from static to built
-   per-call) and is tightly coupled to item 3 below, since `chat-mediator.md`'s rule text was
-   written assuming today's shape (static system prompt, everything else bundled into one user
-   message).
-   **Design session 2026-08-05 — mediator rework, decided, not yet built:**
-   - **Output contract expands beyond `{ sections }`.** The mediator gains a `message` field
-     — its actual natural-language answer, always present, shown as the real chat bubble text
-     (replacing today's client-synthesized "Updated: X" summary). Alongside it, edit payloads
-     for whichever parts of the agent changed.
-   - **Editable surface via chat: everything except `name`.** Previously only `sections` could
-     be rewritten. Now `description` and `config` values are chat-editable too — `name` is the
-     one fixed exception, to be stated explicitly as a `chat-mediator.md` guardrail.
-   - **Unscoped (nothing cited) → the platform attaches the full agent to the LLM call,
-     including config values**, not just sections — a real, deliberate new default cost.
-     Cited instructions still narrow to just what's cited, unchanged from the existing build.
-   - **Propose-then-apply replaces auto-apply — unconditionally, no per-user setting.** The
-     chat call (`POST /api/chat`) no longer writes to the DB in the same request — it returns
-     a proposal (`message` + whatever changed). A separate explicit "Apply" action performs
-     the write. This is what TODO item 6 (propose-preview) envisioned, built now as the only
-     mode rather than a deferred opt-in toggle — **item 6's own entry below is superseded by
-     this decision**, not additive to it.
-   - **Apply granularity: apply-all only for now.** One button applies every changed part of
-     the turn's proposal together. Per-part (per-section/per-config-key) apply is deferred —
-     moved to FUTURE.
-   - **Stale-proposal handling:** sending a new chat message discards/disables the previous
-     turn's pending Apply button. Only the latest turn's proposal is ever actionable.
-   - **Conflict resolution: lock-based, not version-based.** While a proposal is pending
-     (returned, not yet applied or superseded), manual section/config editing is blocked — a
-     new state on the existing `interactionLock` mechanism (which already has `'chat'` and
-     `'edit'` states). Removes the need for an apply-time version-conflict check: nothing else
-     can change underneath a pending proposal.
-   - **Pending proposal survives reload via `localStorage`, no DB.** Resolved 2026-08-05
-     (edge 1a). The proposal (`message` + whatever changed) and the pending-lock flag are
-     both written to `localStorage`, keyed per `userId`+`agentId` (e.g.
-     `myagent:proposal:<userId>:<agentId>`) so a stale proposal never bleeds across agents or
-     accounts on a shared browser. Restored **synchronously** on load (read during initial
-     state setup, not in a post-paint effect) so there's no flash where editing looks briefly
-     available before the lock reasserts. Cleared on Apply and on discard (new message sent,
-     or explicit dismiss). Bonus: since `localStorage` is shared across same-origin tabs, this
-     also covers a second tab open on the same agent, which pure in-memory state never would
-     have. Two residual gaps accepted as known, not blocking, moved to FUTURE for later
-     review: (1) the lock has only ever been client-side/cooperative, never server-enforced —
-     true of `interactionLock` generally, not a new weakness from this decision; (2)
-     `localStorage` doesn't sync across devices/browsers, so a pending proposal on one device
-     doesn't block a manual edit on another — accepted given the app's real scale (a handful
-     of users, effectively one device at a time per person).
-   - **Chat/prompt history already exists — just not replayed.** `llm_call_log` already stores
-     the full request (`system` + `messages`) and response `text` for every chat call, tied to
-     `agentId`/`userId`/`createdAt`. The gap is UI replay: `ChatPanel` never reads it back on
-     load. Narrows NEXT item 2 to a replay-approach question — see open edges below.
-
-   **Open edges, not yet resolved:**
-   1. Chat history replay: reuse `llm_call_log` rows (parse `requestPayload`/`responsePayload`
-      back into bubbles) vs. build a dedicated `Conversation`/`Message` table. Feeds NEXT
-      item 2.
-   2. ~~Config-edit validation~~ **Resolved 2026-08-05.** No new validation — reuses the
-      project's existing "flag, don't block" convention (already in the schema comments,
-      `agent.name`'s Rules #1, and `isBadListItem`'s client-side-only flagging). Checked: the
-      real `PATCH /api/agents/[id]` route today never validates a config value against
-      `configDef`'s `datatype`/`allowedValues`/`required` server-side, even for manual edits —
-      only shape (`config` is an array) is checked. So an AI-proposed config edit gets written
-      exactly like a manually-typed one: zero new server-side gatekeeping, same existing
-      client-side visual flagging catches anomalies after the fact. No asymmetric strictness
-      for AI-authored values. **Established as a standing principle for this whole rework, not
-      just this edge** — see the new "never block" note below, which also resolves edge 3.
-   3. ~~Model posture on ambiguous instructions~~ **Resolved 2026-08-05.** Same "never block"
-      principle as edge 2 — `chat-mediator.md` should tell
-      the model to propose a concrete edit whenever it reasonably can, even on vague/ambiguous
-      instructions, rather than holding back out of caution. The human Apply click is already
-      the safety net; adding model-side conservatism on top would be redundant gatekeeping,
-      the same asymmetry edge 2 just rejected for config values. (A pure question/no-edit-
-      possible instruction like "review my agent" still naturally yields `sections`/`config`
-      empty and only `message` populated — this is about not *withholding* a proposal when one
-      is genuinely warranted, not forcing an edit out of every turn.)
-   4. Exact output contract shape: literal field names/structure for the description and
-      config edit payloads (e.g. is a config edit a flat `{key: value}` map keyed by
-      `propKey`? is a description edit the whole replacement string?) — needed before
-      `chat-mediator.md`/`chatMediator.ts` get rewritten.
-   5. Interaction-lock UX: does the new "proposal pending" lock state need its own visible
-      signal (vs. today's plain 'chat'/'edit' states), e.g. "Proposal pending — apply or send
-      a new message to discard"?
-   6. Apply-write plumbing: confirm which repository functions the Apply action calls for each
-      changed part (`updateSectionContent` exists for sections; description and config need
-      their write paths identified or built).
-   7. ~~The actual `chat-mediator.md` prose~~ **Drafted 2026-08-05** at
-      `lib/ai/prompts/system-agents/prometheus.md` — a **new** file, sitting alongside the
-      still-live `chat-mediator.md` (untouched, still what's actually compiled/used). Content
-      only, no code changed yet.
-
-   **Concept reframe, 2026-08-05:** this system agent is no longer "the chat mediator" — it's
-   being redefined as a real agent, named **Prometheus**, authored using MyAgent's own Agent
-   pattern (name/description/model + Role/Behavior/Guardrails/Output sections) instead of an
-   ad-hoc rule-set shape — the tool that helps build agents, built the way it teaches agents
-   to be built. Same reframe applies to the import converters eventually (see FUTURE bucket).
-   Checked what's actually wireable into the real API call before committing to this shape:
-   `LlmRequest.model` is a real, already-supported field (worth declaring per-agent); `tools`
-   has no plumbing anywhere in this app's LLM call chain (`lib/ai/provider.ts` has no `tools`
-   field at all) — so Prometheus's "no tools" guardrail is structurally true, not aspirational
-   prose. Still explicitly deferred, not started: **(a)** the actual code wiring — parsing
-   this new `{ message, modifications }` shape in `chatMediator.ts`, the propose/apply split
-   in `route.ts`, threading a declared model value into the real call; **(b)** the full
-   rename — retiring `chat-mediator.md`, updating `scripts/build-prompts.ts`,
-   `lib/ai/chatMediator.ts` and its callers/tests, and every doc reference
-   (`CLAUDE.md`, `lib/ai/CLAUDE.md`, `TechDesign.md`'s Rules Index). Both are real code
-   changes, scoped as the next deliberate step once this content draft is reviewed.
-
-   **2026-08-05, later same day — real-agent reformat done, and extended to the import
-   converters (closes the "eventually" in the reframe note above, ahead of schedule):**
-   `prometheus.md` was rewritten to true real-agent shape — YAML frontmatter (`name`,
-   `description`, `tools: []`) + `#`-level body sections (`ROLE`/`BEHAVIOR`/`GUARDRAILS`/
-   `OUTPUT FORMAT`), replacing the old `## IDENTITY` prose section. `build-prompts.ts` now
-   detects a leading `---` frontmatter block and strips it, using the body verbatim as the
-   compiled prompt — the old "strip to first `##`" logic is a fallback, no longer the norm.
-   The user then decided to name and reformat the two import converters the same way,
-   choosing distinct persona names (they have genuinely different contracts, not just a mode
-   flag): **Hermes** (Strict Import — a messenger, carries labels without touching content)
-   and **Daedalus** (Structural Import — a craftsman, rebuilds the full body). Full rename
-   through the `.ts` layer, same treatment Prometheus got in Plan 07 Phase 1: `importConverter.ts`
-   → `lib/ai/hermes.ts` (`callImportConverter` → `callHermes`, `ImportConverter*Error` →
-   `Hermes*Error`), `structuralConverter.ts` → `lib/ai/daedalus.ts` (`callStructuralConverter`
-   → `callDaedalus`, `StructuralConverter*Error` → `Daedalus*Error`); prompt files
-   `import-instructions.md`/`import-instructions-structural.md` → `hermes.md`/`daedalus.md`.
-   All call sites updated (`app/api/agents/import/route.ts`, `lib/import/assemble.ts`,
-   `lib/import/assembleStructural.ts`, both import test suites,
-   `scripts/test-structural-import.ts`) plus `CLAUDE.md`, `lib/ai/CLAUDE.md`,
-   `lib/import/CLAUDE.md`. Gate passed: `tsc --noEmit` clean, 541/541 tests unchanged.
-   **Not updated, deliberately deferred:** `architecture/TechDesign.md`'s Rules Index — a
-   large, dated decision-log where many rows are point-in-time historical statements (like
-   `CHANGELOG.md`); rewriting old rows to the new names would misrepresent when those names
-   existed. Same treatment `plans/07-prometheus-propose-apply.md` already gives that file
-   under `plans/08-prometheus-apply.md`'s doc-sync phase (also not yet done, for the same
-   reason). Both system agents' `model` field stays unset in frontmatter — the same
-   deferral Prometheus already has (`plans/07-prometheus-propose-apply.md` §8 point 2).
-3. **Review the chat-mediator system agent.** `lib/ai/prompts/system-agents/chat-mediator.md`
-   — its rule-set hasn't had a dedicated review pass since it was widened to agent-wide scope
-   (Plan 01 review, 2026-07-26). Natural to do together with item 2 above, since re-scoping
-   to per-section touches exactly this file's Guardrails, but worth reviewing as its own
-   pass even independent of that decision. **Now has a second, more concrete trigger
-   (2026-07-31): item 2's confirmed system-prompt restructuring changes what shape of content
-   this file's rules need to describe** — do this review together with that work, not before
-   or after it in isolation.
-4. **ESLint config.** *(Promoted from FUTURE 2026-07-31.)* Script wired (`next lint`) but
+2. **ESLint config.** *(Promoted from FUTURE 2026-07-31.)* Script wired (`next lint`) but
    never configured — running it drops into an interactive setup prompt. Typecheck + tests
    are the real gate today; this closes that gap before real users touch the app.
-5. **Manual-edit save frequency.** *(Promoted from FUTURE 2026-07-31 — was Deferred
+3. **Manual-edit save frequency.** *(Promoted from FUTURE 2026-07-31 — was Deferred
    Decisions #14.)* Resolved during triage: **the user wants an explicit Save action**, not
    autosave-on-every-keystroke or a debounced background save. Worth a quick check whether
    this was already effectively decided when manual editing shipped (unclear from a quick
    pass over `SectionBlock.tsx`) before implementing.
-6. **Propose-preview before applying a mediator rewrite.** *(Promoted from FUTURE 2026-07-31
-   — was Deferred Decisions #24.)* Per-user setting, not a global toggle: off = the mediator
-   applies directly to the agent being edited, exactly as today; on = the proposed response is
-   shown in a modal first, nothing written until the user explicitly applies it. Same
-   underlying mechanism either way (apply-then-history), gated behind the per-user choice.
-   **Superseded 2026-08-05** — see item 2's "Design session 2026-08-05" block above.
-   Propose-then-apply is now being built as item 2's unconditional default behavior, not a
-   per-user setting or a modal; this item's original "off = auto-apply" framing is dropped.
-   The idea of restoring an instant-apply option later is kept alive only as a FUTURE-bucket
-   note, undecided.
-7. **Second LLM provider.** *(Promoted from FUTURE 2026-07-31 — was P04a.)* A non-Anthropic,
+4. **Second LLM provider.** *(Promoted from FUTURE 2026-07-31 — was P04a.)* A non-Anthropic,
    OpenAI-compatible or NVIDIA provider behind the existing `LLMProvider` interface.
-8. **Incremental streaming.** *(Promoted from FUTURE 2026-07-31 — was P04b.)* Token-by-token
+5. **Incremental streaming.** *(Promoted from FUTURE 2026-07-31 — was P04b.)* Token-by-token
    chat responses (`streamChunks()`) instead of waiting for the full reply.
-9. **Settings modal instead of full-page navigation.** *(Promoted from FUTURE 2026-07-31 —
+6. **Settings modal instead of full-page navigation.** *(Promoted from FUTURE 2026-07-31 —
    was P04f.)* Avoids losing `ChatPanel`'s local message history when a user opens Settings.
-10. **`scripts/build-prompts.ts` readable output.** TechDesign #26, tagged **[HIGH
-    PRIORITY]** there — currently emits one giant escaped-string line. Sequenced as the
-    second-to-last step before deploy: the user wants to be able to read the real compiled
-    system prompt to sanity-check what's actually being sent to the LLM once live users are on
-    it, so this needs to be fixed before that audit, not after.
-11. **Doc sync — Plan 06 Phase 6 remainder + the consent-popup supersession.** Two pieces:
-    **(a)** the 2026-07-31 partial doc-sync commit covered Phase 6 for Phases 0–4 only (its
-    own commit message says so) — `TechDesign.md`'s Rules Index #63–71 and Deferred Decisions
-    table, `README.md`, and `docs/user-guide.md` should be checked against what Phase 5.3's
-    live pass actually confirmed, not just the pre-verification build state. **(b)** this
-    session's activity-log-sharing consent flow changed from a blocking inline `/signup` form
-    field (Plan 06 §5.6/§7.2's original design) to a dismissible post-login popup that
-    defaults every new account to private — a real supersession of an already-locked rule, not
-    yet reflected anywhere in `TechDesign.md`'s Rules Index (needs a supersession note,
-    matching how Rules Index #7 documents the chat-mediator scope reversal) or in
-    `docs/user-guide.md`'s signup walkthrough.
-12. **Company signature on the platform.** Added 2026-07-31 — the user's real branding needs
+7. **`scripts/build-prompts.ts` readable output.** TechDesign #26, tagged **[HIGH
+   PRIORITY]** there — currently emits one giant escaped-string line. Sequenced deliberately
+   before item 11 (the pre-deploy big flow test): the user wants to be able to read the real
+   compiled system prompt to sanity-check what's actually being sent to the LLM, which is most
+   useful precisely when debugging a live chat-edit failure during that test, not after it.
+8. **Doc sync — Plan 06 Phase 6 remainder + the consent-popup supersession.** Two pieces:
+   **(a)** the 2026-07-31 partial doc-sync commit covered Phase 6 for Phases 0–4 only (its
+   own commit message says so) — `TechDesign.md`'s Rules Index #63–71 and Deferred Decisions
+   table, `README.md`, and `docs/user-guide.md` should be checked against what Phase 5.3's
+   live pass actually confirmed, not just the pre-verification build state. **(b)** this
+   session's activity-log-sharing consent flow changed from a blocking inline `/signup` form
+   field (Plan 06 §5.6/§7.2's original design) to a dismissible post-login popup that
+   defaults every new account to private — a real supersession of an already-locked rule, not
+   yet reflected anywhere in `TechDesign.md`'s Rules Index (needs a supersession note,
+   matching how Rules Index #7 documents the chat-mediator scope reversal) or in
+   `docs/user-guide.md`'s signup walkthrough.
+9. **Section add/delete via chat — review.** *(Added 2026-08-05, from Plan 07's confirmation
+   point 3.)* Neither is possible via chat today — an unknown `sectionKey` from a proposal is
+   skipped, and no repository primitive exists to add a section outside import
+   (`updateSectionContent` only updates). Plans 07/08 deliberately shipped without either
+   (chat stays edit-only for existing sections; see TechDesign Deferred Decisions row P08b).
+   Kept here in TODO — not FUTURE — specifically so it gets revisited before v1, not left to
+   drift: review whether either is actually needed before launch, or whether it's fine to
+   genuinely defer. If wanted, it's real new work — new repository functions, new contract
+   fields (e.g. `sections: { key: string | null }` for deletion), and new `prometheus.md`
+   guardrail rules. **Directly relevant to item 11 below:** if this stays deferred, that
+   test's "chat edit" stage can only exercise section *editing*, not add/remove — its own
+   wording accounts for this; resolve this item first if the test should cover chat-driven
+   section add/remove too.
+10. **Company signature on the platform.** Added 2026-07-31 — the user's real branding needs
     to appear somewhere on the live site before v1 goes online (footer, login/signup pages,
     Topbar — placement and exact content, e.g. name/logo/tagline/copyright line, not yet
-    decided). Deliberately the last step before deploy — same rationale as the doc-sync item
-    above, done right before real users see the product. Scope details (what asset, where it
-    renders) to be worked out when this is picked up.
-13. **Section add/delete via chat — review.** *(Added 2026-08-05, from Plan 07's confirmation
-    point 3.)* Neither is possible via chat today — an unknown `sectionKey` from the model is
-    skipped, and no repository primitive exists to add a section outside import
-    (`updateSectionContent` only updates). Plan 07 deliberately ships without either (chat
-    stays edit-only for existing sections). Kept here in TODO — not FUTURE — specifically so
-    it gets revisited before v1, not left to drift: review whether either is actually needed
-    before launch, or whether it's fine to genuinely defer. If wanted, it's real new work —
-    new repository functions, new contract fields (e.g. `sections: { key: string | null }` for
-    deletion), and new `prometheus.md` guardrail rules.
-14. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
+    decided). Scope details (what asset, where it renders) to be worked out when this is
+    picked up.
+11. **Big flow test — import → manual edit → chat edit.** *(Added 2026-08-06, at the user's
+    request.)* **The last functional validation before "Deploy online,"** run once every other
+    TODO item above is done. One end-to-end pass through the whole real app, not a scripted
+    unit-style check: **(a)** import a real agent file; **(b)** manually edit it in the
+    structured view — add a section, edit a section, remove a section; add a tool, edit a
+    config value, remove a tool/config key; **(c)** edit the same agent via chat — Prometheus
+    proposal review and Apply/Discard for a section edit and a config edit (add/edit/remove a
+    tool via chat), confirming the proposal card, the lock, and the applied result all match.
+    This is also where Plan 08's own deferred Phase 4 (live verification that a real Prometheus
+    reply produces a correct proposal end-to-end) actually gets exercised — not run as a
+    separate step, since this test's chat-edit stage already needs the same real, billed
+    Anthropic API calls (standing rule 2 — ask before running this test for that reason).
+    **Known gap going in:** chat-driven section *add/remove* isn't implemented (item 9 above)
+    — this test's chat stage can only exercise section editing and config add/edit/remove
+    unless item 9 is resolved first; note this explicitly when the test is run, don't treat it
+    as a bug found by the test. **Anything else the test turns up:** small issues get fixed
+    inline as part of the same pass; anything bigger becomes its own new TODO/FUTURE item
+    rather than blocking the test itself — the point is to find gaps before real users do, not
+    to gate the test on being bug-free beforehand.
+12. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
     now (whatever the smallest real hosting step is); the *automated* version of this is
     CI/CD, tracked under FUTURE, not blocking this first deploy.
 
@@ -535,7 +396,8 @@ the TechDesign-numbered ones lives in `TechDesign.md`'s Deferred Decisions table
 
 - **Server-enforced editing lock during a pending chat proposal (revisit).** *(Added
   2026-08-05.)* Today's `interactionLock` (and its `localStorage`-persisted pending-proposal
-  extension, item 2 edge 1a) is purely client-side/cooperative — no route rejects a manual
+  extension, built as part of the Prometheus rework — see What's built above) is purely
+  client-side/cooperative — no route rejects a manual
   edit because a proposal is pending. Not a problem at current scale; revisit if this app ever
   needs to defend against a client that doesn't cooperate (a second official client, a public
   API, adversarial use).
@@ -552,18 +414,19 @@ the TechDesign-numbered ones lives in `TechDesign.md`'s Deferred Decisions table
   underneath it. Accepted at current scale (a handful of users, effectively one device at a
   time); revisit if real usage shows this causing actual overwrites.
 - **Instant auto-apply mode (revisit).** *(Added 2026-08-05.)* Propose-then-apply became the
-  unconditional default mediator behavior (TODO item 2), superseding item 6's original
-  per-user-toggle framing. Restoring an instant/auto-apply option was deliberately dropped for
-  the initial build, not forgotten — revisit if the confirm-click proves to be friction in
-  practice.
-- **Apply-by-section/per-field granularity.** *(Added 2026-08-05.)* TODO item 2's propose/apply
-  flow ships apply-all only first; applying a subset of a turn's proposed changes (one section,
-  one config key) is a deferred refinement.
+  unconditional default behavior of the Prometheus rework (What's built above), superseding an
+  earlier per-user-toggle framing. Restoring an instant/auto-apply option was deliberately
+  dropped for the initial build, not forgotten — revisit if the confirm-click proves to be
+  friction in practice.
+- **Apply-by-section/per-field granularity.** *(Added 2026-08-05.)* The Prometheus rework's
+  propose/apply flow ships apply-all only first; applying a subset of a turn's proposed changes
+  (one section, one config key) is a deferred refinement.
 - **System agents (Prometheus, Hermes, Daedalus) become real, platform-managed agents.**
   *(Added 2026-08-05.)* All three system-agent prompt files (`lib/ai/prompts/system-agents/`)
   were restructured, same day, to follow MyAgent's own Agent pattern — real-agent shape (YAML
   frontmatter + `#`-level Role/Behavior/Guardrails/Output sections) — instead of an ad-hoc
-  rule-set shape; see TODO item 2's 2026-08-05 addendum for the full detail on both passes
+  rule-set shape; see `plans/07-prometheus-propose-apply.md`'s Progress Log for the full detail
+  on both passes
   (Prometheus first, then Hermes/Daedalus the same day). Deliberate scope limit still holds:
   they stay build-time-compiled static prompts (`scripts/build-prompts.ts`), edited by hand, by
   using the platform on itself, or outside it, then recompiled and checked — **not** stored as
@@ -583,7 +446,7 @@ the TechDesign-numbered ones lives in `TechDesign.md`'s Deferred Decisions table
   app is single-file SQLite (`better-sqlite3`), single-process, and the first deploy target
   is a handful of friends (`maxUsers` currently 5) — that's comfortably within SQLite's
   range. The real trigger isn't user count, it's the *hosting choice* for "deploy online"
-  (TODO item 13): a host with a persistent disk (Fly.io, a VM, Azure App Service with a
+  (TODO item 12): a host with a persistent disk (Fly.io, a VM, Azure App Service with a
   mounted volume) keeps SQLite working fine; a stateless/serverless host (e.g. Vercel's
   default) would force this decision immediately rather than later. Worth deciding the
   hosting target with this in mind, not migrating pre-emptively.
@@ -596,7 +459,7 @@ the TechDesign-numbered ones lives in `TechDesign.md`'s Deferred Decisions table
 - **Dedicated group-management view** — punch-list item 7. New panel, not started, not
   researched. Prototype in `Layout-Workbench.html` first per standing rule 4 whenever it's
   picked up.
-- **CI/CD** — test → build → deploy automation. The automated counterpart to TODO item 13;
+- **CI/CD** — test → build → deploy automation. The automated counterpart to TODO item 12;
   that item is "get something online," this is "stop doing it by hand."
 - **Docker** — containerize once the app runs end-to-end online.
 - **Azure / hosting infra maturity** — App Service first, K8s only if that ever becomes the
@@ -620,17 +483,17 @@ Plan 04) before an item can move to FUTURE/NEXT with an understood scope, let al
 
 ## Recommended next stage
 
-Plan 05 is done. Three TODO items are done — zero-agents empty state Topbar, the `__raw`
-frontmatter escape hatch (built as a real `datatype: 'json'` instead), and the auth framework
-review (OAuth verified live) — see "What's built". TODO items 1–12 are independent enough to
-pick off in any order, or in parallel; item 13 (deploy online) is always last. Items 2 and 3
-are naturally paired (both touch the chat mediator's scope/rule-set) but neither blocks the
-other. Items 4–10 were promoted from FUTURE during the 2026-07-31 retriage specifically
-because the user decided they're needed before v1, not after — treat them with the same
-weight as the rest of TODO, not as optional extras. Item 12 (doc sync) is worth doing close to
-whenever item 3 (Settings layout, now in NEXT) lands if that happens before launch, so the
-docs reflect both in one pass — otherwise doc sync for the Settings work becomes a NEXT-bucket
-follow-up.
+Four TODO items are done — zero-agents empty state Topbar, the `__raw` frontmatter escape
+hatch (built as a real `datatype: 'json'` instead), the auth framework review (OAuth verified
+live), and the chat-mediator/Prometheus rework (propose/apply, the lock, the ChatPanel UI) —
+see "What's built" for all four. Current TODO is 1–12, **items 1–10 independent, pick off in
+any order or in parallel**; **item 11 (the big flow test) and item 12 (deploy online) are
+always last, in that order** — the test is the explicit final validation gate, deploy follows
+it. Item 9 (section add/delete via chat — review) is worth resolving before item 11 if chat-
+driven section add/remove should be part of that test's coverage; otherwise item 11's own
+wording already accounts for testing edit-only. Item 8 (doc sync) is worth doing close to
+whenever NEXT item 3 (Settings layout) lands if that happens before launch, so the docs reflect
+both in one pass — otherwise doc sync for the Settings work becomes a NEXT-bucket follow-up.
 
 Once v1 is live: NEXT item 1 (component/UI test coverage) first, per the user's explicit call.
 The rest of NEXT is free to reorder.

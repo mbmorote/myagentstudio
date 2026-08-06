@@ -1,10 +1,230 @@
 # Plan 08 — Prometheus Apply: Propose/Apply Split, Proposal Lock, and ChatPanel UI
 
-> **Status: 🟡 Phase 1 built and verified. Phase 0 mockup built, iterated, still awaiting the
-> user's visual sign-off** (the stated gate for Phase 3) — see the 2026-08-06 "stopping point"
-> entry below for exactly where this was left and how to resume.
+> **Status: 🟢 Phases 0–3 and 5 complete. Phase 4 deferred by user decision, 2026-08-06** — not
+> abandoned, folded into `plans/roadmap.md` TODO's new "big flow test" item (the pre-deploy
+> chat-edit stage there exercises the same real Prometheus round trip Phase 4 would have run
+> standalone). This plan's build and doc-sync work is done; only that live-LLM check remains,
+> and it's now tracked in the roadmap, not here. See today's newest Progress Log entry.
 
 ## Progress Log
+
+**2026-08-06 (same day, continued) — Phase 0 signed off; Phase 2 (client proposal store + lock
+extension) built by `@dev`, verification still outstanding.**
+
+- **Phase 0 — signed off.** The user reviewed the mockup live and confirmed it's good, with a
+  few minor notes they're holding onto to look into later (not itemized in this log — tracked
+  by the user separately, not blocking). This closes confirmation point C (§1) and the gate
+  §11 Phase 0 and §6.6 both state explicitly — §11 Phase 3 is now unblocked on this half of its
+  two-part dependency (Phase 0 sign-off + Phase 2, per §11.1's dependency graph).
+- **Phase 2 — built by `@dev`, per §5 and §11 Phase 2.** Dispatched with the full spec (the
+  `useSyncExternalStore` requirement and its two named traps from §5.3, the §5.5 config-lock
+  gap, the §5.4 state machine) plus an explicit instruction not to run any sanity/build/test
+  check itself (standing rule 5) and not to start the dev server (standing rule 3) — implement
+  and report only.
+  - `lib/proposalStore.ts` — **new**. `localStorage`-backed, `useSyncExternalStore`-compatible:
+    referentially-stable cached snapshots per `(userId, agentId)` key, every read wrapped in
+    `try/catch` treating malformed JSON / `v !== 1` / a `userId`/`agentId` mismatch as "no
+    proposal" (and clearing the key), a `window` `storage` listener for cross-tab sync plus a
+    local emitter for same-tab notification (the `storage` event doesn't fire in the writing
+    tab), and an in-memory fallback map for `QuotaExceededError` so a write failure can never
+    lose the proposal or block Apply. Reviewed directly (not just from the report) — matches
+    §5.3 in full.
+  - `app/components/WorkbenchShell.tsx` — `InteractionLock` gains `'proposal'`; `pendingProposal`
+    is read via `useSyncExternalStore`; an `effectiveLock` value (`'proposal'` whenever a
+    proposal exists, else the existing `interactionLock` state) is what's actually passed to
+    `AgentView` and `ChatPanel` — the raw `interactionLock` state itself never gets set to
+    `'proposal'`, avoiding a two-state-sync bug and guaranteeing the lock is correct on the very
+    first render (no hydration flash). `applyProposal()`/`discardProposal()` callbacks added:
+    apply `POST`s to `/api/agents/[id]/apply-proposal`, replaces `agent` state from the
+    response's `agent` field and clears the store on `200`; keeps the proposal and lock on any
+    error or non-2xx, per §5.4's "Apply → error" row. Verified directly — matches the spec.
+  - `app/components/CustomViz/AgentView.tsx` / `SectionBlock.tsx` — `canEdit` now excludes both
+    `'chat'` and `'proposal'`. This is the real gap §5.5 flagged: config mutation (model/effort,
+    scalar/list/tool editing, `addKey`, the custom-JSON block, the initial-prompt block) had
+    **zero** lock check before this phase — every entry point is now function-guarded and its
+    control `disabled`, with `title` text distinguishing "chat in progress" from "a proposal is
+    pending."
+  - `app/components/Chat/ChatPanel.tsx` — four new props (`pendingProposal`, `isApplying`,
+    `onApplyProposal`, `onDiscardProposal`); a deliberately minimal, unstyled Apply/Discard
+    block above the message list, explicitly marked as a placeholder Phase 3 replaces with the
+    real §6.2 card; `canSend` and the input's `disabled` now also exclude `'proposal'`.
+  - **Judgment call, called out by `@dev` and endorsed:** rather than partially wiring §5.4's
+    "proposal → chat" transition (send a new message, discard the old proposal, keep going),
+    Phase 2 blocks sending entirely while a proposal is pending. Wiring the discard-then-send
+    path touches the same "chat → proposal" transition that only makes sense once `ChatPanel`
+    is rewritten in Phase 3 to actually produce proposals from a response — correct to leave
+    that to Phase 3 rather than half-build it here.
+  - **No new automated tests** — per §10.6, this whole client-side layer (proposal store, lock,
+    card) is an explicitly accepted manual-verification-only gap; nothing here contradicts that.
+- **Not yet done — this phase's own gate (§11 Phase 2):** `npx tsc --noEmit`, `npm test`
+  (expect the existing 551 unaffected — no server-side file changed), and the six-point
+  devtools-seeded-`localStorage` checklist (§11 Phase 2's own list: lock asserted with no
+  flash / every editor disabled / Discard clears key+lock / Apply calls the real endpoint and
+  updates the panels / a corrupted entry is discarded, not a lockout / a second tab reflects the
+  change) — the checklist needs the dev server running. All three are blocked on the user's
+  go-ahead per standing rules 3 and 5, not on any remaining implementation work.
+
+**Next up:** run the Phase 2 gate above (ask first), address it if anything fails, then start
+§11 Phase 3 (migrate the Phase 0 mockup into real `ChatPanel.tsx`) — both of Phase 3's
+dependencies (Phase 0 sign-off, Phase 2 landing) will be satisfied at that point.
+
+**2026-08-06 (same day, continued) — Phase 2 gate run, with the user's go-ahead; all green.
+§11 Phase 3 unblocked.**
+
+- **`npx tsc --noEmit`** — clean.
+- **`npm test`** — 551/551 passing, unchanged from Phase 1's baseline (no server-side file
+  touched by Phase 2, as expected).
+- **The six-point devtools checklist (§11 Phase 2's own gate) — run live against the real dev
+  server**, authenticated via a locally-minted session JWT (this repo's own `lib/auth/jwt.ts`
+  signing logic, run standalone — no password read, stored, or entered anywhere) rather than a
+  password login, at the user's explicit choice among three offered options. Tested against the
+  real `anthropic-test-agent-` agent (a pre-existing test import, not the original production
+  agent). All six passed:
+  (a) restoring a hand-seeded `localStorage` entry asserts the lock immediately on load;
+  (b) every gated editor's title/`disabled` state reflects the lock — **with one small,
+  non-blocking gap found:** the scalar-row value badges (Permission mode, Memory, Background,
+  Isolation, Color) don't swap their base `title` to explain the lock the way every other
+  control now does (they still show e.g. `"permissionMode · enum"`) — clicking one still
+  triggers the pre-existing, lock-independent citation-select highlight (harmless: it doesn't
+  mutate anything, and sending is already blocked), but `openScalarPick`'s function guard did
+  correctly block the actual edit popover from opening. Logged as a follow-up, not a Phase 2
+  blocker — see the roadmap pointer below;
+  (c) Discard cleared both the `localStorage` key and the lock;
+  (d) Apply called the real `POST /api/agents/[id]/apply-proposal` endpoint and updated the
+  panels — **verified at the DB level, not just visually:** `agent_section.version` bumped
+  0→1, a new `section_revision` row landed with `author: 'ai'`, and the `agent_config` merge
+  held — the one proposed key (`color`) changed while every other existing key (`model`,
+  `tools`, `permissionMode`, `maxTurns`, `memory`, `isolation`, `mcpServers`, `hooks`,
+  `initialPrompt`, `disallowedTools`, `skills`) survived untouched, exactly per §3.4;
+  (e) a hand-corrupted (non-JSON) `localStorage` entry was silently cleared on load with no
+  lockout;
+  (f) a second tab on the same agent picked up both a newly-seeded proposal (lock appeared with
+  no reload) and a Discard fired from that second tab (lock cleared in the first tab, also with
+  no reload) — full cross-tab round trip via the `storage`-event path, exactly per §5.3.
+- **Real, deliberate side effect of this verification pass:** the `anthropic-test-agent-` test
+  agent's `role` section and `color` config value were actually overwritten by the Apply test
+  (step (d) above) — left as-is rather than reverted, since it's already a disposable test
+  import, not the original agent (`impact`, untouched throughout).
+- Dev server and the temporary local session-minting helper were both shut down after; no
+  stray files or processes left behind (standing rule 3).
+
+**Next up:** §11 Phase 3 — migrate the Phase 0 mockup into real `ChatPanel.tsx`.
+
+**2026-08-06 (same day, continued) — Phase 3 (ChatPanel UI migration) built by `@dev` and
+verified, with the user's go-ahead. §11 Phase 4 unblocked (pending a separate go-ahead — it
+spends money).**
+
+- **Built, per §6 and §11 Phase 3.** `ChatPanel.tsx` rewritten: the client-synthesized
+  `"Updated: X."` summary logic is gone — the assistant bubble now renders `proposal.message`
+  verbatim, straight from the server; `✦ Mediator` → `✦ Prometheus` everywhere; target chips
+  extended to `◆ config · <key>` and `◆ description`, not just sections; `citedConfigKeys` is
+  now derived from `citedItems` and sent alongside `citedSectionKeys`. The `doSend` response
+  handler was rewritten for the Phase 1 contract (`{ proposal: { message, modifications,
+  warnings }, meta }`) — a non-empty `modifications` now reports the proposal upward via a new
+  `onProposalReceived` prop (`WorkbenchShell` still owns the actual `writeProposal()` call,
+  keeping storage ownership centralized with Apply/Discard, same pattern Phase 2 established);
+  an empty `modifications` (question-only turn) shows the bubble with no card and no lock,
+  exactly per §5.4. **Decision F fixed** — Phase 2's `canSend`/input exclusion of `'proposal'`
+  (which simply blocked sending while a proposal was pending) is replaced with the spec's real
+  behavior: `handleSend` now calls `onDiscardProposal()` first when a proposal is pending, then
+  sends normally. The full five-state proposal card (§6.2/§6.3) replaces Phase 2's placeholder:
+  collapsed-by-default header + summary, one row per changed part with before/after disclosure
+  read from the `agent` prop (never the model), long values collapsing past ~12 lines,
+  `config: null` rendering as "Remove this key" never the literal word, warnings, and the
+  Pending/Applying/Applied/Failed/Restored states. `onSectionsUpdated` — dead since Apply now
+  owns every section write — was confirmed unused end-to-end (grepped) and removed from both
+  files, along with its `SectionUpdateResult` export.
+- **`tsc --noEmit` and `npm test` both re-run directly (551/551) — clean.**
+- **Manual browser pass, run live against the real dev server** (same locally-minted-session
+  technique as Phase 2's gate — no password touched), against the real `anthropic-test-agent-`
+  test agent. Confirmed: the long-section "show more"/"show less" collapse; `config: {tools:
+  null}` rendering as "Remove this key"; the before/after "show current" disclosure on both a
+  `description` row and a `config` row, pulling from the real `AgentDTO` already in state; the
+  "⟳ Proposed 5 minutes ago — restored from your last session" note appearing correctly for an
+  artificially-aged proposal; Apply → the transient "✓ Applied" line → panels updated → lock
+  released — **verified again at the DB level, not just visually**: `description` and
+  `agent_section.content` (the seeded long `role` rewrite) both landed, and the config merge
+  held under a second, harder test than Phase 2's (`tools` deleted **and** `color` changed in
+  the same call) — every other config key (`model`, `permissionMode`, `maxTurns`, `memory`,
+  `isolation`, `mcpServers`, `hooks`, `initialPrompt`, `disallowedTools`, `skills`) survived
+  untouched; Discard on the real styled card (not Phase 2's placeholder) cleared the card and
+  the lock, leaving the pre-Apply value in place.
+- **Deliberately not tested — actually sending a chat message.** `GET /api/settings` was
+  checked first and showed **`liveLlmCalls: true`** on this real instance right now — sending
+  any message through the real send path would trigger a real, billed Anthropic API call, which
+  standing rule 2 requires asking about first. Not asked, so not done. This means the
+  discard-then-send transition (Decision F) and the target chips rendering inside a real
+  historical message bubble are verified **by code review only**, not by a live click-through —
+  flagged here explicitly rather than silently skipped. The "Failed" apply state was likewise
+  not forced live (would need an artificial network failure mid-Apply); its detection logic
+  (watching `isApplying` true→false while `pendingProposal` stays non-null) was reviewed in code
+  and is a documented judgment call, not exercised live.
+- **Real, deliberate side effect:** the same `anthropic-test-agent-` test agent's `description`
+  and `role` section were overwritten again by this pass's Apply test (on top of Phase 2's
+  earlier `color` change) — left as-is, same reasoning as Phase 2's entry above.
+- Dev server and the temporary local session-minting helper shut down after; no stray files or
+  processes left behind.
+
+**Next up (at the time):** §11 Phase 4 — live verification against the real Anthropic API.
+**Spends real money — requires an explicit go-ahead before starting**, separate from
+everything done so far (standing rule 2). Given `liveLlmCalls` is already on, no toggle flip
+is needed to start, only the go-ahead itself and turning it back off afterward per §11 Phase
+4's own closing step.
+
+**2026-08-06 (same day, continued) — Phase 4 deferred by user decision; Phase 5 (doc sync,
+partial) done instead. This plan's own build/doc work is now finished.**
+
+- **Phase 4 deferral.** The user asked to set live verification aside for now rather than
+  decide on it immediately, then asked to close out what could be closed. Rather than leave
+  this plan open indefinitely waiting on a go-ahead with no other work left, Phase 4 is
+  **consolidated into a new `plans/roadmap.md` TODO item — "Big flow test — import → manual
+  edit → chat edit"** (added at the user's explicit request, same session): a single
+  comprehensive pre-deploy pass through import, manual editing, and chat editing together.
+  That test's chat-edit stage needs the same real, billed Prometheus round trip Phase 4 would
+  have run on its own (a section proposal, a config proposal, Apply, and ideally a question-only
+  turn) — running it once, as part of the broader test, is strictly better than running it
+  twice. Phase 4 is **not abandoned or silently dropped** — it's tracked there now, gated on
+  the same standing-rule-2 go-ahead, just not as a numbered phase of this plan anymore.
+- **Phase 5 — doc sync, done, with Phase 4's scope explicitly excluded** (§12 originally wrote
+  Phase 5 as depending on Phase 4 — "nothing shipped to users until Phase 4 verifies it live" —
+  re-scoped here since Phase 4 no longer blocks on this plan directly): every doc update in
+  §12.1–§12.4 that describes what was *built* is done; nothing claims live-LLM behavior was
+  *verified end-to-end* beyond what Phases 0–3's own manual passes already covered (DB-level
+  checks on Apply, not a real Prometheus reply).
+  - `CLAUDE.md` (root) — added a "chat proposes, it doesn't apply directly" note near the top;
+    added the missing `plans/07-*`/`plans/08-*` bullets under Files (neither plan had ever been
+    listed there, a real pre-existing gap, not something this plan's own build introduced).
+  - `lib/ai/CLAUDE.md` — the `prometheus.ts` section's stale "does not yet perform zero writes"
+    line corrected to reflect the built Phase 1 state, with a pointer to the apply route's
+    config-merge behavior.
+  - `architecture/TechDesign.md` — Rules Index rows #3, #7, #22, #23, #24, #25 superseded per
+    §12.2 exactly; new rows #73–81 added per §12.3; the #7 supersession note extended with a
+    second dated paragraph rather than rewritten, matching how the file already treats layered
+    supersessions; Deferred Decisions row #24 marked resolved (kept as a pointer row, matching
+    this table's own established convention for every other resolved row — not deleted outright
+    despite §12's literal "remove" wording, which the existing rows #19/#27/#40/P05a/P05b/P06b
+    already don't follow); six new rows added (P08a–P08f) per §12.4.
+  - `docs/user-guide.md` — the "Editing an agent with AI chat" section rewritten for
+    propose/apply: what's editable via chat (description/sections/config, never name),
+    reviewing and applying a proposal, the extended interaction lock, cross-tab/reload
+    persistence. The manual raw-edit section's one cross-reference to the lock updated too.
+  - `plans/roadmap.md` — TODO items 2/3/6 closed into "What's built" (condensed, full history
+    left in this plan's and Plan 07's own Progress Logs, not duplicated); the new big-flow-test
+    item added; the TODO list renumbered and every stale cross-reference to the old numbering
+    fixed (found several pre-existing ones — e.g. two "TODO item 13" references that already
+    meant "deploy online" under an even older numbering, not fixed until now).
+  - `CHANGELOG.md` — new dated entry covering Plans 07 and 08's combined scope in one entry,
+    per §4.2/§12.1, explicitly noting Phase 4's deferral rather than claiming full closure.
+- **`README.md` — also updated**, though not in §12.1's original file list: it named "the
+  mediator" and described the old auto-apply behavior (line ~101, the four-pane layout
+  description). Corrected to name Prometheus and describe propose/review/Apply.
+- **Not touched, deliberately:** `architecture/audits/*` (historical, per §12.1's own "do not
+  touch" list).
+- **No commit made** — reported and waiting per standing rule 1, same as every other phase in
+  this plan.
+
+**This plan is done.** Nothing further is scheduled here; the one remaining piece (live
+verification) lives in `plans/roadmap.md` TODO going forward.
 
 **2026-08-06 (later same day) — stopping point for the day; resume from here.**
 

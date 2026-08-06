@@ -20,14 +20,24 @@
  * Interaction lock invariants (§6 rule 12, Rules Index #22):
  *   - 'chat' lock: a /api/chat request is in flight
  *   - 'edit' lock: a section raw-edit has unsaved changes
+ *   - 'proposal' lock: a pending proposal exists in localStorage (Plan 08 Phase 2)
  *   - null: idle
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useSyncExternalStore } from 'react';
 import type { AgentDTO, AgentLiteDTO, GroupDTO, ConfigDefLite } from '@/lib/db/repository';
 import type { Session } from '@/lib/auth/session';
 import { AgentView } from '@/app/components/CustomViz/AgentView';
 import { ChatPanel } from '@/app/components/Chat/ChatPanel';
+import {
+  subscribe as subscribeProposal,
+  getSnapshot as getProposalSnapshot,
+  getServerSnapshot as getProposalServerSnapshot,
+  clearProposal,
+  writeProposal,
+} from '@/lib/proposalStore';
+import type { PendingProposal } from '@/lib/proposalStore';
+import { apiFetch } from '@/lib/apiFetch';
 import { Topbar } from '@/app/components/shell/Topbar';
 import { Panel } from '@/app/components/shell/Panel';
 import { Rail } from '@/app/components/shell/Rail';
@@ -37,11 +47,8 @@ import { LibraryPanel } from '@/app/components/Library/LibraryPanel';
 import { ConsentPopup } from '@/app/components/Auth/ConsentPopup';
 import { SIGNUP_CONSENT_FLAG_KEY, NEW_ACCOUNT_QUERY_PARAM } from '@/lib/auth/consentPopupFlag';
 
-export type InteractionLock = 'chat' | 'edit' | null;
-
-export type SectionUpdateResult =
-  | { content: string; version: number }
-  | { conflict: true; current: number; content: string };
+export type InteractionLock = 'chat' | 'edit' | 'proposal' | null;
+export type { PendingProposal };
 
 /**
  * A section or config block "cited" for the chat — frontend-only for now
@@ -81,7 +88,78 @@ export function WorkbenchShell({
   session,
 }: WorkbenchShellProps) {
   const [agent, setAgent] = useState<AgentDTO | null>(initialAgent);
-  const [interactionLock, setInteractionLock] = useState<InteractionLock>(null);
+  const [interactionLock, setInteractionLock] = useState<'chat' | 'edit' | null>(null);
+
+  // ── Pending proposal store (Plan 08 Phase 2) ───────────────────────────────
+  // useSyncExternalStore gives us a synchronous, hydration-safe restore of any
+  // pending proposal from localStorage — no useEffect, no flash of editable UI
+  // before the lock reasserts (§5.3).
+  const pendingProposal = useSyncExternalStore(
+    subscribeProposal,
+    () => (agent?.id ? getProposalSnapshot(session.userId, agent.id) : null),
+    getProposalServerSnapshot,
+  );
+
+  // 'proposal' lock is derived from pendingProposal — no setState needed.
+  // Children receive effectiveLock, not interactionLock, so the lock is correct
+  // from the very first render (prevents the flash the plan explicitly guards against).
+  const effectiveLock: InteractionLock = pendingProposal !== null ? 'proposal' : interactionLock;
+
+  const [isApplying, setIsApplying] = useState(false);
+
+  const applyProposal = useCallback(async () => {
+    if (!pendingProposal || !agent) return;
+    setIsApplying(true);
+    try {
+      const res = await apiFetch(`/api/agents/${agent.id}/apply-proposal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modifications: pendingProposal.modifications }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { agent: AgentDTO };
+        setAgent(data.agent);
+        clearProposal(session.userId, agent.id);
+        // effectiveLock automatically returns to null (pendingProposal becomes null)
+      }
+      // On error: keep proposal and lock (§5.4 row "Apply → error")
+    } catch {
+      // Network error: keep proposal and lock
+    } finally {
+      setIsApplying(false);
+    }
+  }, [pendingProposal, agent, session.userId]);
+
+  const discardProposal = useCallback(() => {
+    if (!agent) return;
+    clearProposal(session.userId, agent.id);
+    // effectiveLock automatically returns to null (pendingProposal becomes null)
+  }, [agent, session.userId]);
+
+  /**
+   * Called by ChatPanel when a 200 response with non-empty modifications arrives.
+   * Builds the full PendingProposal object and writes it to proposalStore.
+   * Keeps storage ownership in WorkbenchShell alongside Apply/Discard (§6.2).
+   */
+  const onProposalReceived = useCallback(
+    (
+      message: string,
+      modifications: PendingProposal['modifications'],
+      warnings: string[],
+    ) => {
+      if (!agent) return;
+      writeProposal({
+        v: 1,
+        agentId: agent.id,
+        userId: session.userId,
+        proposedAt: new Date().toISOString(),
+        message,
+        modifications,
+        warnings,
+      });
+    },
+    [agent, session.userId],
+  );
 
   // ── Chat citation selection (frontend-only, 2026-07-31 — see CitedItem) ─────
   const [citedItems, setCitedItems] = useState<CitedItem[]>([]);
@@ -158,26 +236,9 @@ export function WorkbenchShell({
   const [rightWidth, setRightWidth] = useState(340);  // matches mockup .right { flex: 0 0 340px }
   const [chatHeight, setChatHeight] = useState(240);  // matches mockup .center-bottom { flex: 0 0 240px }
 
-  // ── Section update callback (from ChatPanel) ───────────────────────────────
-  const onSectionsUpdated = useCallback(
-    (updates: Record<string, SectionUpdateResult>) => {
-      setAgent((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          sections: prev.sections.map((s) => {
-            const update = updates[s.sectionKey];
-            if (!update) return s;
-            if ('conflict' in update) {
-              return { ...s, content: update.content, version: update.current };
-            }
-            return { ...s, content: update.content, version: update.version };
-          }),
-        };
-      });
-    },
-    [],
-  );
+  // onSectionsUpdated removed in Plan 08 Phase 3: sections no longer auto-apply
+  // via chat — they come through Apply only, which already calls setAgent(data.agent)
+  // with the full refreshed DTO from the apply endpoint response.
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg)]">
@@ -243,7 +304,7 @@ export function WorkbenchShell({
                   agent={agent}
                   groups={groups}
                   configCatalog={configCatalog}
-                  interactionLock={interactionLock}
+                  interactionLock={effectiveLock}
                   citedItems={citedItems}
                   onToggleCite={toggleCite}
                   onEditStart={() => setInteractionLock('edit')}
@@ -299,13 +360,18 @@ export function WorkbenchShell({
               <ChatPanel
                 agentId={agent.id}
                 agentName={agent.name}
-                interactionLock={interactionLock}
+                agent={agent}
+                interactionLock={effectiveLock}
                 citedItems={citedItems}
                 onRemoveCite={removeCite}
                 onClearCited={clearAllCited}
                 onChatStart={() => setInteractionLock('chat')}
                 onChatEnd={() => setInteractionLock(null)}
-                onSectionsUpdated={onSectionsUpdated}
+                onProposalReceived={onProposalReceived}
+                pendingProposal={pendingProposal}
+                isApplying={isApplying}
+                onApplyProposal={applyProposal}
+                onDiscardProposal={discardProposal}
               />
             ) : (
               <div className="flex h-full items-center justify-center p-4 text-center text-[12px] text-[var(--faint)]">

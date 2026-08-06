@@ -7,6 +7,64 @@ its actual commit if it was verified live before being committed.
 
 ---
 
+## 2026-08-06 — Plans 07–08 built: Prometheus rename, propose/apply chat editing, ChatPanel UI
+
+Combined entry for both plans' full scope (nothing shipped to real users until this session's
+manual passes verified it, so one dated entry covers both, per Plan 08 §4.2/§12.1). Chat
+editing was rebuilt end to end: the chat agent (formerly "the chat mediator") was renamed
+**Prometheus** and rewritten in MyAgent's own real-agent shape; the editable surface widened
+from sections-only to description + sections + config (never `name`); and the write model
+switched from auto-apply to **propose-then-apply**, unconditionally, with a client-side lock
+while a proposal is pending.
+
+**Plan 07 (`plans/07-prometheus-propose-apply.md`), Phases 0–2, built 2026-08-05.** The rename
+through the `.ts` layer (`chatMediator.ts` → `prometheus.ts`) and the new output contract
+(`{ message, modifications, warnings }`, replacing the old `{ sections }`-only shape). Same
+session, the two import converters were renamed the same way — **Hermes** (Strict Import) and
+**Daedalus** (Structural Import) — for consistency, not because Plan 07 required it.
+
+**Plan 08 (`plans/08-prometheus-apply.md`), Phases 0–3 and 5, built 2026-08-06.**
+- **Phase 1 — the propose/apply split.** `POST /api/chat` now performs zero writes on any
+  path; a new `POST /api/agents/[id]/apply-proposal` is the only writer, implementing the
+  config-merge fix (a partial config edit no longer wipes untouched keys — the single
+  highest-risk item in the plan, regression-tested by watching it fail before the fix) and
+  server-side split-level-heading demotion at write time, not only propose time.
+- **Phase 0 — the mockup**, in `Layout-Workbench.html`: the full proposal card, all five
+  states (Pending/Applying/Applied/Failed/Restored), Apply/Discard, the lock banner. Signed off
+  live by the user.
+- **Phase 2 — the client store and lock.** `lib/proposalStore.ts` (a `localStorage`-backed,
+  `useSyncExternalStore`-compatible store, referentially stable, corruption- and
+  quota-tolerant); a third `'proposal'` state on the existing `interactionLock`; **closed a
+  real pre-existing gap** where config editing had no lock check of any kind before this.
+- **Phase 3 — the ChatPanel UI**, migrating the signed-off mockup into `ChatPanel.tsx`: the
+  real five-state card, before/after disclosure read from client state (never the model),
+  long-value collapse, `config: null` rendering as "Remove this key," and the discard-then-send
+  fix (sending a new message now discards a pending proposal first, rather than blocking send
+  entirely as an interim Phase 2 simplification did).
+- **Phase 5 — documentation sync**, re-scoped to exclude Phase 4's live-verification claims
+  (see below): `CLAUDE.md`, `lib/ai/CLAUDE.md`, `architecture/TechDesign.md` (Rules Index
+  supersessions #3/#7/#22/#23/#24/#25, new rules #73–81, six new Deferred Decisions rows),
+  `docs/user-guide.md`, `plans/roadmap.md`, and `README.md` (its layout description still
+  named "the mediator" and described the old auto-apply behavior).
+
+**Phase 4 — deferred, not built, not abandoned.** Live verification against the real
+Anthropic API needs an explicit go-ahead (standing rule 2) and was set aside at the user's
+request rather than decided immediately. Consolidated into a new `plans/roadmap.md` TODO item,
+"Big flow test — import → manual edit → chat edit," so the same real API calls aren't made
+twice under two different names.
+
+**Verification.** `tsc --noEmit` clean and 551/551 tests passing after every phase. Manual
+browser passes for Phases 2 and 3, authenticated via a locally-minted session JWT (this repo's
+own signing code, run standalone — no password read, stored, or entered anywhere), confirmed
+end to end at the DB level: lock restore with no flash, every editor gated, Discard, Apply
+(including the config-merge holding under a harder case than the unit tests — one key deleted
+and another changed in the same call, ten others untouched), corrupted-`localStorage` recovery,
+and cross-tab sync in both directions. **Not verified live: actually sending a chat message** —
+`liveLlmCalls` is `true` on this real instance, so a real send spends real money; that check is
+exactly what the deferred Phase 4 / new TODO item covers.
+
+---
+
 ## 2026-07-31 — Plan 06 Phases 0–4 built: middleware fix, configurable TTL, Google OAuth
 
 `@dev` implemented `plans/06-auth-review-google-oauth.md` Phases 0–4, each phase gated on `tsc`/`npm test`/`npm run build`, verified independently, and committed separately. Phase 5 (live verification against real Google endpoints) and the remainder of Phase 6 (doc sync) are not started — Phase 5 needs a user-created Google Cloud OAuth client and explicit go-ahead before any real call is made, per the standing no-real-external-call rule.
