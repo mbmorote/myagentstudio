@@ -1,30 +1,29 @@
 /**
  * app/api/chat/__tests__/chat.test.ts
  *
- * Phase 2 integration tests for POST /api/chat.
+ * POST /api/chat — propose-only (Phase 1).
  *
  * Tests the route handler directly (imported and called as a function).
  * The Anthropic API is NEVER called — callPrometheus is mocked with controlled
  * responses. The DB client is replaced with an in-memory test instance.
  *
- * Phase 2 transitional behavior: sections are still written to the DB on a
- * successful chat turn. description and config are proposed (in the response)
- * but NOT written to any DB row. Both behaviors are asserted here (§13.4
- * as adjusted for Phase 2's still-writing-sections state).
+ * KEY INVARIANT: POST /api/chat NEVER writes to agent, agent_section, agent_config,
+ * or section_revision (Rules Index #73, plans/08-prometheus-apply.md §7 invariant 1).
+ * The ZERO WRITES test (test 1 below) is the load-bearing enforcement of this invariant.
  *
  * Tests:
- *   1.  Bogus/unknown agentId → 404.
- *   2.  Server loads sections + config from DB (not client-supplied).
- *   3.  Sections are still written: two sections → versions bumped, two 'ai' revisions.
- *   4.  Split-level heading demotion applied before DB write (Rules Index #3).
- *   5.  Cancellation → 499, zero DB writes, zero revisions, no version bumps.
- *   6.  description in proposal.modifications is NOT written to any DB row.
- *   7.  config in proposal.modifications is NOT written to any DB row.
- *   8.  citedConfigKeys valid → passed to callPrometheus; config outside cited set
- *       is absent from the proposal (filtered by parsePrometheusResponse / mocked).
- *   9.  citedConfigKeys malformed (not array of strings) → unscoped fallback, 200.
- *   10. question-only turn (modifications: {}) → 200, no DB writes, message present.
- *   11. Unauthenticated → 401.
+ *   1.  ZERO WRITES unconditionally — the load-bearing test. A successful chat call
+ *       with non-empty modifications leaves agent_section.content/version,
+ *       section_revision count, agent.description, and agent_config rows byte-identical
+ *       to before. For sections too, not just description/config.
+ *   2.  Response shape: { proposal: { message, modifications, warnings }, meta }.
+ *   3.  Server loads sections and config from DB and passes them to callPrometheus.
+ *   4.  Question-only turn (modifications: {}) → 200, no writes, message present.
+ *   5.  citedSectionKeys and citedConfigKeys forwarded to callPrometheus correctly.
+ *   6.  citedConfigKeys malformed (not array of strings) → unscoped fallback, 200.
+ *   7.  Cancellation → 499.
+ *   8.  Unknown agentId → 404.
+ *   9.  Unauthenticated → 401.
  */
 
 import { beforeAll, describe, expect, it, vi, type MockedFunction } from 'vitest';
@@ -64,8 +63,6 @@ vi.mock('../../../../lib/ai/prometheus.js', () => ({
       this.name = 'PrometheusInvalidResponseError';
     }
   },
-  // demoteSplitLevelHeadings: identity fn — demotion is tested via the route's own
-  // inline demoteHeadings, which is not mocked here (it is in the route itself).
   demoteSplitLevelHeadings: vi.fn((content: string) => content),
 }));
 
@@ -76,7 +73,6 @@ import { CONFIG_DEFS, SECTION_DEFS } from '../../../../lib/blueprint/catalog.js'
 import {
   createAgent,
   getAgentFull,
-  updateSectionContent,
 } from '../../../../lib/db/repository/agents.js';
 import { callPrometheus } from '../../../../lib/ai/prometheus.js';
 import type { PrometheusProposal } from '../../../../lib/ai/prometheus.js';
@@ -119,7 +115,7 @@ beforeAll(() => {
       .run();
   }
 
-  const dto = createAgent(BOOTSTRAP_USER_ID, 'test-agent-p2', 'A test agent for Phase 2 chat route tests');
+  const dto = createAgent(BOOTSTRAP_USER_ID, 'test-agent-p1', 'A test agent for Phase 1 chat route tests');
   testAgentId = dto.id;
 });
 
@@ -139,17 +135,100 @@ function mockProposal(proposal: PrometheusProposal) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe('POST /api/chat — Phase 2', () => {
+describe('POST /api/chat — propose-only (Phase 1)', () => {
 
-  // ── 1. Bogus agentId → 404 ────────────────────────────────────────────────
-  it('returns 404 for an unknown agentId', async () => {
-    const res = await POST(makeRequest({ agentId: 'does-not-exist', instruction: 'test' }));
-    expect(res.status).toBe(404);
-    const json = await res.json() as { error: string };
-    expect(json.error).toBe('not_found');
+  // ── 1. ZERO WRITES unconditionally (the load-bearing test) ───────────────
+  // A successful call with non-empty modifications must not touch any agent row,
+  // section row, section_revision row, or config row. This single test enforces
+  // Rules Index #73 and supersedes the old section-auto-apply behavior.
+  it('ZERO WRITES: non-empty modifications response leaves DB unchanged for sections, description, and config', async () => {
+    const agentBefore = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
+    const descriptionBefore = agentBefore.description;
+    const versionsBefore = new Map(agentBefore.sections.map((s) => [s.id, s.version]));
+    const contentsBefore = new Map(agentBefore.sections.map((s) => [s.id, s.content]));
+    const revisionCountBefore = testDb.select().from(schema.sectionRevision).all().length;
+    const configCountBefore = testDb
+      .select()
+      .from(schema.agentConfig)
+      .where(eq(schema.agentConfig.agentId, testAgentId))
+      .all().length;
+
+    mockProposal({
+      message: 'I updated role, behavior, description, and model.',
+      modifications: {
+        sections: { role: 'Proposed new role.', behavior: 'Proposed new behavior.' },
+        description: 'Proposed new description.',
+        config: { model: 'claude-opus-5' },
+      },
+      warnings: [],
+    });
+
+    const res = await POST(makeRequest({ agentId: testAgentId, instruction: 'update everything' }));
+    expect(res.status).toBe(200);
+
+    // section_revision count unchanged
+    const revisionCountAfter = testDb.select().from(schema.sectionRevision).all().length;
+    expect(revisionCountAfter).toBe(revisionCountBefore);
+
+    // section versions and content unchanged
+    const agentAfter = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
+    for (const section of agentAfter.sections) {
+      expect(section.version).toBe(versionsBefore.get(section.id));
+      expect(section.content).toBe(contentsBefore.get(section.id));
+    }
+
+    // description unchanged
+    expect(agentAfter.description).toBe(descriptionBefore);
+
+    // agent_config unchanged (no new rows written)
+    const configCountAfter = testDb
+      .select()
+      .from(schema.agentConfig)
+      .where(eq(schema.agentConfig.agentId, testAgentId))
+      .all().length;
+    expect(configCountAfter).toBe(configCountBefore);
   });
 
-  // ── 2. Server loads sections + config from DB ─────────────────────────────
+  // ── 2. Response shape ─────────────────────────────────────────────────────
+  it('response shape is { proposal: { message, modifications, warnings }, meta }', async () => {
+    mockProposal({
+      message: 'Proposal message text.',
+      modifications: { sections: { role: 'New role content.' } },
+      warnings: ['A warning.'],
+    });
+
+    const res = await POST(makeRequest({ agentId: testAgentId, instruction: 'update role' }));
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as {
+      proposal: {
+        message: string;
+        modifications: Record<string, unknown>;
+        warnings: string[];
+      };
+      meta: {
+        agentId: string;
+        proposedAt: string;
+        scoped: boolean;
+        citedSectionKeys: string[];
+        citedConfigKeys: string[];
+      };
+    };
+
+    expect(typeof json.proposal.message).toBe('string');
+    expect(json.proposal.message).toBe('Proposal message text.');
+    expect(typeof json.proposal.modifications).toBe('object');
+    expect(Array.isArray(json.proposal.warnings)).toBe(true);
+    expect(json.proposal.warnings).toEqual(['A warning.']);
+
+    expect(json.meta.agentId).toBe(testAgentId);
+    expect(typeof json.meta.proposedAt).toBe('string');
+    expect(typeof json.meta.scoped).toBe('boolean');
+    expect(Array.isArray(json.meta.citedSectionKeys)).toBe(true);
+    expect(Array.isArray(json.meta.citedConfigKeys)).toBe(true);
+  });
+
+  // ── 3. Server loads sections + config from DB ─────────────────────────────
   it('server loads sections and config from DB and passes them to callPrometheus', async () => {
     mockProposal({ message: 'noop', modifications: {}, warnings: [] });
 
@@ -170,89 +249,83 @@ describe('POST /api/chat — Phase 2', () => {
     expect(Array.isArray(callArg.config)).toBe(true);
   });
 
-  // ── 3. Sections are still written (transitional Phase 2 behavior) ─────────
-  it('two-section proposal → both versions bumped, two ai revisions written', async () => {
-    const agent = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
-    const roleSection = agent.sections.find((s) => s.sectionKey === 'role')!;
-    const behaviorSection = agent.sections.find((s) => s.sectionKey === 'behavior')!;
-    const roleVersionBefore = roleSection.version;
-    const behaviorVersionBefore = behaviorSection.version;
-
-    const newRole = 'You are a rewritten role (Phase 2).';
-    const newBehavior = 'Updated behavior (Phase 2).';
-
-    mockProposal({
-      message: 'Rewrote role and behavior.',
-      modifications: {
-        sections: { role: newRole, behavior: newBehavior },
-      },
-      warnings: [],
-    });
-
-    const res = await POST(makeRequest({ agentId: testAgentId, instruction: 'update role and behavior' }));
-    expect(res.status).toBe(200);
-
-    const json = await res.json() as { proposal: { modifications: { sections: Record<string, string> } } };
-
-    // Both sections present in the response
-    expect(json.proposal.modifications.sections?.role).toBe(newRole);
-    expect(json.proposal.modifications.sections?.behavior).toBe(newBehavior);
-
-    // Versions bumped in the DB
-    const agentAfter = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
-    const roleAfter = agentAfter.sections.find((s) => s.sectionKey === 'role')!;
-    const behaviorAfter = agentAfter.sections.find((s) => s.sectionKey === 'behavior')!;
-    expect(roleAfter.version).toBe(roleVersionBefore + 1);
-    expect(behaviorAfter.version).toBe(behaviorVersionBefore + 1);
-
-    // Two ai revisions written
-    const aiRevisions = testDb.select().from(schema.sectionRevision)
-      .where(eq(schema.sectionRevision.author, 'ai')).all();
-    const roleRev = aiRevisions.find((r) => r.sectionId === roleSection.id && r.content === newRole);
-    const behaviorRev = aiRevisions.find((r) => r.sectionId === behaviorSection.id && r.content === newBehavior);
-    expect(roleRev).toBeDefined();
-    expect(behaviorRev).toBeDefined();
-  });
-
-  // ── 4. Split-level demotion applied before DB write ───────────────────────
-  it('demotes split-level headings in section content before writing to DB', async () => {
-    const agent = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
-    expect(agent.splitLevel).toBe(1);
-    const guardrailsSection = agent.sections.find((s) => s.sectionKey === 'guardrails')!;
-    const versionBefore = guardrailsSection.version;
-
-    const rawContent = '# This heading should be demoted\nNever do bad things.';
-    const expectedDemoted = '## This heading should be demoted\nNever do bad things.';
-
-    // The mock returns the raw (not-yet-demoted) content.
-    // The route's inline demoteHeadings must demote it before writing.
-    mockProposal({
-      message: 'Tightened guardrails.',
-      modifications: { sections: { guardrails: rawContent } },
-      warnings: [],
-    });
-
-    const res = await POST(makeRequest({ agentId: testAgentId, instruction: 'tighten guardrails' }));
-    expect(res.status).toBe(200);
-
-    // Response shows the demoted content
-    const json = await res.json() as { proposal: { modifications: { sections: Record<string, string> } } };
-    expect(json.proposal.modifications.sections?.guardrails).toBe(expectedDemoted);
-
-    // DB also has the demoted content
-    const dbSection = testDb.select().from(schema.agentSection)
-      .where(eq(schema.agentSection.id, guardrailsSection.id)).get();
-    expect(dbSection?.content).toBe(expectedDemoted);
-    expect(dbSection?.version).toBe(versionBefore + 1);
-  });
-
-  // ── 5. Cancellation → 499, zero DB writes ────────────────────────────────
-  it('cancellation: aborted request → 499, zero DB writes, no revisions, no version bumps', async () => {
+  // ── 4. Question-only turn (modifications: {}) → 200, no writes, message present ──
+  it('question-only turn (modifications: {}) → 200, message present, zero writes', async () => {
     const agentBefore = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
     const versionsBefore = new Map(agentBefore.sections.map((s) => [s.id, s.version]));
-    const revisionsBefore = testDb.select().from(schema.sectionRevision)
-      .where(eq(schema.sectionRevision.author, 'ai')).all().length;
+    const revisionsBefore = testDb.select().from(schema.sectionRevision).all().length;
 
+    mockProposal({
+      message: 'Your agent looks great! No changes needed.',
+      modifications: {},
+      warnings: [],
+    });
+
+    const res = await POST(makeRequest({ agentId: testAgentId, instruction: 'how does my agent look?' }));
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as {
+      proposal: { message: string; modifications: Record<string, unknown>; warnings: string[] };
+      meta: Record<string, unknown>;
+    };
+
+    expect(json.proposal.message).toBe('Your agent looks great! No changes needed.');
+    expect(json.proposal.modifications).toEqual({});
+    expect(json.meta.agentId).toBe(testAgentId);
+
+    // No DB writes
+    const revisionsAfter = testDb.select().from(schema.sectionRevision).all().length;
+    expect(revisionsAfter).toBe(revisionsBefore);
+
+    const agentAfter = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
+    for (const section of agentAfter.sections) {
+      expect(section.version).toBe(versionsBefore.get(section.id));
+    }
+  });
+
+  // ── 5. Cited keys forwarded correctly ────────────────────────────────────
+  it('citedSectionKeys and citedConfigKeys are forwarded to callPrometheus', async () => {
+    mockProposal({ message: 'ok', modifications: {}, warnings: [] });
+
+    const res = await POST(makeRequest({
+      agentId: testAgentId,
+      instruction: 'review role and model',
+      citedSectionKeys: ['role'],
+      citedConfigKeys: ['model'],
+    }));
+    expect(res.status).toBe(200);
+
+    const lastCall = (callPrometheus as MockedFunction<typeof callPrometheus>).mock.calls.at(-1)!;
+    const [callArg] = lastCall;
+    expect(callArg.citedSectionKeys).toEqual(['role']);
+    expect(callArg.citedConfigKeys).toEqual(['model']);
+
+    const json = await res.json() as { meta: { scoped: boolean; citedSectionKeys: string[]; citedConfigKeys: string[] } };
+    expect(json.meta.scoped).toBe(true);
+    expect(json.meta.citedSectionKeys).toEqual(['role']);
+    expect(json.meta.citedConfigKeys).toEqual(['model']);
+  });
+
+  // ── 6. citedConfigKeys malformed → unscoped fallback ─────────────────────
+  it('malformed citedConfigKeys (not array of strings) → ignored, unscoped, 200', async () => {
+    mockProposal({ message: 'ok', modifications: {}, warnings: [] });
+
+    const res = await POST(makeRequest({
+      agentId: testAgentId,
+      instruction: 'review agent',
+      citedConfigKeys: 'not-an-array',
+    }));
+    expect(res.status).toBe(200);
+
+    const lastCall = (callPrometheus as MockedFunction<typeof callPrometheus>).mock.calls.at(-1)!;
+    const [callArg] = lastCall;
+    // Malformed → falls back to undefined (unscoped)
+    expect(callArg.citedConfigKeys).toBeUndefined();
+  });
+
+  // ── 7. Cancellation → 499 ─────────────────────────────────────────────────
+  // Zero writes is unconditional for POST /api/chat, so we only need to assert 499.
+  it('cancellation: aborted request → 499', async () => {
     (callPrometheus as MockedFunction<typeof callPrometheus>).mockImplementationOnce(
       (input: Parameters<typeof callPrometheus>[0]) =>
         new Promise<never>((_, reject) => {
@@ -282,142 +355,18 @@ describe('POST /api/chat — Phase 2', () => {
     const res = await routePromise;
     expect(res.status).toBe(499);
 
-    // No new ai revisions
-    const revisionsAfter = testDb.select().from(schema.sectionRevision)
-      .where(eq(schema.sectionRevision.author, 'ai')).all().length;
-    expect(revisionsAfter).toBe(revisionsBefore);
-
-    // No version bumps
-    const agentAfter = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
-    for (const section of agentAfter.sections) {
-      expect(section.version).toBe(versionsBefore.get(section.id));
-    }
+    const json = await res.json() as { error: string };
+    expect(json.error).toBe('cancelled');
   });
 
-  // ── 6. description in response, NOT in DB ─────────────────────────────────
-  it('description in proposal.modifications is present in the response but not written to any DB row', async () => {
-    const agentBefore = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
-    const descriptionBefore = agentBefore.description;
-
-    const proposedDescription = 'A brand new proposed description — not yet applied.';
-
-    mockProposal({
-      message: 'Updated the description.',
-      modifications: { description: proposedDescription },
-      warnings: [],
-    });
-
-    const res = await POST(makeRequest({ agentId: testAgentId, instruction: 'rewrite the description' }));
-    expect(res.status).toBe(200);
-
-    const json = await res.json() as {
-      proposal: { modifications: { description?: string }; message: string };
-    };
-
-    // description is present in the response proposal
-    expect(json.proposal.modifications.description).toBe(proposedDescription);
-    expect(json.proposal.message).toBe('Updated the description.');
-
-    // description is NOT written to the DB row
-    const agentAfter = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
-    expect(agentAfter.description).toBe(descriptionBefore);
+  // ── 8. Unknown agentId → 404 ──────────────────────────────────────────────
+  it('returns 404 for an unknown agentId', async () => {
+    const res = await POST(makeRequest({ agentId: 'does-not-exist', instruction: 'test' }));
+    expect(res.status).toBe(404);
+    const json = await res.json() as { error: string };
+    expect(json.error).toBe('not_found');
   });
 
-  // ── 7. config in response, NOT in DB ──────────────────────────────────────
-  it('config in proposal.modifications is present in the response but no agent_config row is written', async () => {
-    const agentBefore = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
-    const configCountBefore = agentBefore.config.length;
-
-    mockProposal({
-      message: 'Switched model to opus.',
-      modifications: { config: { model: 'claude-opus-5' } },
-      warnings: [],
-    });
-
-    const res = await POST(makeRequest({ agentId: testAgentId, instruction: 'switch to opus' }));
-    expect(res.status).toBe(200);
-
-    const json = await res.json() as {
-      proposal: { modifications: { config?: Record<string, unknown> } };
-    };
-
-    // config is present in the response
-    expect(json.proposal.modifications.config?.model).toBe('claude-opus-5');
-
-    // No new agent_config row written — the agent's config is unchanged
-    const agentAfter = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
-    expect(agentAfter.config.length).toBe(configCountBefore);
-    expect(agentAfter.config.find((c) => c.propKey === 'model')).toBeUndefined();
-  });
-
-  // ── 8. citedConfigKeys passed through to callPrometheus ──────────────────
-  it('valid citedConfigKeys is parsed and passed to callPrometheus', async () => {
-    mockProposal({ message: 'ok', modifications: {}, warnings: [] });
-
-    const res = await POST(makeRequest({
-      agentId: testAgentId,
-      instruction: 'review model',
-      citedConfigKeys: ['model'],
-    }));
-    expect(res.status).toBe(200);
-
-    const lastCall = (callPrometheus as MockedFunction<typeof callPrometheus>).mock.calls.at(-1)!;
-    const [callArg] = lastCall;
-    expect(callArg.citedConfigKeys).toEqual(['model']);
-  });
-
-  // ── 9. citedConfigKeys malformed → unscoped fallback ─────────────────────
-  it('malformed citedConfigKeys (not array of strings) → ignored, unscoped, 200', async () => {
-    mockProposal({ message: 'ok', modifications: {}, warnings: [] });
-
-    const res = await POST(makeRequest({
-      agentId: testAgentId,
-      instruction: 'review agent',
-      citedConfigKeys: 'not-an-array',
-    }));
-    expect(res.status).toBe(200);
-
-    const lastCall = (callPrometheus as MockedFunction<typeof callPrometheus>).mock.calls.at(-1)!;
-    const [callArg] = lastCall;
-    // Malformed → falls back to undefined (unscoped)
-    expect(callArg.citedConfigKeys).toBeUndefined();
-  });
-
-  // ── 10. Question-only turn (modifications: {}) → 200, no writes ──────────
-  it('question-only turn (modifications: {}) → 200, message present, no DB writes', async () => {
-    const agentBefore = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
-    const versionsBefore = new Map(agentBefore.sections.map((s) => [s.id, s.version]));
-    const revisionsBefore = testDb.select().from(schema.sectionRevision)
-      .where(eq(schema.sectionRevision.author, 'ai')).all().length;
-
-    mockProposal({
-      message: 'Your agent looks great! No changes needed.',
-      modifications: {},
-      warnings: [],
-    });
-
-    const res = await POST(makeRequest({ agentId: testAgentId, instruction: 'how does my agent look?' }));
-    expect(res.status).toBe(200);
-
-    const json = await res.json() as {
-      proposal: { message: string; modifications: Record<string, unknown>; warnings: string[] };
-      meta: Record<string, unknown>;
-    };
-
-    expect(json.proposal.message).toBe('Your agent looks great! No changes needed.');
-    expect(json.proposal.modifications).toEqual({});
-    expect(json.meta.agentId).toBe(testAgentId);
-
-    // No DB writes
-    const revisionsAfter = testDb.select().from(schema.sectionRevision)
-      .where(eq(schema.sectionRevision.author, 'ai')).all().length;
-    expect(revisionsAfter).toBe(revisionsBefore);
-
-    const agentAfter = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
-    for (const section of agentAfter.sections) {
-      expect(section.version).toBe(versionsBefore.get(section.id));
-    }
-  });
 });
 
 // ── Auth guard: unauthenticated → 401 ─────────────────────────────────────────

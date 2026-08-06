@@ -1,8 +1,91 @@
 # Plan 08 — Prometheus Apply: Propose/Apply Split, Proposal Lock, and ChatPanel UI
 
-> **Status: ⚪ Not started.**
+> **Status: 🟡 Phase 1 built and verified. Phase 0 mockup built, iterated, still awaiting the
+> user's visual sign-off** (the stated gate for Phase 3) — see the 2026-08-06 "stopping point"
+> entry below for exactly where this was left and how to resume.
 
 ## Progress Log
+
+**2026-08-06 (later same day) — stopping point for the day; resume from here.**
+
+Two new standing rules landed in root `CLAUDE.md` this session, both driven by what happened
+dispatching Phase 0 (see the entry below for the original build): the Phase 0 dispatch to
+`@dev` took **21.5 minutes** for a 330-line static-HTML mockup with no compiler — longer than
+the same session's Phase 1 dispatch, which shipped two new server files, a full test suite, and
+real `npm test`/`tsc` cycles in **12.9 minutes**. Root cause: Mode A's mandatory
+"run a sanity check" step has no equivalent for a file with no build step, so the agent invented
+substitute verification (counting balanced tags, etc.) instead of just letting a human look at
+it. Two rules now cover this:
+- **Standing rule 4 addendum:** scope `Layout-Workbench.html` dispatches to one visual concept,
+  and explicitly waive Mode A's build-equivalent sanity check in the prompt — the gate is always
+  a human in a browser, never an automated check.
+- **Standing rule 5, 🔶 PROVISIONAL:** ask the user before running *any* sanity/build/test check
+  in *any* task (not just this file) — `npm test`, `tsc --noEmit`, `npm run build`, starting the
+  dev server just to smoke-test something — whether run directly or as part of `@dev`'s Mode A
+  step 3 or `@qa`'s testing pass. Explicitly **not permanent** — the user is evaluating whether
+  these should run in this environment or elsewhere; revisit when they say so. This is why no
+  `tsc`/`npm test` run accompanies today's mockup edits below, unlike Phase 1's.
+
+After that, three more rounds of direct edits to `Layout-Workbench.html` (done directly, not
+via `@dev`, per the new rule 4 addendum — each a single self-contained concept):
+1. **Found and fixed real corruption from the Phase 0 dispatch, not caught by its own checks.**
+   The agent's text generation had silently turned straight `"` into curly `"`/`"` across ~350
+   `class=`/`style=`/`title=` attributes (confirmed via byte-level diff against the pre-Phase-0
+   committed version — 1 stray curly quote existed before, 383 after). In HTML a curly quote
+   isn't a valid attribute delimiter, so roughly half the new markup would have rendered
+   completely unstyled in a browser. Normalized globally back to straight quotes.
+2. **Apply/Discard wired up** on the one live conversation card only (`.proposal-card.live` —
+   a plain `click` delegate: Apply swaps the card to the muted "✓ Applied" line, Discard removes
+   it). The five state-gallery cards stay static/inert on purpose — that section exists
+   specifically to show all five states side by side for reference, not to be clicked through.
+3. **Loaded a real test fixture into the mock**, at the user's request: `ImportTestAgent/TestAgent.md`
+   (a genuinely complex agent — nested `hooks`/`mcpServers`, 12-item `tools` list, multi-line
+   `initialPrompt`, `##`-level headings) now replaces `secure-code-auditor` as the agent shown in
+   the Viz panel, Raw panel, and Library selection, specifically so the user can import the same
+   file into the real running app and compare. The live chat example was rebuilt to match (an
+   Operating-principles edit on this agent, same card shape as the earlier
+   secure-code-auditor example). **Note:** doing this replaced rather than
+   supplemented the old secure-code-auditor conversation — the mock shows one agent at a time,
+   no switcher (§11.1, R10) — so that conversation is gone from the file, not preserved
+   alongside. The comparison-against-a-real-import itself has **not** happened yet — that needs
+   the dev server up and is now gated by the new rule 5's ask-first posture, on top of the
+   already-standing rule 3 (dev server off by default) and rule 2 (no real Anthropic API call,
+   if the comparison import goes through structural/strict AI conversion) — none of that has
+   been asked for yet.
+
+**To resume tomorrow:**
+1. User reviews the mockup in a browser — both the proposal-card layout signed off on earlier
+   today, and this session's TestAgent swap-in and working Apply/Discard.
+2. If a real-import comparison is still wanted: ask before starting the dev server (rule 3) and
+   before any resulting `npm test`/`tsc`/build-equivalent step (rule 5) — and if the import path
+   would call the real Hermes/Daedalus AI converters, that's a real Anthropic API spend, ask
+   first per rule 2 regardless of the newer rules.
+3. Once the mockup is signed off, §11 Phase 3 (migrating the settled card/lock/states into real
+   `ChatPanel.tsx`) can start — but it depends on Phase 2 (client state store + lock,
+   `lib/proposalStore.ts` + `WorkbenchShell`) landing first, which has **not** been started yet.
+   Phase 2 has no dependency on the mockup sign-off (§11.1) and could be picked up first if
+   preferred.
+
+**2026-08-06 — Phase 0 (mockup) and Phase 1 (server-side propose/apply split) both built by
+`@dev`, in parallel per §11.1's dependency graph.**
+
+- **Phase 1 — done and verified.** `app/api/chat/route.ts` gutted to propose-only (zero DB
+  writes on any path); new `app/api/agents/[id]/apply-proposal/route.ts` implements §3.3's
+  algorithm exactly, including the §3.4 config merge (verified as a real regression guard —
+  the merge was temporarily reverted to a naive pass-through and the test was watched to fail,
+  then restored). `npx tsc --noEmit` clean, 551/551 tests passing.
+- **Phase 0 — implemented, awaiting the human visual-sign-off gate.** `Layout-Workbench.html`
+  extended with the full proposal card (§6.2), all five card states (§6.3), the Apply/Discard
+  footer, the lock banner, and disabled-looking config/section zones. **One correction made
+  after the fact:** the `@dev` prompt for this phase (based on stale project memory, not this
+  plan) asked it to check for and maintain `plans/layout-prototype-todo.md`. That file was
+  deliberately deleted 2026-07-29 (doc-reorg commit) — current `CLAUDE.md` standing rule 4
+  states explicitly "there is no separate hand-off file for this." `@dev` recreated the file
+  with two plausible-looking but never-actually-logged historical entries; it has been deleted
+  again and this Progress Log entry is the correct record instead. Phase 0's own file-change
+  list stands as reported: only `architecture/layout/Layout-Workbench.html` was touched.
+- **Next:** the user reviews the mockup live in a browser and signs off on the visuals — the
+  stated gate for §11 Phase 3 to start.
 
 **2026-08-05 — plan created**, then **reorganized same day** after the user flagged that
 having Plan 07's original Phase 3–7 write-ups sit alongside this plan's own Phase 0–5 was
@@ -10,6 +93,13 @@ confusing — two numbering schemes for the same continuum of work. This plan or
 pointed back at Plan 07 §6–§13/§15–§16 for its technical spec; that content has now been
 **moved here for real**, so this plan is self-contained and Plan 07 is trimmed to only what it
 actually built (the rename and the new output contract). Nothing built yet under this plan.
+
+**2026-08-06 — Confirmation points A and B resolved.** User accepted both of the plan's own
+recommendations: **(A)** non-atomic apply, ordered sections-first — no threading of a shared
+`tx` through `lib/db/repository/agents.ts` for this plan; **(B)** the apply endpoint is
+`POST /api/agents/[id]/apply-proposal`. Both unblock §11 Phase 1. Point C (Phase 0 mockup
+scope) was already fully specified, not a yes/no decision, so nothing to confirm there — Phase 0
+and Phase 1 are now both clear to start, per the dependency graph in §11.1.
 
 **2026-08-06 — `@architect` reviewed this file (and Plan 07) for completeness; fixes applied.**
 See Plan 07's Progress Log for the full account (this was a joint review of both files). What
@@ -99,22 +189,22 @@ reviewed Plan 07 and **stay answered — not reopened here**:
 Two were bundled together as "the apply mechanism" and **cut from Plan 07 wholesale rather than
 decided** — they are open again here:
 
-**A. Non-atomic apply — accept? (was Plan 07 §8 point 7)**
+**A. Non-atomic apply — accept? (was Plan 07 §8 point 7) — ✅ RESOLVED 2026-08-06: accepted.**
 Sections are written by N separate `updateSectionContent()` transactions, then
 description+config by one `updateAgent()` transaction (§3.3). A failure part-way leaves a
 partially-applied agent (500 returned, proposal retained client-side, re-apply safe and
 idempotent for both sections and config — §8's "partial-apply honesty" note). Making it atomic
 means threading one `tx` through repository functions that are currently self-contained — real
-churn in `lib/db/repository/agents.ts`. **Recommendation: accept non-atomic**, ordered
-sections-first, exactly as Plan 07 specified before this point was cut. **Blocks:** §11 Phase 1.
+churn in `lib/db/repository/agents.ts`. **Accepted: non-atomic**, ordered sections-first, exactly
+as Plan 07 specified before this point was cut. **Unblocks:** §11 Phase 1.
 
-**B. Apply endpoint path — confirm (was Plan 07 §8 point 8)**
+**B. Apply endpoint path — confirm (was Plan 07 §8 point 8) — ✅ RESOLVED 2026-08-06:
+`/api/agents/[id]/apply-proposal`.**
 `POST /api/agents/[id]/apply-proposal` (§3.2's recommendation — ownership scoping is
 structurally obvious under the agent resource, and keeps `/api/chat` write-free per Plan 07
 constraint 1) vs. `POST /api/chat/apply` (keeps the conversational flow in one namespace).
-**Recommendation: `/api/agents/[id]/apply-proposal`, as Plan 07 recommended.** Trivial to
-change, but it appears in tests, docs, and the client fetch call, so pick it once. **Blocks:**
-§11 Phase 1.
+**Accepted: `/api/agents/[id]/apply-proposal`, as Plan 07 recommended.** Appears in tests, docs,
+and the client fetch call. **Unblocks:** §11 Phase 1.
 
 **C. New — Phase 0 mockup scope (not a Plan 07 §8 item; surfaced by the split itself)**
 Plan 07's actual Phase 0 (built, 2026-08-05) was **trimmed**: it renamed `✦ Mediator` →

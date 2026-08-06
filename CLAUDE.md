@@ -43,7 +43,29 @@ follow these even though you have no memory of when they were agreed:
    mockup, migrate it into the real app. This rule is about efficiency of iteration, not
    process for its own sake — a trivial one-line style tweak doesn't need a mockup detour.
    Open layout items are tracked in `plans/roadmap.md`, tagged Layout — there is no separate
-   hand-off file for this.
+   hand-off file for this. **When dispatching this prototyping step to `@dev` or any
+   subagent:** scope each dispatch to one visual concept, not several bundled together, and
+   explicitly waive Mode A's build-equivalent sanity check in the prompt — there is no
+   compiler for this file, so requiring one invites the agent to invent substitute
+   verification (counting balanced tags, etc.) that spends real time proving something a
+   human confirms by eye in seconds. The gate for this file is always a human looking at it in
+   a browser, never an automated check. (Reason this was added: 2026-08-06, Plan 08 Phase 0 —
+   a 330-line static-HTML mockup dispatch took 21.5 minutes, longer wall-clock than the same
+   session's Phase 1, which shipped two new files, a full test suite, and real `npm
+   test`/`tsc` cycles in 12.9 minutes — see `plans/08-prometheus-apply.md`'s Progress Log.)
+5. **🔶 PROVISIONAL, added 2026-08-06 — ask before running any sanity/build/test check, in any
+   task.** This covers `npm test`, `npx tsc --noEmit`, `npm run build`, `npm run dev` started
+   only to smoke-test something, or any equivalent verification command — whether about to be
+   run directly, or as part of `@dev`'s Mode A step 3 ("Run a Sanity Check") or `@qa`'s
+   testing pass. Do not run one automatically just because a plan step or an agent's own
+   process calls for it — **stop first and ask the user** whether to run it now, or whether
+   verification will happen outside this session/environment instead. Reason: the user wants
+   to evaluate, case by case, whether running these checks here is worth it vs. doing so
+   elsewhere, and this is a deliberate tightening while that's being worked out — **not a
+   permanent process change**, revisit/relax when the user says so. Rule 2 (no real Anthropic
+   API call without ask) and rule 3 (dev server off by default) already covered the two
+   costliest/riskiest categories; this widens the same ask-first posture to ordinary
+   test/build runs too.
 
 ## Folders
 

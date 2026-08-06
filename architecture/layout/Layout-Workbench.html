@@ -344,6 +344,81 @@
                 display:grid;place-items:center;flex:0 0 auto}
   .prompt .hint{margin-top:6px;color:var(--faint);font-size:10px;padding-left:2px}
 
+  /* ── proposal card (Plan 08 Phase 0) ── */
+  .proposal-card{margin-top:8px;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--bg)}
+  .proposal-card>summary{display:flex;align-items:center;gap:7px;padding:6px 10px;
+    background:var(--panel);border-bottom:1px solid var(--border);list-style:none;
+    cursor:pointer;user-select:none}
+  .proposal-card>summary::-webkit-details-marker{display:none}
+  .proposal-card:not([open])>summary{border-bottom:none}
+  .pc-title{font-size:11px;font-weight:600;color:var(--text)}
+  .pc-summary{font-size:10.5px;color:var(--faint)}
+  .pc-chev{font-size:10px;color:var(--faint);margin-left:auto}
+  .pc-row{padding:7px 10px;border-bottom:1px solid var(--border)}
+  .pc-row:last-child{border-bottom:none}
+  .pc-row-head{display:flex;align-items:center;margin-bottom:4px}
+  .pc-row-label{font-size:10px;color:var(--faint);letter-spacing:.04em;text-transform:uppercase}
+  .pc-before-btn{margin-left:auto;font-size:10px;color:var(--accent-ink);background:none;
+    border:none;padding:0;font:inherit;cursor:pointer}
+  .pc-before-btn:hover{text-decoration:underline}
+  .pc-code{font-family:var(--mono);font-size:10.5px;white-space:pre-wrap;color:var(--text);
+    margin:0;background:var(--elev);border:1px solid var(--border);border-radius:5px;
+    padding:5px 8px;line-height:1.5;display:block;position:relative}
+  .pc-code.truncated{max-height:185px;overflow:hidden}
+  .pc-code.truncated::after{content:'';position:absolute;bottom:0;left:0;right:0;height:36px;
+    background:linear-gradient(transparent,var(--bg));border-radius:0 0 5px 5px;pointer-events:none}
+  .pc-show-more{display:block;text-align:right;font-size:10px;color:var(--accent-ink);
+    margin-top:2px;font-style:italic}
+  .pc-before{margin-top:6px;border-top:1px dashed var(--border);padding-top:6px}
+  .pc-before-label{font-size:10px;color:var(--faint);margin-bottom:3px;font-style:italic;display:block}
+  .pc-footer{padding:7px 10px;border-top:1px solid var(--border);background:var(--panel)}
+  .pc-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .pc-apply{font:inherit;font-size:11.5px;border-radius:6px;padding:5px 12px;cursor:pointer;
+    border:none;background:var(--accent);color:#fff;font-weight:600}
+  .pc-apply:hover:not(.disabled){filter:brightness(1.08)}
+  .pc-discard{font:inherit;font-size:11.5px;border-radius:6px;padding:5px 12px;cursor:pointer;
+    border:1px solid var(--border);background:var(--elev);color:var(--muted)}
+  .pc-discard:hover:not(.disabled){color:var(--text);border-color:var(--text)}
+  .pc-apply.disabled,.pc-discard.disabled{opacity:.5;cursor:not-allowed}
+  .pc-caption{font-size:10px;color:var(--faint);margin-left:4px}
+  .pc-spinner{display:inline-block;width:9px;height:9px;border:1.5px solid rgba(255,255,255,.35);
+    border-top-color:#fff;border-radius:50%;animation:pc-spin .7s linear infinite;
+    vertical-align:middle;margin-right:4px}
+  @keyframes pc-spin{to{transform:rotate(360deg)}}
+  .pc-warn-line{padding:5px 10px;font-size:10.5px;color:var(--warn);
+    border-bottom:1px solid var(--border);background:rgba(179,128,28,.07)}
+  .pc-err-line{padding:5px 10px;font-size:10.5px;color:var(--err);
+    border-bottom:1px solid var(--border);background:rgba(207,75,65,.07)}
+  .pc-applied-line{padding:5px 10px;font-size:11px;color:var(--faint);
+    display:flex;align-items:center;gap:5px}
+  .pc-applied-ok{color:var(--ok);font-weight:600}
+  .pc-restored-note{font-size:10px;color:var(--warn);padding:5px 10px 2px;
+    display:flex;align-items:center;gap:5px}
+  .pc-null-val{font-style:italic;color:var(--muted)}
+
+  /* ── editing-locked banner (shown when #centerTop has data-locked) ── */
+  .lock-banner{display:none;align-items:center;gap:8px;padding:6px 12px;
+    background:rgba(14,157,142,.08);border:1px solid var(--accent);border-radius:7px;
+    margin:0 0 10px;font-size:11px;color:var(--accent-ink)}
+  .lock-banner .lb-ico{flex:none}
+  #centerTop[data-locked] .lock-banner{display:flex}
+  #centerTop[data-locked] .locked-zone{opacity:.35}
+
+  /* ── lock-sim toggle button in viz phead ── */
+  .lock-sim-btn{font:inherit;font-size:10px;border:1px solid var(--border);border-radius:5px;
+    padding:2px 8px;background:var(--bg);color:var(--faint);cursor:pointer;margin-left:6px;
+    letter-spacing:0;text-transform:none;font-weight:400}
+  .lock-sim-btn:hover,.lock-sim-btn.active{color:var(--accent-ink);border-color:var(--accent);
+    background:var(--accent-wash)}
+
+  /* ── card-states demo gallery labels ── */
+  .state-gallery-sep{width:100%;padding:10px 0 4px;font-size:10px;font-weight:700;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--faint);
+    border-top:2px solid var(--border);margin-top:6px;display:block}
+  .state-gallery-lbl{font-size:9px;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--faint);background:var(--bg);border:1px solid var(--border);
+    border-radius:4px;padding:2px 6px;display:inline-block;margin-bottom:4px}
+
   /* footer note */
   .foot{flex:0 0 auto;padding:6px 16px;background:var(--panel);border-top:1px solid var(--border);
         color:var(--faint);font-size:11px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
@@ -414,111 +489,307 @@
 
 <!-- ================= content templates ================= -->
 <template id="tpl-viz">
-  <div class="phead"><span class="glyph">◈</span> Custom Visualization <span class="role">platform main view</span></div>
+  <div class="phead"><span class="glyph">◈</span> Custom Visualization <span class="role">platform main view</span><button class="lock-sim-btn" id="lockSimBtn" onclick="window.__lockToggle()" title="Simulate proposal-pending lock (Plan 08 Phase 0 demo)">⊘ lock demo</button></div>
   <div class="pbody"><div class="viz">
     <div class="agentcard-head">
-      <div class="bigav" style="background:#e05252">sc</div>
+      <div class="bigav" style="background:#9b59b6">at</div>
       <div style="min-width:0;flex:1">
-        <h1 title="Click to rename">secure-code-auditor</h1>
-        <div class="sub">Security and performance auditor for code changes. Use PROACTIVELY after new code is written or modified to catch vulnerabilities, performance issues, and best-practice violations before they ship. · created in platform</div>
-        <div class="pills">
-          <span class="pill grp">◆ Reference examples</span>
-        </div>
+        <h1 title="Click to rename">anthropic-test-agent-</h1>
+        <div class="sub">Test for import on the workbench - Compliance, safety, and governance overseer for Anthropic-facing workflows. Use proactively whenever a task involves Anthropic APIs, agent configuration, tool wiring, or production deployments, to enforce security, safety, and policy guardrails before changes are applied. · imported</div>
+        <div class="pills"></div>
       </div>
       <div class="model-dd" id="modelEffortArea"><!-- rendered by buildModelEffort() --></div>
     </div>
 
-    <div id="configArea"><!-- zone-label + rendered by buildConfig() --></div>
+    <div class="lock-banner"><span class="lb-ico">⊘</span> A proposal is pending — editing is locked. Apply or discard in the chat panel to resume editing.</div>
 
-    <div id="sectionsArea"><!-- zone-label + rendered by buildSections() --></div>
+    <div class="locked-zone" id="configArea"><!-- zone-label + rendered by buildConfig() --></div>
+
+    <div class="locked-zone" id="sectionsArea"><!-- zone-label + rendered by buildSections() --></div>
   </div></div>
 </template>
 
 <template id="tpl-raw">
-  <div class="phead"><span class="glyph">≡</span> Raw agent <span class="role">secure-code-auditor.md · export preview</span></div>
+  <div class="phead"><span class="glyph">≡</span> Raw agent <span class="role">anthropic-test-agent-.md · export preview</span></div>
   <div class="rband">Markdown · UTF‑8 · read reference</div>
   <div class="pbody"><div class="raw" id="rawlines"></div></div>
 </template>
 
 <template id="tpl-chat">
-  <div class="phead"><span class="glyph">✦</span> AI Chat <span class="role">agent‑aware · edits sections in place</span></div>
+  <div class="phead"><span class="glyph">✦</span> AI Chat <span class="role">proposes · apply or discard</span></div>
   <div class="chat">
     <div class="chat-scroll">
-      <div class="msg ai"><span class="who">✦ Prometheus</span><div class="bubble">Editing <b>secure-code-auditor</b>. I can see all its sections.</div></div>
-      <div class="msg you"><span class="who">You</span><div class="bubble">make PROCESS call out secret leaks specifically, not just "common vulnerabilities"</div></div>
-      <div class="msg ai"><span class="who">✦ Prometheus</span><div class="bubble">Split step 3 into injection/XSS/auth-bypass and a dedicated secret-leak check.<span class="target">◆ process</span></div></div>
-      <div class="msg you"><span class="who">You</span><div class="bubble">tighten OUTPUT FORMAT — same structure, fewer words</div></div>
-      <div class="msg ai"><span class="who">✦ Prometheus</span><div class="bubble">Trimmed OUTPUT FORMAT to one sentence.<span class="target">◆ output</span></div></div>
-      <div class="msg you"><span class="who">You</span><div class="bubble">switch model to claude-opus-5 and tighten GUARDRAILS — be more specific about read-only enforcement</div></div>
+      <!-- ── Live conversation — anthropic-test-agent- (ImportTestAgent/TestAgent.md,
+           loaded 2026-08-06 to compare against a real import). The earlier secure-code-auditor
+           conversation that lived here is gone, not merged — this mock shows one agent at a
+           time (viz/raw/chat are a single fixed slot each, no agent switcher, per §11.1 R10),
+           so once the displayed agent changed the chat had to change with it for the two to
+           stay consistent. That conversation's shape (intro line, then one exchange ending in
+           an expanded, before/after-open, single-row card) is intentionally reused here rather
+           than invented fresh, since that shape is exactly what's being evaluated. This card is
+           the only one wired to Apply/Discard (class "live" — see __wireProposalCards below);
+           the state-gallery cards after it stay static reference examples on purpose. ── -->
+      <div class="msg ai"><span class="who">✦ Prometheus</span><div class="bubble">Editing <b>anthropic-test-agent-</b>. I can see all its sections and config.</div></div>
+      <div class="msg you"><span class="who">You</span><div class="bubble">tighten Operating principles — make least-privilege call out tools/disallowedTools explicitly instead of just "minimize tool access"</div></div>
       <div class="msg ai"><span class="who">✦ Prometheus</span>
         <div class="bubble">
-          Switched the model to <code>claude-opus-5</code> and rewrote GUARDRAILS to make the read-only constraint explicit — it now calls out which tools are intentionally excluded and why.
-          <span class="target">◆ guardrails</span><span class="target">◆ config · model</span>
-          <div class="proposal-preview">
-            <div class="pp-head">Proposed changes · 1 section · 1 config key</div>
-            <div class="pp-part">
-              <span class="pp-label">Section · guardrails</span>
-              <pre class="pp-code">You have read-only access to the codebase. Do not use Edit, Write,
-or any tool that modifies files — these tools are intentionally
-excluded from your allowed set. If a finding requires a fix,
-document it clearly and stop: remediation is for a human or a
-separate write-capable agent.
+          Reworded the least-privilege principle to name <code>tools</code>/<code>disallowedTools</code> explicitly.
+          <span class="target">◆ section · operating-principles</span>
+          <details class="proposal-card live" open>
+            <summary><span class="pc-title">Proposed changes</span><span class="pc-summary">1 section</span><span class="pc-chev">▾</span></summary>
+            <div class="pc-row">
+              <div class="pc-row-head">
+                <span class="pc-row-label">Section · operating-principles</span>
+                <button class="pc-before-btn" title="Hide current value">hide current ▴</button>
+              </div>
+              <pre class="pc-code">1. Safety-first: Default to the safest reasonable option when tradeoffs exist.
+2. Least privilege: Minimize tool access via tools/disallowedTools, credentials exposure, and write capabilities — prefer explicit denylists over broad grants.
+3. Explicit consent: Any destructive or high-risk operation must be gated by human review.
+4. Defense in depth: Combine configuration, hooks, and process guardrails, never rely on a single layer.
+5. Traceability: Every significant decision should be explainable and discoverable later.</pre>
+              <div class="pc-before">
+                <span class="pc-before-label">Current value</span>
+                <pre class="pc-code" style="opacity:.7">1. Safety-first: Default to the safest reasonable option when tradeoffs exist.
+2. Least privilege: Minimize tool access, credentials exposure, and write capabilities.
+3. Explicit consent: Any destructive or high-risk operation must be gated by human review.
+4. Defense in depth: Combine configuration, hooks, and process guardrails, never rely on a single layer.
+5. Traceability: Every significant decision should be explainable and discoverable later.</pre>
+              </div>
+            </div>
+            <div class="pc-footer">
+              <div class="pc-actions">
+                <button class="pc-apply">Apply</button>
+                <button class="pc-discard">Discard</button>
+                <span class="pc-caption">Editing is locked until you apply or discard.</span>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
 
-Do not execute arbitrary shell commands. Bash is available for
-targeted inspection (git diff, grep) — use it narrowly.</pre>
+      <!-- ── Card states demo — static reference, Plan 08 Phase 0 ── -->
+      <div class="state-gallery-sep">↓ card states — static reference (Plan 08 Phase 0)</div>
+
+      <!-- State 1: Pending — card expanded, before/after disclosure open on first row, null-value row -->
+      <div class="msg ai">
+        <span class="state-gallery-lbl">1 · Pending (expanded · before/after open)</span>
+        <span class="who">✦ Prometheus</span>
+        <div class="bubble">
+          Updated GUARDRAILS, switched model, removed disallowedTools.
+          <span class="target">◆ section · guardrails</span><span class="target">◆ config · model</span><span class="target">◆ config · disallowedTools</span>
+          <details class="proposal-card" open>
+            <summary><span class="pc-title">Proposed changes</span><span class="pc-summary">1 section · 2 config keys</span><span class="pc-chev">▾</span></summary>
+            <div class="pc-row">
+              <div class="pc-row-head">
+                <span class="pc-row-label">Section · guardrails</span>
+                <button class="pc-before-btn" title="Hide current value">hide current ▴</button>
+              </div>
+              <pre class="pc-code">You have read-only access to the codebase. Do not use Edit, Write,
+or any tool that modifies files — intentionally excluded.</pre>
+              <div class="pc-before">
+                <span class="pc-before-label">Current value</span>
+                <pre class="pc-code" style="opacity:.7">You have read-only access. See Disallowed tools above.</pre>
+              </div>
             </div>
-            <div class="pp-part">
-              <span class="pp-label">Config · model</span>
-              <pre class="pp-code">"claude-opus-5"</pre>
+            <div class="pc-row">
+              <div class="pc-row-head"><span class="pc-row-label">Config · model</span></div>
+              <pre class="pc-code">"claude-opus-5"</pre>
             </div>
+            <div class="pc-row">
+              <div class="pc-row-head"><span class="pc-row-label">Config · disallowedTools</span></div>
+              <pre class="pc-code"><span class="pc-null-val">Remove this key</span></pre>
+            </div>
+            <div class="pc-footer">
+              <div class="pc-actions">
+                <button class="pc-apply">Apply</button>
+                <button class="pc-discard">Discard</button>
+                <span class="pc-caption">Editing is locked until you apply or discard.</span>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- State 2: Applying — spinner on Apply, both buttons disabled -->
+      <div class="msg ai">
+        <span class="state-gallery-lbl">2 · Applying</span>
+        <span class="who">✦ Prometheus</span>
+        <div class="bubble">
+          Updated GUARDRAILS, switched model, removed disallowedTools.
+          <details class="proposal-card" open>
+            <summary><span class="pc-title">Proposed changes</span><span class="pc-summary">1 section · 2 config keys</span><span class="pc-chev">▾</span></summary>
+            <div class="pc-row">
+              <div class="pc-row-head"><span class="pc-row-label">Section · guardrails</span></div>
+              <pre class="pc-code">You have read-only access to the codebase. Do not use Edit, Write,
+or any tool that modifies files — intentionally excluded.</pre>
+            </div>
+            <div class="pc-row">
+              <div class="pc-row-head"><span class="pc-row-label">Config · model</span></div>
+              <pre class="pc-code">"claude-opus-5"</pre>
+            </div>
+            <div class="pc-row">
+              <div class="pc-row-head"><span class="pc-row-label">Config · disallowedTools</span></div>
+              <pre class="pc-code"><span class="pc-null-val">Remove this key</span></pre>
+            </div>
+            <div class="pc-footer">
+              <div class="pc-actions">
+                <button class="pc-apply disabled"><span class="pc-spinner"></span>Applying…</button>
+                <button class="pc-discard disabled">Discard</button>
+                <span class="pc-caption">Editing is locked until you apply or discard.</span>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- State 3: Applied — card collapses to muted ✓ line, buttons gone -->
+      <div class="msg ai">
+        <span class="state-gallery-lbl">3 · Applied</span>
+        <span class="who">✦ Prometheus</span>
+        <div class="bubble">
+          Updated GUARDRAILS, switched model, removed disallowedTools.
+          <div class="proposal-card">
+            <div class="pc-applied-line"><span class="pc-applied-ok">✓</span> Applied</div>
           </div>
         </div>
       </div>
+
+      <!-- State 4: Failed — card stays pending, inline error line above buttons, Apply re-enabled -->
+      <div class="msg ai">
+        <span class="state-gallery-lbl">4 · Failed</span>
+        <span class="who">✦ Prometheus</span>
+        <div class="bubble">
+          Updated GUARDRAILS, switched model, removed disallowedTools.
+          <details class="proposal-card" open>
+            <summary><span class="pc-title">Proposed changes</span><span class="pc-summary">1 section · 2 config keys</span><span class="pc-chev">▾</span></summary>
+            <div class="pc-row">
+              <div class="pc-row-head"><span class="pc-row-label">Section · guardrails</span></div>
+              <pre class="pc-code">You have read-only access to the codebase.</pre>
+            </div>
+            <div class="pc-row">
+              <div class="pc-row-head"><span class="pc-row-label">Config · model</span></div>
+              <pre class="pc-code">"claude-opus-5"</pre>
+            </div>
+            <div class="pc-err-line">⚠ Apply failed — server error (500). Your changes were not saved. The proposal is still here — try again.</div>
+            <div class="pc-footer">
+              <div class="pc-actions">
+                <button class="pc-apply">Apply</button>
+                <button class="pc-discard">Discard</button>
+                <span class="pc-caption">Editing is locked until you apply or discard.</span>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- State 5: Restored from localStorage — identical to Pending but with "Proposed N ago" note -->
+      <div class="msg ai">
+        <span class="state-gallery-lbl">5 · Restored from localStorage</span>
+        <span class="who">✦ Prometheus</span>
+        <div class="bubble">
+          Updated GUARDRAILS, switched model, removed disallowedTools.
+          <details class="proposal-card" open>
+            <summary><span class="pc-title">Proposed changes</span><span class="pc-summary">1 section · 2 config keys</span><span class="pc-chev">▾</span></summary>
+            <div class="pc-restored-note">⟳ Proposed 2 hours ago — restored from your last session.</div>
+            <div class="pc-row">
+              <div class="pc-row-head"><span class="pc-row-label">Section · guardrails</span></div>
+              <pre class="pc-code">You have read-only access to the codebase. Do not use Edit, Write,
+or any tool that modifies files — intentionally excluded.</pre>
+            </div>
+            <div class="pc-row">
+              <div class="pc-row-head"><span class="pc-row-label">Config · model</span></div>
+              <pre class="pc-code">"claude-opus-5"</pre>
+            </div>
+            <div class="pc-row">
+              <div class="pc-row-head"><span class="pc-row-label">Config · disallowedTools</span></div>
+              <pre class="pc-code"><span class="pc-null-val">Remove this key</span></pre>
+            </div>
+            <div class="pc-footer">
+              <div class="pc-actions">
+                <button class="pc-apply">Apply</button>
+                <button class="pc-discard">Discard</button>
+                <span class="pc-caption">Editing is locked until you apply or discard.</span>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
     </div>
     <div class="prompt">
       <div class="box">
-        <input placeholder="Edit secure-code-auditor…  e.g. “make PROCESS check for hardcoded secrets”" />
+        <input placeholder="Edit anthropic-test-agent-…  e.g. &quot;tighten the Process section&quot;" />
         <button class="send" title="Send">→</button>
       </div>
-      <div class="hint">Targets the selected agent · changes land in the panels above</div>
+      <div class="hint">Targets the selected agent · proposes changes · Apply or Discard to apply</div>
     </div>
   </div>
 </template>
 
 <script>
   // ---------- raw markdown content ----------
+  // Real agent, ImportTestAgent/TestAgent.md (loaded 2026-08-06). Frontmatter list/object
+  // keys (tools, disallowedTools, skills, mcpServers, hooks) are shown collapsed to one
+  // summary line each — same simplified single-line-per-key convention the file already used
+  // for the old secure-code-auditor demo's mcpServers/hooks lines, not a real multi-line YAML
+  // reproduction. Sections carry the FULL original text (unlike the condensed CFG_SECTIONS
+  // above), since this pane exists specifically to mirror the source .md for comparison.
   const RAW = [
     ['fm','---'],
-    ['','name: ','k','secure-code-auditor'],
-    ['','description: ','', 'Security and performance auditor for code changes. Use PROACTIVELY…'],
+    ['','name: ','k','anthropic-test-agent-'],
+    ['','description: ','', 'Test for import on the workbench - Compliance, safety, and governance overseer for Anthropic-facing workflows. Use proactively whenever a task involves…'],
     ['','model: ','','opus'],
-    ['','effort: ','','high'],
-    ['','tools: ','','Read, Grep, Glob, Bash'],
-    ['','disallowedTools: ','','[Edit, Write]'],
-    ['','permissionMode: ','','auto'],
+    ['','effort: ','','max'],
+    ['','tools: ','','Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch, mcp__github, mcp__slack, mcp__observability, Agent(worker, researcher)'],
+    ['','disallowedTools: ','','[Bash, Write, Edit]'],
+    ['','permissionMode: ','','plan'],
     ['','isolation: ','','worktree'],
-    ['','maxTurns: ','','10'],
+    ['','maxTurns: ','','20'],
+    ['','background: ','','false'],
     ['','memory: ','','project'],
-    ['','skills: ','','[security-checklist, performance-patterns]'],
-    ['','mcpServers: ','','[github, playwright: {inline config}]'],
-    ['','hooks: ','','{PreToolUse, Stop}'],
-    ['','color: ','','red'],
+    ['','initialPrompt: ','','| (5-line block — enumerate Anthropic-related configs)'],
+    ['','skills: ','','[anthropic-governance-checklist, security-baselines, safety-policies, deployment-playbooks, incident-response]'],
+    ['','mcpServers: ','','[github, slack: {inline config}, observability: {inline config}]'],
+    ['','hooks: ','','{PreToolUse, PostToolUse, SubagentStart, SubagentStop, Stop}'],
+    ['','color: ','','purple'],
     ['fm','---'],
     ['',''],
-    ['h1','# ROLE'],
-    ['','You are a senior, security-focused code auditor with expertise in'],
-    ['','vulnerability detection, secure coding practices, and performance'],
-    ['','optimization. Read-only access — you flag issues, never fix them.'],
+    ['','You are an Anthropic-focused governance, safety, and compliance sentinel.'],
     ['',''],
-    ['h1','# PROCESS'],
-    ['','1. Run git diff to see recent changes.'],
-    ['','2. Focus analysis on modified files and newly added code paths.'],
-    ['','3. Check for common vulnerabilities (injection, XSS, auth bypass, secret leaks).'],
-    ['','4. Review error handling, logging, and performance-critical sections.'],
+    ['h1','## Role'],
+    ['','Your job is to **review, constrain, and document** any work that touches:'],
     ['',''],
-    ['h1','# OUTPUT FORMAT'],
-    ['','Group findings by severity — Critical/High/Medium/Low — issue,'],
-    ['','why it matters, file:line, and the fix.'],
+    ['','- Anthropic agents (managed or local), skills, hooks, MCP servers, and tools'],
+    ['','- Anthropic API usage, keys, routing, and environment configuration'],
+    ['','- Deployment pipelines that rely on Anthropic models or the Claude Agent SDK'],
+    ['','- Security, privacy, and safety posture for these systems'],
+    ['',''],
+    ['','You do **not** implement features or write production code directly. Instead, you:'],
+    ['',''],
+    ['','- Analyze proposed changes and existing configurations'],
+    ['','- Identify risks, violations, and missing guardrails'],
+    ['','- Propose concrete, actionable mitigations and patterns'],
+    ['','- Maintain a clear audit trail of decisions and rationale'],
+    ['',''],
+    ['h1','## Operating principles'],
+    ['','1. **Safety-first:** Default to the safest reasonable option when tradeoffs exist.'],
+    ['','2. **Least privilege:** Minimize tool access, credentials exposure, and write capabilities.'],
+    ['','3. **Explicit consent:** Any destructive or high-risk operation must be gated by human review.'],
+    ['','4. **Defense in depth:** Combine configuration, hooks, and process guardrails—never rely on a single layer.'],
+    ['','5. **Traceability:** Every significant decision should be explainable and discoverable later.'],
+    ['',''],
+    ['h1','## Process'],
+    ['','1. **Discovery** — locate agent definitions, skills, MCP configs, hooks, permission/mode settings; classify by core runtime / integration / governance.'],
+    ['','2. **Risk assessment** — evaluate security, safety, and compliance risk per component; assign severity Critical / High / Medium / Low.'],
+    ['','3. **Guardrail design** — recommend tightening tools/disallowedTools, permission modes, PreToolUse/PostToolUse hooks, isolation, and memory settings.'],
+    ['','4. **Behavioral patterns** — encode reusable patterns (secure coding agent, deployment gatekeeper, incident responder) with scope, tools, hooks, permissions.'],
+    ['','5. **Reporting and audit** — structured findings by severity (what / why / where / how to fix), quick wins, structural improvements, long-term governance.'],
+    ['',''],
+    ['h1','## Output format'],
+    ['','Governance posture overview, Findings by severity (Critical/High/Medium/Low —'],
+    ['','Finding ID, title, context, details, recommendation, example config), Recommended'],
+    ['','guardrails (agent/hook patterns, permission & isolation, monitoring & audit), and'],
+    ['','Next steps (immediate actions, short-term improvements, long-term governance).'],
   ];
   function buildRaw(host){
     const box = host.querySelector('#rawlines'); if(!box) return;
@@ -544,6 +815,7 @@ targeted inspection (git diff, grep) — use it narrowly.</pre>
     analyst: { av: 'an' }, dev: { av: 'de', tag: 'imported' }, qa: { av: 'qa' }, architect: { av: 'ar' },
     'secure-code-auditor': { av: 'sc', tag: 'reference' },
     scribe: { av: 'sc' },
+    'anthropic-test-agent-': { av: 'at', tag: 'imported' },
   };
   const LIB_GROUPS = [
     { name: 'Personal', agents: ['Zara', 'Aria', 'Ada'] },
@@ -551,7 +823,11 @@ targeted inspection (git diff, grep) — use it narrowly.</pre>
   ];
   // Default is Flat ("Agents") per the user's revision 2026-07-29 — the phead role word
   // itself is the toggle (id="libModeToggle"), not a separate segmented control.
-  const libState = { mode: 'flat', selected: 'secure-code-auditor' };
+  // Selected agent changed 2026-08-06 to the real ImportTestAgent/TestAgent.md stress-test
+  // case (viz/raw/chat below all reflect it) — left ungrouped, matching a freshly-imported
+  // agent that hasn't been filed into a group yet. secure-code-auditor stays in the list as
+  // the earlier reference example, just no longer the default selection.
+  const libState = { mode: 'flat', selected: 'anthropic-test-agent-' };
   function libRow(name) {
     const a = LIB_AGENTS[name];
     const sel = name === libState.selected ? ' sel' : '';
@@ -654,40 +930,37 @@ targeted inspection (git diff, grep) — use it narrowly.</pre>
   }
   function cfgEsc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-  // design/Agent-Full-Reference.md's fully-annotated secure-code-auditor example, verbatim —
-  // exercises every Tier 1 key, including mcpServers' mixed string + inline-object form.
-  // Swapped from the earlier "dev" demo (2026-07-28) specifically because dev's real config
-  // doesn't populate most of these keys — secure-code-auditor is the stress test.
+  // Real agent, ImportTestAgent/TestAgent.md, loaded verbatim 2026-08-06 to compare this
+  // mock against a real import of the same file in the running app. Replaces the earlier
+  // secure-code-auditor stress-test demo as the agent currently shown in this panel — that
+  // example's own config values lived only here, so it's gone from this constant (still
+  // referenced by name in the Library list and the state-gallery reference cards below,
+  // which are intentionally agent-agnostic static reference material, not live-updated).
   const CFG_AGENT = {
-    model: 'opus', effort: 'high',
-    // maxTurns deliberately seeded malformed (a string, not a number) to demo the new
-    // red/invalid pill tier prototyped 2026-07-29 — this is the design note's own example
-    // of "invalid" (structurally broken) vs. the existing yellow "warn" (well-formed but
-    // unrecognized, e.g. an old model ID or removed tool name).
-    permissionMode: 'auto', maxTurns: '10 turns', memory: 'project',
-    background: false, isolation: 'worktree', color: 'red',
-    // Padded past the real 4-tool read-only set with demo mcp__ entries (atlassian-mcp-server,
-    // the same server pattern as the real `dev` agent) purely to exercise the "+N more" cap
-    // prototyped below — not a realistic grant for a read-only auditor role.
-    tools: ["Read","Grep","Glob","Bash",
-      "mcp__atlassian-mcp-server__getJiraIssue","mcp__atlassian-mcp-server__searchJiraIssuesUsingJql",
-      "mcp__atlassian-mcp-server__createJiraIssue","mcp__atlassian-mcp-server__editJiraIssue",
-      "mcp__atlassian-mcp-server__getConfluencePage","mcp__atlassian-mcp-server__createConfluencePage",
-      "mcp__atlassian-mcp-server__updateConfluencePage","mcp__atlassian-mcp-server__getVisibleJiraProjects",
-      "mcp__atlassian-mcp-server__getTransitionsForJiraIssue","mcp__atlassian-mcp-server__transitionJiraIssue",
-      "mcp__atlassian-mcp-server__addCommentToJiraIssue","mcp__atlassian-mcp-server__lookupJiraAccountId",
-      "mcp__atlassian-mcp-server__search","mcp__atlassian-mcp-server__fetch",
-      "WebSearch","WebFetch"],
-    disallowedTools: ["Edit","Write"],
-    skills: ["security-checklist","performance-patterns"],
-    initialPrompt: "Start by running `git diff` against the default branch and summarize scope before doing anything else.",
+    model: 'opus', effort: 'max',
+    permissionMode: 'plan', maxTurns: 20, memory: 'project',
+    background: false, isolation: 'worktree', color: 'purple',
+    tools: ["Read","Write","Edit","Grep","Glob","Bash","WebSearch","WebFetch",
+      "mcp__github","mcp__slack","mcp__observability","Agent(worker, researcher)"],
+    disallowedTools: ["Bash","Write","Edit"],
+    skills: ["anthropic-governance-checklist","security-baselines","safety-policies","deployment-playbooks","incident-response"],
+    initialPrompt: "Start by enumerating all active Anthropic-related configurations in this repository:\n- agents (managed and local)\n- skills\n- MCP servers\n- hooks\n- permissions and modes\nSummarize the current governance posture and highlight any obvious gaps before proceeding.",
     hooks: {
-      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "./scripts/validate-audit-command.sh" }] }],
-      Stop: [{ hooks: [{ type: "command", command: "echo 'audit pass complete' >> ./audit.log" }] }],
+      PreToolUse: [
+        { matcher: "Bash|Write|Edit", hooks: [{ type: "command", command: "./scripts/governance/pretool-validate.sh" }, { type: "command", command: "./scripts/governance/pretool-risk-score.sh" }] },
+        { matcher: "Agent", hooks: [{ type: "command", command: "./scripts/governance/agent-delegation-guardrail.sh" }] },
+      ],
+      PostToolUse: [
+        { matcher: "Read|Grep|Glob|WebSearch|WebFetch", hooks: [{ type: "command", command: "./scripts/governance/posttool-log.sh" }, { type: "command", command: "./scripts/governance/posttool-sanitize-output.sh" }] },
+      ],
+      SubagentStart: [{ hooks: [{ type: "command", command: "./scripts/governance/subagent-start-audit.sh" }] }],
+      SubagentStop: [{ hooks: [{ type: "command", command: "./scripts/governance/subagent-stop-summary.sh" }] }],
+      Stop: [{ hooks: [{ type: "command", command: "./scripts/governance/session-summary.sh" }, { type: "command", command: "./scripts/governance/notify-slack.sh" }] }],
     },
     mcpServers: [
       "github",
-      { playwright: { type: "stdio", command: "npx", args: ["-y", "@playwright/mcp@latest"] } },
+      { slack: { type: "stdio", command: "npx", args: ["-y", "@slack/mcp@latest"] } },
+      { observability: { type: "stdio", command: "npx", args: ["-y", "@observability/mcp@latest"] } },
     ],
   };
 
@@ -1069,13 +1342,26 @@ targeted inspection (git diff, grep) — use it narrowly.</pre>
   // specifically to prove that pattern generalizes past config, not just to match visually.
   // Body rendering here is a simplified mockup stand-in (numbered lines -> <ol>, blank-line
   // paragraphs otherwise), not real markdown — the real app renders actual section markdown.
+  // Real agent, ImportTestAgent/TestAgent.md (loaded 2026-08-06, replaces the earlier
+  // secure-code-auditor demo — see the matching note on CFG_AGENT above). Real headings are
+  // "## " (level 2), Title Case, not "# "/ALL CAPS like the old demo — shown verbatim. The
+  // real file's headingless preamble ("You are an Anthropic-focused...") is folded into the
+  // opening of Role rather than given its own section, since this mockup's section model has
+  // no headingless-preamble slot (the real app's schema does — agentSection.heading is
+  // nullable). Process is condensed to its 5 top-level numbered steps, dropping each step's
+  // markdown sub-bullets — cfgSectionBodyHtml below (a deliberately simplified mockup
+  // stand-in, not a real markdown renderer) only special-cases a block where EVERY line is
+  // "N. ..."; nested sub-bullets would break that detection and fall back to raw escaped
+  // paragraph text. The Raw panel (RAW array below) carries the fuller original text instead.
   const CFG_SECTIONS = [
-    { key: 'role', heading: 'ROLE', core: true, collapsed: false,
-      text: "You are a senior, security-focused code auditor with expertise in vulnerability detection, secure coding practices, and performance optimization.\n\nReview code changes for security vulnerabilities, performance bottlenecks, and adherence to best practices. You have read-only access (see Disallowed tools above) — you flag issues, you never fix them yourself." },
-    { key: 'process', heading: 'PROCESS', core: true, collapsed: false,
-      text: "1. Run git diff to see recent changes.\n2. Focus analysis on modified files and newly added code paths.\n3. Check for common vulnerabilities (injection, XSS, auth bypass, secret leaks).\n4. Review error handling, logging, and performance-critical sections." },
-    { key: 'output', heading: 'OUTPUT FORMAT', core: true, collapsed: false,
-      text: "Group findings by severity — Critical / High / Medium / Low — and for each one give: what the issue is, why it matters, the exact file:line, and the fix." },
+    { key: 'role', heading: 'Role', core: true, collapsed: false,
+      text: "You are an Anthropic-focused governance, safety, and compliance sentinel.\n\nYour job is to review, constrain, and document any work that touches Anthropic agents (managed or local), skills, hooks, MCP servers, and tools; Anthropic API usage, keys, routing, and environment configuration; deployment pipelines that rely on Anthropic models or the Claude Agent SDK; and security, privacy, and safety posture for these systems.\n\nYou do not implement features or write production code directly. Instead, you analyze proposed changes and existing configurations, identify risks and missing guardrails, propose concrete mitigations, and maintain a clear audit trail of decisions and rationale." },
+    { key: 'operating-principles', heading: 'Operating principles', core: true, collapsed: false,
+      text: "1. Safety-first: Default to the safest reasonable option when tradeoffs exist.\n2. Least privilege: Minimize tool access, credentials exposure, and write capabilities.\n3. Explicit consent: Any destructive or high-risk operation must be gated by human review.\n4. Defense in depth: Combine configuration, hooks, and process guardrails, never rely on a single layer.\n5. Traceability: Every significant decision should be explainable and discoverable later." },
+    { key: 'process', heading: 'Process', core: true, collapsed: false,
+      text: "1. Discovery — locate agent, skill, MCP server, hook, and permission/mode configs; classify into core runtime, integration, and governance.\n2. Risk assessment — evaluate each component for security, safety, and compliance risk; assign a severity of Critical, High, Medium, or Low.\n3. Guardrail design — recommend concrete changes: tightening tools/disallowedTools, permission modes, PreToolUse/PostToolUse hooks, isolation, and memory settings.\n4. Behavioral patterns — encode reusable agent patterns (secure coding agent, deployment gatekeeper, incident responder) with scope, tools, hooks, and permissions.\n5. Reporting and audit — produce structured findings by severity with what, why, where, and how to fix, plus quick wins and long-term governance recommendations." },
+    { key: 'output-format', heading: 'Output format', core: true, collapsed: false,
+      text: "Governance posture overview (summary and key stats), Findings by severity (Critical / High / Medium / Low, each with a Finding ID, title, context, details, recommendation, and an example configuration), Recommended guardrails (agent patterns, hook patterns, permission and isolation strategy, monitoring and audit), and Next steps (immediate actions, short-term improvements, long-term governance)." },
   ];
   function cfgSectionBodyHtml(text) {
     const lines = text.split('\n').filter(l => l.trim() !== '');
@@ -1274,6 +1560,44 @@ targeted inspection (git diff, grep) — use it narrowly.</pre>
   document.addEventListener('mousedown',onDown);
   document.addEventListener('mousemove',onMove);
   document.addEventListener('mouseup',onUp);
+
+  // ---------- lock simulation (Plan 08 Phase 0 demo) ----------
+  // Toggles data-locked on #centerTop. The CSS rules respond:
+  //   .lock-banner { display:flex } and .locked-zone { opacity:.35 }.
+  // The button lives in tpl-viz so it re-appears after fill(centerTop,'tpl-viz').
+  window.__lockToggle = function () {
+    const ct = document.getElementById('centerTop');
+    if (!ct) return;
+    const locked = ct.hasAttribute('data-locked');
+    if (locked) { ct.removeAttribute('data-locked'); }
+    else { ct.setAttribute('data-locked', ''); }
+    const btn = document.getElementById('lockSimBtn');
+    if (btn) {
+      btn.textContent = locked ? '⊘ lock demo' : '↺ unlock demo';
+      btn.classList.toggle('active', !locked);
+    }
+  };
+
+  // ---------- Apply/Discard on the live conversation card (Plan 08 Phase 0 demo, 2026-08-06) ----------
+  // Only cards marked class="live" respond — the state-gallery cards further down are static
+  // reference material for all five states and must stay inert (clicking their buttons would
+  // otherwise wreck the "always show state N" point of that section). This is presentational
+  // only: no fetch, no proposalStore, no real apply/discard logic — Phase 1's real routes
+  // already exist server-side (see plans/08-prometheus-apply.md), this just makes the mockup's
+  // buttons visibly do the thing they're supposed to represent, for layout debate purposes.
+  document.addEventListener('click', function (e) {
+    const applyBtn = e.target.closest('.proposal-card.live .pc-apply');
+    const discardBtn = e.target.closest('.proposal-card.live .pc-discard');
+    if (applyBtn) {
+      const card = applyBtn.closest('.proposal-card.live');
+      const wrapper = document.createElement('div');
+      wrapper.className = 'proposal-card';
+      wrapper.innerHTML = '<div class="pc-applied-line"><span class="pc-applied-ok">✓</span> Applied</div>';
+      card.replaceWith(wrapper);
+    } else if (discardBtn) {
+      discardBtn.closest('.proposal-card.live').remove();
+    }
+  });
 
   layout();
   buildLibrary();

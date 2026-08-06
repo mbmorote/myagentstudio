@@ -10,6 +10,10 @@
  *   - exactly one llm_call_log row with dryRun:true
  *   - zero agent-side writes (no new sectionRevision, no version bump)
  *
+ * The "zero agent-side writes" assertion now holds trivially — POST /api/chat never
+ * writes to the agent regardless of dry-run mode (Rules Index #73, §7 invariant 1).
+ * Kept here as a second independent witness for that invariant alongside chat.test.ts.
+ *
  * Kept separate from chat.test.ts because that file mocks at the prometheus
  * level, which would prevent the gateway from executing.
  */

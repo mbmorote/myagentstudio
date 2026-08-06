@@ -1,0 +1,222 @@
+/**
+ * app/api/agents/[id]/apply-proposal/route.ts
+ *
+ * POST /api/agents/[id]/apply-proposal
+ *
+ * The single writer in the propose/apply flow. Accepts a modifications object
+ * produced by POST /api/chat and applies it to the agent.
+ *
+ * Contract (plans/08-prometheus-apply.md §3.2, §3.3):
+ *   Request:  { modifications: { description?, sections?, config? } }
+ *   Response: { agent: AgentDTO, applied: { description, sectionKeys, configKeys }, skipped[] }
+ *
+ * Algorithm (§3.3 — order is normative):
+ *   1. authenticate() → 401
+ *   2. Parse body shape only (never content) → 400 invalid_body
+ *   3. getAgentFull(id, session.userId) → 404 if null (enforces ownership)
+ *   4. Drop modifications.name → skipped
+ *   5. Sections first via updateSectionContent(author:'ai', expectedVersion=current)
+ *   6. description + config together in one updateAgent() call (config = merged full set)
+ *   7. Return fresh getAgentFull() read
+ *
+ * Config merge (§3.4 — the highest-risk invariant):
+ *   updateAgent() does a FULL REPLACE of config rows. The apply route builds the merged
+ *   full set from the current config before calling updateAgent(), so a one-key
+ *   modifications.config never silently deletes the other keys. null = delete; any other
+ *   value = set. Only passes config to updateAgent() when modifications.config is present
+ *   and non-empty (§3.4 last paragraph).
+ *
+ * Error codes (plans/08-prometheus-apply.md §8):
+ *   400  malformed body (modifications not a plain object, sections values not strings,
+ *        config not a plain object)
+ *   401  unauthorized
+ *   404  agent not found or not owned by caller (cross-owner yields 404, never 403)
+ *   500  unexpected write failure
+ */
+
+import { NextResponse } from 'next/server';
+import {
+  getAgentFull,
+  updateSectionContent,
+  updateAgent,
+  SectionNotFoundError,
+} from '@/lib/db/repository';
+import { demoteSplitLevelHeadings } from '@/lib/ai/prometheus';
+import { authenticate } from '@/lib/auth/guard';
+
+type RouteContext = { params: Promise<{ id: string }> };
+
+export async function POST(request: Request, { params }: RouteContext): Promise<NextResponse> {
+  // ── 1. Auth ────────────────────────────────────────────────────────────────
+  const auth = await authenticate();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
+  const { id } = await params;
+
+  // ── 2. Parse + validate body shape (never content — §3.5) ─────────────────
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'invalid_body' }, { status: 400 });
+  }
+
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return NextResponse.json({ error: 'invalid_body', field: 'modifications' }, { status: 400 });
+  }
+
+  const rawMods = (body as Record<string, unknown>).modifications;
+  if (!rawMods || typeof rawMods !== 'object' || Array.isArray(rawMods)) {
+    return NextResponse.json({ error: 'invalid_body', field: 'modifications' }, { status: 400 });
+  }
+
+  const mods = rawMods as Record<string, unknown>;
+
+  // sections must be a plain object with string values (if present)
+  if (mods.sections !== undefined) {
+    if (typeof mods.sections !== 'object' || Array.isArray(mods.sections) || mods.sections === null) {
+      return NextResponse.json({ error: 'invalid_body', field: 'sections' }, { status: 400 });
+    }
+    for (const val of Object.values(mods.sections as Record<string, unknown>)) {
+      if (typeof val !== 'string') {
+        return NextResponse.json({ error: 'invalid_body', field: 'sections' }, { status: 400 });
+      }
+    }
+  }
+
+  // config must be a plain object (if present)
+  if (mods.config !== undefined) {
+    if (typeof mods.config !== 'object' || Array.isArray(mods.config) || mods.config === null) {
+      return NextResponse.json({ error: 'invalid_body', field: 'config' }, { status: 400 });
+    }
+  }
+
+  const modifications = {
+    description: typeof mods.description === 'string' ? mods.description : undefined,
+    sections: mods.sections as Record<string, string> | undefined,
+    config: mods.config as Record<string, unknown> | undefined,
+    name: mods.name,
+  };
+
+  // ── 3. Load agent — enforces ownership; 404 for cross-owner (§7 invariant 10) ──
+  const agent = getAgentFull(id, session.userId);
+  if (!agent) {
+    return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  }
+
+  // Tracking for the response
+  const skipped: { part: string; key: string; reason: string }[] = [];
+  const appliedSectionKeys: string[] = [];
+  let appliedDescription = false;
+  const appliedConfigKeys: string[] = [];
+
+  // ── 4. Drop modifications.name (§7 invariant 2, §3.3 step 4) ─────────────
+  if (modifications.name !== undefined) {
+    console.warn(`[apply-proposal] agent ${id}: modifications.name dropped (never chat-editable)`);
+    skipped.push({ part: 'name', key: 'name', reason: 'name_not_editable' });
+  }
+
+  // ── 5. Sections first (§3.3 step 5) ──────────────────────────────────────
+  // sectionKey → { id, version } map from the loaded agent (last-in-order wins for
+  // duplicate sectionKeys — same documented MVP caveat as the old chat route).
+  const sectionMap = new Map<string, { id: string; version: number }>();
+  for (const section of agent.sections) {
+    sectionMap.set(section.sectionKey, { id: section.id, version: section.version });
+  }
+
+  for (const [sectionKey, content] of Object.entries(modifications.sections ?? {})) {
+    const entry = sectionMap.get(sectionKey);
+    if (!entry) {
+      // Unknown sectionKey — skip, continue applying others (§8)
+      console.warn(`[apply-proposal] agent ${id}: unknown sectionKey "${sectionKey}" — skipped`);
+      skipped.push({ part: 'section', key: sectionKey, reason: 'no_such_section' });
+      continue;
+    }
+
+    // §3.3 step 5 + §7 invariant 8: split-level demotion runs at the apply route,
+    // regardless of what the caller already did — the apply route is the authoritative gate.
+    const safe = demoteSplitLevelHeadings(content, agent.splitLevel);
+
+    try {
+      // expectedVersion = version read in step 3 → force-write (§3.6, Decision G)
+      updateSectionContent(id, entry.id, session.userId, safe, 'ai', entry.version);
+      appliedSectionKeys.push(sectionKey);
+    } catch (err) {
+      if (err instanceof SectionNotFoundError) {
+        // Should never happen (we just loaded the agent in step 3), but handle cleanly.
+        console.warn(`[apply-proposal] agent ${id}: sectionKey "${sectionKey}" disappeared mid-apply`);
+        skipped.push({ part: 'section', key: sectionKey, reason: 'no_such_section' });
+      } else {
+        console.error(`[apply-proposal] Unexpected write failure for section "${sectionKey}":`, String(err));
+        return NextResponse.json({ error: 'internal' }, { status: 500 });
+      }
+    }
+  }
+
+  // ── 6. description + config together in one updateAgent() call (§3.3 step 6) ──
+  const agentUpdates: {
+    description?: string;
+    config?: { propKey: string; value: unknown }[];
+  } = {};
+
+  // description: only if present and different from current
+  if (
+    modifications.description !== undefined &&
+    modifications.description !== agent.description
+  ) {
+    agentUpdates.description = modifications.description;
+    appliedDescription = true;
+  }
+
+  // config: MERGED full set (§3.4 — never pass the raw diff to updateAgent())
+  // Only compute and pass config when modifications.config is present and non-empty.
+  if (modifications.config !== undefined && Object.keys(modifications.config).length > 0) {
+    const merged = new Map<string, unknown>(
+      agent.config.map((c) => [c.propKey, c.value]),
+    );
+
+    for (const [propKey, value] of Object.entries(modifications.config)) {
+      if (value === null) {
+        // null = delete the key (§3.4)
+        merged.delete(propKey);
+      } else {
+        merged.set(propKey, value);
+      }
+      // Track which keys were actually modified (whether set or deleted)
+      appliedConfigKeys.push(propKey);
+    }
+
+    agentUpdates.config = [...merged].map(([propKey, value]) => ({ propKey, value }));
+  }
+
+  if (agentUpdates.description !== undefined || agentUpdates.config !== undefined) {
+    try {
+      updateAgent(id, session.userId, agentUpdates);
+    } catch (err) {
+      console.error('[apply-proposal] Unexpected failure in updateAgent():', String(err));
+      return NextResponse.json({ error: 'internal' }, { status: 500 });
+    }
+  }
+
+  // ── 7. Fresh read — response reflects all writes (§3.3 step 7) ────────────
+  const updated = getAgentFull(id, session.userId);
+  if (!updated) {
+    // Should be unreachable — we just wrote to this agent.
+    console.error(`[apply-proposal] agent ${id}: getAgentFull returned null after writes`);
+    return NextResponse.json({ error: 'internal' }, { status: 500 });
+  }
+
+  return NextResponse.json(
+    {
+      agent: updated,
+      applied: {
+        description: appliedDescription,
+        sectionKeys: appliedSectionKeys,
+        configKeys: appliedConfigKeys,
+      },
+      skipped,
+    },
+    { status: 200 },
+  );
+}
