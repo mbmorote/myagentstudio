@@ -60,7 +60,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import type { AgentDTO, GroupDTO, ConfigDefLite } from '@/lib/db/repository';
 import type { InteractionLock, CitedItem } from '@/app/components/WorkbenchShell';
-import { SectionBlock } from '@/app/components/CustomViz/SectionBlock';
+import { SectionBlock, sectionDisplayLabel } from '@/app/components/CustomViz/SectionBlock';
 import { apiFetch } from '@/lib/apiFetch';
 
 // ─────────────────────────  Catalog-derived constants  ─────────────────────
@@ -1736,7 +1736,7 @@ export function AgentView({
                 isCited={citedItems.some((c) => c.type === 'section' && c.key === section.sectionKey)}
                 onToggleCite={(additive) =>
                   onToggleCite(
-                    { type: 'section', key: section.sectionKey, label: section.def?.label ?? section.sectionKey },
+                    { type: 'section', key: section.sectionKey, label: sectionDisplayLabel(section) },
                     additive,
                   )
                 }

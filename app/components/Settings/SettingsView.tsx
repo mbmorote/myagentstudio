@@ -102,6 +102,21 @@ function formatTs(iso: string): string {
   }
 }
 
+/** Pretty-prints a payload and unescapes literal `\r`/`\n` sequences inside string values
+ *  into real line breaks, so pasting into an editor reads as formatted text instead of one
+ *  line with visible "\n"/"\r" markers. Source agent files are often saved with Windows
+ *  CRLF line endings, so `\r\n` pairs are collapsed first — otherwise a leftover `\r` sits
+ *  as stray text next to the now-real newline. No longer strictly valid JSON afterward (a
+ *  real newline inside a string literal isn't legal JSON) — that trade-off is the point,
+ *  this is for reading. */
+function copyPayloadFormatted(value: unknown): void {
+  const pretty = JSON.stringify(value, null, 2)
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\r/g, '')
+    .replace(/\\n/g, '\n');
+  navigator.clipboard.writeText(pretty);
+}
+
 function kindLabel(kind: string): string {
   switch (kind) {
     case 'import-strict': return 'Import (strict)';
@@ -624,7 +639,15 @@ export function SettingsView({
                                 {/* Request payload — only shown when not redacted */}
                                 {!expandedPayload.redacted && (
                                   <div>
-                                    <p className="text-[11px] font-medium text-[var(--muted)] mb-1">Request payload</p>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <p className="text-[11px] font-medium text-[var(--muted)]">Request payload</p>
+                                      <button
+                                        onClick={() => copyPayloadFormatted(expandedPayload.requestPayload)}
+                                        className="text-[11px] text-[var(--accent-ink)] hover:underline"
+                                      >
+                                        Copy
+                                      </button>
+                                    </div>
                                     <pre className="text-[11px] text-[var(--text)] bg-[var(--panel)] border border-[var(--border)] rounded-[6px] p-2 overflow-x-auto max-h-48 whitespace-pre-wrap">
                                       {JSON.stringify(expandedPayload.requestPayload, null, 2)}
                                     </pre>
@@ -634,7 +657,15 @@ export function SettingsView({
                                 {!expandedPayload.redacted && (
                                   expandedPayload.responsePayload ? (
                                     <div>
-                                      <p className="text-[11px] font-medium text-[var(--muted)] mb-1">Response payload</p>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <p className="text-[11px] font-medium text-[var(--muted)]">Response payload</p>
+                                        <button
+                                          onClick={() => copyPayloadFormatted(expandedPayload.responsePayload)}
+                                          className="text-[11px] text-[var(--accent-ink)] hover:underline"
+                                        >
+                                          Copy
+                                        </button>
+                                      </div>
                                       <pre className="text-[11px] text-[var(--text)] bg-[var(--panel)] border border-[var(--border)] rounded-[6px] p-2 overflow-x-auto max-h-48 whitespace-pre-wrap">
                                         {JSON.stringify(expandedPayload.responsePayload, null, 2)}
                                       </pre>

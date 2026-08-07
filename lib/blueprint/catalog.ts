@@ -337,6 +337,16 @@ export const SECTION_DEFS = [
     template: '',
     helpText: 'Sub-modes (e.g. dev Mode A/B, session modes).',
   },
+  {
+    key: 'boundaries',
+    label: 'Boundaries',
+    defaultHeading: '# BOUNDARIES',
+    isCore: false,
+    defaultOrder: 10,
+    template: '- Do not assume …\n- Do not infer …\n- Do not guess …',
+    helpText:
+      'What the agent must not assume, infer, or guess when context is incomplete (e.g. missing config, deployment intent, credentials, file paths) — distinct from Guardrails, which covers actions it must not take.',
+  },
 ] as const;
 
 // Derive types for use in rules.ts

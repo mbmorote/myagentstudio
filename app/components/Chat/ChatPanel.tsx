@@ -17,8 +17,10 @@
  * Sourced from Object.keys(modifications.sections), Object.keys(modifications.config),
  * and modifications.description presence (replaces the old sections-only R13 chips).
  *
- * Sends { agentId, instruction, citedSectionKeys?, citedConfigKeys? } to
- * POST /api/chat via AbortController (Rules Index #23).
+ * Sends { agentId, instruction, citedSectionKeys?, citedConfigKeys?, history? } to
+ * POST /api/chat via AbortController (Rules Index #23). `history` is this session's
+ * prior turns (role + text), excluding client-side synthetic notices — server caps
+ * how much of it is used (settings.chatHistoryTurns).
  * Response shape: { proposal: { message, modifications, warnings }, meta }
  * (old { sections: {...} } shape removed in Plan 08 Phase 1).
  *
@@ -53,6 +55,18 @@ interface ChatMessage {
   hasDescriptionChange?: boolean;
   /** Non-null when this message is a dry-run notice (§5.2) */
   dryRunLogId?: string | null;
+  /**
+   * True for client-generated notices (dry-run, error, network-error, cancelled) —
+   * never real Prometheus output. Excluded from the `history` sent to /api/chat,
+   * since sending Prometheus its own error strings back as "what it said" would
+   * corrupt the conversation, not preserve it.
+   */
+  synthetic?: boolean;
+  /** Full proposed content for this turn (2026-08-07, at the user's request) — lets a
+   *  past turn's proposal be reopened for reading after it's been applied/discarded,
+   *  not just summarized by the chips above. In-memory only, same lifetime as the rest
+   *  of `messages` (no chat persistence yet — NEXT item 2). */
+  modifications?: PendingProposal['modifications'];
 }
 
 /** State for a cap-reached prompt, shown in place of a message bubble (§3.9). */
@@ -420,44 +434,52 @@ export function ChatPanel({
           )}
         </div>
 
-        {/* New value */}
-        {isNullRemoval ? (
-          <pre className="font-[var(--mono,monospace)] text-[10.5px] whitespace-pre-wrap text-[var(--text)] m-0 bg-[var(--elev)] border border-[var(--border)] rounded-[5px] px-[8px] py-[5px] leading-[1.5] block">
-            <em className="not-italic text-[var(--muted)]">Remove this key</em>
-          </pre>
-        ) : (
-          <div className="relative">
-            <pre
-              className={`font-[var(--mono,monospace)] text-[10.5px] whitespace-pre-wrap text-[var(--text)] m-0 bg-[var(--elev)] border border-[var(--border)] rounded-[5px] px-[8px] py-[5px] leading-[1.5] block${isLong && !isExpanded ? ' max-h-[185px] overflow-hidden' : ''}`}
-            >
-              {value}
-            </pre>
-            {isLong && !isExpanded && (
-              <div className="absolute bottom-0 left-0 right-0 h-[36px] bg-gradient-to-t from-[var(--bg)] to-transparent rounded-b-[5px] pointer-events-none" />
+        {/* New value — side-by-side with Current value when "show current" is toggled on,
+            instead of stacked underneath (2026-08-07, at the user's request). */}
+        <div className={showBefore && beforeValue !== null ? 'flex gap-[8px] items-start' : ''}>
+          {showBefore && beforeValue !== null && (
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] text-[var(--faint)] mb-[3px] italic block">
+                Current value
+              </span>
+              <pre className="font-[var(--mono,monospace)] text-[10.5px] whitespace-pre-wrap text-[var(--text)] m-0 bg-[var(--elev)] border border-[var(--border)] rounded-[5px] px-[8px] py-[5px] leading-[1.5] block opacity-70">
+                {beforeValue}
+              </pre>
+            </div>
+          )}
+          <div className={showBefore && beforeValue !== null ? 'flex-1 min-w-0' : ''}>
+            {showBefore && beforeValue !== null && (
+              <span className="text-[10px] text-[var(--faint)] mb-[3px] italic block">
+                New value
+              </span>
             )}
-            {isLong && (
-              <button
-                type="button"
-                onClick={() => toggleExpanded(rowId)}
-                className="block text-right w-full text-[10px] italic text-[var(--accent-ink)] mt-[2px] bg-transparent border-none p-0 cursor-pointer font-[inherit] hover:underline"
-              >
-                {isExpanded ? 'show less…' : 'show more…'}
-              </button>
+            {isNullRemoval ? (
+              <pre className="font-[var(--mono,monospace)] text-[10.5px] whitespace-pre-wrap text-[var(--text)] m-0 bg-[var(--elev)] border border-[var(--border)] rounded-[5px] px-[8px] py-[5px] leading-[1.5] block">
+                <em className="not-italic text-[var(--muted)]">Remove this key</em>
+              </pre>
+            ) : (
+              <div className="relative">
+                <pre
+                  className={`font-[var(--mono,monospace)] text-[10.5px] whitespace-pre-wrap text-[var(--text)] m-0 bg-[var(--elev)] border border-[var(--border)] rounded-[5px] px-[8px] py-[5px] leading-[1.5] block${isLong && !isExpanded ? ' max-h-[185px] overflow-hidden' : ''}`}
+                >
+                  {value}
+                </pre>
+                {isLong && !isExpanded && (
+                  <div className="absolute bottom-0 left-0 right-0 h-[36px] bg-gradient-to-t from-[var(--bg)] to-transparent rounded-b-[5px] pointer-events-none" />
+                )}
+                {isLong && (
+                  <button
+                    type="button"
+                    onClick={() => toggleExpanded(rowId)}
+                    className="block text-right w-full text-[10px] italic text-[var(--accent-ink)] mt-[2px] bg-transparent border-none p-0 cursor-pointer font-[inherit] hover:underline"
+                  >
+                    {isExpanded ? 'show less…' : 'show more…'}
+                  </button>
+                )}
+              </div>
             )}
           </div>
-        )}
-
-        {/* Before value (current) */}
-        {showBefore && beforeValue !== null && (
-          <div className="mt-[6px] pt-[6px] border-t border-dashed border-[var(--border)]">
-            <span className="text-[10px] text-[var(--faint)] mb-[3px] italic block">
-              Current value
-            </span>
-            <pre className="font-[var(--mono,monospace)] text-[10.5px] whitespace-pre-wrap text-[var(--text)] m-0 bg-[var(--elev)] border border-[var(--border)] rounded-[5px] px-[8px] py-[5px] leading-[1.5] block opacity-70">
-              {beforeValue}
-            </pre>
-          </div>
-        )}
+        </div>
       </div>
     );
   }
@@ -476,6 +498,13 @@ export function ChatPanel({
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    // Prior turns for conversational context — real dialogue only (excludes
+    // client-side notices like dry-run/error/cancelled bubbles). Sent as-is;
+    // the server caps how much of it is actually used (settings.chatHistoryTurns).
+    const history = messages
+      .filter((m) => !m.synthetic)
+      .map((m) => ({ role: m.role, message: m.text }));
+
     try {
       const response = await apiFetch('/api/chat', {
         method: 'POST',
@@ -486,6 +515,7 @@ export function ChatPanel({
           ...(dryRun ? { dryRun: true } : {}),
           ...(citedSectionKeys && citedSectionKeys.length > 0 ? { citedSectionKeys } : {}),
           ...(citedConfigKeys && citedConfigKeys.length > 0 ? { citedConfigKeys } : {}),
+          ...(history.length > 0 ? { history } : {}),
         }),
         signal: controller.signal,
       });
@@ -528,6 +558,7 @@ export function ChatPanel({
             role: 'assistant',
             text: 'Live LLM calls are off — no changes were made.',
             dryRunLogId: body.logId ?? null,
+            synthetic: true,
           },
         ]);
         return;
@@ -536,7 +567,7 @@ export function ChatPanel({
       if (!response.ok) {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', text: `Error: ${body.error ?? response.statusText}` },
+          { role: 'assistant', text: `Error: ${body.error ?? response.statusText}`, synthetic: true },
         ]);
         return;
       }
@@ -546,7 +577,7 @@ export function ChatPanel({
       if (!proposal) {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', text: 'Error: unexpected response shape from server.' },
+          { role: 'assistant', text: 'Error: unexpected response shape from server.', synthetic: true },
         ]);
         return;
       }
@@ -566,6 +597,7 @@ export function ChatPanel({
           changedSectionKeys: changedSectionKeys.length > 0 ? changedSectionKeys : undefined,
           changedConfigKeys: changedConfigKeys.length > 0 ? changedConfigKeys : undefined,
           hasDescriptionChange: hasDescriptionChange || undefined,
+          modifications: hasModifications ? mods : undefined,
         },
       ]);
 
@@ -580,7 +612,7 @@ export function ChatPanel({
       if (err instanceof Error && err.name === 'AbortError') return;
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', text: 'Network error. Please try again.' },
+        { role: 'assistant', text: 'Network error. Please try again.', synthetic: true },
       ]);
     } finally {
       abortControllerRef.current = null;
@@ -635,7 +667,7 @@ export function ChatPanel({
     abortControllerRef.current = null;
     setIsInFlight(false);
     onChatEnd();
-    setMessages((prev) => [...prev, { role: 'assistant', text: '(Cancelled)' }]);
+    setMessages((prev) => [...prev, { role: 'assistant', text: '(Cancelled)', synthetic: true }]);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -743,6 +775,41 @@ export function ChatPanel({
                         </span>
                       )}
                     </div>
+                  )}
+
+                {/* Reopenable read-only detail — for any turn that had a proposal, once
+                    it's no longer the live actionable one (2026-08-07, at the user's
+                    request). Skipped while this exact message is still the pending
+                    proposal shown by renderProposalCard() below, to avoid two toggles
+                    for the same thing. No Apply/Discard here, and no "show current"
+                    comparison — the agent may have changed since this turn, so today's
+                    live value isn't a trustworthy "before" for a past proposal. */}
+                {msg.role === 'assistant' &&
+                  msg.modifications &&
+                  !(isLastAssistant && pendingProposal) && (
+                    <details className="mt-[6px] border border-[var(--border)] rounded-[9px] overflow-hidden bg-[var(--bg)]">
+                      <summary className="flex items-center gap-[7px] px-[10px] py-[5px] bg-[var(--panel)] border-b border-[var(--border)] list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none">
+                        <span className="text-[10.5px] text-[var(--accent-ink)] hover:underline">
+                          View proposed changes
+                        </span>
+                        <span className="text-[10px] text-[var(--faint)] ml-auto">▾</span>
+                      </summary>
+                      {msg.modifications.description !== undefined &&
+                        renderContentRow(
+                          `msg${i}:description`,
+                          'Description',
+                          msg.modifications.description,
+                          false,
+                          null,
+                        )}
+                      {Object.entries(msg.modifications.sections ?? {}).map(([key, content]) =>
+                        renderContentRow(`msg${i}:section:${key}`, `Section · ${key}`, content, false, null),
+                      )}
+                      {Object.entries(msg.modifications.config ?? {}).map(([key, rawValue]) => {
+                        const { isNull, text } = formatConfigValue(rawValue);
+                        return renderContentRow(`msg${i}:config:${key}`, `Config · ${key}`, text, isNull, null);
+                      })}
+                    </details>
                   )}
 
                 {/* Proposal card — inside the last assistant bubble (§6.2) */}

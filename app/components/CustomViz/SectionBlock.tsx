@@ -34,6 +34,15 @@ import { apiFetch } from '@/lib/apiFetch';
 
 type SectionDTO = AgentDTO['sections'][number];
 
+/** Catalog label when one exists; otherwise the section's own heading text (custom
+ *  sections have no catalog def), stripped of its leading '#'s — e.g. a Daedalus-named
+ *  custom block "# MISSION" displays as "MISSION" instead of the generic sectionKey
+ *  "custom". Falls back to sectionKey only for a headingless preamble block, where
+ *  there's genuinely no name to show. */
+export function sectionDisplayLabel(section: SectionDTO): string {
+  return section.def?.label ?? section.heading?.replace(/^#+\s*/, '') ?? section.sectionKey;
+}
+
 interface SectionBlockProps {
   agentId: string;
   section: SectionDTO;
@@ -75,7 +84,7 @@ export function SectionBlock({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
 
-  const sectionLabel = section.def?.label ?? section.sectionKey;
+  const sectionLabel = sectionDisplayLabel(section);
   const isCore = section.def?.isCore ?? false;
 
   // ── Stable "resolve" function (item 16) ─────────────────────────────────────

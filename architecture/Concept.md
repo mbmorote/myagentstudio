@@ -220,6 +220,18 @@ on per agent.
 This gives the simple agents their clean 4-section shape and lets the rich ones switch on
 the extras — one schema, not two divergent conventions.
 
+### Methodology note, added 2026-08-07
+
+The audit above is the origin story for the original 9 sections and stays historical/locked
+— it is not re-run for every catalog change. Going forward, new section/config entries may
+come from **informed refinement** (patterns recognized from agent-design experience beyond
+this one local sample) rather than only from re-auditing these same 15 files — but still
+never from unexamined guessing. A refinement-sourced addition defaults to **optional**, never
+core; core stays reserved for what this audit found near-universal. First case: the
+`boundaries` section (`TechDesign.md` Rules Index #82/#83) — not present in any of the 15
+audited agents, added from recognizing a real, distinct failure mode (assumption/inference
+overreach) that the audit's local sample simply didn't happen to surface.
+
 ## Grouping model (how agents are organized)
 
 **Requirement:** an agent can belong to *many* groups at once (e.g. `doc-editor` in both

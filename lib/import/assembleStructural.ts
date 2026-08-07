@@ -9,6 +9,12 @@
  *   Map each block: heading exactly matches a SECTION_DEFS.defaultHeading → that
  *   def's sectionKey; heading null or no match → 'custom'. Deterministic, no AI.
  *
+ * Step 5: Deterministic reorder — canonical core (by SECTION_DEFS.defaultOrder), then
+ *   optional sections used (by defaultOrder), then last-resort custom blocks (kept in
+ *   their relative document order among themselves), then assigned final `order` indices.
+ *   Daedalus's own document order is not trusted for this — see the inline comment at
+ *   the sort call for why.
+ *
  * Step 6: Build ImportedAgentData:
  *   - name / description / config from the **original** Stage-1 frontmatter
  *     (never from the model's output — Rules Index #27 decision #2).
@@ -31,6 +37,11 @@ const DESCRIPTION_PLACEHOLDER = '(no description provided)';
 /** Precomputed map: defaultHeading → sectionKey for deterministic mapping. */
 const HEADING_TO_KEY = new Map<string, string>(
   SECTION_DEFS.map((def) => [def.defaultHeading, def.key]),
+);
+
+/** Precomputed map: sectionKey → canonical defaultOrder, for the deterministic reorder below. */
+const DEFAULT_ORDER = new Map<string, number>(
+  SECTION_DEFS.map((def) => [def.key, def.defaultOrder]),
 );
 
 // Explicit Map<string, string> (not inferred) — CONFIG_DEFS' `key`/`datatype` are literal
@@ -74,20 +85,37 @@ export function assembleStructural(
   // ── Step 4: parse the output body → blocks, map headings → sectionKeys ──
   const { splitLevel, blocks } = splitBody(restructuredBody);
 
-  const sections: ImportedAgentData['sections'] = blocks.map((block, idx) => {
+  const classified = blocks.map((block) => {
     // Exact match against SECTION_DEFS.defaultHeading → canonical sectionKey.
     // heading null or no match → 'custom'.
     const sectionKey = block.heading !== null
       ? (HEADING_TO_KEY.get(block.heading) ?? 'custom')
       : 'custom';
 
-    return {
-      sectionKey,
-      heading: block.heading,
-      content: block.content,
-      order: idx,
-    };
+    return { sectionKey, heading: block.heading, content: block.content };
   });
+
+  // ── Step 5: deterministic reorder — do not trust Daedalus's own document order ──
+  // daedalus.md's Guardrail #8 asks for canonical-core → optional-used → last-resort-
+  // custom, but real runs against the same input have been observed to violate it (a
+  // custom block left mid-document instead of last). Ordering is purely mechanical once
+  // sectionKey is known — same "don't leave a deterministic decision to the model" logic
+  // already applied to sectionKey classification itself (the exact-heading-match above)
+  // and to heading fabrication (Rules Index #3, enforced at write time, not just asked
+  // for in the prompt). One exception: a headingless preamble block (heading === null)
+  // is not a last-resort custom block — daedalus.md's Behavior #4 explicitly wants it
+  // kept as the *opening* block, not pushed to the end, even though it shares
+  // sectionKey 'custom' with a named-but-unmatched heading.
+  const preamble = classified.find((s) => s.heading === null) ?? null;
+  const rest = classified.filter((s) => s.heading !== null);
+  rest.sort((a, b) => {
+    const rankA = a.sectionKey === 'custom' ? Number.POSITIVE_INFINITY : DEFAULT_ORDER.get(a.sectionKey)!;
+    const rankB = b.sectionKey === 'custom' ? Number.POSITIVE_INFINITY : DEFAULT_ORDER.get(b.sectionKey)!;
+    return rankA - rankB; // stable sort — custom blocks keep their relative order among themselves
+  });
+  const orderedBlocks = preamble ? [preamble, ...rest] : rest;
+
+  const sections: ImportedAgentData['sections'] = orderedBlocks.map((s, idx) => ({ ...s, order: idx }));
 
   // ── Step 6: frontmatter from original Stage-1 parse (never from model) ──
   const fmMap = new Map(original.frontmatter.map((e) => [e.key, e.rawValue]));
