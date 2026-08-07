@@ -76,8 +76,6 @@ import { apiFetch } from '@/lib/apiFetch';
 const SCALAR_KEY_ORDER = ['permissionMode', 'maxTurns', 'memory', 'background', 'isolation', 'color'];
 // Display order for list-row fields (full-width)
 const LIST_KEY_ORDER = ['tools', 'disallowedTools', 'skills'];
-// Keys handled in the header (not in the config zone)
-const HEADER_KEYS = new Set(['model', 'effort']);
 const INITIAL_PROMPT_KEY = 'initialPrompt';
 // Shared "⌘" badge hint (Agent(...) tools-pill + initialPrompt) — one string so a wording
 // change only has to happen here. Keep in sync with the mirrored constant in
@@ -252,8 +250,12 @@ export function AgentView({
 }: AgentViewProps) {
 
   // ── Derived data ──────────────────────────────────────────────────────────
+  // Memoized (2026-08-06, ESLint react-hooks/exhaustive-deps) so getCatalogDef has a
+  // stable identity across re-renders unless configCatalog itself actually changes —
+  // needed to safely list it in the outside-click effect's deps below without that
+  // effect re-attaching its listener on every render.
   const { modelDef, builtinTools, catalogKeySet, jsonKeys, getCatalogDef, isBadListItem } =
-    makeCatalogHelpers(configCatalog);
+    useMemo(() => makeCatalogHelpers(configCatalog), [configCatalog]);
   const agentGroups = groups.filter((g) => g.memberAgentIds.includes(agent.id));
   const configMap = new Map(agent.config.map((c) => [c.propKey, c.value]));
 
@@ -341,7 +343,6 @@ export function AgentView({
   const [addKeyMenuOpen, setAddKeyMenuOpen] = useState(false);
 
   // ── Config save state ─────────────────────────────────────────────────────
-  const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
 
   // ── Cross-editor coordination ref (passed to every SectionBlock) ──────────
@@ -416,7 +417,7 @@ export function AgentView({
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [editingScalarKey]);
+  }, [editingScalarKey, getCatalogDef]);
 
   // Close initialPrompt block on outside click (confirm if changed)
   useEffect(() => {
@@ -502,7 +503,6 @@ export function AgentView({
   }
 
   async function saveConfig(newRows: { propKey: string; value: unknown }[]): Promise<void> {
-    setIsSavingConfig(true);
     setConfigError(null);
     try {
       const res = await apiFetch(`/api/agents/${agent.id}`, {
@@ -518,8 +518,6 @@ export function AgentView({
       }
     } catch {
       setConfigError('Network error. Please try again.');
-    } finally {
-      setIsSavingConfig(false);
     }
   }
 

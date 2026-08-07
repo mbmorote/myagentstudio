@@ -44,15 +44,6 @@ function collectRouteFiles(dir: string): string[] {
 
 const allRouteFiles = collectRouteFiles(API_DIR);
 
-// ── Helper: path segment check ────────────────────────────────────────────────
-
-/** Returns true if `absPath` is under a subdirectory named `segment` of the API dir. */
-function underSegment(absPath: string, ...segments: string[]): boolean {
-  const rel = relative(API_DIR, absPath);
-  const parts = rel.split(sep);
-  return segments.every((seg, i) => parts[i] === seg);
-}
-
 function inAuthDir(absPath: string): boolean {
   const rel = relative(API_DIR, absPath);
   return rel.startsWith('auth' + sep) || rel === 'auth';

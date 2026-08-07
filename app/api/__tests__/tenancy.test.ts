@@ -84,7 +84,7 @@ import { GET as exportGET } from '../agents/[id]/export/route.js';
 import { PATCH as patchSectionPATCH } from '../agents/[id]/sections/[sectionId]/route.js';
 import { POST as addMembershipPOST } from '../agents/[id]/groups/route.js';
 import { DELETE as removeMembershipDELETE } from '../agents/[id]/groups/[groupId]/route.js';
-import { GET as listGroupsGET, POST as createGroupPOST } from '../groups/route.js';
+import { GET as listGroupsGET } from '../groups/route.js';
 import { DELETE as deleteGroupDELETE } from '../groups/[id]/route.js';
 import { POST as chatPOST } from '../chat/route.js';
 import { POST as importPOST } from '../agents/import/route.js';
@@ -104,7 +104,6 @@ let aGroupId: string;
 let bId: string;
 let bEmail: string;
 let bAgent1Id: string;
-let bSection1Id: string;  // section of bAgent1
 let bAgent2Id: string;
 let bSection2Id: string;  // section of bAgent2 (for mismatched-pair within B)
 
@@ -226,8 +225,6 @@ beforeAll(() => {
   // 6. Create B's two agents
   const bAgent1 = createAgent(bId, 'b-agent-1', "B's first agent");
   bAgent1Id = bAgent1.id;
-  const bFull1 = getAgentFull(bAgent1Id, bId)!;
-  bSection1Id = bFull1.sections[0]?.id ?? '';
 
   const bAgent2 = createAgent(bId, 'b-agent-2', "B's second agent");
   bAgent2Id = bAgent2.id;

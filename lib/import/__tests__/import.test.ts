@@ -61,7 +61,7 @@ import {
   getAgentFull,
 } from '../../db/repository/agents.js';
 import { BOOTSTRAP_USER_ID } from '../../auth/constants.js';
-import { parse, exportAgent } from '../../serialize/index.js';
+import { parse } from '../../serialize/index.js';
 import { assemble } from '../assemble.js';
 import { callHermes } from '../../ai/hermes.js';
 
@@ -226,7 +226,6 @@ describe('assemble + upsertAgentFromImport (dev.md, first import)', () => {
 
 describe('re-import with a changed section', () => {
   let originalSectionId: string;
-  let originalRoleContent: string;
 
   beforeAll(() => {
     // The "dev" agent was created in the first describe block (shared DB).
@@ -245,7 +244,6 @@ describe('re-import with a changed section', () => {
       .find((s) => s.sectionKey === 'role');
     expect(roleSection).toBeDefined();
     originalSectionId = roleSection!.id;
-    originalRoleContent = roleSection!.content;
   });
 
   it('overwrites content and appends exactly one reimport revision for the changed section', () => {
@@ -643,7 +641,6 @@ describe('A1 — multi-custom section re-import (identity-based reconciliation)'
 describe('A2 — FrontmatterParseError and missing_name rejection', () => {
   it('parseFrontmatter throws FrontmatterParseError on malformed YAML (duplicate keys)', async () => {
     const { parseFrontmatter, FrontmatterParseError: FPE } = await import('../../serialize/parseFrontmatter.js');
-    const malformedMd = '---\nname: foo\nname: bar\n---\n# ROLE\ncontent\n';
     // js-yaml FAILSAFE_SCHEMA: duplicate keys may not throw — test tab-indented YAML instead.
     // Tab-indented YAML is invalid under the YAML spec and will throw with FAILSAFE_SCHEMA.
     const tabIndentedMd = '---\nname: foo\n\tmodel: claude\n---\n# ROLE\ncontent\n';
@@ -707,7 +704,6 @@ describe('A3 — block-list frontmatter value round-trip', () => {
     expect(toolsEntry1?.rawValue).toEqual(['Read', 'Write', 'Edit']);
 
     // Export then re-parse: the list must survive as a list.
-    const { parse } = await import('../../serialize/index.js');
     const exported = exportAgent({ frontmatter: parsed1, splitLevel: 1, blocks: [{ blockId: 'block-0', heading: '# ROLE', content: 'Content here.\n', order: 0 }] });
     const parsed2 = parseFrontmatter(exported);
     const toolsEntry2 = parsed2.find((e) => e.key === 'tools');

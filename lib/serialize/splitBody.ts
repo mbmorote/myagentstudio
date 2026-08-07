@@ -143,9 +143,7 @@ export function splitBody(body: string): SplitResult {
     const current = splitHeadings[i];
     const next = splitHeadings[i + 1];
 
-    // Heading line in body: from linePositions[lineIndex] to end of that line
-    // headingLineEnd = start of next line
-    const headingLineStart = linePositions[current.lineIndex];
+    // Heading line in body ends where the next line starts.
     const headingLineEnd =
       current.lineIndex + 1 < linePositions.length
         ? linePositions[current.lineIndex + 1]

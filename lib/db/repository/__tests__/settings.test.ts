@@ -10,7 +10,7 @@
  *   - getAllSettings shape and contents
  */
 
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 // ── Replace lib/db/client.ts with in-memory test DB ───────────────────────────
 vi.mock('../../client.js', async () => {

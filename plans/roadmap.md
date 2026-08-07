@@ -42,8 +42,9 @@ its own bullet — that's the source of truth for what moved and why, not this n
 implementation/product threads flagged during triage, still unresolved: **AI chat persistence**
 (NEXT) — cookie/localStorage vs. a real `Conversation`/`Message` DB table; **compliance-grade
 logging** (NEXT) — still deciding if it's worth building at all, pending real-user impact.
-Same day, two follow-ups: **company signature on the platform** added as new TODO item 12
-(branding somewhere on the live site — placement/content TBD), sequenced right before deploy;
+Same day, two follow-ups: **company signature on the platform** added as new TODO item 12 (as
+numbered then; renumbered since — see the TODO section's own current numbering), branding
+somewhere on the live site (placement/content TBD), sequenced right before deploy;
 **display-label lookup for `model`** un-promoted back out of TODO after confirming the current
 raw display (`claude-sonnet-5`, etc.) is already legible and correctly aligned with real
 Anthropic naming — relocated next to **Export translation to other platforms** in NEXT, since
@@ -180,7 +181,8 @@ Condensed — full detail lives at each pointer, not repeated here.
   accepted for all domains, including Google Workspace — the domain-takeover residual risk is
   knowingly accepted, with a revisit trigger recorded (Plan 06 §3.7/§16.5, Rules Index #72).
   **Two follow-ups spun out, not part of this item's closure:** Phase 5.4 (live
-  `SESSION_TTL_SECONDS` check) now sits in NEXT; the remaining Phase 6 doc sync is TODO.
+  `SESSION_TTL_SECONDS` check) now sits in NEXT; the remaining Phase 6 doc sync is folded into
+  `plans/09-pre-launch-org-review.md`'s Track A (TODO item 6) as of 2026-08-06.
 - **Chat editing rework: propose/apply flow, Prometheus rename, section-scoped citation** —
   Plans 07 & 08, closed 2026-08-06 (was TODO items 2, 3, and 6). Chat editing widened from
   sections-only to sections + config + description (never `name`, enforced server-side), given
@@ -201,7 +203,56 @@ Condensed — full detail lives at each pointer, not repeated here.
   new pre-deploy "big flow test" TODO item instead of run as a separate step:** Plan 08's own
   Phase 4 (live verification that a real Prometheus reply produces a correct proposal end to
   end). **Also still explicitly open, out of scope for this rework:** adding or deleting a
-  section via chat — see TODO item 9 below.
+  section via chat — see TODO item 1 below.
+- **"+custom key…" arbitrary config-key creation, incl. removing one** — 2026-08-06, was TODO
+  item 1. Was blocked on a design decision (a user-created key immediately got flagged as
+  `unknownConfigKeys`, contradicting the intent of letting the user create it). **Resolved: no
+  schema change** — `agent_config` has no concept of key provenance (import already stores any
+  unrecognized frontmatter key verbatim, identical to a manually-created one — see
+  `lib/import/CLAUDE.md`), and a persisted flag couldn't survive an export→re-import round-trip
+  anyway. Instead, retired the separate "⚠ unknown key" warning-pill tier entirely: every
+  config key not in the standard catalog now renders through the same raw-JSON custom-block UI
+  already used for `hooks`/`mcpServers` (`AgentView.tsx`'s `renderCustomBlock`, `getCatalogDef()`
+  falls back to a synthesized def), with the same neutral "· custom · saved as-is" label, Edit,
+  and Remove affordances. No backend change — `PATCH /api/agents/[id]` already accepted
+  arbitrary `propKey`s. The add-key menu's "+ custom key…" option prompts for a name and saves
+  an empty-object value.
+- **Settings modal instead of full-page navigation** — 2026-08-06, was TODO item 6. Avoids
+  losing `ChatPanel`'s local message history when a user opens Settings. Prototyped in
+  `Layout-Workbench.html`, then built for real: `Topbar.tsx`'s "⚙ System Settings" is now a
+  button opening a new `SettingsModal.tsx` (a Radix `Dialog`, same pattern `RawAgentView.tsx`'s
+  zoom modal already used) instead of `<Link href="/settings">`. No new backend work — `GET
+  /api/settings` and `GET /api/llm-call-log` already existed and were already admin-gated, so
+  the modal just fetches both client-side on open and feeds the same `SettingsView` component
+  the full-page route always used. `SettingsView.tsx` gained an optional `onClose` prop and
+  dropped its two `router.refresh()` calls (replaced with applying the PATCH response's
+  `updatedAt` directly to local state). `/settings/page.tsx` itself is untouched and still
+  works standalone, including the `?log=<id>` permalink deep-link, which intentionally still
+  goes through the full page. **Deliberately left alone:** `ChatPanel.tsx`'s dry-run notice
+  links and `ImportDialog.tsx`'s settings link still full-page-navigate — converting the former
+  would need session/role plumbed into `ChatPanel`, out of scope for this item; revisit if it
+  becomes a real papercut.
+- **ESLint config** — 2026-08-06, was TODO item 1. `next lint` was wired into `package.json`
+  since early in the project but never configured (dropped into an interactive setup wizard).
+  Added `eslint`, `eslint-config-next`, `@eslint/eslintrc` as devDependencies and
+  `eslint.config.mjs` (Next 15's flat-config format, `next/core-web-vitals` + `next/typescript`,
+  generated/build directories excluded to mirror `.gitignore`). First-ever run against the
+  whole codebase found 18 issues (17 `no-unused-vars`, 1 `react-hooks/exhaustive-deps`) — all
+  fixed the same session: dead imports/variables removed outright (per the "delete, don't
+  rename to `_var`" instruction), and `AgentView.tsx`'s catalog-helpers destructure wrapped in
+  `useMemo` so `getCatalogDef` has a stable identity and can safely be added to an effect's
+  dependency array without causing spurious re-attachment. `npm run lint` now reports zero
+  warnings/errors; the full suite (551/551 tests) still passes after the cleanup.
+  **Incidental finding, fixed the same session at the user's request:** `npx tsc --noEmit`
+  (run to verify the cleanup) surfaced 2 pre-existing type errors in `lib/import/assemble.ts`
+  and `assembleStructural.ts` — each file's own `CONFIG_DATATYPE` map was inferred as
+  `Map<literal-key-union, literal-datatype-union>` (from `CONFIG_DEFS`' `as const` fields),
+  which rejected the plain `key: string` parameter `coerceConfigValue()` actually queries it
+  with. Confirmed via `git status` to predate this session, unrelated to the ESLint work.
+  Fixed by explicitly typing both as `Map<string, string>` (matching the precedent already set
+  by `assembleStructural.ts`'s own `HEADING_TO_KEY` map two lines above it) — a type-only
+  change, no runtime behavior difference. `npx tsc --noEmit` now reports zero errors; full
+  suite re-verified at 551/551 after this fix too.
 
 ## TODO — before v1 goes online
 
@@ -210,81 +261,133 @@ Retriaged 2026-07-31 (`plans/roadmap-priority-260731.md`, tier 1) — this bucke
 strictly "must happen before v1 launches," not a general importance ranking; several items
 here were promoted from FUTURE on that basis, tagged below.
 
-1. **"+custom key…" arbitrary config-key creation, incl. removing one.** Was blocked on a
-   product decision (a user-created key immediately gets flagged as `unknownConfigKeys`,
-   contradicting the intent of letting the user create it). Scope broadened 2026-07-30: also
-   cover *removing* a custom/JSON key, not just adding — half the feature without the other
-   is awkward. `CHANGELOG.md`'s 2026-07-29 Tier 1 redesign entry has the original detail.
-2. **ESLint config.** *(Promoted from FUTURE 2026-07-31.)* Script wired (`next lint`) but
-   never configured — running it drops into an interactive setup prompt. Typecheck + tests
-   are the real gate today; this closes that gap before real users touch the app.
-3. **Manual-edit save frequency.** *(Promoted from FUTURE 2026-07-31 — was Deferred
-   Decisions #14.)* Resolved during triage: **the user wants an explicit Save action**, not
-   autosave-on-every-keystroke or a debounced background save. Worth a quick check whether
-   this was already effectively decided when manual editing shipped (unclear from a quick
-   pass over `SectionBlock.tsx`) before implementing.
-4. **Second LLM provider.** *(Promoted from FUTURE 2026-07-31 — was P04a.)* A non-Anthropic,
-   OpenAI-compatible or NVIDIA provider behind the existing `LLMProvider` interface.
-5. **Incremental streaming.** *(Promoted from FUTURE 2026-07-31 — was P04b.)* Token-by-token
-   chat responses (`streamChunks()`) instead of waiting for the full reply.
-6. **Settings modal instead of full-page navigation.** *(Promoted from FUTURE 2026-07-31 —
-   was P04f.)* Avoids losing `ChatPanel`'s local message history when a user opens Settings.
-7. **`scripts/build-prompts.ts` readable output.** TechDesign #26, tagged **[HIGH
-   PRIORITY]** there — currently emits one giant escaped-string line. Sequenced deliberately
-   before item 11 (the pre-deploy big flow test): the user wants to be able to read the real
-   compiled system prompt to sanity-check what's actually being sent to the LLM, which is most
-   useful precisely when debugging a live chat-edit failure during that test, not after it.
-8. **Doc sync — Plan 06 Phase 6 remainder + the consent-popup supersession.** Two pieces:
-   **(a)** the 2026-07-31 partial doc-sync commit covered Phase 6 for Phases 0–4 only (its
-   own commit message says so) — `TechDesign.md`'s Rules Index #63–71 and Deferred Decisions
-   table, `README.md`, and `docs/user-guide.md` should be checked against what Phase 5.3's
-   live pass actually confirmed, not just the pre-verification build state. **(b)** this
-   session's activity-log-sharing consent flow changed from a blocking inline `/signup` form
-   field (Plan 06 §5.6/§7.2's original design) to a dismissible post-login popup that
-   defaults every new account to private — a real supersession of an already-locked rule, not
-   yet reflected anywhere in `TechDesign.md`'s Rules Index (needs a supersession note,
-   matching how Rules Index #7 documents the chat-mediator scope reversal) or in
-   `docs/user-guide.md`'s signup walkthrough.
-9. **Section add/delete via chat — review.** *(Added 2026-08-05, from Plan 07's confirmation
-   point 3.)* Neither is possible via chat today — an unknown `sectionKey` from a proposal is
-   skipped, and no repository primitive exists to add a section outside import
-   (`updateSectionContent` only updates). Plans 07/08 deliberately shipped without either
-   (chat stays edit-only for existing sections; see TechDesign Deferred Decisions row P08b).
-   Kept here in TODO — not FUTURE — specifically so it gets revisited before v1, not left to
-   drift: review whether either is actually needed before launch, or whether it's fine to
-   genuinely defer. If wanted, it's real new work — new repository functions, new contract
-   fields (e.g. `sections: { key: string | null }` for deletion), and new `prometheus.md`
-   guardrail rules. **Directly relevant to item 11 below:** if this stays deferred, that
-   test's "chat edit" stage can only exercise section *editing*, not add/remove — its own
-   wording accounts for this; resolve this item first if the test should cover chat-driven
-   section add/remove too.
-10. **Company signature on the platform.** Added 2026-07-31 — the user's real branding needs
-    to appear somewhere on the live site before v1 goes online (footer, login/signup pages,
-    Topbar — placement and exact content, e.g. name/logo/tagline/copyright line, not yet
-    decided). Scope details (what asset, where it renders) to be worked out when this is
-    picked up.
-11. **Big flow test — import → manual edit → chat edit.** *(Added 2026-08-06, at the user's
-    request.)* **The last functional validation before "Deploy online,"** run once every other
-    TODO item above is done. One end-to-end pass through the whole real app, not a scripted
-    unit-style check: **(a)** import a real agent file; **(b)** manually edit it in the
-    structured view — add a section, edit a section, remove a section; add a tool, edit a
-    config value, remove a tool/config key; **(c)** edit the same agent via chat — Prometheus
-    proposal review and Apply/Discard for a section edit and a config edit (add/edit/remove a
-    tool via chat), confirming the proposal card, the lock, and the applied result all match.
-    This is also where Plan 08's own deferred Phase 4 (live verification that a real Prometheus
-    reply produces a correct proposal end-to-end) actually gets exercised — not run as a
-    separate step, since this test's chat-edit stage already needs the same real, billed
-    Anthropic API calls (standing rule 2 — ask before running this test for that reason).
-    **Known gap going in:** chat-driven section *add/remove* isn't implemented (item 9 above)
-    — this test's chat stage can only exercise section editing and config add/edit/remove
-    unless item 9 is resolved first; note this explicitly when the test is run, don't treat it
-    as a bug found by the test. **Anything else the test turns up:** small issues get fixed
-    inline as part of the same pass; anything bigger becomes its own new TODO/FUTURE item
-    rather than blocking the test itself — the point is to find gaps before real users do, not
-    to gate the test on being bug-free beforehand.
-12. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
-    now (whatever the smallest real hosting step is); the *automated* version of this is
-    CI/CD, tracked under FUTURE, not blocking this first deploy.
+**Kind tags added 2026-08-06**, at the user's request, so items can be picked up by what
+they actually require, not just launch necessity — **[UX]** = a visible UI/layout change
+(prototype in `Layout-Workbench.html` first, standing rule 4); **[Behavior]** = a product/logic
+decision or backend change with no direct UI; **[Infra]** = tooling/process/docs, not user-
+facing at all. Items 6 and 8 are deliberately untagged — they're end-of-list gate tasks (final
+validation, then deploy), not day-to-day pick-off work; item 7 (company signature) sits
+between them by deliberate user choice (see the reorder note below), not because it's a
+same-kind gate task.
+
+**Same-day update (2026-08-06):** the original "UX working queue" batch (items 1, 5's
+rendering half, 6, and 10, in the numbering that day started with) is mostly resolved. The
+former items 1 (custom-key creation), 6 (Settings modal), **and ESLint config** are all fully
+built — closed out into "What's built" above, which is why the list below no longer starts
+with ESLint. **The former item 5 (incremental streaming) was deferred to FUTURE at the user's
+explicit request** — see that bucket.
+
+**Reordered same day, at the user's explicit request** (a deliberate priority call, not a
+re-triage — done when ESLint was still item 1): ESLint first (quick, no coupling to anything
+else — **built the same session, see "What's built"**); then the two "how the platform is
+actually used day-to-day" items (chat section add/delete, manual-edit save frequency) —
+grouped together since both are behavior/UX calls about editing an agent, each may or may not
+need a layout change; then the build-prompts readability fix (confirmed with the user: this is
+a **developer-tooling fix, not an admin-facing or logging feature** — it only changes the
+human-readability of the generated `lib/ai/prompts/generated/*.ts` files that
+`scripts/build-prompts.ts` writes at build time; nothing about the runtime admin-facing
+Activity Log/`llm_call_log` — which already exists and is unaffected — the confusion was
+plausible since both are "system prompt visibility," but the API touched is `predev`/
+`prebuild`'s generated file output, not any runtime logging); then second LLM provider,
+wanted landed **before** going online while the vendor is still swappable at low cost; then
+**Plan 09** (`plans/09-pre-launch-org-review.md`, added the same day) — a docs/code/tests
+organization review, not a correctness check, so the pre-deploy big flow test runs against
+docs/code/tests already known to be honest about their own state; then the big flow test
+itself; then company signature (deliberately placed **after** the test, not before it, so an
+asset that still doesn't exist doesn't gate functional validation) right before deploy.
+
+1. **[Behavior]** **Section add/delete via chat — review.** *(Added 2026-08-05, from Plan
+   07's confirmation point 3.)* Neither is possible via chat today — an unknown `sectionKey`
+   from a proposal is skipped, and no repository primitive exists to add a section outside
+   import (`updateSectionContent` only updates). Plans 07/08 deliberately shipped without
+   either (chat stays edit-only for existing sections; see TechDesign Deferred Decisions row
+   P08b). A scope/product decision plus repository + prompt-guardrail work if built — the
+   existing proposal-card UI already renders whatever a proposal contains generically, so no
+   new UI is anticipated even if this is built. Kept here in TODO — not FUTURE — specifically
+   so it gets revisited before v1, not left to drift: review whether either is actually needed
+   before launch, or whether it's fine to genuinely defer. If wanted, it's real new work — new
+   repository functions, new contract fields (e.g. `sections: { key: string | null }` for
+   deletion), and new `prometheus.md` guardrail rules. **Directly relevant to item 6 below:**
+   if this stays deferred, that test's "chat edit" stage can only exercise section *editing*,
+   not add/remove — its own wording accounts for this; resolve this item first if the test
+   should cover chat-driven section add/remove too.
+2. **[Behavior]** **Manual-edit save frequency.** *(Promoted from FUTURE 2026-07-31 — was
+   Deferred Decisions #14.)* Resolved during triage: **the user wants an explicit Save
+   action**, not autosave-on-every-keystroke or a debounced background save. Worth a quick
+   check whether this was already effectively decided when manual editing shipped (unclear
+   from a quick pass over `SectionBlock.tsx`) before implementing — no UI change expected
+   either way, `SectionBlock.tsx` already has explicit Save/Cancel.
+3. **[Infra]** **`scripts/build-prompts.ts` readable output.** TechDesign #26, tagged **[HIGH
+   PRIORITY]** there — currently emits one giant escaped-string line. A generator-script fix,
+   not user-facing (double-checked at the user's request — this is developer/build tooling,
+   unrelated to the admin-facing Activity Log). Sequenced deliberately before item 6 (the
+   pre-deploy big flow test): the user wants to be able to read the real compiled system
+   prompt to sanity-check what's actually being sent to the LLM, which is most useful
+   precisely when debugging a live chat-edit failure during that test, not after it.
+4. **[Infra]** **Second LLM provider.** *(Promoted from FUTURE 2026-07-31 — was P04a.)* A
+   non-Anthropic, OpenAI-compatible or NVIDIA provider behind the existing `LLMProvider`
+   interface — no user-visible change, same chat/import behavior through a different vendor.
+   **The user wants this landed before going online**, while switching vendors is still cheap.
+5. **[Infra]** **Plan 09 — Pre-launch organization review (docs, code, tests).** *(Added
+   2026-08-06, at the user's request — replaces what was previously here, a narrower doc-sync
+   task, now absorbed as this plan's Track A finding A1.)* `plans/09-pre-launch-org-review.md`
+   has the full charter. Three tracks, each asking "does this reflect/organize what it should,"
+   **not** "does it work" (that's the big flow test's job, item 6 below): **Track A (docs)** —
+   audit `CLAUDE.md`/`TechDesign.md`/`README.md`/`docs/user-guide.md` against actual current
+   behavior, including the absorbed Plan 06 Phase 6 doc-sync gap (Rules Index #63–71, the
+   consent-popup supersession) and a newly-surfaced finding (`AgentDTO.validation` is
+   server-computed but read by zero UI components — dead code or an unfinished feature the
+   mockup's ⚠/✕ legend already promised; needs a decision either way) and a specific
+   "what's on the log is on the log" pass verifying the Activity Log's actual behavior against
+   its documentation. **Track B (code)** — structural fit against each folder's own stated
+   `CLAUDE.md` map: dead code, duplicated logic, scope creep past a component's own docblock.
+   **Track C (tests)** — coverage/organization shape, not pass/fail: gaps, stale tests for
+   superseded designs, naming/location conventions. **Output is a findings list, triaged after
+   — not a fix-everything mandate** (confirmed with the user): trivial fixes land inline,
+   anything bigger spins into its own new TODO/FUTURE item. Sequenced right before the big flow
+   test so that test runs against docs/code/tests already known to be honest about their own
+   state.
+6. **Big flow test — import → manual edit → chat edit.** *(Added 2026-08-06, at the user's
+   request.)* **The last functional validation before "Deploy online,"** run once every other
+   TODO item above is done. One end-to-end pass through the whole real app, not a scripted
+   unit-style check: **(a)** import a real agent file; **(b)** manually edit it in the
+   structured view — add a section, edit a section, remove a section; add a tool, edit a
+   config value, remove a tool/config key; **(c)** edit the same agent via chat — Prometheus
+   proposal review and Apply/Discard for a section edit and a config edit (add/edit/remove a
+   tool via chat), confirming the proposal card, the lock, and the applied result all match.
+   This is also where Plan 08's own deferred Phase 4 (live verification that a real Prometheus
+   reply produces a correct proposal end-to-end) actually gets exercised — not run as a
+   separate step, since this test's chat-edit stage already needs the same real, billed
+   Anthropic API calls (standing rule 2 — ask before running this test for that reason).
+   **Known gap going in:** chat-driven section *add/remove* isn't implemented (item 1 above)
+   — this test's chat stage can only exercise section editing and config add/edit/remove
+   unless item 1 is resolved first; note this explicitly when the test is run, don't treat it
+   as a bug found by the test. **Anything else the test turns up:** small issues get fixed
+   inline as part of the same pass; anything bigger becomes its own new TODO/FUTURE item
+   rather than blocking the test itself — the point is to find gaps before real users do, not
+   to gate the test on being bug-free beforehand.
+7. **[UX]** **Company signature on the platform.** Added 2026-07-31 — the user's real
+   branding needs to appear somewhere on the live site before v1 goes online (footer,
+   login/signup pages, Topbar — placement and exact content, e.g. name/logo/tagline/copyright
+   line, not yet decided). Placement-in-layout work — prototype first once an asset/copy
+   exists. Scope details (what asset, where it renders) to be worked out when this is picked
+   up. **Design review done 2026-08-06** (`plans/Branding-Design-Review-260806.md`, against
+   the user's own reviewer rubric — typography, color, layout/structure, branding
+   integration, overall feel): recommends a footer placement (folded into the existing
+   `.foot` legend row, not a new strip — zero extra vertical cost) as primary, a quiet line
+   under the login/signup card as secondary; explicitly against tinting the mark with
+   `--accent` or giving it Topbar real estate. **Footer placement prototyped the same day**
+   in `Layout-Workbench.html` (`.foot-brand` chip, demo-only "ACME Corp" content, same
+   fake-but-labeled convention as the mockup's demo agent) — **still blocked on the actual
+   asset/company name/copy** before this (or the login/signup line, not yet prototyped
+   anywhere) moves into real code; placeholder text was deliberately kept out of
+   `Topbar.tsx`/`LoginForm.tsx`/`SignupForm.tsx` since a real viewer seeing literal demo
+   branding would read worse than seeing nothing. **Sequenced right before deploy, after the
+   big flow test** (2026-08-06 reorder, at the user's request) — a still-missing asset
+   shouldn't gate functional validation; branding lands as the final step before going live.
+8. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
+   now (whatever the smallest real hosting step is); the *automated* version of this is
+   CI/CD, tracked under FUTURE, not blocking this first deploy.
 
 ## NEXT — first priorities once v1 is online
 
@@ -394,6 +497,14 @@ free to reorder within this bucket.
 Flat list, no sub-headers. Lower urgency than NEXT — genuinely free to reorder. Full "why" for
 the TechDesign-numbered ones lives in `TechDesign.md`'s Deferred Decisions table / Rules Index.
 
+- **Incremental streaming.** *(Moved back here from TODO 2026-08-06, at the user's explicit
+  request — was TODO item 5, itself promoted from FUTURE 2026-07-31, originally P04b.)*
+  Token-by-token chat responses (`streamChunks()`) instead of waiting for the full reply.
+  Splits cleanly if picked up: the streaming transport itself is **[Behavior]** (`LLMProvider`/
+  gateway plumbing, purely additive per TechDesign P04b); rendering tokens as they arrive is
+  **[UX]** (`ChatPanel`'s message bubble goes from "swap in the final text" to "grow in
+  place") — small enough it likely doesn't need a full mockup pass, but confirm against
+  standing rule 4 when picked up.
 - **Server-enforced editing lock during a pending chat proposal (revisit).** *(Added
   2026-08-05.)* Today's `interactionLock` (and its `localStorage`-persisted pending-proposal
   extension, built as part of the Prometheus rework — see What's built above) is purely
@@ -446,7 +557,7 @@ the TechDesign-numbered ones lives in `TechDesign.md`'s Deferred Decisions table
   app is single-file SQLite (`better-sqlite3`), single-process, and the first deploy target
   is a handful of friends (`maxUsers` currently 5) — that's comfortably within SQLite's
   range. The real trigger isn't user count, it's the *hosting choice* for "deploy online"
-  (TODO item 12): a host with a persistent disk (Fly.io, a VM, Azure App Service with a
+  (TODO item 8): a host with a persistent disk (Fly.io, a VM, Azure App Service with a
   mounted volume) keeps SQLite working fine; a stateless/serverless host (e.g. Vercel's
   default) would force this decision immediately rather than later. Worth deciding the
   hosting target with this in mind, not migrating pre-emptively.
@@ -459,7 +570,7 @@ the TechDesign-numbered ones lives in `TechDesign.md`'s Deferred Decisions table
 - **Dedicated group-management view** — punch-list item 7. New panel, not started, not
   researched. Prototype in `Layout-Workbench.html` first per standing rule 4 whenever it's
   picked up.
-- **CI/CD** — test → build → deploy automation. The automated counterpart to TODO item 12;
+- **CI/CD** — test → build → deploy automation. The automated counterpart to TODO item 8;
   that item is "get something online," this is "stop doing it by hand."
 - **Docker** — containerize once the app runs end-to-end online.
 - **Azure / hosting infra maturity** — App Service first, K8s only if that ever becomes the
@@ -483,17 +594,25 @@ Plan 04) before an item can move to FUTURE/NEXT with an understood scope, let al
 
 ## Recommended next stage
 
-Four TODO items are done — zero-agents empty state Topbar, the `__raw` frontmatter escape
+Seven TODO items are done — zero-agents empty state Topbar, the `__raw` frontmatter escape
 hatch (built as a real `datatype: 'json'` instead), the auth framework review (OAuth verified
-live), and the chat-mediator/Prometheus rework (propose/apply, the lock, the ChatPanel UI) —
-see "What's built" for all four. Current TODO is 1–12, **items 1–10 independent, pick off in
-any order or in parallel**; **item 11 (the big flow test) and item 12 (deploy online) are
-always last, in that order** — the test is the explicit final validation gate, deploy follows
-it. Item 9 (section add/delete via chat — review) is worth resolving before item 11 if chat-
-driven section add/remove should be part of that test's coverage; otherwise item 11's own
-wording already accounts for testing edit-only. Item 8 (doc sync) is worth doing close to
-whenever NEXT item 3 (Settings layout) lands if that happens before launch, so the docs reflect
-both in one pass — otherwise doc sync for the Settings work becomes a NEXT-bucket follow-up.
+live), the chat-mediator/Prometheus rework (propose/apply, the lock, the ChatPanel UI), and
+(2026-08-06) custom-key creation/removal, the Settings modal, and ESLint config — see "What's
+built" for all seven. Current TODO is 1–8, **explicitly ordered by the user 2026-08-06** (not a
+free pick-off list like the prior numbering; ESLint itself was item 1 in that ordering and has
+since closed out, hence the list below starts at section add/delete): **1** section add/delete
+via chat review and **2** manual-edit save frequency (grouped — both are "how the platform is
+actually used" behavior/UX calls) → **3** build-prompts readable output (confirmed
+developer-tooling, not admin/logging) → **4** second LLM provider (wanted landed before
+launch while switching vendors is still cheap) → **5** Plan 09 (`plans/09-pre-launch-org-
+review.md` — docs/code/tests organization review, findings-list output, not a fix-everything
+pass) → **6** the big flow test (final functional validation) → **7** company signature
+(deliberately after the test, so a still-missing asset doesn't gate it) → **8** deploy online.
+Item 1 (section add/delete via chat) is worth resolving before item 6 if chat-driven section
+add/remove should be part of that test's coverage; otherwise item 6's own wording already
+accounts for testing edit-only. Item 5 (Plan 09's docs track) is worth doing close to whenever
+NEXT item 3 (Settings layout) lands if that happens before launch, so the docs reflect both in
+one pass — otherwise that becomes a NEXT-bucket follow-up.
 
 Once v1 is live: NEXT item 1 (component/UI test coverage) first, per the user's explicit call.
 The rest of NEXT is free to reorder.

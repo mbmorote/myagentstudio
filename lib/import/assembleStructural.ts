@@ -33,7 +33,10 @@ const HEADING_TO_KEY = new Map<string, string>(
   SECTION_DEFS.map((def) => [def.defaultHeading, def.key]),
 );
 
-const CONFIG_DATATYPE = new Map(CONFIG_DEFS.map((d) => [d.key, d.datatype]));
+// Explicit Map<string, string> (not inferred) — CONFIG_DEFS' `key`/`datatype` are literal
+// unions, which would otherwise narrow this Map's key type and make .get() reject the
+// plain `string` that coerceConfigValue's `key` parameter actually is.
+const CONFIG_DATATYPE = new Map<string, string>(CONFIG_DEFS.map((d) => [d.key, d.datatype]));
 
 /**
  * Stage 1's YAML parse deliberately returns every scalar as a string, with no

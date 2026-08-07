@@ -14,7 +14,7 @@ import 'server-only';
  *   - §4.4: createUserWithInvite() re-checks all preconditions inside one transaction.
  */
 
-import { eq, and, sql, gte } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { db } from '../client.js';
 import * as schema from '../schema.js';
 

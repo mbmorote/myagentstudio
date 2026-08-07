@@ -50,12 +50,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const noteStr = typeof note === 'string' && note.trim().length > 0 ? note.trim() : null;
 
   // Try to generate a unique code (up to 3 attempts per §4.2)
-  let code: string | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     const candidate = generateInviteCode();
     try {
       const row = createInviteCode({ code: candidate, note: noteStr, createdBy: auth.session.userId });
-      code = row.code;
       return NextResponse.json(
         {
           code: row.code,

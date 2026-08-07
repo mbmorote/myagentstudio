@@ -24,7 +24,7 @@ vi.mock('../../db/client.js', async () => {
 import { eq } from 'drizzle-orm';
 import { testDb } from '../../db/__tests__/test-db.js';
 import * as schema from '../../db/schema.js';
-import { createGateway, LlmDryRunBlockedError } from '../gateway.js';
+import { createGateway } from '../gateway.js';
 import type { LlmCallContext } from '../gateway.js';
 import type { LLMProvider, LlmRequest, LlmResponse } from '../provider.js';
 

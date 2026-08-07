@@ -15,7 +15,6 @@
  */
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { eq } from 'drizzle-orm';
 import { BOOTSTRAP_USER_ID } from '../../../../lib/auth/constants.js';
 
 // ── Mock getSession — the single auth seam (§10.2) ────────────────────────────

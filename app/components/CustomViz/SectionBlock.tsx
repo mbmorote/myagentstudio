@@ -75,7 +75,6 @@ export function SectionBlock({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
 
-  const displayHeading = section.heading ?? `# ${section.sectionKey.toUpperCase()}`;
   const sectionLabel = section.def?.label ?? section.sectionKey;
   const isCore = section.def?.isCore ?? false;
 
