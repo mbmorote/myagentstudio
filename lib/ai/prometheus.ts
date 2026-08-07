@@ -27,6 +27,7 @@ import { getGateway, LlmDryRunBlockedError, LlmUserCapReachedError } from './gat
 import type { LlmCallContext } from './gateway.js';
 import { PROMETHEUS_PROMPT } from './prompts/generated/prometheus.js';
 import { renderBlueprintForPrompt } from '../blueprint/index.js';
+import { getChatHistoryTurns } from '../settings.js';
 
 // ─────────────────────────────  Types  ────────────────────────────────────────
 
@@ -72,6 +73,14 @@ export type PrometheusInput = {
    * and which config changes are accepted from it (§5.3).
    */
   citedConfigKeys?: string[];
+  /**
+   * Prior turns in this chat session — dialogue only, never re-derived content.
+   * Each entry's `message` is the raw instruction (user) or Prometheus's prior
+   * `message` (assistant) — never the `modifications` JSON, since current
+   * section/config content always comes fresh from `sections`/`config` above,
+   * not from history. Capped server-side to `chatHistoryTurns` (settings).
+   */
+  history?: { role: 'user' | 'assistant'; message: string }[];
   signal?: AbortSignal;
 };
 
@@ -115,6 +124,16 @@ export async function callPrometheus(
   const blueprint = renderBlueprintForPrompt();
   const userMessage = buildUserMessage(input, blueprint);
 
+  // Prior turns, capped to the last `chatHistoryTurns` (settings, admin-configurable) —
+  // dialogue only (message text), never re-derived content. Cap enforced server-side
+  // regardless of how much history the client sent (server-scoped, Rules Index #7).
+  const historyCap = getChatHistoryTurns();
+  const cappedHistory = (input.history ?? []).slice(-historyCap);
+  const historyMessages = cappedHistory.map((turn) => ({
+    role: turn.role,
+    content: turn.message,
+  }));
+
   // Dry-run check outside the catch-all so it can never be swallowed as ai_upstream.
   let res;
   try {
@@ -122,7 +141,7 @@ export async function callPrometheus(
     res = await getGateway().complete(
       {
         system: PROMETHEUS_PROMPT,
-        messages: [{ role: 'user', content: userMessage }],
+        messages: [...historyMessages, { role: 'user', content: userMessage }],
         maxTokens: 8192,
         signal: input.signal,
       },

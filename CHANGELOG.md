@@ -7,6 +7,46 @@ its actual commit if it was verified live before being committed.
 
 ---
 
+## 2026-08-07 — Chat history: Prometheus now sees prior turns, not just the current instruction
+
+Ad hoc improvement (no formal plan doc — user explicitly opted to skip one and go straight to
+implementation after a design discussion) closing a real gap: every `/api/chat` call was
+previously a single, stateless turn — a follow-up like "make that shorter" had nothing to
+attach "that" to, since neither the prior instruction nor Prometheus's prior reply was ever
+sent back to the model.
+
+**What changed.** `callPrometheus` (`lib/ai/prometheus.ts`) now prepends prior turns to the
+Anthropic `messages` array before the current turn's existing full self-contained payload
+(§5.1–§5.3 unchanged — current agent content is still always sent fresh, never derived from
+history). History carries only each turn's natural-language text (`{role, message}`) — never
+the raw `modifications` JSON. This was a deliberate simplification, not an oversight: when a
+proposal was applied, its content reaches the next turn automatically via the fresh per-call
+agent load, so resending it in history would be pure duplication; when a proposal was left
+unapplied or discarded, the model only has its own prior `message` to go on, which is judged
+good enough for now.
+
+**New admin setting: `chatHistoryTurns`** (`lib/settings.ts`, default 10, min 0, max 50) —
+caps how many prior messages are actually used, enforced server-side regardless of how much
+the client sends (same "never trust client-supplied content" posture as the rest of the chat
+route). Fully catalog-driven like the other settings — no route or Settings-UI code needed for
+it to appear and be editable.
+
+**Client side** (`app/components/Chat/ChatPanel.tsx`): `ChatMessage` gained a `synthetic` flag
+so client-only notices (dry-run/error/network-error/cancelled bubbles) are excluded from what's
+sent as history — those were never real Prometheus output. `doSend` builds `history` from the
+session's real messages and includes it in the request body when non-empty.
+
+**Docs updated:** `lib/ai/CLAUDE.md`, `architecture/TechDesign.md` (Rules Index #87),
+`docs/user-guide.md` (new "Follow-ups remember the conversation" note under AI chat, new
+"Chat history turns" subsection under System Settings).
+
+**Not done:** no tests added for the new behavior (none existed for `callPrometheus`'s message
+construction before this either — only `parsePrometheusResponse` has unit coverage), and no
+`tsc`/build verification run this session, per the repo's standing provisional rule 5 (ask
+before running any sanity check) — left for the user to run or defer.
+
+---
+
 ## 2026-08-06 — Plans 07–08 built: Prometheus rename, propose/apply chat editing, ChatPanel UI
 
 Combined entry for both plans' full scope (nothing shipped to real users until this session's

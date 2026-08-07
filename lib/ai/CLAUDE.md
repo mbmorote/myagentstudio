@@ -28,28 +28,11 @@ The gateway is the single point through which every AI call attempt flows, live 
 4. **Cap gate** (Plan 05 §3.9 — runs only on the live path, after step 3): if `ctx.userId` is non-null and that user is not an admin, counts their non-dry-run `llm_call_log` rows in the trailing 60 minutes. At or over `maxLlmCallsPerUserPerHour` → returns `{ ok: false, reason: 'llm_cap_reached', limit, windowSeconds, retryAfterSeconds }` **with no log row written**. Admin users and `ctx.userId: null` (scripts/tests) skip this gate entirely.
 5. **Live path**: calls the provider, writes a log row (including `userId` from ctx and `sharedWithAdmin` from `getUserPolicy(userId).shareLogsWithAdmin` — snapshotted at write time, never updated), returns `{ ok: true, response, logId }` on success or re-throws the original error unchanged on failure.
 
-**`LlmCallContext`** (Plan 05 additions):
-
-```ts
-export type LlmCallContext = {
-  kind: LlmCallKind;
-  agentId?: string | null;
-  agentLabel?: string | null;
-  userId?: string | null;      // from the session — never from the request body
-  forceDryRun?: boolean;       // from the request body — may only DOWNGRADE a live call
-};
-```
+**`LlmCallContext`** (Plan 05 additions, exact shape in `gateway.ts`) carries `kind`, `agentId`/`agentLabel`, `userId` (from the session — never the request body), and `forceDryRun`.
 
 `forceDryRun` can only cause *less* spending. There is no field that can cause a real API call that would not otherwise have happened (Rules Index #61). It is set at the route layer from an explicit `{ dryRun: true }` body field and flows into step 3 unchanged.
 
-**`LlmGatewayResult`** (three variants after Plan 05):
-
-```ts
-| { ok: true;  response: LlmResponse; logId: string | null }
-| { ok: false; reason: 'dry_run_blocked'; model: string; logId: string | null }
-| { ok: false; reason: 'llm_cap_reached'; model: string; logId: null;
-    limit: number; windowSeconds: number; retryAfterSeconds: number }
-```
+**`LlmGatewayResult`** (three variants after Plan 05, exact shape in `gateway.ts`): a success arm, a `dry_run_blocked` arm, and an `llm_cap_reached` arm carrying `limit`/`windowSeconds`/`retryAfterSeconds`.
 
 Key exports:
 - `createGateway(provider)` — testable seam; used in `gateway.test.ts` and `gateway-cap.test.ts`.
@@ -154,7 +137,7 @@ Sends the agent's **full raw markdown text** plus the Blueprint to Claude via `g
 
 Sends the agent's name, description, sections (full or cited), and config values (full or cited) to Claude via `getGateway().complete(req, { kind: 'chat' })` and returns a `PrometheusProposal` (`{ message, modifications, warnings }`) via `callPrometheus()`. Forwards `request.signal` through `LlmRequest.signal` for cancellation support (Rules Index #23).
 
-Key behaviors: agent-wide or cited scope, no tools, split-level heading demotion applied at propose time, the out-of-scope filter runs inside `parsePrometheusResponse()` (exported for unit tests). **`POST /api/chat` performs zero writes** (Plan 08 Phase 1, built and verified 2026-08-06) — `modifications` (`description`/`sections`/`config`) is computed and returned, never written by this route. The only writer is `POST /api/agents/[id]/apply-proposal`, which merges `config` onto the agent's current full config set (a partial edit never wipes untouched keys) and writes sections via `updateSectionContent`. See `plans/07-prometheus-propose-apply.md` for the rename + output-contract design (Phases 0–2), and `plans/08-prometheus-apply.md` for the propose/apply split, config-merge fix, client `'proposal'` lock, and ChatPanel UI (Phases 0–3, 5 built and verified; Phase 4's live-LLM verification is deferred — folded into `plans/roadmap.md`'s pre-deploy "big flow test" TODO item).
+Key behaviors: agent-wide or cited scope, no tools, split-level heading demotion applied at propose time, the out-of-scope filter runs inside `parsePrometheusResponse()` (exported for unit tests). **Conversation history**: the client sends prior turns (`{ role, message }[]`) from the session's real dialogue (client-side notices like dry-run/error/cancelled are excluded); `callPrometheus` caps how many are actually used to `settings.chatHistoryTurns` (admin-configurable, default 10) and prepends them to the Anthropic `messages` array as alternating `user`/`assistant` entries — only the `message` text, never the `modifications` JSON, since current section/config content always comes fresh from the per-call agent load, not from history. **`POST /api/chat` performs zero writes** (Plan 08 Phase 1, built and verified 2026-08-06) — `modifications` (`description`/`sections`/`config`) is computed and returned, never written by this route. The only writer is `POST /api/agents/[id]/apply-proposal`, which merges `config` onto the agent's current full config set (a partial edit never wipes untouched keys) and writes sections via `updateSectionContent`. See `plans/07-prometheus-propose-apply.md` for the rename + output-contract design (Phases 0–2), and `plans/08-prometheus-apply.md` for the propose/apply split, config-merge fix, client `'proposal'` lock, and ChatPanel UI (Phases 0–3, 5 built and verified; Phase 4's live-LLM verification is deferred — folded into `plans/roadmap.md`'s pre-deploy "big flow test" TODO item).
 
 ## Files in this folder
 

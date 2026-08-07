@@ -445,7 +445,11 @@ free to reorder within this bucket.
    (no schema change, but single-browser only — a fresh device or a cleared cookie loses
    everything) vs. a real `Conversation`/`Message` DB table per agent (a genuine schema
    addition, but persists properly and works across devices). Decide the approach when this
-   is picked up.
+   is picked up. **Distinct from, though related to, the 2026-08-07 chat-history change**
+   (Rules Index #87): that gave Prometheus model-side memory of prior turns *within* a live
+   session (still `useState`, still lost on reload) — this item is about the UI/session
+   *surviving* a reload or device switch at all, a different problem the history change
+   doesn't touch.
 3. **Settings page — sidebar-navigated layout + Activity log "User" column.** Two related
    changes to `app/components/Settings/SettingsView.tsx` (currently one 705-line page, three
    stacked `<section>` blocks — Settings/General, Invite codes, Activity log — no navigation

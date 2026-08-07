@@ -99,6 +99,8 @@ Select an agent in the Library panel to open it. Type an instruction in the **AI
 
 **Reviewing and applying a proposal:** the card is collapsed by default (one line per changed part when expanded — description, each section, each config key), with a "show current" toggle per row to compare against what's there today before you commit. Click **Apply** to write every changed part in the proposal at once (there's no way to apply only part of it), or **Discard** to drop it. Sending a new chat message before applying or discarding also discards the pending proposal — only the latest turn's proposal is ever actionable. **Apply is last-write-wins**: if you've made no other changes since the proposal was returned (guaranteed by the lock below), there's nothing to conflict with.
 
+**Follow-ups remember the conversation:** Prometheus sees your recent back-and-forth in the same session, not just the instruction you just sent — so "make that shorter" or "no, keep the tone but trim it" refers correctly to what you just discussed. This is dialogue only (your instructions and Prometheus's replies); it never resends a past proposal's actual content — that always comes from the agent's current, real state instead. How many prior messages are kept is admin-configurable (**Chat history turns** in System Settings, default 10). Client-only notices (dry-run/error/cancelled messages) are never included. This history exists only in your browser tab for the current session — it does not persist across a reload.
+
 **Cancellation:** click the ✕ button, or close the tab. Nothing is ever written by the chat call itself — cancelling just stops waiting for a reply that would have produced a proposal, same as any other interrupted request.
 
 **Interaction lock:** while a chat request is in flight, or while a proposal is pending review, every manual editor is disabled — section raw-edit, the name, and every config control (model/effort, tools, lists, JSON blocks). While you have an unsaved manual edit open, the Chat input is disabled. The three states (chat in flight / proposal pending / manual edit open) never overlap. A pending proposal survives a page reload (it's kept in your browser until you apply or discard it) and stays in sync across multiple tabs open on the same agent.
@@ -182,6 +184,10 @@ When you hit the cap, the import dialog or chat panel shows two options instead 
 - **Wait** — dismisses the message and shows how many seconds until your oldest in-window call ages out and a slot frees up.
 
 Nothing was sent and nothing was charged either way.
+
+### Chat history turns
+
+Controls how much of the recent chat conversation (configurable as `chatHistoryTurns` in System Settings, default **10** messages — user and assistant combined) Prometheus is shown on each new instruction, so follow-ups stay coherent. Setting it to **0** disables memory entirely — every instruction is sent standalone, as if it were the first message. This has no effect on the agent content itself (sections/config), which is always sent fresh regardless of this setting.
 
 ### Activity log
 

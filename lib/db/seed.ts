@@ -117,6 +117,12 @@ async function seed() {
     .onConflictDoNothing();
   console.log('  ~ setting: maxLlmCallsPerUserPerHour (skip if exists)');
 
+  await db
+    .insert(schema.setting)
+    .values({ key: 'chatHistoryTurns', value: '10' })
+    .onConflictDoNothing();
+  console.log('  ~ setting: chatHistoryTurns (skip if exists)');
+
   console.log('Seed complete.');
   sqlite.close();
 }

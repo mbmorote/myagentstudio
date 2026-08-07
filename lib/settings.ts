@@ -62,6 +62,15 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     label: 'Max LLM calls per user per hour',
     hint: 'Per-user hourly LLM call cap (rolling 60-minute window). Admin is exempt. Setting to 0 is not allowed; use "Live LLM calls: off" to block all calls globally.',
   },
+  {
+    key: 'chatHistoryTurns',
+    datatype: 'int',
+    default: 10,
+    min: 0,
+    max: 50,
+    label: 'Chat history turns',
+    hint: 'How many prior chat messages (user + assistant, combined) Prometheus is shown for conversational context on each new instruction. 0 disables history — every instruction is sent standalone.',
+  },
 ] as const;
 
 // ─────────────────────────────  Parsing  ──────────────────────────────────────
@@ -162,6 +171,27 @@ export function getMaxLlmCallsPerUserPerHour(): number {
       `[settings] maxLlmCallsPerUserPerHour has invalid value "${raw}" — using minimum of 1`,
     );
     return 1;
+  }
+  return parsed as number;
+}
+
+/**
+ * Returns the current effective value of `chatHistoryTurns`.
+ *
+ * Row absent → returns the SETTING_DEFS default (10).
+ * Unparseable or < 0 → returns 0 (most restrictive: history disabled) + console.warn.
+ */
+export function getChatHistoryTurns(): number {
+  const def = SETTING_DEFS.find((d) => d.key === 'chatHistoryTurns')!;
+  const raw = getSetting('chatHistoryTurns');
+  if (raw === null) return def.default as number;
+
+  const parsed = parseSettingValue(raw, 'int');
+  if (parsed === null || (parsed as number) < 0) {
+    console.warn(
+      `[settings] chatHistoryTurns has invalid value "${raw}" — using 0 (history disabled)`,
+    );
+    return 0;
   }
   return parsed as number;
 }

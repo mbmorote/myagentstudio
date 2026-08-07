@@ -4,7 +4,8 @@
  * POST /api/chat
  *
  * Contract:
- *   Request:  { agentId, instruction, dryRun?, citedSectionKeys?, citedConfigKeys? }
+ *   Request:  { agentId, instruction, dryRun?, citedSectionKeys?, citedConfigKeys?,
+ *               history?: { role: 'user'|'assistant', message: string }[] }
  *   Response: { proposal: { message, modifications, warnings }, meta }
  *
  * Invariants (Rules Index #73/#7/#22/#23):
@@ -85,6 +86,22 @@ export async function POST(request: Request): Promise<NextResponse> {
       ? (rawCitedConfig as string[])
       : undefined;
 
+  // history: optional, validated defensively — array of {role, message} or ignored
+  // entirely (falls back to no history). Server caps the actual amount used
+  // (settings.chatHistoryTurns) regardless of how much the client sends.
+  const rawHistory = (body as { history?: unknown }).history;
+  const history =
+    Array.isArray(rawHistory) &&
+    rawHistory.every(
+      (t) =>
+        t &&
+        typeof t === 'object' &&
+        (t.role === 'user' || t.role === 'assistant') &&
+        typeof t.message === 'string',
+    )
+      ? (rawHistory as { role: 'user' | 'assistant'; message: string }[])
+      : undefined;
+
   // ── Load whole agent server-side (Rules Index #7 — never trust client content) ──
   const agent = getAgentFull(agentId, session.userId);
   if (!agent) {
@@ -109,6 +126,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         instruction,
         citedSectionKeys,
         citedConfigKeys,
+        history,
         signal: request.signal,
       },
       // agentId always known for chat (§5.2); userId from the session (§3.9)
