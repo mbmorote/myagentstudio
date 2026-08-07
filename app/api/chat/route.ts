@@ -29,7 +29,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { getAgentFull } from '@/lib/db/repository';
+import { getAgentFull, getSectionDefs } from '@/lib/db/repository';
 import {
   callPrometheus,
   PrometheusUpstreamError,
@@ -109,6 +109,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   // ── Call Prometheus (signal passthrough for cancellation — Rules Index #23) ──
+  // Section catalog scoped to this agent's own platform — not hardcoded 'claude' here,
+  // since (unlike import) the target agent already exists and knows its platform.
+  const sectionDefs = getSectionDefs(agent.platform);
+
   let proposal;
   try {
     proposal = await callPrometheus(
@@ -129,6 +133,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         history,
         signal: request.signal,
       },
+      sectionDefs,
       // agentId always known for chat (§5.2); userId from the session (§3.9)
       { kind: 'chat', agentId, agentLabel: agent.name, userId: session.userId, forceDryRun },
     );

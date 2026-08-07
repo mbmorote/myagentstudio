@@ -28,6 +28,7 @@ import type { LlmCallContext } from './gateway.js';
 import { PROMETHEUS_PROMPT } from './prompts/generated/prometheus.js';
 import { renderBlueprintForPrompt } from '../blueprint/index.js';
 import { getChatHistoryTurns } from '../settings.js';
+import type { SectionDefLite } from '../db/repository/agents.js';
 
 // ─────────────────────────────  Types  ────────────────────────────────────────
 
@@ -109,6 +110,9 @@ export class PrometheusInvalidResponseError extends Error {
  * a typed proposal — the model's chat message plus its proposed modifications.
  *
  * @param input  Agent context + instruction + optional AbortSignal (Rules Index #23)
+ * @param sectionDefs  The agent's platform section catalog — fetched by the route via
+ *   getSectionDefs(agent.platform) and forwarded here (same boundary reasoning as
+ *   daedalus.ts/hermes.ts — lib/ai only touches lib/db through the gateway).
  * @param ctx    Gateway context for logging (agentId always known for chat, §5.2)
  * @returns      PrometheusProposal with message, modifications (filtered + demoted), and warnings
  * @throws       LlmDryRunBlockedError          when live LLM calls are disabled
@@ -119,9 +123,10 @@ export class PrometheusInvalidResponseError extends Error {
  */
 export async function callPrometheus(
   input: PrometheusInput,
+  sectionDefs: readonly SectionDefLite[],
   ctx: LlmCallContext = { kind: 'chat' },
 ): Promise<PrometheusProposal> {
-  const blueprint = renderBlueprintForPrompt();
+  const blueprint = renderBlueprintForPrompt(sectionDefs);
   const userMessage = buildUserMessage(input, blueprint);
 
   // Prior turns, capped to the last `chatHistoryTurns` (settings, admin-configurable) —
@@ -476,4 +481,50 @@ export function demoteSplitLevelHeadings(content: string, splitLevel: number): s
       return line;
     })
     .join('\n');
+}
+
+// ─────────────────────────────  Trailing separator  ─────────────────────────────
+
+/**
+ * Ensures `content` ends with a blank line so `exportAgent()`'s
+ * `heading + '\n' + content` concatenation (lib/serialize/export.ts) never glues
+ * the next section's heading onto this section's last line of text.
+ *
+ * Defense-in-depth guard, same rationale as demoteSplitLevelHeadings above: the
+ * prompt already asks for a trailing blank line, this verifies and fixes
+ * server-side. Exported so the apply route can import it independently (§4.4
+ * pattern — two separate implementations are intentional).
+ */
+export function ensureTrailingBlankLine(content: string): string {
+  return content.replace(/\s+$/, '') + '\n\n';
+}
+
+// ─────────────────────────────  Echoed heading  ─────────────────────────────
+
+/**
+ * Strips a leading line that just echoes the section's own heading — exact or
+ * one-level-demoted (`demoteSplitLevelHeadings` may have already run on this
+ * content by the time this is called) — plus any blank lines directly after it.
+ * `content` is body-only by contract; `heading` is a separate field never
+ * duplicated inside it. Without this, the structured view shows the heading
+ * twice: once as the section card's real title, once as the first line of the
+ * body underneath it.
+ *
+ * Defense-in-depth guard, same rationale as demoteSplitLevelHeadings/
+ * ensureTrailingBlankLine above: the prompt already instructs the model not to
+ * echo its own heading (GUARDRAILS #9), this verifies and fixes server-side.
+ * Exported so the apply route can import it independently (§4.4 pattern).
+ */
+export function stripEchoedHeading(content: string, heading: string | null): string {
+  if (!heading) return content;
+
+  const lines = content.split('\n');
+  const firstLine = lines[0]?.trim() ?? '';
+  const demoted = '#' + heading;
+
+  if (firstLine !== heading && firstLine !== demoted) return content;
+
+  let rest = lines.slice(1);
+  while (rest.length > 0 && rest[0].trim() === '') rest = rest.slice(1);
+  return rest.join('\n');
 }

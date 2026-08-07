@@ -37,7 +37,7 @@ import { LlmDryRunBlockedError, LlmUserCapReachedError } from '@/lib/ai/gateway'
 import { assemble } from '@/lib/import/assemble';
 import { assembleStructural } from '@/lib/import/assembleStructural';
 import { checkCoverage } from '@/lib/import/coverage';
-import { upsertAgentFromImport, getAgentFull, getAgentSnapshotInfo } from '@/lib/db/repository';
+import { upsertAgentFromImport, getAgentFull, getAgentSnapshotInfo, getSectionDefs } from '@/lib/db/repository';
 import { authenticate } from '@/lib/auth/guard';
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -134,9 +134,14 @@ async function runStructuralPipeline(
   // §5.2: agentId best-effort at call time — the agent may not exist yet.
   const agentId = agentName ? (getAgentSnapshotInfo(agentName, userId)?.id ?? null) : null;
 
+  // Platform is hardcoded 'claude' — no import-target platform picker exists yet
+  // (only 'claude' exists, Rules Index #18). Fetched once, shared with assembleStructural
+  // below so the blueprint sent to Daedalus and the heading-matcher use the same catalog.
+  const sectionDefs = getSectionDefs('claude');
+
   let restructuredBody: string;
   try {
-    restructuredBody = await callDaedalus(rawMd, {
+    restructuredBody = await callDaedalus(rawMd, sectionDefs, {
       kind: 'import-structural',
       agentId,
       agentLabel: agentName || null,
@@ -193,7 +198,7 @@ async function runStructuralPipeline(
   // ── Assemble from original frontmatter + restructured body ───────────────
   let dto;
   try {
-    const importData = assembleStructural(structured, restructuredBody, rawMd);
+    const importData = assembleStructural(structured, restructuredBody, rawMd, sectionDefs);
     dto = upsertAgentFromImport(userId, importData);
   } catch (err) {
     if (err instanceof Error && err.name === 'MissingNameError') {
@@ -233,9 +238,12 @@ async function runStrictPipeline(
       : '';
   const agentIdStrict = agentNameStrict ? (getAgentSnapshotInfo(agentNameStrict, userId)?.id ?? null) : null;
 
+  // Platform hardcoded 'claude' — same reasoning as runStructuralPipeline above.
+  const sectionDefsStrict = getSectionDefs('claude');
+
   let labels;
   try {
-    labels = await callHermes(blockRefs, {
+    labels = await callHermes(blockRefs, sectionDefsStrict, {
       kind: 'import-strict',
       agentId: agentIdStrict,
       agentLabel: agentNameStrict || null,

@@ -222,6 +222,9 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
+          {/* Editable content — dimmed and locked while a call is in flight, so the
+              whole modal reads as busy, not just the submit button. */}
+          <div className={submitting ? 'space-y-4 opacity-50 pointer-events-none' : 'space-y-4'}>
           {/* File picker */}
           <div>
             <label className="block text-[11px] font-semibold text-[var(--muted)] uppercase tracking-[.05em] mb-1">
@@ -300,8 +303,15 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
               ))}
             </div>
           </div>
+          </div>
 
           {/* Status messages */}
+          {submitting && (
+            <p className="text-[12px] text-[var(--muted)] bg-[var(--elev)] border border-[var(--border)] rounded-[6px] px-3 py-2 flex items-center gap-2">
+              <span className="animate-pulse text-[var(--accent-ink)]">▍</span>
+              Importing — the AI step can take up to ~30 seconds…
+            </p>
+          )}
           {/* Cap-reached prompt (§3.9) */}
           {capState && (
             <div className="bg-[var(--elev)] border border-[var(--warn)] rounded-[6px] px-3 py-3 space-y-2">
@@ -399,7 +409,14 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
               disabled={!canSubmit}
               className="px-4 py-1.5 text-[12px] font-medium bg-[var(--accent)] text-white rounded-[7px] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting ? 'Importing…' : 'Import'}
+              {submitting ? (
+                <span className="inline-flex items-center gap-[3px]">
+                  Importing
+                  <span className="animate-pulse">▍</span>
+                </span>
+              ) : (
+                'Import'
+              )}
             </button>
           </div>
         </div>

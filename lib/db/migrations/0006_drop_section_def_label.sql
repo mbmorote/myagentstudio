@@ -1,0 +1,1 @@
+ALTER TABLE `section_def` DROP COLUMN `label`;

@@ -7,6 +7,7 @@
  * better-sqlite3 is synchronous; these functions return results directly.
  */
 
+import { eq } from 'drizzle-orm';
 import { db } from '../client.js';
 import * as schema from '../schema.js';
 import type { ConfigDefLite } from './agents.js';
@@ -15,8 +16,22 @@ export function getConfigDefs() {
   return db.select().from(schema.configDef).orderBy(schema.configDef.id).all();
 }
 
-export function getSectionDefs() {
-  return db.select().from(schema.sectionDef).orderBy(schema.sectionDef.defaultOrder).all();
+/**
+ * Section catalog for one platform, in canonical order. This is the live source
+ * for the LLM round-trip (the blueprint sent to Daedalus/Prometheus/Hermes, and
+ * the heading→sectionKey mapping used to interpret Daedalus's response) — moved
+ * off the static SECTION_DEFS array (now `lib/db/sectionDefsSeed.ts`) 2026-08-07, so an admin's
+ * in-DB edit actually reaches the AI, not just the UI. `catalog.ts` still seeds
+ * the first `platform: 'claude'` row (lib/db/seed.ts) but is no longer read by
+ * anything downstream of that.
+ */
+export function getSectionDefs(platform: string = 'claude') {
+  return db
+    .select()
+    .from(schema.sectionDef)
+    .where(eq(schema.sectionDef.platform, platform))
+    .orderBy(schema.sectionDef.defaultOrder)
+    .all();
 }
 
 export type ConfigDefRow = ReturnType<typeof getConfigDefs>[number];
@@ -27,8 +42,9 @@ export type SectionDefRow = ReturnType<typeof getSectionDefs>[number];
  * same ConfigDefLite shape AgentDTO.config[].def already uses. Added 2026-07-29 so
  * AgentView.tsx can source model/tools/permissionMode allowedValues, the "+" add-key menu,
  * and unknown-key detection from the DB (fresh on every page load) instead of a static
- * CONFIG_DEFS import — a catalog.ts edit + `npm run db:seed` + page reload is then enough
- * to update the UI, no rebuild/redeploy needed.
+ * CONFIG_DEFS import. These rows are DB-owned and admin-editable (platform scoping,
+ * Rules Index #18) — `catalog.ts` only seeds a row the first time it's inserted
+ * (lib/db/seed.ts), it does not overwrite an existing row on later reseeds.
  */
 export function getConfigCatalog(): ConfigDefLite[] {
   return getConfigDefs().map((def) => ({

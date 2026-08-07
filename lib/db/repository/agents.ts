@@ -42,7 +42,6 @@ export type ConfigDefLite = {
 
 export type SectionDefLite = {
   key: string;
-  label: string;
   defaultHeading: string;
   isCore: boolean;
   defaultOrder: number;
@@ -150,7 +149,6 @@ function buildAgentDTO(
       def: def
         ? ({
             key: def.key,
-            label: def.label,
             defaultHeading: def.defaultHeading,
             isCore: def.isCore ?? false,
             defaultOrder: def.defaultOrder,

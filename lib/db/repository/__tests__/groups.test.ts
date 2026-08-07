@@ -26,7 +26,8 @@ vi.mock('../../client.js', async () => {
 import { eq } from 'drizzle-orm';
 import * as schema from '../../schema.js';
 import { testDb } from '../../__tests__/test-db.js';
-import { CONFIG_DEFS, SECTION_DEFS } from '../../../blueprint/catalog.js';
+import { CONFIG_DEFS } from '../../../blueprint/catalog.js';
+import { SECTION_DEFS } from '../../sectionDefsSeed.js';
 import { parse } from '../../../serialize/index.js';
 import { createTestUser } from '../../__tests__/test-users.js';
 
@@ -70,7 +71,6 @@ beforeAll(() => {
       .insert(schema.sectionDef)
       .values({
         key: def.key,
-        label: def.label,
         defaultHeading: def.defaultHeading,
         isCore: def.isCore,
         defaultOrder: def.defaultOrder,

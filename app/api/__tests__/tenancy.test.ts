@@ -69,7 +69,8 @@ vi.mock('../../../lib/ai/anthropicProvider.js', () => ({
 import * as schema from '../../../lib/db/schema.js';
 import { testDb } from '../../../lib/db/__tests__/test-db.js';
 import { createTestUser } from '../../../lib/db/__tests__/test-users.js';
-import { CONFIG_DEFS, SECTION_DEFS } from '../../../lib/blueprint/catalog.js';
+import { CONFIG_DEFS } from '../../../lib/blueprint/catalog.js';
+import { SECTION_DEFS } from '../../../lib/db/sectionDefsSeed.js';
 import { createAgent, getAgentFull } from '../../../lib/db/repository/agents.js';
 import { createGroup, addMembership } from '../../../lib/db/repository/groups.js';
 
@@ -192,7 +193,7 @@ beforeAll(() => {
   }
   for (const def of SECTION_DEFS) {
     testDb.insert(schema.sectionDef).values({
-      key: def.key, label: def.label, defaultHeading: def.defaultHeading,
+      key: def.key, defaultHeading: def.defaultHeading,
       isCore: def.isCore, defaultOrder: def.defaultOrder,
       template: def.template, helpText: def.helpText,
     }).onConflictDoNothing().run();

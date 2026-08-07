@@ -5,8 +5,8 @@
  * Re-exports catalog data, rule functions, and the prompt renderer.
  */
 
-export { PLATFORM_DEFS, CONFIG_DEFS, SECTION_DEFS } from './catalog.js';
-export type { ConfigDefEntry, SectionDefEntry, PlatformDefEntry } from './catalog.js';
+export { PLATFORM_DEFS, CONFIG_DEFS } from './catalog.js';
+export type { ConfigDefEntry, PlatformDefEntry } from './catalog.js';
 
 export { Rules } from './rules.js';
 export type { ValidationResult, AgentForValidation } from './rules.js';

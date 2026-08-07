@@ -4,7 +4,7 @@ import 'server-only';
  * lib/settings.ts
  *
  * In-code catalog of known settings (SETTING_DEFS) + typed accessors.
- * Mirrors the pattern CONFIG_DEFS / SECTION_DEFS use in lib/blueprint/catalog.ts.
+ * Mirrors the in-code-typed-array pattern CONFIG_DEFS uses in lib/blueprint/catalog.ts.
  *
  * The catalog drives:
  *   - Storage parsing (datatype → typed value)

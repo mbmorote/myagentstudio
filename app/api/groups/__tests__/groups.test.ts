@@ -37,7 +37,8 @@ vi.mock('../../../../lib/db/client.js', async () => {
 // ── Imports after mock ─────────────────────────────────────────────────────────
 import * as schema from '../../../../lib/db/schema.js';
 import { testDb } from '../../../../lib/db/__tests__/test-db.js';
-import { CONFIG_DEFS, SECTION_DEFS } from '../../../../lib/blueprint/catalog.js';
+import { CONFIG_DEFS } from '../../../../lib/blueprint/catalog.js';
+import { SECTION_DEFS } from '../../../../lib/db/sectionDefsSeed.js';
 
 import { GET as listGroupsGET, POST as createGroupPOST } from '../route.js';
 import { DELETE as deleteGroupDELETE } from '../[id]/route.js';
@@ -67,7 +68,6 @@ beforeAll(() => {
       .insert(schema.sectionDef)
       .values({
         key: def.key,
-        label: def.label,
         defaultHeading: def.defaultHeading,
         isCore: def.isCore,
         defaultOrder: def.defaultOrder,

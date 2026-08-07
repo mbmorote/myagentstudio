@@ -13,7 +13,8 @@
  * agent names are no longer flagged for not matching that spec.
  */
 
-import { CONFIG_DEFS, SECTION_DEFS } from './catalog.js';
+import { CONFIG_DEFS } from './catalog.js';
+import { SECTION_DEFS } from '../db/sectionDefsSeed.js';
 
 // ─────────────────────────────  Types  ────────────────────────────────────────
 

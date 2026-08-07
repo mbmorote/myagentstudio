@@ -34,13 +34,23 @@ import { apiFetch } from '@/lib/apiFetch';
 
 type SectionDTO = AgentDTO['sections'][number];
 
-/** Catalog label when one exists; otherwise the section's own heading text (custom
- *  sections have no catalog def), stripped of its leading '#'s — e.g. a Daedalus-named
- *  custom block "# MISSION" displays as "MISSION" instead of the generic sectionKey
- *  "custom". Falls back to sectionKey only for a headingless preamble block, where
- *  there's genuinely no name to show. */
+/** The section's own real heading text, stripped of its leading '#'s — e.g. a
+ *  Daedalus-named custom block "# MISSION" displays as "MISSION". This is the
+ *  actual stored/exported content, not an idealized catalog name (there is no
+ *  separate catalog label anymore — section_def has no `label` column, see
+ *  lib/db/schema.ts; a section's display name and its canonical heading are the
+ *  same field, defaultHeading, by design — two independently-editable fields for
+ *  the same concept is exactly what let "Guardrails"/"# RULES" disagree silently
+ *  for this same row before 2026-08-07). Falls back to the catalog's
+ *  defaultHeading only for a def-matched section with no heading of its own (not
+ *  expected in practice — a matched section is always scaffolded or imported with
+ *  a heading), then to sectionKey for a genuinely nameless headingless preamble. */
 export function sectionDisplayLabel(section: SectionDTO): string {
-  return section.def?.label ?? section.heading?.replace(/^#+\s*/, '') ?? section.sectionKey;
+  return (
+    section.heading?.replace(/^#+\s*/, '') ??
+    section.def?.defaultHeading.replace(/^#+\s*/, '') ??
+    section.sectionKey
+  );
 }
 
 interface SectionBlockProps {

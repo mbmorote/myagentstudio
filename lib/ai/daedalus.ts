@@ -12,7 +12,8 @@ import 'server-only';
  * is handled 100% deterministically by the server in both modes).
  *
  * The returned document is then persisted by re-running Stage-1 parse() on it
- * and mapping headings → sectionKeys via SECTION_DEFS.defaultHeading (B3).
+ * and mapping headings → sectionKeys via the section catalog's defaultHeading (B3) —
+ * the same sectionDefs passed into this call, DB-owned as of 2026-08-07.
  *
  * Safety model: prompt-enforced restructure (daedalus.md)
  * plus deterministic coverage check (lib/import/coverage.ts — B5).
@@ -24,6 +25,7 @@ import { getGateway, LlmDryRunBlockedError, LlmUserCapReachedError } from './gat
 import type { LlmCallContext } from './gateway.js';
 import { DAEDALUS_PROMPT } from './prompts/generated/daedalus.js';
 import { renderBlueprintForPrompt } from '../blueprint/index.js';
+import type { SectionDefLite } from '../db/repository/agents.js';
 
 // ─────────────────────────────  Errors  ────────────────────────────────────────
 
@@ -68,7 +70,10 @@ export class DaedalusInvalidResponseError extends Error {
  * Uses gateway.stream() which preserves the streaming transport (§3.5):
  * the SDK's finalMessage() is used internally, same as before this refactor.
  *
- * @param rawMd  The full raw markdown of the agent file being imported.
+ * @param rawMd        The full raw markdown of the agent file being imported.
+ * @param sectionDefs  The platform's section catalog — fetched by the route via
+ *   getSectionDefs(platform) and forwarded here (lib/ai only touches lib/db through
+ *   the gateway; this keeps that boundary — the caller owns the DB read).
  * @param ctx    Gateway context for logging (§5.2)
  * @returns      The restructured body document (markdown, no frontmatter).
  * @throws       LlmDryRunBlockedError             when live LLM calls are disabled
@@ -78,9 +83,10 @@ export class DaedalusInvalidResponseError extends Error {
  */
 export async function callDaedalus(
   rawMd: string,
+  sectionDefs: readonly SectionDefLite[],
   ctx: LlmCallContext = { kind: 'import-structural' },
 ): Promise<string> {
-  const blueprint = renderBlueprintForPrompt({ includeConfig: false });
+  const blueprint = renderBlueprintForPrompt(sectionDefs, { includeConfig: false });
 
   // Build the user message per the INPUT section of daedalus.md:
   // two clearly delimited attachments — the blueprint catalog and the full raw agent text.

@@ -27,7 +27,8 @@ vi.mock('../client.js', async () => {
 
 import { testDb } from './test-db.js';
 import { createTestUser } from './test-users.js';
-import { CONFIG_DEFS, SECTION_DEFS } from '../../blueprint/catalog.js';
+import { CONFIG_DEFS } from '../../blueprint/catalog.js';
+import { SECTION_DEFS } from '../sectionDefsSeed.js';
 import * as schema from '../schema.js';
 
 beforeAll(() => {
@@ -40,7 +41,7 @@ beforeAll(() => {
   }
   for (const def of SECTION_DEFS) {
     testDb.insert(schema.sectionDef).values({
-      key: def.key, label: def.label, defaultHeading: def.defaultHeading,
+      key: def.key, defaultHeading: def.defaultHeading,
       isCore: def.isCore, defaultOrder: def.defaultOrder,
       template: def.template, helpText: def.helpText,
     }).onConflictDoNothing().run();

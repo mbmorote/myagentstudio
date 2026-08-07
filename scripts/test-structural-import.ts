@@ -52,6 +52,11 @@ try {
 const { callDaedalus } = await import('../lib/ai/daedalus.js');
 const { parse } = await import('../lib/serialize/index.js');
 const { checkCoverage } = await import('../lib/import/coverage.js');
+// This harness deliberately bypasses the live DB catalog (see file header) — it
+// uses the 'claude' bootstrap defaults directly rather than an admin's possibly-
+// customized live DB rows, since it's testing the prompt/rules against a
+// known-fixed catalog, not the current app's live state.
+const { SECTION_DEFS } = await import('../lib/db/sectionDefsSeed.js');
 
 // ── Pre-flight: check that live LLM calls are enabled (§7.6) ─────────────────
 // The harness goes through the gateway like everything else and now respects the
@@ -110,7 +115,7 @@ for (const fixturePath of fixtureFiles) {
   // Stage 2b: call structural converter.
   let restructuredBody: string;
   try {
-    restructuredBody = await callDaedalus(rawMd, { kind: 'import-structural', userId: null });
+    restructuredBody = await callDaedalus(rawMd, SECTION_DEFS, { kind: 'import-structural', userId: null });
   } catch (err) {
     console.error(`  ✗ Structural converter error: ${err}`);
     continue;

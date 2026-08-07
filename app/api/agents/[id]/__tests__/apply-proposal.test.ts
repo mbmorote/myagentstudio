@@ -46,7 +46,8 @@ vi.mock('../../../../../lib/db/client.js', async () => {
 // ── Imports after mocks ────────────────────────────────────────────────────────
 import * as schema from '../../../../../lib/db/schema.js';
 import { testDb } from '../../../../../lib/db/__tests__/test-db.js';
-import { CONFIG_DEFS, SECTION_DEFS } from '../../../../../lib/blueprint/catalog.js';
+import { CONFIG_DEFS } from '../../../../../lib/blueprint/catalog.js';
+import { SECTION_DEFS } from '../../../../../lib/db/sectionDefsSeed.js';
 import { createAgent, getAgentFull } from '../../../../../lib/db/repository/agents.js';
 import { createTestUser } from '../../../../../lib/db/__tests__/test-users.js';
 
@@ -77,7 +78,6 @@ beforeAll(() => {
       .insert(schema.sectionDef)
       .values({
         key: def.key,
-        label: def.label,
         defaultHeading: def.defaultHeading,
         isCore: def.isCore,
         defaultOrder: def.defaultOrder,
@@ -224,6 +224,10 @@ describe('POST /api/agents/[id]/apply-proposal', () => {
     const versionBefore = roleSection.version;
 
     const newContent = 'You are a highly skilled assistant.';
+    // ensureTrailingBlankLine() normalizes every applied section to end in a blank
+    // line (lib/ai/prometheus.ts), so the stored/returned content gains two trailing
+    // newlines beyond whatever the payload sent.
+    const expectedContent = newContent + '\n\n';
 
     const res = await POST(
       makeRequest({ modifications: { sections: { role: newContent } } }),
@@ -238,7 +242,7 @@ describe('POST /api/agents/[id]/apply-proposal', () => {
 
     // Section in response has new content and bumped version
     const roleInResponse = json.agent.sections.find((s) => s.sectionKey === 'role')!;
-    expect(roleInResponse.content).toBe(newContent);
+    expect(roleInResponse.content).toBe(expectedContent);
     expect(roleInResponse.version).toBe(versionBefore + 1);
 
     // applied.sectionKeys records the key
@@ -251,7 +255,7 @@ describe('POST /api/agents/[id]/apply-proposal', () => {
       .where(eq(schema.sectionRevision.sectionId, roleSection.id))
       .all();
     const aiRevisions = allRevisions.filter(
-      (r: typeof allRevisions[0]) => r.author === 'ai' && r.content === newContent,
+      (r: typeof allRevisions[0]) => r.author === 'ai' && r.content === expectedContent,
     );
     expect(aiRevisions.length).toBe(1);
   });
@@ -291,10 +295,11 @@ describe('POST /api/agents/[id]/apply-proposal', () => {
       applied: { description: boolean; sectionKeys: string[]; configKeys: string[] };
     };
 
-    // All four parts applied
+    // All four parts applied (sections gain a normalized trailing blank line — see
+    // test 4's comment on ensureTrailingBlankLine())
     expect(json.agent.description).toBe('Updated description via multi-part apply.');
-    expect(json.agent.sections.find((s) => s.sectionKey === 'behavior')?.content).toBe('New behavior content.');
-    expect(json.agent.sections.find((s) => s.sectionKey === 'guardrails')?.content).toBe('New guardrails content.');
+    expect(json.agent.sections.find((s) => s.sectionKey === 'behavior')?.content).toBe('New behavior content.\n\n');
+    expect(json.agent.sections.find((s) => s.sectionKey === 'guardrails')?.content).toBe('New guardrails content.\n\n');
     expect(json.agent.config.find((c) => c.propKey === 'model')?.value).toBe('claude-opus-5');
 
     // tools key survived (§3.4 merge)
@@ -426,7 +431,9 @@ describe('POST /api/agents/[id]/apply-proposal', () => {
     expect(agentBefore.splitLevel).toBe(1); // default agents have splitLevel 1
 
     const rawContent = '# This heading should be demoted\nBody text.';
-    const expectedDemoted = '## This heading should be demoted\nBody text.';
+    // Demoted, then normalized to end in a blank line (ensureTrailingBlankLine(),
+    // lib/ai/prometheus.ts) — same order the apply route runs them in.
+    const expectedDemoted = '## This heading should be demoted\nBody text.\n\n';
 
     const res = await POST(
       makeRequest({ modifications: { sections: { role: rawContent } } }),
@@ -445,6 +452,36 @@ describe('POST /api/agents/[id]/apply-proposal', () => {
     // The DB also has the demoted content
     const agentAfter = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
     expect(agentAfter.sections.find((s) => s.sectionKey === 'role')?.content).toBe(expectedDemoted);
+  });
+
+  // ── 9b. Echoed-heading stripping (regression — found via live testing, 2026-08-07):
+  // Prometheus echoed a section's own heading as the first line of its returned content;
+  // the structured view then showed the heading twice (card title + first content line). ──
+  it('apply route strips a leading echo of the section\'s own heading', async () => {
+    const agentBefore = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
+    const roleSection = agentBefore.sections.find((s) => s.sectionKey === 'role')!;
+    expect(roleSection.heading).toBe('# ROLE');
+
+    // Exact echo of the section's own heading, plus a blank line, plus real content.
+    const echoedContent = '# ROLE\n\nReal body text.';
+
+    const res = await POST(
+      makeRequest({ modifications: { sections: { role: echoedContent } } }),
+      makeContext(testAgentId),
+    );
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as {
+      agent: { sections: { sectionKey: string; content: string }[] };
+    };
+
+    // The echoed heading line is gone — content starts with the real body text.
+    const roleInResponse = json.agent.sections.find((s) => s.sectionKey === 'role');
+    expect(roleInResponse?.content).toBe('Real body text.\n\n');
+
+    // The DB agrees.
+    const agentAfter = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
+    expect(agentAfter.sections.find((s) => s.sectionKey === 'role')?.content).toBe('Real body text.\n\n');
   });
 
   // ── 10. Cross-owner agent id → 404, zero writes ───────────────────────────

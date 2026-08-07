@@ -1,23 +1,27 @@
 /**
  * lib/db/seed.ts
  *
- * Self-healing upsert seed: writes ConfigDef + SectionDef rows from
- * lib/blueprint/catalog.ts.  Uses INSERT … ON CONFLICT DO UPDATE so that if
- * catalog.ts is ever edited after the first seed, the DB rows stay in sync on
- * the next `npm run db:seed` run — never silently stale (prerequisite fix,
- * decided before Phase 4 build).
+ * Bootstrap-only seed: writes ConfigDef + SectionDef rows from
+ * lib/blueprint/catalog.ts for the 'claude' platform, but ONLY if a
+ * (platform, key) row doesn't already exist (INSERT … ON CONFLICT DO NOTHING).
  *
- * The catalog arrays in catalog.ts are the single source — no duplication here.
+ * These rows are DB-owned and admin-editable going forward (catalog platform
+ * scoping, Rules Index #18) — catalog.ts is a first-run default, not a perpetual
+ * mirror. A prior version of this file used ON CONFLICT DO UPDATE to force
+ * catalog.ts to win on every `npm run dev`/`npm run build`; that's exactly what
+ * would silently clobber an admin's in-DB catalog edits, so it's gone — same
+ * "operator-owned, DoNothing" reasoning already used below for `setting`.
  *
  * Run via: npm run db:seed
- * Running twice is a no-op (upsert with identical values is idempotent, still safe).
+ * Running twice is a no-op once rows exist.
  */
 
 import path from 'path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { CONFIG_DEFS, SECTION_DEFS } from '../blueprint/catalog.js';
+import { CONFIG_DEFS } from '../blueprint/catalog.js';
+import { SECTION_DEFS } from './sectionDefsSeed.js';
 import * as schema from './schema.js';
 
 const DB_PATH = path.join(process.cwd(), 'myagent.db');
@@ -34,11 +38,13 @@ async function seed() {
 
   console.log('Running seed...');
 
-  // ── ConfigDef rows — upsert so catalog edits heal the DB on next seed ────────
+  // ── ConfigDef rows — bootstrap only, 'claude' platform. DB-owned after first
+  // insert; an admin's in-DB edit is never clobbered by a later catalog.ts change. ──
   for (const def of CONFIG_DEFS) {
     await db
       .insert(schema.configDef)
       .values({
+        platform: 'claude',
         key: def.key,
         label: def.label,
         datatype: def.datatype,
@@ -48,46 +54,29 @@ async function seed() {
         exportable: true,
         hint: def.hint,
       })
-      .onConflictDoUpdate({
-        target: schema.configDef.key,
-        set: {
-          label: def.label,
-          datatype: def.datatype,
-          allowedValues: def.allowedValues as string[] | null,
-          required: def.required,
-          isCore: def.isCore,
-          exportable: true,
-          hint: def.hint,
-        },
+      .onConflictDoNothing({
+        target: [schema.configDef.platform, schema.configDef.key],
       });
-    console.log(`  ~ config_def: ${def.key} (upserted)`);
+    console.log(`  ~ config_def: claude/${def.key} (skip if exists)`);
   }
 
-  // ── SectionDef rows — upsert so catalog edits heal the DB on next seed ───────
+  // ── SectionDef rows — bootstrap only, 'claude' platform. Same reasoning. ───────
   for (const def of SECTION_DEFS) {
     await db
       .insert(schema.sectionDef)
       .values({
+        platform: 'claude',
         key: def.key,
-        label: def.label,
         defaultHeading: def.defaultHeading,
         isCore: def.isCore,
         defaultOrder: def.defaultOrder,
         template: def.template,
         helpText: def.helpText,
       })
-      .onConflictDoUpdate({
-        target: schema.sectionDef.key,
-        set: {
-          label: def.label,
-          defaultHeading: def.defaultHeading,
-          isCore: def.isCore,
-          defaultOrder: def.defaultOrder,
-          template: def.template,
-          helpText: def.helpText,
-        },
+      .onConflictDoNothing({
+        target: [schema.sectionDef.platform, schema.sectionDef.key],
       });
-    console.log(`  ~ section_def: ${def.key} (upserted)`);
+    console.log(`  ~ section_def: claude/${def.key} (skip if exists)`);
   }
 
   // ── Setting rows — onConflictDoNothing (CRITICAL: opposite of catalog pattern) ─

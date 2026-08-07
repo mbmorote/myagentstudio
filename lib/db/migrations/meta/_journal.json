@@ -36,6 +36,20 @@
       "when": 1785524495023,
       "tag": "0004_first_falcon",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1786135949453,
+      "tag": "0005_catalog_platform_scoping",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1786139280333,
+      "tag": "0006_drop_section_def_label",
+      "breakpoints": true
     }
   ]
 }

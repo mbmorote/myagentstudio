@@ -60,7 +60,8 @@ export const agent = sqliteTable('agent', {
 // ─────────────────────  Zone 1: Config catalog + values  ─────────────────────
 export const configDef = sqliteTable('config_def', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  key: text('key').notNull().unique(),              // frontmatter key: model, tools…
+  platform: text('platform').notNull().default('claude'), // open catalog, same convention as agent.platform (Rules Index #17/#18)
+  key: text('key').notNull(),                       // frontmatter key: model, tools… — unique per platform, not globally
   label: text('label').notNull(),
   datatype: text('datatype', {
     // 'json': a real general mechanism for genuinely nested values (e.g. hooks,
@@ -73,12 +74,14 @@ export const configDef = sqliteTable('config_def', {
   required: integer('required', { mode: 'boolean' }).notNull().default(false),
   isCore: integer('is_core', { mode: 'boolean' }).notNull().default(false),
   exportable: integer('exportable', { mode: 'boolean' }).notNull().default(true),
-  // Added 2026-07-29 — closes catalog seed drift at the root: AgentView.tsx now reads the
-  // full config catalog (incl. hint) from the DB via a page-load fetch instead of a static
-  // CONFIG_DEFS import, so a `catalog.ts` edit + `npm run db:seed` + page reload is enough
-  // to update the UI — no rebuild/redeploy needed. Nullable: existing rows heal via reseed.
+  // Added 2026-07-29 — AgentView.tsx reads the full config catalog (incl. hint) from the
+  // DB via a page-load fetch instead of a static CONFIG_DEFS import. Nullable: rows are
+  // DB-owned and admin-editable (platform scoping, Rules Index #18) — catalog.ts only
+  // seeds a row on first insert (lib/db/seed.ts), it no longer heals it on every reseed.
   hint: text('hint'),
-});
+}, (t) => ({
+  platformKey: uniqueIndex('config_def_platform_key_unique').on(t.platform, t.key),
+}));
 
 export const agentConfig = sqliteTable('agent_config', {
   agentId: text('agent_id').notNull(),              // → agent.id (app-enforced, not FK-cascade here)
@@ -92,14 +95,21 @@ export const agentConfig = sqliteTable('agent_config', {
 // ─────────────────────  Zone 2: Section catalog + values  ─────────────────────
 export const sectionDef = sqliteTable('section_def', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  key: text('key').notNull().unique(),              // role, behavior, guardrails, output…
-  label: text('label').notNull(),
-  defaultHeading: text('default_heading').notNull(),// e.g. "# ROLE"
+  platform: text('platform').notNull().default('claude'), // open catalog, same convention as agent.platform (Rules Index #17/#18)
+  key: text('key').notNull(),                       // role, behavior, guardrails, output… — unique per platform, not globally
+  // No separate `label` column (removed 2026-08-07) — it had exactly one consumer
+  // (SectionBlock.tsx's display header) and nothing ever kept it consistent with
+  // defaultHeading, which is how "Guardrails" / "# RULES" coexisted silently for
+  // this same row. Display text is derived from defaultHeading (or the section's
+  // own real heading) instead — see sectionDisplayLabel() in SectionBlock.tsx.
+  defaultHeading: text('default_heading').notNull(),// e.g. "# ROLE" — also the display name
   isCore: integer('is_core', { mode: 'boolean' }).notNull().default(false),
   defaultOrder: integer('default_order').notNull(),
   template: text('template').notNull().default(''), // pre-filled scaffold
   helpText: text('help_text').notNull().default(''),
-});
+}, (t) => ({
+  platformKey: uniqueIndex('section_def_platform_key_unique').on(t.platform, t.key),
+}));
 
 export const agentSection = sqliteTable('agent_section', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),

@@ -41,7 +41,7 @@ import {
   updateAgent,
   SectionNotFoundError,
 } from '@/lib/db/repository';
-import { demoteSplitLevelHeadings } from '@/lib/ai/prometheus';
+import { demoteSplitLevelHeadings, ensureTrailingBlankLine, stripEchoedHeading } from '@/lib/ai/prometheus';
 import { authenticate } from '@/lib/auth/guard';
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -120,9 +120,9 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
   // ── 5. Sections first (§3.3 step 5) ──────────────────────────────────────
   // sectionKey → { id, version } map from the loaded agent (last-in-order wins for
   // duplicate sectionKeys — same documented MVP caveat as the old chat route).
-  const sectionMap = new Map<string, { id: string; version: number }>();
+  const sectionMap = new Map<string, { id: string; version: number; heading: string | null }>();
   for (const section of agent.sections) {
-    sectionMap.set(section.sectionKey, { id: section.id, version: section.version });
+    sectionMap.set(section.sectionKey, { id: section.id, version: section.version, heading: section.heading });
   }
 
   for (const [sectionKey, content] of Object.entries(modifications.sections ?? {})) {
@@ -136,7 +136,14 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
 
     // §3.3 step 5 + §7 invariant 8: split-level demotion runs at the apply route,
     // regardless of what the caller already did — the apply route is the authoritative gate.
-    const safe = demoteSplitLevelHeadings(content, agent.splitLevel);
+    // Same reasoning for the other two: strip a redundant echo of the section's own
+    // heading (content is body-only — heading is a separate field, never duplicated
+    // inside it), then ensure a trailing blank line so exportAgent()'s no-separator
+    // concatenation (lib/serialize/export.ts) never glues the next heading onto this
+    // section's last line of text.
+    const stripped = stripEchoedHeading(content, entry.heading);
+    const demoted = demoteSplitLevelHeadings(stripped, agent.splitLevel);
+    const safe = ensureTrailingBlankLine(demoted);
 
     try {
       // expectedVersion = version read in step 3 → force-write (§3.6, Decision G)

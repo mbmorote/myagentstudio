@@ -55,7 +55,8 @@ vi.mock('../../ai/hermes.js', () => ({
 // ── Imports (after mocks are declared) ───────────────────────────────────
 import * as schema from '../../db/schema.js';
 import { testDb } from '../../db/__tests__/test-db.js';
-import { CONFIG_DEFS, SECTION_DEFS } from '../../blueprint/catalog.js';
+import { CONFIG_DEFS } from '../../blueprint/catalog.js';
+import { SECTION_DEFS } from '../../db/sectionDefsSeed.js';
 import {
   upsertAgentFromImport,
   getAgentFull,
@@ -101,7 +102,6 @@ beforeAll(() => {
   for (const def of SECTION_DEFS) {
     testDb.insert(schema.sectionDef).values({
       key: def.key,
-      label: def.label,
       defaultHeading: def.defaultHeading,
       isCore: def.isCore,
       defaultOrder: def.defaultOrder,
@@ -784,6 +784,6 @@ describe('A4 — overlapping blockIds in Stage-2 mappings', () => {
     );
 
     // Calling the mock should now throw HermesInvalidResponseError.
-    await expect(callHermes([])).rejects.toBeInstanceOf(ICError);
+    await expect(callHermes([], SECTION_DEFS)).rejects.toBeInstanceOf(ICError);
   });
 });

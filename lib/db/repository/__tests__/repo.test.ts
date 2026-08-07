@@ -31,7 +31,8 @@ vi.mock('../../client.js', async () => {
 import { eq } from 'drizzle-orm';
 
 import * as schema from '../../schema.js';
-import { CONFIG_DEFS, SECTION_DEFS } from '../../../blueprint/catalog.js';
+import { CONFIG_DEFS } from '../../../blueprint/catalog.js';
+import { SECTION_DEFS } from '../../sectionDefsSeed.js';
 import { testDb } from '../../__tests__/test-db.js';
 import { createTestUser } from '../../__tests__/test-users.js';
 
@@ -66,7 +67,6 @@ beforeAll(() => {
   for (const def of SECTION_DEFS) {
     testDb.insert(schema.sectionDef).values({
       key: def.key,
-      label: def.label,
       defaultHeading: def.defaultHeading,
       isCore: def.isCore,
       defaultOrder: def.defaultOrder,
@@ -455,7 +455,7 @@ describe('getConfigDefs / getSectionDefs (catalog.ts)', () => {
     // Every row must have the expected fields
     for (const row of rows) {
       expect(typeof row.key).toBe('string');
-      expect(typeof row.label).toBe('string');
+      expect(typeof row.defaultHeading).toBe('string');
       expect(typeof row.defaultOrder).toBe('number');
     }
     // Keys must match the catalog exactly

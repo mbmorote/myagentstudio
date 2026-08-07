@@ -6,10 +6,12 @@
  * After callDaedalus() returns the restructured body document:
  *
  * Step 4: splitBody(returnedDoc) — parse the model's output body into blocks.
- *   Map each block: heading exactly matches a SECTION_DEFS.defaultHeading → that
- *   def's sectionKey; heading null or no match → 'custom'. Deterministic, no AI.
+ *   Map each block: heading exactly matches a defaultHeading in the passed-in section
+ *   catalog → that def's sectionKey; heading null or no match → 'custom'. Deterministic,
+ *   no AI. The catalog is the same one the blueprint sent to Daedalus was built from
+ *   (getSectionDefs(platform), DB-owned as of 2026-08-07 — see the sectionDefs param).
  *
- * Step 5: Deterministic reorder — canonical core (by SECTION_DEFS.defaultOrder), then
+ * Step 5: Deterministic reorder — canonical core (by the catalog's defaultOrder), then
  *   optional sections used (by defaultOrder), then last-resort custom blocks (kept in
  *   their relative document order among themselves), then assigned final `order` indices.
  *   Daedalus's own document order is not trusted for this — see the inline comment at
@@ -28,21 +30,11 @@
  */
 
 import { splitBody } from '../serialize/splitBody.js';
-import { SECTION_DEFS, CONFIG_DEFS } from '../blueprint/catalog.js';
+import { CONFIG_DEFS } from '../blueprint/catalog.js';
 import type { StructuredAgent, FrontmatterEntry } from '../serialize/types.js';
-import type { ImportedAgentData } from '../db/repository/agents.js';
+import type { ImportedAgentData, SectionDefLite } from '../db/repository/agents.js';
 
 const DESCRIPTION_PLACEHOLDER = '(no description provided)';
-
-/** Precomputed map: defaultHeading → sectionKey for deterministic mapping. */
-const HEADING_TO_KEY = new Map<string, string>(
-  SECTION_DEFS.map((def) => [def.defaultHeading, def.key]),
-);
-
-/** Precomputed map: sectionKey → canonical defaultOrder, for the deterministic reorder below. */
-const DEFAULT_ORDER = new Map<string, number>(
-  SECTION_DEFS.map((def) => [def.key, def.defaultOrder]),
-);
 
 // Explicit Map<string, string> (not inferred) — CONFIG_DEFS' `key`/`datatype` are literal
 // unions, which would otherwise narrow this Map's key type and make .get() reject the
@@ -76,17 +68,30 @@ function coerceConfigValue(key: string, value: unknown): unknown {
  * @param original      Stage-1 StructuredAgent parsed from the original rawMd.
  * @param restructuredBody  The structural converter's returned body document (no frontmatter).
  * @param rawMd         The original raw markdown bytes — stored as rawSourceSnapshot.
+ * @param sectionDefs   The platform's section catalog, same rows the blueprint sent to
+ *   Daedalus was built from (getSectionDefs(platform), fetched by the caller — this
+ *   folder does not touch the DB directly, per lib/import/CLAUDE.md).
  */
 export function assembleStructural(
   original: StructuredAgent,
   restructuredBody: string,
   rawMd: string,
+  sectionDefs: readonly SectionDefLite[],
 ): ImportedAgentData {
+  // Built per call from the passed-in catalog (was a module-level const derived from a
+  // static SECTION_DEFS import — now DB-sourced by the caller, so it can't be static).
+  const HEADING_TO_KEY = new Map<string, string>(
+    sectionDefs.map((def) => [def.defaultHeading, def.key]),
+  );
+  const DEFAULT_ORDER = new Map<string, number>(
+    sectionDefs.map((def) => [def.key, def.defaultOrder]),
+  );
+
   // ── Step 4: parse the output body → blocks, map headings → sectionKeys ──
   const { splitLevel, blocks } = splitBody(restructuredBody);
 
   const classified = blocks.map((block) => {
-    // Exact match against SECTION_DEFS.defaultHeading → canonical sectionKey.
+    // Exact match against the catalog's defaultHeading → canonical sectionKey.
     // heading null or no match → 'custom'.
     const sectionKey = block.heading !== null
       ? (HEADING_TO_KEY.get(block.heading) ?? 'custom')

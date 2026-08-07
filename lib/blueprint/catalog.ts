@@ -1,11 +1,18 @@
 /**
  * lib/blueprint/catalog.ts
  *
- * In-code seed source for ConfigDef + SectionDef as plain typed arrays.
- * This is the single enumeration both the DB seed (Phase 2) and the Blueprint
- * rules read — no duplication anywhere else.
+ * In-code source for CONFIG_DEFS — still the live catalog `lib/blueprint/rules.ts`
+ * and `lib/blueprint/prompt.ts` read directly (config platform-scoping is a
+ * separate, not-yet-done migration, Rules Index #18).
  *
- * Arrays are verbatim from §4 of Plan 01, refreshed 2026-07-28 against the real
+ * SECTION_DEFS used to live here too but moved to `lib/db/sectionDefsSeed.ts`
+ * 2026-08-07 — it's bootstrap-seed-only (its one real consumer is
+ * `lib/db/seed.ts`), and the live LLM round-trip (the blueprint sent to
+ * Daedalus/Prometheus/Hermes, and the heading→sectionKey matcher) reads
+ * `getSectionDefs(platform)` from the DB, not this file. See
+ * `lib/blueprint/prompt.ts` and `lib/import/assembleStructural.ts`.
+ *
+ * The CONFIG_DEFS array is verbatim from §4 of Plan 01, refreshed 2026-07-28 against the real
  * Claude Code subagent frontmatter schema (code.claude.com/docs/en/sub-agents,
  * .../tools-reference) — see TechDesign.md Rules Index #37-#40. This is the
  * Claude Code CLI's own subagent format (`.claude/agents/*.md`), which is also
@@ -251,105 +258,8 @@ export const CONFIG_DEFS = [
   },
 ] as const;
 
-// ─────────────────────────────  Section catalog  ───────────────────────────────
-
-export const SECTION_DEFS = [
-  {
-    key: 'role',
-    label: 'Role',
-    defaultHeading: '# ROLE',
-    isCore: true,
-    defaultOrder: 1,
-    template: 'You are a [senior X] specializing in:\n- …\n\nYour job is to …',
-    helpText:
-      'Identity + mandate. Open with "You are…". End with a STOP clause if the agent must refuse ambiguous input.',
-  },
-  {
-    key: 'behavior',
-    label: 'Behavior',
-    defaultHeading: '# BEHAVIOR',
-    isCore: true,
-    defaultOrder: 2,
-    template: '1. …\n2. …\n3. …',
-    helpText:
-      'How it works — the numbered process. (This is the section that has 6 different names across real libraries; the tool standardizes it.)',
-  },
-  {
-    key: 'guardrails',
-    label: 'Guardrails',
-    defaultHeading: '# RULES',
-    isCore: true,
-    defaultOrder: 3,
-    template: '- Never …\n- Always …',
-    helpText: 'Hard rules / what it must not do.',
-  },
-  {
-    key: 'output',
-    label: 'Output',
-    defaultHeading: '# OUTPUT FORMAT',
-    isCore: true,
-    defaultOrder: 4,
-    template: '| Section | Format |\n|---|---|\n| … | … |',
-    helpText: 'The shape of what the agent returns.',
-  },
-  {
-    key: 'sources',
-    label: 'Sources',
-    defaultHeading: '# SOURCES',
-    isCore: false,
-    defaultOrder: 5,
-    template: '',
-    helpText: 'Files/inputs it reads.',
-  },
-  {
-    key: 'lifecycle',
-    label: 'Lifecycle',
-    defaultHeading: '# LIFECYCLE',
-    isCore: false,
-    defaultOrder: 6,
-    template: '',
-    helpText: 'Start/end-of-session duties (read memory / write report).',
-  },
-  {
-    key: 'handoffs',
-    label: 'Handoffs',
-    defaultHeading: '# HANDOFFS',
-    isCore: false,
-    defaultOrder: 7,
-    template: '',
-    helpText: 'Relationships to other agents.',
-  },
-  {
-    key: 'tone',
-    label: 'Tone',
-    defaultHeading: '# TONE',
-    isCore: false,
-    defaultOrder: 8,
-    template: '',
-    helpText: 'Voice.',
-  },
-  {
-    key: 'modes',
-    label: 'Modes',
-    defaultHeading: '# MODES',
-    isCore: false,
-    defaultOrder: 9,
-    template: '',
-    helpText: 'Sub-modes (e.g. dev Mode A/B, session modes).',
-  },
-  {
-    key: 'boundaries',
-    label: 'Boundaries',
-    defaultHeading: '# BOUNDARIES',
-    isCore: false,
-    defaultOrder: 10,
-    template: '- Do not assume …\n- Do not infer …\n- Do not guess …',
-    helpText:
-      'What the agent must not assume, infer, or guess when context is incomplete (e.g. missing config, deployment intent, credentials, file paths) — distinct from Guardrails, which covers actions it must not take.',
-  },
-] as const;
+// Section catalog moved out entirely — see lib/db/sectionDefsSeed.ts (2026-08-07).
 
 // Derive types for use in rules.ts
 export type ConfigDefEntry = (typeof CONFIG_DEFS)[number];
-export type SectionDefEntry = (typeof SECTION_DEFS)[number];
 export type PlatformDefEntry = (typeof PLATFORM_DEFS)[number];

@@ -468,13 +468,15 @@ export function ChatPanel({
                   <div className="absolute bottom-0 left-0 right-0 h-[36px] bg-gradient-to-t from-[var(--bg)] to-transparent rounded-b-[5px] pointer-events-none" />
                 )}
                 {isLong && (
-                  <button
-                    type="button"
-                    onClick={() => toggleExpanded(rowId)}
-                    className="block text-right w-full text-[10px] italic text-[var(--accent-ink)] mt-[2px] bg-transparent border-none p-0 cursor-pointer font-[inherit] hover:underline"
-                  >
-                    {isExpanded ? 'show less…' : 'show more…'}
-                  </button>
+                  <div className="flex justify-end mt-[4px]">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(rowId)}
+                      className="px-[8px] py-[2px] text-[10.5px] font-semibold text-[var(--accent-ink)] bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[5px] cursor-pointer hover:opacity-90"
+                    >
+                      {isExpanded ? '▴ show less' : '▾ show more'}
+                    </button>
+                  </div>
                 )}
               </div>
             )}

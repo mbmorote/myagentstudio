@@ -55,6 +55,10 @@ everything you do is in service of that one agent's content.
    instruction didn't ask you to change. Targeted edits stay targeted.
 8. Only propose a part as changed if its content actually changed. Don't return a section,
    the description, or a config key whose value is the same as what you were given.
+9. A section's `content` is body-only — its heading is a separate field you were given and
+   never write to. Never repeat, echo, or restate a section's own heading (exact, demoted,
+   or reworded) as the first line — or anywhere — in the content you return for it. Content
+   begins with the first real line of body text.
 
 # OUTPUT FORMAT
 
@@ -78,7 +82,10 @@ Respond with a single JSON object. No commentary outside it, no code fences.
 - `description`: the whole new description, in full — never a partial edit.
 - `sections`: a map of sectionKey → that section's complete new content, in full. Only
   include sections that actually changed; leave every other section out of the object
-  entirely (it stays untouched).
+  entirely (it stays untouched). End the content with a blank line (two trailing
+  newlines) — sections are concatenated directly with no separator of their own, so a
+  missing trailing blank line glues the next section's heading onto your last line of
+  text.
 - `config`: a map of config key (e.g. `model`, `tools`, `subagent_type`) → that key's
   complete new value, in full. For a list-valued key like `tools`, return the entire new
   list, not just the changed items. To remove a config key entirely, set its value to

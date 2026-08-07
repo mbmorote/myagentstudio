@@ -9,11 +9,12 @@
  * dev.md block structure (from parse() of the fixture file):
  *   block-0  heading: "# ROLE"         — canonical, maps to 'role'
  *   block-1  heading: "# DEV BEHAVIOR" — non-canonical, structural converter renames it
- *   block-2  heading: "# RULES"        — canonical, maps to 'guardrails'
+ *   block-2  heading: "# RULES"        — non-canonical, structural converter renames it
  *   block-3  heading: "# OUTPUT FORMAT"— canonical, maps to 'output'
  *
  * The mocked structural converter output renames "# DEV BEHAVIOR" to "# BEHAVIOR"
- * (the SECTION_DEFS canonical heading for 'behavior') — a realistic restructure.
+ * and "# RULES" to "# GUARDRAILS" (the section catalog's canonical defaultHeading
+ * for 'behavior'/'guardrails') — a realistic restructure.
  *
  * Test cases:
  *   1. Mocked pipeline: canonical restructure of dev.md → sections land under correct
@@ -52,7 +53,8 @@ vi.mock('../../ai/daedalus.js', () => ({
 // ── Imports (after mocks are declared) ───────────────────────────────────
 import * as schema from '../../db/schema.js';
 import { testDb } from '../../db/__tests__/test-db.js';
-import { CONFIG_DEFS, SECTION_DEFS } from '../../blueprint/catalog.js';
+import { CONFIG_DEFS } from '../../blueprint/catalog.js';
+import { SECTION_DEFS } from '../../db/sectionDefsSeed.js';
 import { upsertAgentFromImport, getAgentFull, getAgentSnapshotInfo } from '../../db/repository/agents.js';
 import { BOOTSTRAP_USER_ID } from '../../auth/constants.js';
 import { parse } from '../../serialize/index.js';
@@ -69,8 +71,9 @@ const devParsed = parse(devMdRaw);
 
 // ── Hand-written canonical restructure of dev.md's body ──────────────────
 // The structural converter returns a body-only document (no frontmatter).
-// Key restructure: "# DEV BEHAVIOR" → "# BEHAVIOR" (the canonical defaultHeading).
-// All content is kept verbatim — only the heading is renamed.
+// Key restructures: "# DEV BEHAVIOR" → "# BEHAVIOR", "# RULES" → "# GUARDRAILS"
+// (the catalog's canonical defaultHeadings). All content is kept verbatim —
+// only the heading is renamed.
 
 // Extract the actual block contents from the real parse.
 const roleBlock    = devParsed.blocks.find((b) => b.heading === '# ROLE')!;
@@ -86,7 +89,7 @@ const CANONICAL_RESTRUCTURED_BODY = [
   '# BEHAVIOR',
   behaviorBlock.content.trimEnd(),
   '',
-  '# RULES',
+  '# GUARDRAILS',
   rulesBlock.content.trimEnd(),
   '',
   '# OUTPUT FORMAT',
@@ -111,7 +114,6 @@ beforeAll(() => {
   for (const def of SECTION_DEFS) {
     testDb.insert(schema.sectionDef).values({
       key: def.key,
-      label: def.label,
       defaultHeading: def.defaultHeading,
       isCore: def.isCore,
       defaultOrder: def.defaultOrder,
@@ -130,7 +132,7 @@ describe('structural import pipeline — first import of dev.md (mocked)', () =>
 
   beforeAll(() => {
     vi.mocked(callDaedalus).mockResolvedValue(CANONICAL_RESTRUCTURED_BODY);
-    const importData = assembleStructural(devParsed, CANONICAL_RESTRUCTURED_BODY, devMdRaw);
+    const importData = assembleStructural(devParsed, CANONICAL_RESTRUCTURED_BODY, devMdRaw, SECTION_DEFS);
     const dto = upsertAgentFromImport(BOOTSTRAP_USER_ID, importData);
     agentId = dto.id;
   });
@@ -262,7 +264,7 @@ describe('structural import truncation — DaedalusTruncatedError', () => {
     const snapshotCountBefore = testDb.select().from(schema.agentSnapshot).all().length;
 
     // Calling the mocked converter should throw.
-    await expect(callDaedalus(devMdRaw)).rejects.toBeInstanceOf(
+    await expect(callDaedalus(devMdRaw, SECTION_DEFS)).rejects.toBeInstanceOf(
       DaedalusTruncatedError,
     );
 

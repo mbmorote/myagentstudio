@@ -17,6 +17,7 @@ import { getGateway, LlmDryRunBlockedError, LlmUserCapReachedError } from './gat
 import type { LlmCallContext } from './gateway.js';
 import { HERMES_PROMPT } from './prompts/generated/hermes.js';
 import { renderBlueprintForPrompt } from '../blueprint/index.js';
+import type { SectionDefLite } from '../db/repository/agents.js';
 
 // ─────────────────────────────  Types  ────────────────────────────────────────
 
@@ -62,7 +63,9 @@ export type Stage2BlockRef = {
  * Sends each block's id + heading text (never content) from Stage 1 to Claude and
  * returns the Stage-2 label map.
  *
- * @param blocks  Stable block identifiers + heading text from Stage-1 parse
+ * @param blocks       Stable block identifiers + heading text from Stage-1 parse
+ * @param sectionDefs  The platform's section catalog — fetched by the route via
+ *   getSectionDefs(platform) and forwarded here (same boundary reasoning as daedalus.ts).
  * @param ctx     Gateway context for logging (§5.2 — agentId best-effort at call time)
  * @returns       Parsed and validated Stage2Labels
  * @throws        LlmDryRunBlockedError          when live LLM calls are disabled
@@ -71,10 +74,11 @@ export type Stage2BlockRef = {
  */
 export async function callHermes(
   blocks: Stage2BlockRef[],
+  sectionDefs: readonly SectionDefLite[],
   ctx: LlmCallContext = { kind: 'import-strict' },
 ): Promise<Stage2Labels> {
   // Stage 2 never classifies config data (Rules Index #28) — omit it from the prompt.
-  const blueprint = renderBlueprintForPrompt({ includeConfig: false });
+  const blueprint = renderBlueprintForPrompt(sectionDefs, { includeConfig: false });
 
   const userMessage = [
     'Classify the following Stage-1 blocks according to the Agent Blueprint.',

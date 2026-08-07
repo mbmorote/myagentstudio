@@ -57,7 +57,8 @@ vi.mock('../../../../lib/ai/anthropicProvider.js', () => ({
 // ── Imports after mocks ────────────────────────────────────────────────────────
 import * as schema from '../../../../lib/db/schema.js';
 import { testDb } from '../../../../lib/db/__tests__/test-db.js';
-import { CONFIG_DEFS, SECTION_DEFS } from '../../../../lib/blueprint/catalog.js';
+import { CONFIG_DEFS } from '../../../../lib/blueprint/catalog.js';
+import { SECTION_DEFS } from '../../../../lib/db/sectionDefsSeed.js';
 import { POST } from '../import/route.js';
 
 // Minimal valid agent .md for test fixtures
@@ -112,7 +113,7 @@ beforeAll(() => {
     testDb
       .insert(schema.sectionDef)
       .values({
-        key: def.key, label: def.label, defaultHeading: def.defaultHeading,
+        key: def.key, defaultHeading: def.defaultHeading,
         isCore: def.isCore, defaultOrder: def.defaultOrder,
         template: def.template, helpText: def.helpText,
       })
