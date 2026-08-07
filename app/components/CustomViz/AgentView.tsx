@@ -20,11 +20,26 @@
  *     dashed border for disallowedTools entries.
  *   - Unset keys have no row; set via the "+" add-key button.
  *   - initialPrompt: click-to-expand textarea block with Save/Cancel and outside-click-confirm.
- *   - Any datatype:'json' key (hooks, mcpServers): view mode shows a compact pill row of
- *     first-level entry names (2026-08-06 — the full JSON was unreadably large at a glance);
- *     editing is unchanged — a raw-JSON textarea for the whole block (same expand/save/
- *     confirm pattern), derived from the catalog, not a hardcoded key set.
- *   - Unknown config keys (not in catalog): shown as warn pills.
+ *   - Any datatype:'json' key (hooks, mcpServers), PLUS any key on the agent that isn't
+ *     in the standard catalog at all (2026-08-06 — see "Custom keys" below): view mode
+ *     shows a compact pill row of first-level entry names (2026-08-06 — the full JSON
+ *     was unreadably large at a glance); editing is unchanged — a raw-JSON textarea for
+ *     the whole block (same expand/save/confirm pattern).
+ *
+ * Custom keys (roadmap TODO item 1, resolved 2026-08-06 — see plans/roadmap.md):
+ *   A "+ custom key…" option at the bottom of the add-key menu prompts for an arbitrary
+ *   key name and saves it with an empty-object value, same PATCH path as everything
+ *   else. Any config key not in the standard catalog — whether created this way or left
+ *   over from an import — renders through the same custom-JSON-block UI as hooks/
+ *   mcpServers (getCatalogDef() falls back to a synthesized def when the key isn't in
+ *   configCatalog), with the same Edit/Remove affordances.
+ *   Design decision (confirmed with the user): NO schema change to distinguish
+ *   "user-created" from "import-origin" keys — they're genuinely the same shape (the
+ *   agent_config table has no such concept, and a custom key can't carry a provenance
+ *   flag through an export→re-import round-trip anyway, since frontmatter has nowhere
+ *   to put it). The old separate "⚠ unknown key" warning-pill treatment is retired: it
+ *   implied every non-catalog key was an error, which stopped making sense once the
+ *   system itself offers a first-class way to create one.
  *
  * Model+effort header control (decision 12):
  *   - Combined trigger button (top-right of card header): "model effort ▾"
@@ -40,15 +55,9 @@
  * Persistence: PATCH /api/agents/[id] with full-replace config array (same semantics as
  * the existing model save — see WorkbenchShell and the PATCH route). Returns full AgentDTO;
  * onAgentUpdated propagates it to WorkbenchShell.
- *
- * DEFERRED: custom key creation (item 11's "+ custom key…" option) — flagged for
- * resolution. If a user creates a custom key, Rules.computeValidation would immediately
- * flag it as unknownConfigKeys, which contradicts the UX intent. Needs a design decision
- * on how to distinguish "user-created custom keys" from "stale/unrecognized keys" before
- * implementing. The catalog key picker (standard keys only) is implemented.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import type { AgentDTO, GroupDTO, ConfigDefLite } from '@/lib/db/repository';
 import type { InteractionLock, CitedItem } from '@/app/components/WorkbenchShell';
 import { SectionBlock } from '@/app/components/CustomViz/SectionBlock';
@@ -261,14 +270,17 @@ export function AgentView({
   const setScalarKeys = SCALAR_KEY_ORDER.filter((k) => configMap.has(k));
   // List keys that are set
   const setListKeys = LIST_KEY_ORDER.filter((k) => configMap.has(k));
-  // Custom JSON block keys that are set
-  const setCustomKeys = Array.from(jsonKeys).filter((k) => configMap.has(k));
   const hasInitialPrompt = configMap.has(INITIAL_PROMPT_KEY);
 
-  // Unknown keys: in agent config but not in any known category
-  const unknownConfigKeys = agent.config
+  // Custom-block keys (2026-08-06, roadmap TODO item 1): catalog keys with
+  // datatype:'json' that are set (hooks, mcpServers) PLUS any key on the agent that
+  // isn't in the standard catalog at all — a genuinely nonstandard key, whether
+  // created via "+ custom key…" below or left over from an import. Both render
+  // through the same renderCustomBlock() raw-JSON UI; see the file header comment
+  // for why there's no separate "unknown key" warning tier anymore.
+  const customBlockKeys = agent.config
     .map((c) => c.propKey)
-    .filter((k) => !catalogKeySet.has(k));
+    .filter((k) => jsonKeys.has(k) || !catalogKeySet.has(k));
 
   // Catalog keys that are unset (for the "+" add-key menu)
   const unsetCatalogKeys = configCatalog.filter(
@@ -701,6 +713,27 @@ export function AgentView({
       }
       // Scalar keys auto-focus their popover on the next open click — no auto-open needed
     });
+  }
+
+  /** "+ custom key…" (roadmap TODO item 1, 2026-08-06) — a genuinely nonstandard key,
+   *  not in configCatalog at all. Saves with an empty-object value; the new key then
+   *  appears via customBlockKeys/renderCustomBlock, same as any other custom block —
+   *  no separate open-editor step needed (mirrors addKey's jsonKeys branch above). */
+  function addCustomKey() {
+    if (!canEdit) return;
+    setAddKeyMenuOpen(false);
+    const raw = window.prompt('Custom key name (a nonstandard config field, saved as raw JSON):');
+    const name = raw?.trim();
+    if (!name) return;
+    if (configMap.has(name)) {
+      window.alert(`'${name}' already exists on this agent.`);
+      return;
+    }
+    if (catalogKeySet.has(name)) {
+      window.alert(`'${name}' is a standard config key — use the list above instead of "custom key…" for it.`);
+      return;
+    }
+    void saveConfig([...currentConfigPairs(), { propKey: name, value: {} }]);
   }
 
   // ── Custom JSON block ────────────────────────────────────────────────────
@@ -1265,7 +1298,20 @@ export function AgentView({
   // tint (toggle), body (either tier) = alias + hover accent-wash (cite).
   function renderCustomBlock(key: string) {
     if (!configMap.has(key)) return null;
-    const def = getCatalogDef(key)!;
+    // Falls back to a synthesized def for a genuinely nonstandard key (2026-08-06) — one
+    // not in configCatalog at all, whether created via "+ custom key…" or left over from
+    // an import. Keeps this rendering path key-name-generic rather than requiring every
+    // custom key to somehow exist in the server's catalog first.
+    const def = getCatalogDef(key) ?? {
+      key,
+      label: key,
+      datatype: 'json',
+      allowedValues: null,
+      required: false,
+      isCore: false,
+      exportable: true,
+      hint: 'Custom key — not in the standard config catalog. Saved as raw JSON.',
+    };
     const hint = 'hint' in def ? String(def.hint) : '';
     const draft = getCustomDraft(key);
     const error = customJsonErrors[key] ?? null;
@@ -1526,7 +1572,17 @@ export function AgentView({
                 All catalog keys are set
               </div>
             )}
-            {/* Custom key creation is deferred — see file header DEFERRED note */}
+            {/* "+ custom key…" (2026-08-06, roadmap TODO item 1) — always present,
+                regardless of how many catalog keys remain: a genuinely nonstandard key
+                (unknown to configCatalog, saved as raw JSON) should still be addable. */}
+            <button
+              type="button"
+              onClick={addCustomKey}
+              className="flex items-center gap-[6px] w-full px-[12px] py-[7px] text-[12px] font-sans text-[var(--text)] hover:bg-[var(--accent-wash)] cursor-pointer text-left border-t border-[var(--border)]"
+            >
+              + custom key…
+              <span className="text-[10px] text-[var(--faint)] ml-[4px]">arbitrary, raw JSON</span>
+            </button>
           </div>
         )}
       </span>
@@ -1617,27 +1673,6 @@ export function AgentView({
 
         {!keysCollapsed && (
           <div>
-            {/* Unknown config keys — warn pills (for stale/unrecognized keys from imports) */}
-            {unknownConfigKeys.length > 0 && (
-              <div className="flex flex-wrap gap-[6px] mb-[10px]">
-                {unknownConfigKeys.map((k) => {
-                  const value = agent.config.find((r) => r.propKey === k)?.value;
-                  return (
-                    <span
-                      key={k}
-                      title={`'${k}' is not a recognized config key in the current Claude Code catalog. This may be a renamed or custom key.`}
-                      className="inline-flex items-center gap-[6px] text-[11px] px-[9px] py-[3px] rounded-full border border-[var(--warn)] text-[var(--warn)] bg-[var(--elev)] before:content-['⚠'] before:text-[10px]"
-                    >
-                      {k}
-                      {value !== undefined && (
-                        <b className="font-mono text-[10.5px] mx-[3px]">{String(value)}</b>
-                      )}
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-
             {/* 2-column scalar grid (only keys that are set) */}
             {setScalarKeys.length > 0 && (
               <div className="grid grid-cols-2 gap-x-[18px] gap-y-[2px] mb-[10px]">
@@ -1654,8 +1689,7 @@ export function AgentView({
 
             {/* Empty state */}
             {setScalarKeys.length === 0 && setListKeys.length === 0 &&
-             !hasInitialPrompt && setCustomKeys.length === 0 &&
-             unknownConfigKeys.length === 0 && (
+             !hasInitialPrompt && customBlockKeys.length === 0 && (
               <p className="text-[12px] text-[var(--faint)] italic">
                 No config keys set — use + to add one.
               </p>
@@ -1666,8 +1700,10 @@ export function AgentView({
         {/* initialPrompt block: always visible (outside collapse, per design decision 3) */}
         {renderInitialPromptBlock()}
 
-        {/* Custom JSON blocks (hooks, mcpServers, any other json-datatype key): always visible */}
-        {Array.from(jsonKeys).map((k) => renderCustomBlock(k))}
+        {/* Custom JSON blocks: always visible. Covers datatype:'json' catalog keys
+            (hooks, mcpServers) and any genuinely nonstandard key (2026-08-06) — see
+            customBlockKeys above. */}
+        {customBlockKeys.map((k) => renderCustomBlock(k))}
 
         {/* Config save error */}
         {configError && (
