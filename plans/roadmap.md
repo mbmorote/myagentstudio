@@ -265,10 +265,10 @@ here were promoted from FUTURE on that basis, tagged below.
 they actually require, not just launch necessity — **[UX]** = a visible UI/layout change
 (prototype in `Layout-Workbench.html` first, standing rule 4); **[Behavior]** = a product/logic
 decision or backend change with no direct UI; **[Infra]** = tooling/process/docs, not user-
-facing at all. Items 6 and 8 are deliberately untagged — they're end-of-list gate tasks (final
-validation, then deploy), not day-to-day pick-off work; item 7 (company signature) sits
-between them by deliberate user choice (see the reorder note below), not because it's a
-same-kind gate task.
+facing at all. The big flow test and "Deploy online" (items 6 and 11) are deliberately
+untagged — they're end-of-list gate tasks (final validation, then deploy), not day-to-day
+pick-off work; everything between them (company signature, the guided tour, DB backup, the
+disclaimer) sits there by deliberate user choice, not because they're the same kind of task.
 
 **Same-day update (2026-08-06):** the original "UX working queue" batch (items 1, 5's
 rendering half, 6, and 10, in the numbering that day started with) is mostly resolved. The
@@ -355,6 +355,11 @@ asset that still doesn't exist doesn't gate functional validation) right before 
    config value, remove a tool/config key; **(c)** edit the same agent via chat — Prometheus
    proposal review and Apply/Discard for a section edit and a config edit (add/edit/remove a
    tool via chat), confirming the proposal card, the lock, and the applied result all match.
+   **(d)** export the now-edited agent and reimport it, confirming the round trip holds — not
+   new coverage (the golden-file tests already assert this at the unit level), just making
+   sure it's actually eyeballed once on a real, hand-edited agent as part of this pass.
+   *(Added 2026-08-07, from a cross-check against `architecture/audits/0708 Copilot
+   Roadmap.md`.)*
    This is also where Plan 08's own deferred Phase 4 (live verification that a real Prometheus
    reply produces a correct proposal end-to-end) actually gets exercised — not run as a
    separate step, since this test's chat-edit stage already needs the same real, billed
@@ -385,9 +390,41 @@ asset that still doesn't exist doesn't gate functional validation) right before 
    branding would read worse than seeing nothing. **Sequenced right before deploy, after the
    big flow test** (2026-08-06 reorder, at the user's request) — a still-missing asset
    shouldn't gate functional validation; branding lands as the final step before going live.
-8. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
-   now (whatever the smallest real hosting step is); the *automated* version of this is
-   CI/CD, tracked under FUTURE, not blocking this first deploy.
+8. **[UX]** **First-login guided tour (mini-tour).** *(Added 2026-08-07, from the same
+   cross-check — supersedes the original plan to build a separate pre-login landing page for
+   this launch; see NEXT items 14/15 below for what that split into instead.)* The user isn't
+   confident every invited friend can be walked through the product live, and a written guide
+   alone won't get read — so this replaces "explain it live" with a self-serve, in-app
+   walkthrough triggered on first login. **Mechanism — spotlight, dim-the-other-panels, not a
+   true anchored coach-mark:** no new dependency needed (the app currently has only
+   `@radix-ui/react-dialog`, no Popover) — `WorkbenchShell`'s four panels already occupy known,
+   fixed screen regions, so dimming the three panels not currently being explained plus a
+   caption near the active one is enough; real coach-mark positioning logic (e.g.
+   `@radix-ui/react-popover`) is deliberately not needed for a fixed 4-pane grid. **Six steps:**
+   (1) welcome/why — this step folds in the "why does this exist" explanation, so the separate
+   pre-login landing page isn't needed for this launch; (2) Library panel; (3) Structured view;
+   (4) Chat panel; (5) cite-a-section (click a section/config value to narrow what's sent to
+   chat); (6) Raw panel + download. **Skippable per-step and to finish** (Next/Skip/Finish on
+   each step), **re-runnable anytime via a "?" affordance** — not one-shot, needs a persisted
+   "seen" flag (`localStorage` is enough, same pattern already used for the pending-proposal
+   lock). Estimated at a session or two, not a multi-day build. **Prototype in
+   `Layout-Workbench.html` first per standing rule 4** before touching real code.
+9. **[Infra]** **Production DB backup/restore.** *(Added 2026-08-07, from a cross-check
+   against `architecture/audits/0708 Copilot Roadmap.md`, an outside 30-day-launch review.)*
+   Every existing "backup" reference in the repo (Plan 05 §4.5 step 0, Plan 06 Phase 5) is a
+   one-time safety copy taken before running a risky migration — nothing covers `myagent.db`
+   on an ongoing basis once real users are creating real data in it, confirmed by grep, not
+   assumed. Minimum bar: know how to snapshot the live SQLite file and how to restore it,
+   documented somewhere findable (`README.md` or here). No code required unless the chosen
+   hosting target makes this non-trivial.
+10. **[UX]** **"Experimental — don't paste sensitive data" disclaimer.** *(Added 2026-08-07,
+    same source.)* No disclaimer text exists anywhere in the signup/login flow
+    (`app/components/Auth/`) — confirmed by grep. One sentence, cheap, real risk-reduction
+    given compliance-grade logging is explicitly not built (NEXT item 12). Placement TBD when
+    picked up (signup form, a banner, or folded into the existing `ConsentPopup.tsx`).
+11. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
+    now (whatever the smallest real hosting step is); the *automated* version of this is
+    CI/CD, tracked under FUTURE, not blocking this first deploy.
 
 ## NEXT — first priorities once v1 is online
 
@@ -474,13 +511,20 @@ free to reorder within this bucket.
     section (currently prose, in "Stability snapshot" above) is a good first candidate to
     convert to a "Known Technical Debt"-style table, independent of whether the rest of the
     file migrates.
-14. **Presentation for prospective (non-signed-up) users** *(still decided-but-not-how — see
-    IDEA note below)* — a video/demo-style presentation showing how to import and edit an
-    agent, for visitors without an account yet. The "we want this" part is settled, the
-    format/production isn't; timing-wise the user wants this soon after launch.
-15. **Interactive tour for signed-up users** *(still decided-but-not-how — see IDEA note
-    below)* — step-by-step, in-app, dismissible, likely after first signup/login. Wanted, but
-    the step sequence and trigger conditions aren't designed yet.
+14. **Pre-login landing page for prospective (non-signed-up) users.** *(Reworded 2026-08-07 —
+    was "Presentation for prospective users," still decided-but-not-how, see IDEA note below.)*
+    A real public-facing explainer page shown **before login**, for visitors who don't have an
+    account yet — a different audience than TODO item 8's first-login tour, which only
+    signed-up users ever see. Format/production still undecided (video, screenshots, static
+    copy); the "we want this" part is settled, timing-wise the user wants this soon after
+    launch, not before — TODO item 8's welcome step covers the "why" well enough for this
+    launch's small, invited audience.
+15. **Improve the guided tour.** *(Reworded 2026-08-07 — was "Interactive tour for signed-up
+    users." The MVP tour itself is now TODO item 8, built before launch — this item is what's
+    left after that ships.)* Candidates once the dim-panel MVP is live: true anchored
+    coach-marks (`@radix-ui/react-popover` or similar, precise positioning instead of dimming
+    fixed regions); more/different trigger conditions (first import, not just first login);
+    additional steps; usage signal on where people skip or drop off.
 16. **Optional call-log persistence toggle** *(still not decided-if — see IDEA note below)* —
     a flag controlling whether `llm_call_log` entries get written to the database at all, vs.
     shown only transiently. Not settled that this is worth the complexity; timing-wise the
@@ -598,7 +642,7 @@ Seven TODO items are done — zero-agents empty state Topbar, the `__raw` frontm
 hatch (built as a real `datatype: 'json'` instead), the auth framework review (OAuth verified
 live), the chat-mediator/Prometheus rework (propose/apply, the lock, the ChatPanel UI), and
 (2026-08-06) custom-key creation/removal, the Settings modal, and ESLint config — see "What's
-built" for all seven. Current TODO is 1–8, **explicitly ordered by the user 2026-08-06** (not a
+built" for all seven. Current TODO is 1–11, **explicitly ordered by the user 2026-08-06** (not a
 free pick-off list like the prior numbering; ESLint itself was item 1 in that ordering and has
 since closed out, hence the list below starts at section add/delete): **1** section add/delete
 via chat review and **2** manual-edit save frequency (grouped — both are "how the platform is
@@ -606,8 +650,15 @@ actually used" behavior/UX calls) → **3** build-prompts readable output (confi
 developer-tooling, not admin/logging) → **4** second LLM provider (wanted landed before
 launch while switching vendors is still cheap) → **5** Plan 09 (`plans/09-pre-launch-org-
 review.md` — docs/code/tests organization review, findings-list output, not a fix-everything
-pass) → **6** the big flow test (final functional validation) → **7** company signature
-(deliberately after the test, so a still-missing asset doesn't gate it) → **8** deploy online.
+pass) → **6** the big flow test (final functional validation, now including an explicit
+export→reimport round-trip check) → **7** company signature (deliberately after the test, so
+a still-missing asset doesn't gate it) → **8** the first-login guided tour → **9** production
+DB backup/restore → **10** the experimental-use disclaimer → **11** deploy online. Items 8–10
+**added 2026-08-07**, from a cross-check against `architecture/audits/0708 Copilot Roadmap.md`
+(an outside 30-day-launch review) — everything else in that review either was already built,
+was already correctly placed in NEXT, or was scoped for a public beta this launch isn't
+running. Item 8 (the guided tour) replaces what would otherwise have been a separate pre-login
+landing-page build for this launch — see NEXT items 14/15 for how that split changed.
 Item 1 (section add/delete via chat) is worth resolving before item 6 if chat-driven section
 add/remove should be part of that test's coverage; otherwise item 6's own wording already
 accounts for testing edit-only. Item 5 (Plan 09's docs track) is worth doing close to whenever
