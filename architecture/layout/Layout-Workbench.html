@@ -2,10 +2,13 @@
 <title>Agent Workbench — Layout</title>
 <style>
   :root{
-    /* light (picked, slight cool bias toward the teal accent) */
+    /* light (2026-08-06: accent moved from teal to blue — see app/globals.css header
+       comment. --raw-key keeps the OLD teal ink on purpose: the Raw panel's frontmatter
+       key coloring is pinned, not themed, per design decision. */
     --bg:#e9edf2; --panel:#f6f8fb; --elev:#ffffff; --border:#d2dae4;
     --text:#1b2430; --muted:#5b6879; --faint:#8996a6;
-    --accent:#0e9d8e; --accent-ink:#0a5f57; --accent-wash:rgba(14,157,142,.10);
+    --accent:#1479c9; --accent-ink:#0b4f85; --accent-wash:rgba(20,121,201,.10);
+    --raw-key:#0a5f57;
     --ok:#2f9e5f; --warn:#b3801c; --err:#cf4b41;
     --mono:ui-monospace,"Cascadia Code","SF Mono",Consolas,"Liberation Mono",monospace;
     --ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -20,7 +23,8 @@
     :root{
       --bg:#12151a; --panel:#191d23; --elev:#20252d; --border:#2a3039;
       --text:#e6ebf2; --muted:#8b95a5; --faint:#616c7c;
-      --accent:#3fb6a8; --accent-ink:#8fe0d5; --accent-wash:rgba(63,182,168,.12);
+      --accent:#4fa8e0; --accent-ink:#a8d4f5; --accent-wash:rgba(79,168,224,.12);
+      --raw-key:#8fe0d5;
       --ok:#5fb87a; --warn:#d9a441; --err:#e0685f; --grip:#39414c;
       --cap:#a98ae8; --cap-ink:#ccb8fb; --cap-wash:rgba(169,138,232,.12);
       --ctl:#75a8e8; --ctl-ink:#a8c8fc; --ctl-wash:rgba(117,168,232,.12);
@@ -31,7 +35,8 @@
   :root[data-theme="light"]{
     --bg:#e9edf2; --panel:#f6f8fb; --elev:#ffffff; --border:#d2dae4;
     --text:#1b2430; --muted:#5b6879; --faint:#8996a6;
-    --accent:#0e9d8e; --accent-ink:#0a5f57; --accent-wash:rgba(14,157,142,.10);
+    --accent:#1479c9; --accent-ink:#0b4f85; --accent-wash:rgba(20,121,201,.10);
+    --raw-key:#0a5f57;
     --ok:#2f9e5f; --warn:#b3801c; --err:#cf4b41; --grip:#c3ccd8;
     --cap:#7c5cc2; --cap-ink:#4a2d8f; --cap-wash:rgba(124,92,194,.09);
     --ctl:#3e72c4; --ctl-ink:#1a4585; --ctl-wash:rgba(62,114,196,.09);
@@ -41,7 +46,8 @@
   :root[data-theme="dark"]{
     --bg:#12151a; --panel:#191d23; --elev:#20252d; --border:#2a3039;
     --text:#e6ebf2; --muted:#8b95a5; --faint:#616c7c;
-    --accent:#3fb6a8; --accent-ink:#8fe0d5; --accent-wash:rgba(63,182,168,.12);
+    --accent:#4fa8e0; --accent-ink:#a8d4f5; --accent-wash:rgba(79,168,224,.12);
+    --raw-key:#8fe0d5;
     --ok:#5fb87a; --warn:#d9a441; --err:#e0685f; --grip:#39414c;
     --cap:#a98ae8; --cap-ink:#ccb8fb; --cap-wash:rgba(169,138,232,.12);
     --ctl:#75a8e8; --ctl-ink:#a8c8fc; --ctl-wash:rgba(117,168,232,.12);
@@ -80,11 +86,16 @@
   .col{display:flex; flex-direction:column; min-width:0; min-height:0}
   .left{flex:0 0 218px}
   .center{flex:1 1 auto}
-  .right{flex:0 0 400px; container-type:inline-size} /* container-type (2026-08-06): lets
-    .rband's @container rule below hide the Download button's label once this panel gets
-    dragged narrow — a pure-CSS equivalent of the real app's width-prop check. */
-  .center-top{flex:1 1 auto; min-height:0}
-  .center-bottom{flex:0 0 240px; min-height:0}
+  .right{flex:0 0 400px; container-type:inline-size; opacity:.92} /* container-type
+    (2026-08-06): lets .rband's @container rule below hide the Download button's label
+    once this panel gets dragged narrow. opacity (design review 2026-08-06, item 4):
+    reads as secondary/reference next to the Config panel's full-contrast chrome. */
+  .center-top{flex:1 1 auto; min-height:0} /* 2026-08-06: design review item 2 (agent-color
+    border tint) reverted — border follows the theme accent (default), not the agent's own
+    `color` config value */
+  .center-bottom{flex:0 0 320px; min-height:0; border-color:var(--accent)} /* design
+    review 2026-08-06 item 3 — was 240px + default border; taller + accent border marks
+    chat as the primary action surface, not a footnote under the Config zone */
 
   /* panel header */
   .phead{
@@ -230,7 +241,11 @@
   .list-rows{display:flex;flex-direction:column;gap:7px;margin-top:10px}
   .list-row{display:flex;align-items:flex-start;gap:8px;border-radius:8px;margin:0 -6px;padding:4px 6px;transition:background .12s}
   .list-row:hover{background:var(--warn-wash,rgba(179,128,28,.09))}
-  .row-label{flex:none;width:104px;text-align:right;font-size:10px;color:var(--faint);padding-top:4px;
+  /* Muted accent instead of plain gray (design review 2026-08-06, plans/Design-Review-260806.md
+     item 5) — same key/value color contrast the raw panel already used, borrowed into
+     the Config zone so a row's label pops against its value instead of both reading at
+     the same visual weight. */
+  .row-label{flex:none;width:104px;text-align:right;font-size:10px;color:var(--accent-ink);opacity:.8;padding-top:4px;
              display:flex;align-items:center;justify-content:flex-end;gap:5px}
   .row-pills{flex:1;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
   .row-remove{opacity:0;transition:opacity .12s;flex:none;width:16px;height:16px;border-radius:4px;
@@ -349,7 +364,7 @@
       font-variant-numeric:tabular-nums;user-select:none;opacity:.7}
   .rc{white-space:pre-wrap;color:var(--text);padding-right:14px}
   .fm{color:var(--faint)}
-  .k{color:var(--accent-ink)}
+  .k{color:var(--raw-key)} /* pinned teal, not themed — see :root's --raw-key comment */
   .s{color:var(--ok)}
   .h1{color:var(--warn);font-weight:600}
   .rband{padding:6px 14px;color:var(--faint);font-size:10.5px;border-bottom:1px solid var(--border);
@@ -592,7 +607,7 @@
   <div class="phead"><span class="glyph">◈</span> Custom Visualization <span class="role">platform main view</span><button class="lock-sim-btn" id="lockSimBtn" onclick="window.__lockToggle()" title="Simulate proposal-pending lock (Plan 08 Phase 0 demo)">⊘ lock demo</button></div>
   <div class="pbody"><div class="viz">
     <div class="agentcard-head">
-      <div class="bigav" style="background:#9b59b6">at</div>
+      <div class="bigav">at</div>
       <div style="min-width:0;flex:1">
         <h1 title="Click to rename">anthropic-test-agent-</h1>
         <div class="sub">Test for import on the workbench - Compliance, safety, and governance overseer for Anthropic-facing workflows. Use proactively whenever a task involves Anthropic APIs, agent configuration, tool wiring, or production deployments, to enforce security, safety, and policy guardrails before changes are applied. · imported</div>

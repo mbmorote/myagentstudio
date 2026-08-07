@@ -9,8 +9,9 @@
  * monospace text — always the literal exported bytes (matches Download exactly), only
  * the per-line coloring is stylized. Mirrors the mockup's buildRaw() classifier:
  *   - The two `---` delimiter lines → dimmed (.fm) — the ONLY thing dimmed.
- *   - A top-level (unindented) `key: value` frontmatter line → key in accent color,
- *     value plain (2026-08-06 — was: the whole frontmatter block uniformly dimmed).
+ *   - A top-level (unindented) `key: value` frontmatter line → key in `--raw-key` (a
+ *     pinned teal, independent of the theme's `--accent` — see app/globals.css), value
+ *     plain (2026-08-06 — was: the whole frontmatter block uniformly dimmed).
  *   - Indented/continuation frontmatter lines (list items, folded/block-scalar body
  *     text) → plain, same as everything else (2026-08-06 fix — these were dimmed too,
  *     which made a wrapped multi-line `description:` look grayed-out next to
@@ -121,7 +122,7 @@ function RawLines({ lines, size }: { lines: Line[]; size: 'compact' | 'zoom' }) 
             )}
             {line.kind === 'fm-field' && (
               <>
-                <span className="text-[var(--accent-ink)]">{line.key}</span>
+                <span className="text-[var(--raw-key)]">{line.key}</span>
                 {line.value}
               </>
             )}

@@ -13,7 +13,9 @@
  */
 
 :root {
-  /* light (slight cool bias toward the teal accent) */
+  /* light (2026-08-06: accent moved from teal to blue. --raw-key keeps the OLD teal
+     ink on purpose — the Raw panel's frontmatter key coloring is pinned, not themed,
+     per design decision, so it doesn't move when --accent does.) */
   --bg: #e9edf2;
   --panel: #f6f8fb;
   --elev: #ffffff;
@@ -21,9 +23,10 @@
   --text: #1b2430;
   --muted: #5b6879;
   --faint: #8996a6;
-  --accent: #0e9d8e;
-  --accent-ink: #0a5f57;
-  --accent-wash: rgba(14, 157, 142, 0.10);
+  --accent: #1479c9;
+  --accent-ink: #0b4f85;
+  --accent-wash: rgba(20, 121, 201, 0.10);
+  --raw-key: #0a5f57;
   --ok: #2f9e5f;
   --warn: #b3801c;
   --err: #cf4b41;
@@ -83,9 +86,10 @@
     --text: #e6ebf2;
     --muted: #8b95a5;
     --faint: #616c7c;
-    --accent: #3fb6a8;
-    --accent-ink: #8fe0d5;
-    --accent-wash: rgba(63, 182, 168, 0.12);
+    --accent: #4fa8e0;
+    --accent-ink: #a8d4f5;
+    --accent-wash: rgba(79, 168, 224, 0.12);
+    --raw-key: #8fe0d5;
     --ok: #5fb87a;
     --warn: #d9a441;
     --err: #e0685f;
@@ -114,9 +118,10 @@
   --text: #1b2430;
   --muted: #5b6879;
   --faint: #8996a6;
-  --accent: #0e9d8e;
-  --accent-ink: #0a5f57;
-  --accent-wash: rgba(14, 157, 142, 0.10);
+  --accent: #1479c9;
+  --accent-ink: #0b4f85;
+  --accent-wash: rgba(20, 121, 201, 0.10);
+  --raw-key: #0a5f57;
   --ok: #2f9e5f;
   --warn: #b3801c;
   --err: #cf4b41;
@@ -144,9 +149,10 @@
   --text: #e6ebf2;
   --muted: #8b95a5;
   --faint: #616c7c;
-  --accent: #3fb6a8;
-  --accent-ink: #8fe0d5;
-  --accent-wash: rgba(63, 182, 168, 0.12);
+  --accent: #4fa8e0;
+  --accent-ink: #a8d4f5;
+  --accent-wash: rgba(79, 168, 224, 0.12);
+  --raw-key: #8fe0d5;
   --ok: #5fb87a;
   --warn: #d9a441;
   --err: #e0685f;

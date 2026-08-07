@@ -234,7 +234,10 @@ export function WorkbenchShell({
   // ── Resize state (R15 — local only, same initial values as mockup) ─────────
   const [leftWidth, setLeftWidth] = useState(218);    // matches mockup .left { flex: 0 0 218px }
   const [rightWidth, setRightWidth] = useState(400);  // matches mockup .right { flex: 0 0 400px } (2026-08-06, was 340)
-  const [chatHeight, setChatHeight] = useState(240);  // matches mockup .center-bottom { flex: 0 0 240px }
+  const [chatHeight, setChatHeight] = useState(320);  // matches mockup .center-bottom { flex: 0 0 320px }
+  // Design review 2026-08-06 (plans/Design-Review-260806.md item 3): was 240 — chat
+  // is the primary way you act on an agent, but at 240px it read as a footnote under
+  // the Config zone. Taller default gives it visual weight closer to a peer panel.
 
   // onSectionsUpdated removed in Plan 08 Phase 3: sections no longer auto-apply
   // via chat — they come through Apply only, which already calls setAgent(data.agent)
@@ -348,13 +351,16 @@ export function WorkbenchShell({
             invert={true}
           />
 
-          {/* Chat panel — center-bottom */}
+          {/* Chat panel — center-bottom. Design review 2026-08-06 (item 3): accent
+              border marks it as the primary action surface, not a subordinate one —
+              distinct from the Config panel's agent-color border above (identity vs.
+              "this is where you act"). */}
           <Panel
             glyph="✦"
             label="AI Chat"
             role="agent-aware · edits sections in place"
             className="flex-none"
-            style={{ height: chatHeight }}
+            style={{ height: chatHeight, borderColor: 'var(--accent)' }}
           >
             {agent ? (
               <ChatPanel
@@ -393,6 +399,10 @@ export function WorkbenchShell({
               invert={true}
               min={200}
             />
+            {/* Design review 2026-08-06 (item 4): a touch of opacity so this panel reads
+                as secondary/reference next to the Config panel's full-contrast chrome —
+                it's the "read reference" copy of the same data, not a second primary view.
+                Theme-agnostic (unlike hand-picking a lighter border color per theme). */}
             <Panel
               glyph="≡"
               label="Raw agent"
@@ -400,7 +410,7 @@ export function WorkbenchShell({
               foldable
               foldDirection="right"
               onFold={() => setRightFolded(true)}
-              className="flex-none"
+              className="flex-none opacity-[.92]"
               style={{ width: rightWidth }}
             >
               {agent ? (

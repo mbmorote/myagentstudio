@@ -886,7 +886,7 @@ export function AgentView({
         className="group flex items-center gap-2 rounded-[8px] mx-[-6px] px-[6px] py-[4px] transition-colors hover:bg-[rgba(179,128,28,0.09)]"
       >
         <span
-          className="flex-none text-right text-[10px] text-[var(--faint)] w-[104px]"
+          className="flex-none text-right text-[10px] text-[var(--accent-ink)] opacity-80 w-[104px]"
           title={'hint' in def ? String(def.hint) : undefined}
         >
           {def.label}
@@ -1115,7 +1115,7 @@ export function AgentView({
         className="group flex items-start gap-2 rounded-[8px] mx-[-6px] px-[6px] py-[4px] transition-colors hover:bg-[rgba(179,128,28,0.09)]"
       >
         <span
-          className="flex-none text-right text-[10px] text-[var(--faint)] w-[104px] pt-[4px]"
+          className="flex-none text-right text-[10px] text-[var(--accent-ink)] opacity-80 w-[104px] pt-[4px]"
           title={'hint' in def ? String(def.hint) : undefined}
         >
           {isDisallowed && <span className="mr-[2px]">⊘</span>}
@@ -1539,7 +1539,8 @@ export function AgentView({
 
       {/* ── Agent header ─────────────────────────────────────────────────── */}
       <div className="flex items-start gap-3 mb-[14px]">
-        {/* Monogram avatar */}
+        {/* Monogram avatar — theme accent only; design review 2026-08-06 item 1
+            (tinting with the agent's own `color` config value) was reverted. */}
         <div className="w-[40px] h-[40px] rounded-[9px] bg-[var(--accent)] text-white flex-none grid place-items-center font-bold text-[17px]">
           {monogram(agent.name)}
         </div>
