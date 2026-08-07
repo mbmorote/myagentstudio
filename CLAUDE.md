@@ -178,10 +178,30 @@ follow these even though you have no memory of when they were agreed:
   **Phases 0–3 and 5 built and verified 2026-08-06.** Phase 4 (live LLM verification of the
   propose/apply flow against the real Anthropic API) is **deferred, folded into**
   `plans/roadmap.md` TODO's pre-deploy "big flow test" item rather than run as its own step.
+- **`plans/09-pre-launch-org-review.md`** — a three-track pre-deploy audit (docs accuracy,
+  code organization, test-suite structure), added 2026-08-06 at the user's request. Asks
+  "does this reflect/organize what it should," not "does it work" — that's the big flow
+  test's job, sequenced right after this one. Absorbs the earlier, narrower Plan 06 Phase 6
+  doc-sync gap as one of its findings. **Charter drafted, not yet run** — output is a findings
+  list per track, triaged afterward (trivial fixes inline, bigger ones become new roadmap
+  items), not a fix-everything mandate.
 - **`plans/Evaluation-260730.md`** — a point-in-time outside opinion on the idea and
   project (requested by the user, 2026-07-30), not a build plan. Verdict: strong idea,
   good architecture, but infrastructure (multi-tenant auth) has outpaced dogfooding the
   core loop, and "deploy online" sits too late in the TODO ordering.
+- **`plans/Design-Review-260806.md`** — a presentation-only UI/UX review of the running
+  workbench (typography, color system, layout/structure, overall feel), requested by the
+  user 2026-08-06. Same "outside opinion, not a build plan" role as `Evaluation-260730.md`,
+  but every recommendation was also implemented the same session (real app +
+  `Layout-Workbench.html`) with a per-item **Verdict** slot for the user to fill in on
+  review — nothing there is final until then.
+- **`plans/Branding-Design-Review-260806.md`** — a presentation-only branding/UI review
+  (typography, color system, layout/structure, branding integration, overall feel) for
+  roadmap TODO item 10 ("Company signature on the platform"), requested by the user
+  2026-08-06 against a fixed reviewer rubric. Analysis only, grounded in real file citations
+  — no code or mockup changes made; recommends a new footer strip + login/signup attribution
+  line as primary/secondary logo+copy placement, to be prototyped once an actual asset/company
+  name exists.
 - **`lib/ai/CLAUDE.md`** — the gateway architecture (single choke point, one-SDK-importer
   rule), the three AI callers, and build-time prompt compilation.
 - **`lib/import/CLAUDE.md`** — the import pipeline (Stage 1 deterministic split, Strict vs.

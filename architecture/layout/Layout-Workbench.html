@@ -495,6 +495,19 @@
         color:var(--faint);font-size:11px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
   .foot .chip{display:inline-flex;align-items:center;gap:6px}
   .foot .sw{width:9px;height:9px;border-radius:3px}
+  /* Branding placement demo (roadmap TODO item 10, plans/Branding-Design-Review-260806.md)
+     — folded into the EXISTING .foot legend row rather than a new strip, since the review
+     itself flagged how tight the workbench's vertical budget already is (center-bottom alone
+     grew 240→320px the same day for weight reasons); this adds the requested footer presence
+     at zero extra vertical cost. "ACME Corp" / the mark below are obviously-fake demo content
+     (same convention as this file's demo agent name) — placeholder for the real logo/company
+     name once they exist, per the review's own gating note. Neutral border color, not
+     var(--accent) — the review's color-system section explicitly recommends keeping a brand
+     mark's color local to itself, never wired to the functional accent token. */
+  .foot-brand{display:inline-flex;align-items:center;gap:7px;padding-left:16px;
+    border-left:1px solid var(--border)}
+  .foot-brand .mark{width:14px;height:14px;border-radius:3px;border:1.5px solid var(--faint);
+    flex:none}
 
   /* ── Import modal (Plan 08 doc-sync follow-up, 2026-08-06 — mockup had no import
      modal at all before this; built here first per standing rule 4 before the copy/
@@ -635,6 +648,7 @@
   <span class="chip"><span class="sw" style="background:var(--warn)"></span> ⚠ = outdated (unrecognized but well-formed)</span>
   <span class="chip"><span class="sw" style="background:var(--err)"></span> ✕ = invalid (structurally malformed)</span>
   <span class="chip" style="margin-left:auto;color:var(--faint)">drag any divider to resize · ⟨ ⟩ to fold side panels</span>
+  <span class="foot-brand"><span class="mark"></span> Produced by ACME Corp</span>
 </div>
 
 <!-- ================= content templates ================= -->
