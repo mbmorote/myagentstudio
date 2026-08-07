@@ -539,6 +539,37 @@
   .modal-btn-import{font:inherit;font-size:12px;font-weight:600;color:#fff;background:var(--accent);
     border:none;border-radius:7px;padding:7px 16px;cursor:pointer}
   .modal-btn-import:hover{filter:brightness(1.08)}
+
+  /* ── Settings modal (TODO item 6, 2026-08-06) — full-page /settings navigation
+     replaced with an overlay so ChatPanel's local message history survives opening
+     Settings. Content below is the SAME three stacked sections SettingsView.tsx
+     renders today (General / Invite codes / Activity log) — only the CONTAINER
+     changes here, not the internal layout. The sidebar-navigated internal redesign
+     is a separate, later item (roadmap NEXT #3) — deliberately not done in this pass. ── */
+  .modal-head-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .modal-close{flex:none;font:inherit;font-size:16px;line-height:1;color:var(--faint);
+    background:transparent;border:none;cursor:pointer;padding:2px 4px;margin-top:-2px}
+  .modal-close:hover{color:var(--text)}
+  .settings-modal .modal{width:760px}
+  .settings-modal .modal-body{gap:0;padding:0}
+  .set-section{padding:18px 22px;border-bottom:1px solid var(--border)}
+  .set-section:last-child{border-bottom:none}
+  .set-section h2{font-size:14px;font-weight:700;color:var(--text);margin:0 0 12px}
+  .set-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:8px 0;font-size:12px;color:var(--muted)}
+  .set-row .set-label{color:var(--text)}
+  .set-row .set-hint{display:block;font-size:10.5px;color:var(--faint);margin-top:2px}
+  .set-toggle{flex:none;width:34px;height:19px;border-radius:10px;background:var(--border);
+    position:relative;cursor:pointer}
+  .set-toggle.on{background:var(--accent)}
+  .set-toggle::after{content:'';position:absolute;top:2px;left:2px;width:15px;height:15px;
+    border-radius:50%;background:#fff;transition:left .12s}
+  .set-toggle.on::after{left:17px}
+  .set-table{width:100%;border-collapse:collapse;font-size:11.5px}
+  .set-table th{text-align:left;color:var(--faint);font-weight:600;text-transform:uppercase;
+    letter-spacing:.04em;font-size:9.5px;padding:4px 8px;border-bottom:1px solid var(--border)}
+  .set-table td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--text)}
+  .settings-trigger{margin-left:auto}
 </style>
 
 <!--
@@ -550,7 +581,11 @@
 -->
 <div class="topbar">
   <div class="brand"><span class="dot"></span> Agent Workbench</div>
-  <button class="theme" id="themeBtn" style="margin-left:auto">◐ Theme</button>
+  <!-- Settings modal trigger (roadmap TODO item 6, 2026-08-06) — was a <Link href="/settings">
+       full-page nav in the real app; now opens an overlay so the workbench (and ChatPanel's
+       message history) never unmounts. -->
+  <button class="theme settings-trigger" id="settingsTrigger" title="System Settings">⚙ System Settings</button>
+  <button class="theme" id="themeBtn">◐ Theme</button>
 </div>
 
 <div class="workbench" id="wb">
@@ -897,6 +932,60 @@ or any tool that modifies files — intentionally excluded.</pre>
     <div class="raw-zoom-title" id="rawZoomTitle">anthropic-test-agent-.md</div>
     <div class="raw-zoom-sub">Markdown · UTF‑8 · read reference</div>
     <div class="raw-zoom" id="rawlinesZoom"></div>
+  </div>
+</div>
+
+<!-- ── Settings modal ── mockup-only static content; same three sections
+     SettingsView.tsx already renders (General / Invite codes / Activity log),
+     just moved into an overlay instead of the /settings full-page route. -->
+<div class="modal-overlay settings-modal" id="settingsModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+    <div class="modal-head">
+      <div class="modal-head-row">
+        <div>
+          <div class="modal-title" id="settingsModalTitle">System Settings</div>
+          <div class="modal-desc">Admin-only. Closing this returns to the workbench exactly as you left it.</div>
+        </div>
+        <button class="modal-close" id="settingsModalClose" title="Close" aria-label="Close">✕</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="set-section">
+        <h2>Settings</h2>
+        <div class="set-row">
+          <span class="set-label">Live LLM calls
+            <span class="set-hint">When off, import and chat return mocked responses instead of calling the real API.</span>
+          </span>
+          <span class="set-toggle on"></span>
+        </div>
+        <div class="set-row">
+          <span class="set-label">Max users
+            <span class="set-hint">Invite-code signups are refused once this many accounts exist.</span>
+          </span>
+          <span style="color:var(--text)">5</span>
+        </div>
+      </div>
+      <div class="set-section">
+        <h2>Invite codes</h2>
+        <table class="set-table">
+          <thead><tr><th>Code</th><th>Status</th><th>Created</th></tr></thead>
+          <tbody>
+            <tr><td>7F3K-9QRT</td><td style="color:var(--ok)">unredeemed</td><td>2026-08-02</td></tr>
+            <tr><td>M1PZ-2LXA</td><td style="color:var(--faint)">redeemed</td><td>2026-07-30</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="set-section">
+        <h2>Activity log</h2>
+        <table class="set-table">
+          <thead><tr><th>User</th><th>Caller</th><th>Time</th></tr></thead>
+          <tbody>
+            <tr><td>you@example.com</td><td>chat</td><td>10:42</td></tr>
+            <tr><td>you@example.com</td><td>import-structural</td><td>09:58</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1892,10 +1981,19 @@ or any tool that modifies files — intentionally excluded.</pre>
   const importModal = document.getElementById('importModal');
   function openImportModal(){ importModal.hidden = false; }
   function closeImportModal(){ importModal.hidden = true; }
+
+  // ---------- Settings modal (roadmap TODO item 6, 2026-08-06) ----------
+  const settingsModal = document.getElementById('settingsModal');
+  function openSettingsModal(){ settingsModal.hidden = false; }
+  function closeSettingsModal(){ settingsModal.hidden = true; }
+
   document.addEventListener('click', function (e) {
     if (e.target.closest('#importAgentTrigger')) { openImportModal(); return; }
     if (e.target.closest('#importModalCancel')) { closeImportModal(); return; }
     if (e.target === importModal) { closeImportModal(); return; } // click on overlay backdrop
+    if (e.target.closest('#settingsTrigger')) { openSettingsModal(); return; }
+    if (e.target.closest('#settingsModalClose')) { closeSettingsModal(); return; }
+    if (e.target === settingsModal) { closeSettingsModal(); return; } // click on overlay backdrop
     if (e.target === document.getElementById('rawZoomModal')) { window.__closeRawZoom(); return; } // overlay backdrop
     const modeOpt = e.target.closest('.mode-opt');
     if (modeOpt) {

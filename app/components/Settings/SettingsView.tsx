@@ -26,13 +26,15 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import type { CallLogListItem, CallLogFull } from '@/lib/db/repository';
 import { apiFetch } from '@/lib/apiFetch';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
+// Exported (2026-08-06, TODO item 6) so SettingsModal.tsx can type its own
+// client-side fetch of the same shapes GET /api/settings and GET /api/llm-call-log
+// return — this component no longer assumes it's only ever fed by /settings/page.tsx.
 
-type SettingEntry = {
+export type SettingEntry = {
   key: string;
   label: string;
   hint: string;
@@ -47,8 +49,8 @@ type SettingEntry = {
 };
 
 // createdAt is serialized to ISO string for JSON transport; use Omit to replace the Date type.
-type LogListItem = Omit<CallLogListItem, 'createdAt'> & { createdAt: string };
-type LogFull = Omit<CallLogFull, 'createdAt'> & { createdAt: string };
+export type LogListItem = Omit<CallLogListItem, 'createdAt'> & { createdAt: string };
+export type LogFull = Omit<CallLogFull, 'createdAt'> & { createdAt: string };
 
 type FilterMode = 'all' | 'dry-run' | 'live';
 
@@ -65,6 +67,11 @@ interface SettingsViewProps {
   entries: LogListItem[];
   highlightId: string | null;
   highlightEntry: LogFull | null;
+  /** Set when rendered inside SettingsModal (2026-08-06, TODO item 6) — replaces the
+   *  "← Back to Workbench" link with a "Close" button, since there's no page to
+   *  navigate back from and the Dialog's own ✕ already sits top-right. Omitted
+   *  (undefined) on the full-page /settings route, which keeps the Link as before. */
+  onClose?: () => void;
 }
 
 // ── Derived status ─────────────────────────────────────────────────────────────
@@ -118,8 +125,8 @@ export function SettingsView({
   entries,
   highlightId,
   highlightEntry,
+  onClose,
 }: SettingsViewProps) {
-  const router = useRouter();
   const [localSettings, setLocalSettings] = useState<SettingEntry[]>(settings);
   const [filter, setFilter] = useState<FilterMode>('all');
   const [expandedId, setExpandedId] = useState<string | null>(highlightId);
@@ -181,8 +188,14 @@ export function SettingsView({
         );
         console.error('[settings] PATCH failed:', await res.text());
       } else {
-        // Refresh so the page shows the stored updatedAt
-        router.refresh();
+        // Apply the stored updatedAt from the response directly (2026-08-06 — was
+        // router.refresh(), which re-fetches whatever page currently hosts this
+        // component; harmless on /settings but wasteful/wrong once this also renders
+        // inside SettingsModal over an unrelated page).
+        const body = (await res.json()) as { updatedAt: string };
+        setLocalSettings((prev) =>
+          prev.map((s) => (s.key === key ? { ...s, updatedAt: body.updatedAt } : s)),
+        );
       }
     } catch (err) {
       // Revert on network error
@@ -221,7 +234,10 @@ export function SettingsView({
         );
         console.error('[settings] int PATCH failed:', await res.text());
       } else {
-        router.refresh();
+        const body = (await res.json()) as { updatedAt: string };
+        setLocalSettings((s) =>
+          s.map((entry) => (entry.key === key ? { ...entry, updatedAt: body.updatedAt } : entry)),
+        );
       }
     } catch (err) {
       setLocalSettings((s) =>
@@ -320,14 +336,25 @@ export function SettingsView({
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-8">
-      {/* Back link */}
+      {/* Back link (full-page /settings route) or Close button (SettingsModal, 2026-08-06) —
+          the modal's Dialog already has its own ✕ top-right, but a labeled Close reads
+          clearer than relying on that alone for a page-sized amount of content. */}
       <div>
-        <Link
-          href="/"
-          className="text-[13px] text-[var(--muted)] hover:text-[var(--text)] transition-colors"
-        >
-          ← Back to Workbench
-        </Link>
+        {onClose ? (
+          <button
+            onClick={onClose}
+            className="text-[13px] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
+          >
+            ← Close
+          </button>
+        ) : (
+          <Link
+            href="/"
+            className="text-[13px] text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+          >
+            ← Back to Workbench
+          </Link>
+        )}
       </div>
 
       {/* ── Settings panel ──────────────────────────────────────────────── */}
