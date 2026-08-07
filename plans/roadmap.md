@@ -535,6 +535,17 @@ free to reorder within this bucket.
     panel. Would need its own auth story (an MCP client isn't a browser session — API keys?
     OAuth?), and raises the same guardrail questions the chat mediator already answers (scope,
     tools, no-fabricated-headings) but for a client the platform doesn't control the prompt of.
+18. **Re-enable group behavior.** *(Added 2026-08-07 — group creation, the Library's
+    Agents/Grouped toggle, and drag-to-group were deferred pre-launch, not removed.)* Three
+    local flags, one flip each to restore: `GROUPS_ENABLED` in `WorkbenchShell.tsx` (makes the
+    "Agents"/"Grouped" header toggle clickable again), `GROUPS_ENABLED` in
+    `Library/LibraryPanel.tsx` (brings back "+ New group"), and `DRAG_ENABLED` in
+    `Library/AgentListItem.tsx` (restores the drag handle + `useDraggable`). `GroupSection.tsx`
+    and the group repository/API routes were never touched — nothing to rebuild, just
+    re-expose. Worth a quick real-usage check when re-enabled (does drag-and-drop still feel
+    right against whatever else changed in the interim) rather than assuming it's exactly as
+    it was.
+    tools, no-fabricated-headings) but for a client the platform doesn't control the prompt of.
 
 ## FUTURE — decided to build eventually, not prioritized
 

@@ -59,6 +59,11 @@ interface LibraryPanelProps {
   mode: 'flat' | 'grouped';
 }
 
+// Group behavior deferred 2026-08-07 at the user's request (pre-launch scope cut, alongside
+// WorkbenchShell's Agents/Grouped toggle and AgentListItem's drag-and-drop) — hides "+ New
+// group" entirely. Flip to true to re-enable.
+const GROUPS_ENABLED = false;
+
 export function LibraryPanel({
   currentAgentId,
   agents: initialAgents,
@@ -270,45 +275,47 @@ export function LibraryPanel({
         {/* Action rows, in this order: New agent, New group, Import agent */}
         <CreateAgentButton />
 
-        {showNewGroup ? (
-          <div className="px-3 py-2 space-y-2">
-            <input
-              autoFocus
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleCreateGroup();
-                if (e.key === 'Escape') { setShowNewGroup(false); setNewGroupError(null); }
-              }}
-              placeholder="Group name"
-              className="w-full border border-[var(--border)] rounded-[6px] px-2 py-1 text-[12px] bg-[var(--bg)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
-            />
-            {newGroupError && (
-              <p className="text-[11px] text-[var(--err)]">{newGroupError}</p>
-            )}
-            <div className="flex gap-2">
-              <button
-                onClick={handleCreateGroup}
-                disabled={creatingGroup}
-                className="flex-1 text-[11px] bg-[var(--accent)] text-white rounded-[6px] py-1 font-medium hover:opacity-90 disabled:opacity-50"
-              >
-                {creatingGroup ? 'Creating…' : 'Create group'}
-              </button>
-              <button
-                onClick={() => { setShowNewGroup(false); setNewGroupError(null); }}
-                className="text-[11px] text-[var(--muted)] hover:text-[var(--text)] px-2"
-              >
-                Cancel
-              </button>
+        {GROUPS_ENABLED && (
+          showNewGroup ? (
+            <div className="px-3 py-2 space-y-2">
+              <input
+                autoFocus
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreateGroup();
+                  if (e.key === 'Escape') { setShowNewGroup(false); setNewGroupError(null); }
+                }}
+                placeholder="Group name"
+                className="w-full border border-[var(--border)] rounded-[6px] px-2 py-1 text-[12px] bg-[var(--bg)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
+              />
+              {newGroupError && (
+                <p className="text-[11px] text-[var(--err)]">{newGroupError}</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCreateGroup}
+                  disabled={creatingGroup}
+                  className="flex-1 text-[11px] bg-[var(--accent)] text-white rounded-[6px] py-1 font-medium hover:opacity-90 disabled:opacity-50"
+                >
+                  {creatingGroup ? 'Creating…' : 'Create group'}
+                </button>
+                <button
+                  onClick={() => { setShowNewGroup(false); setNewGroupError(null); }}
+                  className="text-[11px] text-[var(--muted)] hover:text-[var(--text)] px-2"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div
-            onClick={() => setShowNewGroup(true)}
-            className="flex items-center gap-[7px] px-3 py-[7px] text-[var(--muted)] cursor-pointer text-[12px] hover:text-[var(--text)]"
-          >
-            ＋ New group
-          </div>
+          ) : (
+            <div
+              onClick={() => setShowNewGroup(true)}
+              className="flex items-center gap-[7px] px-3 py-[7px] text-[var(--muted)] cursor-pointer text-[12px] hover:text-[var(--text)]"
+            >
+              ＋ New group
+            </div>
+          )
         )}
 
         <ImportButton />

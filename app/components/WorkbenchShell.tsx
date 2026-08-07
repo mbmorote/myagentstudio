@@ -229,6 +229,10 @@ export function WorkbenchShell({
   // the Panel header's `role` slot, which only WorkbenchShell renders — LibraryPanel
   // only owns the panel body. Default is "Agents" (flat); independent of selection —
   // picking an agent never force-switches the view to Grouped.
+  // Group behavior deferred 2026-08-07 at the user's request (pre-launch scope cut,
+  // alongside LibraryPanel's "+ New group" and AgentListItem's drag-and-drop) — the
+  // toggle is inert while this is false; flip to true to re-enable switching to Grouped.
+  const GROUPS_ENABLED = false;
   const [libraryMode, setLibraryMode] = useState<'flat' | 'grouped'>('flat');
 
   // ── Resize state (R15 — local only, same initial values as mockup) ─────────
@@ -262,13 +266,17 @@ export function WorkbenchShell({
               glyph="▤"
               label="Library"
               role={
-                <span
-                  onClick={() => setLibraryMode((m) => (m === 'flat' ? 'grouped' : 'flat'))}
-                  title="Click to switch between Agents (flat) and Grouped view"
-                  className="cursor-pointer font-bold text-[var(--accent-ink)] hover:underline"
-                >
-                  {libraryMode === 'flat' ? 'Agents' : 'Grouped'}
-                </span>
+                GROUPS_ENABLED ? (
+                  <span
+                    onClick={() => setLibraryMode((m) => (m === 'flat' ? 'grouped' : 'flat'))}
+                    title="Click to switch between Agents (flat) and Grouped view"
+                    className="cursor-pointer font-bold text-[var(--accent-ink)] hover:underline"
+                  >
+                    {libraryMode === 'flat' ? 'Agents' : 'Grouped'}
+                  </span>
+                ) : (
+                  <span className="font-bold text-[var(--accent-ink)]">Agents</span>
+                )
               }
               foldable
               foldDirection="left"

@@ -23,6 +23,12 @@ import { useDraggable } from '@dnd-kit/core';
 import type { AgentLiteDTO } from '@/lib/db/repository';
 import { apiFetch } from '@/lib/apiFetch';
 
+// Drag-to-group deferred 2026-08-07 at the user's request (pre-launch scope cut, alongside
+// group creation and the Grouped view toggle) — the drag handle is hidden and dnd-kit's own
+// `disabled` option stops a drag from starting even if something else still triggers it.
+// Flip to true to re-enable.
+const DRAG_ENABLED = false;
+
 function monogram(name: string): string {
   const parts = name.trim().split(/[\s_-]+/);
   if (parts.length >= 2 && parts[0] && parts[1]) {
@@ -52,6 +58,7 @@ export function AgentListItem({
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: agent.id,
     data: { agentId: agent.id },
+    disabled: !DRAG_ENABLED,
   });
 
   async function handleDelete(e: React.MouseEvent) {
@@ -100,15 +107,17 @@ export function AgentListItem({
           : 'hover:bg-[var(--bg)]'
       } ${isDragging ? 'opacity-50' : ''}`}
     >
-      {/* Drag handle */}
-      <span
-        {...listeners}
-        {...attributes}
-        className="cursor-grab active:cursor-grabbing text-[var(--faint)] text-[10px] flex-none select-none"
-        title="Drag to add to group"
-      >
-        ⠿
-      </span>
+      {/* Drag handle — hidden while DRAG_ENABLED is false, see top of file */}
+      {DRAG_ENABLED && (
+        <span
+          {...listeners}
+          {...attributes}
+          className="cursor-grab active:cursor-grabbing text-[var(--faint)] text-[10px] flex-none select-none"
+          title="Drag to add to group"
+        >
+          ⠿
+        </span>
+      )}
 
       {/* Monogram avatar — .av */}
       <Link href={`/agents/${agent.id}`} className="contents">
