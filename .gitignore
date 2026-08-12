@@ -36,3 +36,24 @@ Thumbs.db
 # Local test/eval scratch — import fixtures and ad hoc outside-review docs, not project source
 ImportTestAgent/
 architecture/audits/
+
+# Ad hoc comparison-export .md files the user drops in the golden-fixtures folder
+# for manual diffing against a live agent (e.g. Trainer.md, 2026-08-12) — not part
+# of the tracked fixture set. Ignore everything in the directory, then re-allow
+# exactly the 15 real golden fixtures golden.test.ts actually reads.
+lib/serialize/__tests__/fixtures/*
+!lib/serialize/__tests__/fixtures/ada.md
+!lib/serialize/__tests__/fixtures/analyst.md
+!lib/serialize/__tests__/fixtures/architect.md
+!lib/serialize/__tests__/fixtures/aria.md
+!lib/serialize/__tests__/fixtures/codeauditor.md
+!lib/serialize/__tests__/fixtures/datasync.md
+!lib/serialize/__tests__/fixtures/dev.md
+!lib/serialize/__tests__/fixtures/impact.md
+!lib/serialize/__tests__/fixtures/mobile.md
+!lib/serialize/__tests__/fixtures/notion.md
+!lib/serialize/__tests__/fixtures/orchestrator.md
+!lib/serialize/__tests__/fixtures/qa.md
+!lib/serialize/__tests__/fixtures/scribe.md
+!lib/serialize/__tests__/fixtures/ux.md
+!lib/serialize/__tests__/fixtures/zara.md
