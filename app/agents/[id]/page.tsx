@@ -22,7 +22,7 @@
  */
 
 import { notFound } from 'next/navigation';
-import { getAgentFull, listAgents, listGroups, getConfigCatalog } from '@/lib/db/repository';
+import { getAgentFull, listAgents, listGroups, getConfigCatalog, getSectionCatalog } from '@/lib/db/repository';
 import { WorkbenchShell } from '@/app/components/WorkbenchShell';
 import type { AgentDTO } from '@/lib/db/repository';
 import { requirePageSession } from '@/lib/auth/session';
@@ -41,6 +41,7 @@ export default async function AgentPage({ params }: AgentPageProps) {
   const agents = listAgents(session.userId);
   const groups = listGroups(session.userId);
   const configCatalog = getConfigCatalog();
+  const sectionCatalog = getSectionCatalog(agent.platform);
 
   return (
     <WorkbenchShell
@@ -49,6 +50,7 @@ export default async function AgentPage({ params }: AgentPageProps) {
       agents={agents}
       groups={groups}
       configCatalog={configCatalog}
+      sectionCatalog={sectionCatalog}
       session={session}
     />
   );

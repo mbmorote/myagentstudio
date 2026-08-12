@@ -412,6 +412,113 @@ export function updateSectionContent(
   return { version: newVersion };
 }
 
+/**
+ * Adds a new section to an agent — manual add via the structured view (D3, TODO item 1's
+ * non-chat half). Not exposed to chat/Prometheus; that stays deferred (roadmap TODO #1).
+ *
+ * Appended at the end (order = current max + 1, or 0 if this is the agent's first
+ * section) — the caller decides sectionKey/heading/content; this function doesn't
+ * validate against the blueprint catalog (that's a route/UI concern, same separation
+ * as updateSectionContent not validating content against datatype/allowedValues —
+ * Rules Index #76, "never block").
+ *
+ * Revision #0 is author:'user' (a human created this row directly, not import/
+ * scaffold/ai) — same D5 reasoning that gives platform-scaffolded sections
+ * author:'scaffold' instead.
+ */
+export function addSection(
+  agentId: string,
+  ownerId: string,
+  input: { sectionKey: string; heading: string | null; content: string },
+): { id: string; order: number; version: number } {
+  const agent = db
+    .select({ id: schema.agent.id })
+    .from(schema.agent)
+    .where(and(eq(schema.agent.id, agentId), eq(schema.agent.ownerId, ownerId)))
+    .get();
+
+  if (!agent) {
+    throw new SectionNotFoundError(agentId);
+  }
+
+  const existingOrders = db
+    .select({ order: schema.agentSection.order })
+    .from(schema.agentSection)
+    .where(eq(schema.agentSection.agentId, agentId))
+    .all();
+
+  const nextOrder = existingOrders.length > 0
+    ? Math.max(...existingOrders.map((s) => s.order)) + 1
+    : 0;
+
+  const sectionId = crypto.randomUUID();
+
+  db.transaction((tx) => {
+    tx.insert(schema.agentSection).values({
+      id: sectionId,
+      agentId,
+      sectionKey: input.sectionKey,
+      heading: input.heading,
+      content: input.content,
+      order: nextOrder,
+      version: 0,
+    }).run();
+
+    tx.insert(schema.sectionRevision).values({
+      id: crypto.randomUUID(),
+      sectionId,
+      content: input.content,
+      author: 'user',
+    }).run();
+
+    tx.update(schema.agent).set({ updatedAt: new Date() }).where(eq(schema.agent.id, agentId)).run();
+  });
+
+  return { id: sectionId, order: nextOrder, version: 0 };
+}
+
+/**
+ * Deletes a section — manual remove via the structured view (D3, TODO item 1's
+ * non-chat half). Not exposed to chat/Prometheus.
+ *
+ * SectionRevision rows are NOT cascade-deleted (rule 4, same as every other deletion
+ * path in this file) — history outlives the row. Whether a *core* section should be
+ * blockable from deletion is a policy/product decision, deliberately left to the
+ * caller (route layer) — this function performs the mutation, same separation
+ * updateSectionContent already draws between mechanism and policy.
+ */
+export function deleteSection(agentId: string, sectionId: string, ownerId: string): void {
+  const section = db
+    .select()
+    .from(schema.agentSection)
+    .where(eq(schema.agentSection.id, sectionId))
+    .get();
+
+  if (!section) {
+    throw new SectionNotFoundError(sectionId);
+  }
+
+  // §6.4: All three must agree — section.id, section.agentId, agent.ownerId
+  if (section.agentId !== agentId) {
+    throw new SectionNotFoundError(sectionId);
+  }
+
+  const agentRow = db
+    .select({ ownerId: schema.agent.ownerId })
+    .from(schema.agent)
+    .where(and(eq(schema.agent.id, agentId), eq(schema.agent.ownerId, ownerId)))
+    .get();
+
+  if (!agentRow) {
+    throw new SectionNotFoundError(sectionId);
+  }
+
+  db.transaction((tx) => {
+    tx.delete(schema.agentSection).where(eq(schema.agentSection.id, sectionId)).run();
+    tx.update(schema.agent).set({ updatedAt: new Date() }).where(eq(schema.agent.id, agentId)).run();
+  });
+}
+
 // ─────────────────────────────  Upsert (import)  ──────────────────────────
 
 export type ImportedAgentData = {

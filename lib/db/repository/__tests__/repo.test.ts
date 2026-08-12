@@ -41,8 +41,11 @@ import {
   getAgentFull,
   deleteAgent,
   updateSectionContent,
+  addSection,
+  deleteSection,
   upsertAgentFromImport,
   VersionConflictError,
+  SectionNotFoundError,
 } from '../agents.js';
 
 import { getConfigDefs, getSectionDefs } from '../catalog.js';
@@ -237,6 +240,92 @@ describe('updateSectionContent', () => {
       .all();
 
     expect(after.length).toBe(before.length);
+  });
+});
+
+describe('addSection', () => {
+  it('creates a new section appended after the existing ones, with author:user revision #0', () => {
+    const dto = createAgent(owner.id, 'add-section-agent', 'Testing manual section add');
+    const maxExistingOrder = Math.max(...dto.sections.map((s) => s.order));
+
+    const result = addSection(dto.id, owner.id, {
+      sectionKey: 'sources',
+      heading: '# SOURCES',
+      content: 'Files it reads.',
+    });
+
+    expect(result.order).toBe(maxExistingOrder + 1);
+    expect(result.version).toBe(0);
+
+    const row = testDb
+      .select()
+      .from(schema.agentSection)
+      .where(eq(schema.agentSection.id, result.id))
+      .get();
+    expect(row?.sectionKey).toBe('sources');
+    expect(row?.heading).toBe('# SOURCES');
+    expect(row?.content).toBe('Files it reads.');
+    expect(row?.order).toBe(maxExistingOrder + 1);
+
+    const revisions = testDb
+      .select()
+      .from(schema.sectionRevision)
+      .where(eq(schema.sectionRevision.sectionId, result.id))
+      .all();
+    expect(revisions.length).toBe(1);
+    expect(revisions[0].author).toBe('user');
+    expect(revisions[0].content).toBe('Files it reads.');
+  });
+
+  it('throws SectionNotFoundError for a nonexistent or not-owned agent', () => {
+    const dto = createAgent(owner.id, 'add-section-owner-check-agent', 'Testing ownership');
+    const otherOwner = createTestUser('user');
+
+    expect(() =>
+      addSection(dto.id, otherOwner.id, { sectionKey: 'sources', heading: null, content: 'x' }),
+    ).toThrow(SectionNotFoundError);
+    expect(() =>
+      addSection('not-a-real-agent-id', owner.id, { sectionKey: 'sources', heading: null, content: 'x' }),
+    ).toThrow(SectionNotFoundError);
+  });
+});
+
+describe('deleteSection', () => {
+  it('removes the section row but retains its SectionRevision rows (rule 4)', () => {
+    const dto = createAgent(owner.id, 'delete-section-agent', 'Testing manual section delete');
+    const added = addSection(dto.id, owner.id, {
+      sectionKey: 'sources',
+      heading: '# SOURCES',
+      content: 'Files it reads.',
+    });
+
+    deleteSection(dto.id, added.id, owner.id);
+
+    const row = testDb
+      .select()
+      .from(schema.agentSection)
+      .where(eq(schema.agentSection.id, added.id))
+      .get();
+    expect(row).toBeUndefined();
+
+    const revisions = testDb
+      .select()
+      .from(schema.sectionRevision)
+      .where(eq(schema.sectionRevision.sectionId, added.id))
+      .all();
+    expect(revisions.length).toBe(1); // the add's own revision, retained
+  });
+
+  it('throws SectionNotFoundError for wrong owner, cross-agent sectionId, or nonexistent section', () => {
+    const dto = createAgent(owner.id, 'delete-section-owner-check-agent', 'Testing ownership');
+    const otherDto = createAgent(owner.id, 'delete-section-other-agent', 'A different agent');
+    const otherOwner = createTestUser('user');
+    const section = dto.sections[0];
+
+    expect(() => deleteSection(dto.id, section.id, otherOwner.id)).toThrow(SectionNotFoundError);
+    // sectionId belongs to a different agent than the one named
+    expect(() => deleteSection(otherDto.id, section.id, owner.id)).toThrow(SectionNotFoundError);
+    expect(() => deleteSection(dto.id, 'not-a-real-section-id', owner.id)).toThrow(SectionNotFoundError);
   });
 });
 

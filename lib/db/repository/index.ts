@@ -12,6 +12,8 @@ export {
   getAgentSnapshotInfo,
   listAgents,
   updateSectionContent,
+  addSection,
+  deleteSection,
   updateAgent,
   upsertAgentFromImport,
   deleteAgent,
@@ -28,7 +30,7 @@ export type {
   ImportedAgentData,
 } from './agents.js';
 
-export { getConfigDefs, getSectionDefs, getConfigCatalog } from './catalog.js';
+export { getConfigDefs, getSectionDefs, getConfigCatalog, getSectionCatalog } from './catalog.js';
 export type { ConfigDefRow, SectionDefRow } from './catalog.js';
 
 export { createGroup, listGroups, deleteGroup, addMembership, removeMembership } from './groups.js';

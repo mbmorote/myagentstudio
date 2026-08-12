@@ -17,7 +17,7 @@
  */
 
 import { redirect } from 'next/navigation';
-import { listAgents, listGroups, getConfigCatalog } from '@/lib/db/repository';
+import { listAgents, listGroups, getConfigCatalog, getSectionCatalog } from '@/lib/db/repository';
 import { requirePageSession } from '@/lib/auth/session';
 import { WorkbenchShell } from '@/app/components/WorkbenchShell';
 
@@ -28,6 +28,7 @@ export default async function Home() {
   if (agents.length === 0) {
     const groups = listGroups(session.userId);
     const configCatalog = getConfigCatalog();
+    const sectionCatalog = getSectionCatalog();
 
     return (
       <WorkbenchShell
@@ -35,6 +36,7 @@ export default async function Home() {
         agents={agents}
         groups={groups}
         configCatalog={configCatalog}
+        sectionCatalog={sectionCatalog}
         session={session}
       />
     );

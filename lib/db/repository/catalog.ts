@@ -10,7 +10,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../client.js';
 import * as schema from '../schema.js';
-import type { ConfigDefLite } from './agents.js';
+import type { ConfigDefLite, SectionDefLite } from './agents.js';
 
 export function getConfigDefs() {
   return db.select().from(schema.configDef).orderBy(schema.configDef.id).all();
@@ -56,5 +56,23 @@ export function getConfigCatalog(): ConfigDefLite[] {
     isCore: def.isCore ?? false,
     exportable: def.exportable ?? true,
     hint: def.hint ?? null,
+  }));
+}
+
+/**
+ * The full section catalog for one platform (all sections, not just ones present on a
+ * given agent), mapped to the same SectionDefLite shape AgentDTO.sections[].def already
+ * uses. Same purpose as getConfigCatalog() above — lets AgentView.tsx's "+ Add section"
+ * menu (roadmap TODO item 1's non-chat half) list which catalog sections the agent
+ * doesn't have yet, fresh from the DB on every page load.
+ */
+export function getSectionCatalog(platform: string = 'claude'): SectionDefLite[] {
+  return getSectionDefs(platform).map((def) => ({
+    key: def.key,
+    defaultHeading: def.defaultHeading,
+    isCore: def.isCore ?? false,
+    defaultOrder: def.defaultOrder,
+    template: def.template,
+    helpText: def.helpText,
   }));
 }

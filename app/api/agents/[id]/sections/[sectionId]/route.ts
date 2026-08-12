@@ -18,10 +18,23 @@
  *   - Split-level demotion for manual edits (rule 6) is NOT enforced server-side here
  *     (the interaction lock ensures this is a human choice, not a mediator output);
  *     the client is responsible for the heading guardrail in raw-edit mode.
+ *
+ * DELETE /api/agents/[id]/sections/[sectionId]
+ *   Manual remove via the structured view (roadmap TODO item 1's non-chat half).
+ *   A core section cannot be deleted — checked here (policy), not in the repository
+ *   function (mechanism) — same separation updateSectionContent already draws.
+ *   Response: 204 on success.
+ *   Errors: 401 unauthorized; 400 cannot_delete_core_section; 404 not found or not owned.
  */
 
 import { NextResponse } from 'next/server';
-import { updateSectionContent, VersionConflictError, SectionNotFoundError } from '@/lib/db/repository';
+import {
+  updateSectionContent,
+  deleteSection,
+  getAgentFull,
+  VersionConflictError,
+  SectionNotFoundError,
+} from '@/lib/db/repository';
 import { authenticate } from '@/lib/auth/guard';
 
 type RouteContext = { params: Promise<{ id: string; sectionId: string }> };
@@ -72,6 +85,41 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
       return NextResponse.json({ error: 'not_found' }, { status: 404 });
     }
     console.error('[PATCH /api/agents/[id]/sections/[sectionId]] Unexpected error:', String(err));
+    return NextResponse.json({ error: 'internal' }, { status: 500 });
+  }
+}
+
+export async function DELETE(_request: Request, { params }: RouteContext): Promise<NextResponse> {
+  const auth = await authenticate();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
+  const { id: agentId, sectionId } = await params;
+
+  // Load first — need the section's def.isCore for the policy check below, and this
+  // also gives us the ownership check for free (getAgentFull returns null if not owned).
+  const agent = getAgentFull(agentId, session.userId);
+  if (!agent) {
+    return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  }
+
+  const section = agent.sections.find((s) => s.id === sectionId);
+  if (!section) {
+    return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  }
+
+  if (section.def?.isCore) {
+    return NextResponse.json({ error: 'cannot_delete_core_section' }, { status: 400 });
+  }
+
+  try {
+    deleteSection(agentId, sectionId, session.userId);
+    return new NextResponse(null, { status: 204 });
+  } catch (err) {
+    if (err instanceof SectionNotFoundError) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404 });
+    }
+    console.error('[DELETE /api/agents/[id]/sections/[sectionId]] Unexpected error:', String(err));
     return NextResponse.json({ error: 'internal' }, { status: 500 });
   }
 }

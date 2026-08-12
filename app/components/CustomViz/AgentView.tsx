@@ -58,7 +58,7 @@
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import type { AgentDTO, GroupDTO, ConfigDefLite } from '@/lib/db/repository';
+import type { AgentDTO, GroupDTO, ConfigDefLite, SectionDefLite } from '@/lib/db/repository';
 import type { InteractionLock, CitedItem } from '@/app/components/WorkbenchShell';
 import { SectionBlock, sectionDisplayLabel } from '@/app/components/CustomViz/SectionBlock';
 import { apiFetch } from '@/lib/apiFetch';
@@ -221,6 +221,9 @@ interface AgentViewProps {
   groups: GroupDTO[];
   /** Full config catalog, loaded fresh from the DB per page request (2026-07-29). */
   configCatalog: ConfigDefLite[];
+  /** Full section catalog for this agent's platform, same freshness as configCatalog —
+   *  powers the "+ Add section" menu (roadmap TODO item 1's non-chat half). */
+  sectionCatalog: SectionDefLite[];
   interactionLock: InteractionLock;
   /** Sections/config blocks currently cited for chat (2026-07-31, frontend-only). */
   citedItems: CitedItem[];
@@ -239,6 +242,7 @@ export function AgentView({
   agent,
   groups,
   configCatalog,
+  sectionCatalog,
   interactionLock,
   citedItems,
   onToggleCite,
@@ -288,6 +292,10 @@ export function AgentView({
   const unsetCatalogKeys = configCatalog.filter(
     (d) => !setKeys.has(d.key) && d.key !== 'model' && d.key !== 'effort',
   );
+
+  // Catalog sections not yet present on this agent (for the "+ Add section" menu)
+  const setSectionKeys = new Set(agent.sections.map((s) => s.sectionKey));
+  const unsetSectionCatalog = sectionCatalog.filter((d) => !setSectionKeys.has(d.key));
 
   // ── Interaction lock ──────────────────────────────────────────────────────
   // Extended in Plan 08 Phase 2 to also block on 'proposal' — closes the pre-existing
@@ -341,9 +349,11 @@ export function AgentView({
   const [keysCollapsed, setKeysCollapsed] = useState(false);
   const [sectionsCollapsed, setSectionsCollapsed] = useState(false);
   const [addKeyMenuOpen, setAddKeyMenuOpen] = useState(false);
+  const [addSectionMenuOpen, setAddSectionMenuOpen] = useState(false);
 
   // ── Config save state ─────────────────────────────────────────────────────
   const [configError, setConfigError] = useState<string | null>(null);
+  const [sectionError, setSectionError] = useState<string | null>(null);
 
   // ── Cross-editor coordination ref (passed to every SectionBlock) ──────────
   const resolveEditorRef = useRef<(() => void) | null>(null);
@@ -476,6 +486,17 @@ export function AgentView({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [addKeyMenuOpen]);
+
+  // Close add-section menu on outside click (same pattern as add-key menu above)
+  useEffect(() => {
+    if (!addSectionMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      const el = document.querySelector('[data-addsection-anchor]');
+      if (el && !el.contains(e.target as Node)) setAddSectionMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [addSectionMenuOpen]);
 
   // ── Config editor resolution helpers ─────────────────────────────────────
 
@@ -732,6 +753,75 @@ export function AgentView({
       return;
     }
     void saveConfig([...currentConfigPairs(), { propKey: name, value: {} }]);
+  }
+
+  // ── Add / remove section (roadmap TODO item 1's non-chat half, 2026-08-07) ──
+  // Chat-driven section add/delete stays deferred; this is the manual, structured-
+  // view path only — POST/DELETE /api/agents/[id]/sections[/[sectionId]].
+
+  async function addSectionFromCatalog(def: SectionDefLite): Promise<void> {
+    if (!canEdit) return;
+    setAddSectionMenuOpen(false);
+    setSectionError(null);
+    try {
+      const res = await apiFetch(`/api/agents/${agent.id}/sections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sectionKey: def.key, heading: def.defaultHeading, content: def.template }),
+      });
+      if (res.ok) {
+        const { agent: updated } = (await res.json()) as { agent: AgentDTO };
+        onAgentUpdated(updated);
+      } else {
+        setSectionError('Could not add the section. Please try again.');
+      }
+    } catch {
+      setSectionError('Network error. Please try again.');
+    }
+  }
+
+  /** "+ custom section…" — a genuinely nonstandard section, not in sectionCatalog at
+   *  all. Mirrors addCustomKey's config-side counterpart: sectionKey becomes 'custom'
+   *  (same key Daedalus/Hermes give an unmatched heading), heading is the user's own
+   *  text, content starts empty. */
+  async function addCustomSection(): Promise<void> {
+    if (!canEdit) return;
+    setAddSectionMenuOpen(false);
+    const raw = window.prompt('Section heading (e.g. "# MISSION"):');
+    const heading = raw?.trim();
+    if (!heading) return;
+    setSectionError(null);
+    try {
+      const res = await apiFetch(`/api/agents/${agent.id}/sections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sectionKey: 'custom', heading, content: '' }),
+      });
+      if (res.ok) {
+        const { agent: updated } = (await res.json()) as { agent: AgentDTO };
+        onAgentUpdated(updated);
+      } else {
+        setSectionError('Could not add the section. Please try again.');
+      }
+    } catch {
+      setSectionError('Network error. Please try again.');
+    }
+  }
+
+  async function removeSection(sectionId: string): Promise<void> {
+    setSectionError(null);
+    try {
+      const res = await apiFetch(`/api/agents/${agent.id}/sections/${sectionId}`, { method: 'DELETE' });
+      if (res.ok) {
+        onAgentUpdated({ ...agent, sections: agent.sections.filter((s) => s.id !== sectionId) });
+      } else if (res.status === 400) {
+        window.alert('Core sections cannot be removed.');
+      } else {
+        setSectionError('Could not remove the section. Please try again.');
+      }
+    } catch {
+      setSectionError('Network error. Please try again.');
+    }
   }
 
   // ── Custom JSON block ────────────────────────────────────────────────────
@@ -1587,6 +1677,55 @@ export function AgentView({
     );
   }
 
+  // ── Render: add-section "+" button and menu (mirrors renderAddKeyButton above) ──
+  function renderAddSectionButton() {
+    return (
+      <span data-addsection-anchor className="relative inline-block ml-[6px]">
+        <button
+          type="button"
+          disabled={!canEdit}
+          title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : 'Add a section'}
+          onClick={(e) => { e.stopPropagation(); setAddSectionMenuOpen((v) => !v); }}
+          className="w-[16px] h-[16px] rounded-[5px] border border-[var(--border)] bg-[var(--elev)] text-[var(--faint)] text-[12px] font-bold grid place-items-center cursor-pointer hover:text-[var(--text)] hover:border-[var(--text)] p-0 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          +
+        </button>
+        {addSectionMenuOpen && (
+          <div
+            className="absolute z-30 top-full left-0 mt-[4px] min-w-[200px] bg-[var(--elev)] border border-[var(--border)] rounded-[10px] shadow-[0_10px_30px_rgba(0,0,0,.18)] overflow-hidden py-[4px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {unsetSectionCatalog.length ? (
+              unsetSectionCatalog.map((d) => (
+                <button
+                  key={d.key}
+                  type="button"
+                  onClick={() => void addSectionFromCatalog(d)}
+                  className="flex items-center gap-[6px] w-full px-[12px] py-[7px] text-[12px] font-sans text-[var(--text)] hover:bg-[var(--accent-wash)] cursor-pointer text-left"
+                >
+                  {d.defaultHeading.replace(/^#+\s*/, '')}
+                </button>
+              ))
+            ) : (
+              <div className="px-[12px] py-[10px] text-[11.5px] text-[var(--faint)] italic">
+                All catalog sections are present
+              </div>
+            )}
+            {/* "+ custom section…" — mirrors "+ custom key…" above: a genuinely
+                nonstandard section (unknown to sectionCatalog) should still be addable. */}
+            <button
+              type="button"
+              onClick={() => void addCustomSection()}
+              className="flex items-center gap-[6px] w-full px-[12px] py-[7px] text-[12px] font-sans text-[var(--text)] hover:bg-[var(--accent-wash)] cursor-pointer text-left border-t border-[var(--border)]"
+            >
+              + custom section…
+            </button>
+          </div>
+        )}
+      </span>
+    );
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="p-[14px_16px_20px] space-y-0">
@@ -1722,8 +1861,13 @@ export function AgentView({
           </span>
           Body
           <span className="text-[var(--faint)] text-[9px]">{sectionsCollapsed ? '▸' : '▾'}</span>
+          {renderAddSectionButton()}
           <span className="flex-1 h-px bg-[var(--border)]" />
         </div>
+
+        {sectionError && (
+          <p className="mb-[9px] text-[11px] text-[var(--err)]">{sectionError}</p>
+        )}
 
         {!sectionsCollapsed && (
           <div className="space-y-[9px]">
@@ -1746,6 +1890,7 @@ export function AgentView({
                 onSaved={(content, newVersion) =>
                   onSectionSaved(section.id, content, newVersion)
                 }
+                onRemove={() => void removeSection(section.id)}
               />
             ))}
           </div>

@@ -70,6 +70,9 @@ interface SectionBlockProps {
   isCited: boolean;
   /** Click (replace-select) / Ctrl-click (add-to-selection) toggles citation. */
   onToggleCite: (additive: boolean) => void;
+  /** Manual remove via the structured view (roadmap TODO item 1's non-chat half).
+   *  Not shown for core sections — see the hover-reveal button below. */
+  onRemove: () => void;
 }
 
 export function SectionBlock({
@@ -82,6 +85,7 @@ export function SectionBlock({
   resolveEditorRef,
   isCited,
   onToggleCite,
+  onRemove,
 }: SectionBlockProps) {
   // R14: chevron expand/collapse, default expanded, local state only (R15)
   const [expanded, setExpanded] = useState(true);
@@ -279,18 +283,33 @@ export function SectionBlock({
             </button>
           </span>
         ) : (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!expanded) setExpanded(true);
-              handleEditToggle();
-            }}
-            disabled={!canEdit}
-            title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress — raw edit disabled') : 'Edit raw content'}
-            className="ml-2 rounded px-2 py-0.5 text-[11px] text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Edit
-          </button>
+          <span onClick={(e) => e.stopPropagation()} className="ml-2 flex items-center gap-[6px]">
+            <button
+              onClick={() => {
+                if (!expanded) setExpanded(true);
+                handleEditToggle();
+              }}
+              disabled={!canEdit}
+              title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress — raw edit disabled') : 'Edit raw content'}
+              className="rounded px-2 py-0.5 text-[11px] text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Edit
+            </button>
+            {/* Remove (roadmap TODO item 1's non-chat half, 2026-08-07) — core sections
+                can't be removed; mirrors the config zone's Remove-key convention. */}
+            {!isCore && (
+              <button
+                onClick={() => {
+                  if (window.confirm(`Remove ${sectionLabel} from this agent?`)) onRemove();
+                }}
+                disabled={!canEdit}
+                title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : `Remove ${sectionLabel}`}
+                className="rounded px-2 py-0.5 text-[11px] text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--err)] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Remove
+              </button>
+            )}
+          </span>
         )}
       </div>
 

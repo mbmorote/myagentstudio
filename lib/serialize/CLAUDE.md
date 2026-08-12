@@ -33,15 +33,7 @@ Splits the body text at the **shallowest heading level actually present** in the
 
 Returns `{splitLevel, blocks}`.
 
-The composed result is a `StructuredAgent`:
-
-```ts
-{
-  frontmatter: { key: string; rawValue: string | string[] }[];
-  splitLevel: number;
-  blocks: { blockId: string; heading: string | null; content: string; order: number }[];
-}
-```
+The composed result is a `StructuredAgent` (`frontmatter`, `splitLevel`, `blocks` — exact shape in `types.ts`).
 
 ## exportAgent(structured) → string
 

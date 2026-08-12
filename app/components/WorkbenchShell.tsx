@@ -25,7 +25,7 @@
  */
 
 import { useState, useCallback, useEffect, useSyncExternalStore } from 'react';
-import type { AgentDTO, AgentLiteDTO, GroupDTO, ConfigDefLite } from '@/lib/db/repository';
+import type { AgentDTO, AgentLiteDTO, GroupDTO, ConfigDefLite, SectionDefLite } from '@/lib/db/repository';
 import type { Session } from '@/lib/auth/session';
 import { AgentView } from '@/app/components/CustomViz/AgentView';
 import { ChatPanel } from '@/app/components/Chat/ChatPanel';
@@ -76,6 +76,9 @@ interface WorkbenchShellProps {
    * rebuild/redeploy.
    */
   configCatalog?: ConfigDefLite[];
+  /** Full section catalog for the agent's platform, same purpose/freshness as configCatalog
+   *  above — powers AgentView's "+ Add section" menu (roadmap TODO item 1's non-chat half). */
+  sectionCatalog?: SectionDefLite[];
   /** Authenticated session — threaded to Topbar for email display and role-gated links. */
   session: Session;
 }
@@ -85,6 +88,7 @@ export function WorkbenchShell({
   agents = [],
   groups = [],
   configCatalog = [],
+  sectionCatalog = [],
   session,
 }: WorkbenchShellProps) {
   const [agent, setAgent] = useState<AgentDTO | null>(initialAgent);
@@ -315,6 +319,7 @@ export function WorkbenchShell({
                   agent={agent}
                   groups={groups}
                   configCatalog={configCatalog}
+                  sectionCatalog={sectionCatalog}
                   interactionLock={effectiveLock}
                   citedItems={citedItems}
                   onToggleCite={toggleCite}
