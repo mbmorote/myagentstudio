@@ -23,7 +23,54 @@ timing decision is not the same as a design decision.
 **Layout work still prototypes first** — `architecture/layout/Layout-Workbench.html` before
 live code, for iteration speed (see `CLAUDE.md` standing rule 4).
 
-**Last updated:** 2026-08-12 — TODO item 1 (manual-edit save frequency) closed, no code
+**Last updated:** 2026-08-12 — closing out the same-day Prometheus reliability session
+(prior note below) with a deliberate debate rather than a fourth reactive patch. Considered
+"wrapping" Prometheus more structurally: **(a)** moving the Agent Blueprint out of the
+per-turn user message into a cacheable system-prompt position — **rejected**, the user wants
+it staying visible per-turn to help the model understand the structure; **(b)** applying the
+governance-agent restructuring template found in `architecture/audits/instructions maybe
+.txt` (grouped frontmatter, ROLE/MISSION/OPERATING PRINCIPLES/WORKFLOW/Guardrail Matrix) to
+`prometheus.md` — **deferred, not applied**, noted as a reusable reference pattern only;
+**(c)** replacing prompt-instructed JSON with Anthropic's structured outputs
+(`output_config.format`) — the architecturally real fix, but real scoped complication found
+(the `sections`/`config` open-ended-map contract doesn't fit a strict JSON Schema without a
+wire-format change touching 4+ files) — **deferred to FUTURE**, logged there in full. Instead:
+one more precision pass on `prometheus.md` itself, targeted at bug (3) below's actual
+mechanism — BEHAVIOR #4 previously told the model to "summarize" on every turn, which is
+correct for a proposed change (visible in the diff) but was the wrong instruction for a
+pure-review turn where `message` is the only place that content ever reaches the user;
+reworded to distinguish the two cases explicitly, plus a worked example showing the review
+living entirely inside `message`. Not yet re-verified against a real reply (standing rule 2).
+
+**Last updated (prior):** 2026-08-12 — three chained live-usage bugs found and fixed in one chat
+session, each surfaced by re-testing after the previous fix. **(1)** An advisory/opinion
+instruction made Prometheus reply in plain prose with no JSON envelope, surfaced as an opaque
+`Error: ai_upstream`; fixed by making the parser fall back to showing raw text instead of
+hard-failing, plus prompt hardening. **(2)** Found immediately after via `llm_call_log`: the
+*next* real turn (an actual edit instruction) was genuinely truncated (`stopReason:
+'max_tokens'`, cut off mid-JSON) — which fix (1)'s fallback then silently swallowed as a no-op
+instead of erroring, matching the user's report of a proposed change "not coming like a change
+anymore." `prometheus.ts` was missing the truncation guard `daedalus.ts` already has; added
+`PrometheusTruncatedError` → `422 chat_truncated`. Also raised `chatMaxTokens` from a
+hardcoded `8192` to an admin-configurable setting (`lib/settings.ts`, default unchanged,
+live value raised to 30000), and switched `callPrometheus()` from `getGateway().complete()` to
+`.stream()` since the Anthropic TypeScript SDK refuses non-streaming requests above ~21,333
+max_tokens (confirmed against the real SDK source, `calculateNonstreamingTimeout()` in
+`client.ts`) — `daedalus.ts` already used `.stream()` for the same reason at its own higher
+ceiling. **(3)** Found on the very next real test, via the same `llm_call_log` inspection
+technique: on a long "review + one small edit" turn, the model wrote its entire real review as
+plain prose *before* the JSON block (violating OUTPUT FORMAT's "no commentary outside it"),
+then left `message` inside the JSON as a bare pointer ("See review above.") to that discarded
+prose — the parser correctly extracted the JSON (not a parsing bug this time), but the only
+text the user ever sees is the parsed `message` field, so the real content never reached the
+chat. Fixed with further prompt hardening in `prometheus.md`'s OUTPUT FORMAT: explicit
+prohibition on any text outside the JSON regardless of answer length, and on `message` values
+that merely reference content instead of containing it. None of the three are new TODO/NEXT
+items — found and closed inline in the session they surfaced, per the roadmap's own
+convention. See "What's built" for full detail on (1) and (2); (3) is prompt-only, not yet
+re-verified against a real reply (per standing rule 2).
+
+**Last updated (prior):** 2026-08-12 — TODO item 1 (manual-edit save frequency) closed, no code
 change: confirmed via a live code read that `SectionBlock.tsx` already implements the
 decided behavior (explicit Save/Cancel, nothing committed until clicked) exactly as the item
 asked. The config zone (model/effort/individual config keys) commits immediately per discrete
@@ -321,6 +368,102 @@ Condensed — full detail lives at each pointer, not repeated here.
   the rejected alternative (autosave/debounce) would have looked like — no UI or backend
   change made. The config zone's immediate-commit pattern was surfaced but not re-opened as a
   separate question this session.
+- **Chat crashed on advisory/opinion instructions — non-JSON model replies now degrade
+  gracefully instead of erroring** — 2026-08-12, found live (user hit `Error: ai_upstream` on
+  "which section do you recommend I change first?", then again on a retry — confirmed
+  reproducible, not flaky, by inspecting the stored `llm_call_log` response payload: the model
+  answered in plain conversational prose, no `{`/`}` anywhere in the text). Root cause:
+  `parsePrometheusResponse()` (`lib/ai/prometheus.ts`) threw `PrometheusInvalidResponseError`
+  whenever its three JSON-extraction attempts (direct parse → strip code fence → greedy
+  `{...}` slice) all failed, which `app/api/chat/route.ts` maps to a 502 `ai_upstream` —
+  discarding an already-paid-for, on-topic answer with no way for the user to see it. **Fix,
+  both sides:** (1) the parser no longer throws when no JSON object can be extracted at all
+  (whether no `{...}` substring exists, or one exists but doesn't parse) — it now returns a
+  fallback `PrometheusProposal` with the raw response text as `message`, `modifications: {}`,
+  and a warning ("did not return the expected format... showing its raw response as-is"),
+  rendered through ChatPanel's existing generic warnings display, no UI change needed. Only a
+  response that parses to the wrong root shape (an array, a bare string, `null`) still throws
+  — that's a structurally confused response, a different and rarer failure mode, left as a
+  hard error. (2) `prometheus.md` hardened: BEHAVIOR #2 now explicitly says an answer-only
+  turn (a recommendation, an opinion, pure discussion) is still a normal turn using the exact
+  same JSON envelope, `modifications: {}`, never plain text; OUTPUT FORMAT gained a matching
+  sentence ruling out plain-prose replies "no matter how conversational or open-ended the
+  instruction reads." Two `prometheus.test.ts` cases updated from `expect(...).toThrow(...)`
+  to assert the new fallback shape instead (`lib/ai/__tests__/prometheus.test.ts`); no other
+  test changes. **Not yet re-verified against a real model reply** (would need a real,
+  billed Anthropic call per standing rule 2) — the prompt hardening's actual effect on model
+  behavior is unconfirmed; the parser fallback is verified by the updated unit tests
+  regardless of whether the prompt fix reduces how often it's needed.
+- **Follow-up to the item above, same session — the real live failure was truncation, not
+  missing JSON, and the non-JSON fallback fix had silently made it worse.** Diagnosed by
+  reading the actual `response_payload` in `llm_call_log` for the user's next real chat turn
+  (a genuine edit instruction, not a question): the model's reply had `stopReason: 'max_tokens'`
+  — it hit the 8192-token cap mid-response, cutting the JSON `sections` string off
+  mid-sentence. Confirmed structurally: `JSON.parse` on the greedy `{...}` slice failed with
+  "Unterminated string in JSON." Before the fallback fix (above), this hit the same
+  `ai_upstream` 502 as the no-JSON case — annoying but visible. **After** the fallback fix, it
+  went straight into the new "no parseable JSON → show raw text, `modifications: {}`" path,
+  which means a real proposed edit was silently discarded with no error and no visible sign
+  anything was wrong beyond a huge wall of half-prose-half-broken-JSON text in the chat
+  bubble — exactly what the user flagged as "we just load the block, it's not coming like a
+  change anymore." **Root cause:** `daedalus.ts` (Structural Import) has always checked
+  `stopReason === 'max_tokens'` and hard-rejected before parsing (`DaedalusTruncatedError` →
+  422 `structural_truncated`, `lib/import/CLAUDE.md`) — `prometheus.ts`'s `callPrometheus()`
+  never had the equivalent check, so a truncated chat response fell straight into the parser.
+  **Fix:** added `PrometheusTruncatedError` (mirrors `DaedalusTruncatedError`), checked in
+  `callPrometheus()` immediately after the gateway call succeeds, before `responseText` is
+  ever handed to `parsePrometheusResponse()` — so a truncated response can no longer reach the
+  non-JSON fallback path at all. `app/api/chat/route.ts` maps it to `422 { error:
+  'chat_truncated' }`, distinct from both `ai_upstream` (502) and the generic internal error,
+  mirroring the import route's `structural_truncated` precedent exactly. Test coverage: the
+  mocked `prometheus.js` module in `chat.test.ts` gained the new error class, plus one new
+  case (`truncated response (max_tokens) → 422 chat_truncated`).
+- **`chatMaxTokens` — chat's max-output-tokens ceiling is now an admin setting, not a hardcoded
+  literal** — 2026-08-12, same session, closing the "real underlying tension" the truncation
+  fix above left open (a fixed `maxTokens: 8192` doesn't get less likely to truncate just
+  because truncation now fails loudly instead of invisibly). Added `chatMaxTokens` to
+  `SETTING_DEFS` (`lib/settings.ts` — datatype `int`, default **8192** unchanged, `min: 1024`,
+  `max: 64000` as a typo-guard, not a confirmed model ceiling) plus a `getChatMaxTokens()`
+  accessor following the file's existing fail-safe pattern (row absent → default, invalid/below
+  min → the min + `console.warn`). `prometheus.ts`'s `callPrometheus()` now calls
+  `getChatMaxTokens()` instead of the literal `8192`. No schema/migration/route change needed —
+  `GET`/`PATCH /api/settings` and the Settings UI are both fully generic over `SETTING_DEFS`,
+  confirmed by reading `app/api/settings/route.ts` before relying on it. **Live value raised to
+  30000 immediately, at the user's explicit request**, via a direct upsert into the real
+  `setting` table (`key='chatMaxTokens'`) — not through the Settings UI/PATCH route, since the
+  request was "set this right now." The `SETTING_DEFS` default stays 8192 (a fresh/reset
+  install starts conservative); the running app's *current* effective value is 30000 until an
+  admin changes it via Settings. `hermes.ts` (4096) and `daedalus.ts` (32000) still hardcode
+  their own values, untouched — this session only covered chat's number, per what was asked.
+- **`callPrometheus()` switched from `getGateway().complete()` to `.stream()`** — 2026-08-12,
+  same session, found immediately after raising `chatMaxTokens` to 30000: the next live chat
+  call failed client-side (before any request even reached Anthropic) with `Error: Streaming
+  is required for operations that may take longer than 10 minutes`. Root-caused against the
+  real `@anthropic-ai/sdk` TypeScript source (`client.ts`'s `calculateNonstreamingTimeout()`),
+  not guessed: the SDK refuses a non-streaming request once `(60min × maxTokens) / 128000 >
+  10min`, i.e. `maxTokens > ~21,333` — 30000 exceeds it. `daedalus.ts` already solves this the
+  same way at its own higher `maxTokens: 32000`. `stream()` returns the identical
+  fully-accumulated `LlmResponse` shape as `complete()` (confirmed via `gateway.ts`'s shared
+  `run(req, ctx, method)` — both methods get identical dry-run/cap/logging behavior), so this
+  was a one-line swap in `prometheus.ts` with no other code change. Confirmed no test fakes a
+  gateway/provider implementing only `.complete()` that this could break.
+- **Prompt hardened again — `message` can no longer be a pointer to prose written outside the
+  JSON envelope** — 2026-08-12, same session, found on the very next live test (a "review and
+  improve my agent" turn) via the same `llm_call_log` raw-payload-inspection technique used for
+  the two bugs above. This time the parser worked correctly — the bug was in what the model put
+  *inside* the JSON. On a long review-plus-one-edit turn, the model wrote its entire ~2,255-char
+  real review as plain prose *before* the JSON block (violating the already-existing "no
+  commentary outside it" rule), then set `message` to a bare pointer — `"See review above."` —
+  referencing that prose. Since only the parsed `message` field is ever shown to the user, the
+  actual review was silently discarded and the chat showed nothing but a content-free pointer.
+  `prometheus.md`'s OUTPUT FORMAT hardened further: explicit prohibition on any text outside the
+  JSON regardless of answer length ("a long review is not an exception — a long `message` value
+  is still just a JSON string"), and an explicit ban on `message` values that reference content
+  instead of containing it ("there is no 'above' or 'below' for the user to see"). Prompt-only
+  change — **not yet re-verified against a real reply** (would need another real, billed
+  Anthropic call per standing rule 2); the earlier OUTPUT FORMAT hardening for pure advisory
+  turns (see the non-JSON-fallback entry above) evidently wasn't strong enough to cover this
+  mixed review-and-partial-edit shape, so this may need another pass if it recurs.
 
 ## TODO — before v1 goes online
 
@@ -611,6 +754,27 @@ free to reorder within this bucket.
 Flat list, no sub-headers. Lower urgency than NEXT — genuinely free to reorder. Full "why" for
 the TechDesign-numbered ones lives in `TechDesign.md`'s Deferred Decisions table / Rules Index.
 
+- **Structured outputs for Prometheus (`output_config.format` / a JSON Schema contract) instead
+  of prompt-instructed JSON.** *(Added 2026-08-12, debated and explicitly deferred — "too big
+  for now and could touch some places we don't wanna right now.")* Would replace the current
+  ask-nicely-and-regex-extract approach (`parsePrometheusResponse()`'s 3-attempt extraction)
+  with an API-enforced schema — the model becomes structurally incapable of the exact failure
+  modes patched today (plain-prose replies, commentary written outside the JSON object,
+  malformed/fenced JSON). Real, scoped complication found during the debate, not a one-liner:
+  Anthropic's structured outputs requires `additionalProperties: false` on every schema object,
+  which means every property name must be known ahead of time — but `PrometheusModifications`'s
+  `sections`/`config` are open-ended maps (`{ [sectionKey: string]: string | null }`, keys
+  chosen by the model), which don't fit a strict schema. Adopting this means reshaping the wire
+  contract to arrays of fixed-shape pairs (`{ sectionKey, content }[]` / `{ propKey, value }[]`)
+  — a cascading change touching `PrometheusModifications`'s type, `parsePrometheusResponse()`
+  (simplifies, since extraction goes away, but is rewritten around the new shape),
+  `apply-proposal/route.ts`'s per-key merge loop, `ChatPanel.tsx`'s proposal rendering, and the
+  gateway/provider layer (`LlmRequest` has no field today to carry `output_config.format`
+  through to the SDK call). Does not fix truncation (`PrometheusTruncatedError` stays needed
+  regardless) and doesn't guarantee `message`'s *content* is good, only that it exists in the
+  right place — content-quality still needs prompt wording. Revisit if the 2026-08-12 prompt
+  hardening (`prometheus.md` OUTPUT FORMAT + BEHAVIOR #4, plus a worked example) turns out not
+  to hold up under continued real usage.
 - **Incremental streaming.** *(Moved back here from TODO 2026-08-06, at the user's explicit
   request — was TODO item 5, itself promoted from FUTURE 2026-07-31, originally P04b.)*
   Token-by-token chat responses (`streamChunks()`) instead of waiting for the full reply.

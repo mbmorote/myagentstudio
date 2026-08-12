@@ -52,16 +52,20 @@ describe('parsePrometheusResponse — JSON extraction (§4.2)', () => {
     expect(result.message).toBe('Prose before.');
   });
 
-  it('throws PrometheusInvalidResponseError when all three extraction attempts fail', () => {
-    expect(() => parsePrometheusResponse('this is not JSON at all', 1)).toThrow(
-      PrometheusInvalidResponseError,
-    );
+  it('falls back to raw text as message when all three extraction attempts find no JSON (2026-08-12)', () => {
+    const raw = 'this is not JSON at all';
+    const result = parsePrometheusResponse(raw, 1);
+    expect(result.message).toBe(raw);
+    expect(result.modifications).toEqual({});
+    expect(result.warnings).toHaveLength(1);
   });
 
-  it('throws PrometheusInvalidResponseError when the extracted text is not valid JSON', () => {
-    expect(() => parsePrometheusResponse('{ bad json {{{ }}', 1)).toThrow(
-      PrometheusInvalidResponseError,
-    );
+  it('falls back to raw text as message when the extracted slice is not valid JSON (2026-08-12)', () => {
+    const raw = '{ bad json {{{ }}';
+    const result = parsePrometheusResponse(raw, 1);
+    expect(result.message).toBe(raw.trim());
+    expect(result.modifications).toEqual({});
+    expect(result.warnings).toHaveLength(1);
   });
 
   it('throws when the root is a JSON array instead of an object', () => {

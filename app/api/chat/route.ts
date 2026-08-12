@@ -24,6 +24,7 @@
  *   404  agentId not found or not owned by caller
  *   429  per-user LLM cap reached (§3.9)
  *   499  client cancelled (request.signal fired before callPrometheus resolved)
+ *   422  response truncated (stop_reason === 'max_tokens') — content loss, rejected
  *   502  Anthropic API upstream failure or unparseable model response
  *   500  unexpected server error (never includes key or prompt text)
  */
@@ -33,6 +34,7 @@ import { getAgentFull, getSectionDefs } from '@/lib/db/repository';
 import {
   callPrometheus,
   PrometheusUpstreamError,
+  PrometheusTruncatedError,
   PrometheusInvalidResponseError,
 } from '@/lib/ai/prometheus';
 import { LlmDryRunBlockedError, LlmUserCapReachedError } from '@/lib/ai/gateway';
@@ -172,6 +174,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (err instanceof PrometheusUpstreamError) {
       console.error('[chat] Prometheus upstream error:', err.message);
       return NextResponse.json({ error: 'ai_upstream' }, { status: 502 });
+    }
+    if (err instanceof PrometheusTruncatedError) {
+      console.error('[chat] Prometheus response truncated (max_tokens):', err.message);
+      return NextResponse.json({ error: 'chat_truncated' }, { status: 422 });
     }
     if (err instanceof PrometheusInvalidResponseError) {
       // Log reason (not the raw response — it contains agent content, Rules Index #59 reasoning)

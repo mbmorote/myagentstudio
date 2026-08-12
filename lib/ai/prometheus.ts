@@ -27,7 +27,7 @@ import { getGateway, LlmDryRunBlockedError, LlmUserCapReachedError } from './gat
 import type { LlmCallContext } from './gateway.js';
 import { PROMETHEUS_PROMPT } from './prompts/generated/prometheus.js';
 import { renderBlueprintForPrompt } from '../blueprint/index.js';
-import { getChatHistoryTurns } from '../settings.js';
+import { getChatHistoryTurns, getChatMaxTokens } from '../settings.js';
 import type { SectionDefLite } from '../db/repository/agents.js';
 
 // ─────────────────────────────  Types  ────────────────────────────────────────
@@ -103,6 +103,17 @@ export class PrometheusInvalidResponseError extends Error {
   }
 }
 
+/** Thrown when Prometheus's response was truncated (stop_reason === 'max_tokens').
+ *  Mirrors DaedalusTruncatedError (daedalus.ts) — a hard fail, never silently
+ *  degraded to a partial or best-effort parse, since a cut-off JSON object's
+ *  proposed edits are unrecoverable content loss, not just a formatting hiccup. */
+export class PrometheusTruncatedError extends Error {
+  constructor() {
+    super('Prometheus response was truncated (max_tokens) — content loss, rejected');
+    this.name = 'PrometheusTruncatedError';
+  }
+}
+
 // ─────────────────────────────  Caller  ───────────────────────────────────────
 
 /**
@@ -118,6 +129,7 @@ export class PrometheusInvalidResponseError extends Error {
  * @throws       LlmDryRunBlockedError          when live LLM calls are disabled
  * @throws       LlmUserCapReachedError         when the per-user hourly cap is reached
  * @throws       PrometheusUpstreamError        on API failure
+ * @throws       PrometheusTruncatedError       on stop_reason === 'max_tokens'
  * @throws       PrometheusInvalidResponseError on structurally invalid model output
  * @throws       Error with name 'AbortError'   if the request was cancelled
  */
@@ -143,11 +155,18 @@ export async function callPrometheus(
   let res;
   try {
     // Pass signal through to the gateway → provider → SDK (Rules Index #23).
-    res = await getGateway().complete(
+    // Uses stream(), not complete(): the Anthropic SDK refuses a non-streaming
+    // request once maxTokens is high enough that generation could plausibly
+    // exceed 10 minutes (~21,333 tokens for claude-sonnet-5 — see the SDK's
+    // calculateNonstreamingTimeout()), which chatMaxTokens (now 30000) exceeds.
+    // stream() returns the identical fully-accumulated LlmResponse shape as
+    // complete() — daedalus.ts already uses it for the same reason at its own
+    // higher maxTokens (32000).
+    res = await getGateway().stream(
       {
         system: PROMETHEUS_PROMPT,
         messages: [...historyMessages, { role: 'user', content: userMessage }],
-        maxTokens: 8192,
+        maxTokens: getChatMaxTokens(),
         signal: input.signal,
       },
       ctx,
@@ -168,6 +187,16 @@ export async function callPrometheus(
   if (!res.ok) {
     if (res.reason === 'llm_cap_reached') throw new LlmUserCapReachedError(res);
     throw new LlmDryRunBlockedError(res.logId, ctx.kind, res.model);
+  }
+
+  // Truncation is a hard fail, checked before any parse attempt (domain rule stays
+  // in the caller, mirrors daedalus.ts — the gateway only records stopReason, never
+  // acts on it). A cut-off response can leave a proposed edit's JSON mid-string
+  // (unterminated), which parsePrometheusResponse's non-JSON fallback would
+  // otherwise silently swallow as a message-only turn — invisibly discarding a
+  // real, already-paid-for proposed change instead of surfacing the failure.
+  if (res.response.stopReason === 'max_tokens') {
+    throw new PrometheusTruncatedError();
   }
 
   const responseText = res.response.text;
@@ -264,6 +293,13 @@ function buildUserMessage(input: PrometheusInput, blueprint: string): string {
  *   2. Strip code fence, then parse            — model wrapped it in ```json … ```
  *   3. Greedy first-{-to-last-} slice, parse  — model added prose around the object
  *
+ * If all three attempts find no usable JSON object at all (2026-08-12 — observed for
+ * advisory/opinion instructions where the model answers in plain prose with no JSON
+ * envelope), this does NOT throw — it returns a fallback PrometheusProposal with the
+ * raw text as `message`, empty `modifications`, and a warning. Only a response that
+ * *contains* a `{...}` substring which still fails to parse, or parses to the wrong
+ * shape, is treated as a hard failure.
+ *
  * Validation follows the §4.3 tolerance table: structural failures throw;
  * single bad entries are dropped with a warning and the rest survive.
  *
@@ -300,14 +336,35 @@ export function parsePrometheusResponse(
     } catch {
       // Attempt 3: greedy first-{-to-last-} slice
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new PrometheusInvalidResponseError('response is not valid JSON');
+      let sliceParsed: unknown;
+      let sliceOk = false;
+      if (jsonMatch) {
+        try {
+          sliceParsed = JSON.parse(jsonMatch[0]);
+          sliceOk = true;
+        } catch {
+          sliceOk = false;
+        }
       }
-      try {
-        parsed = JSON.parse(jsonMatch[0]);
-      } catch {
-        throw new PrometheusInvalidResponseError('response is not valid JSON');
+      if (!sliceOk) {
+        // Non-JSON fallback (2026-08-12): observed live for advisory/opinion
+        // instructions ("which section do you recommend I change first?") — the
+        // model answers in plain prose with no JSON envelope at all, despite the
+        // OUTPUT FORMAT rule. All three extraction attempts have nothing to work
+        // with in that case (no `{...}` substring exists). Previously this threw
+        // PrometheusInvalidResponseError, surfacing as an opaque 502 `ai_upstream`
+        // and discarding an already-paid-for, often perfectly good answer. Instead,
+        // treat the raw text as the chat message with no proposed changes — the
+        // user at least sees the answer; nothing gets silently applied.
+        return {
+          message: responseText.trim(),
+          modifications: {},
+          warnings: [
+            'Prometheus did not return the expected format for this reply — showing its raw response as-is, with no proposed changes.',
+          ],
+        };
       }
+      parsed = sliceParsed;
     }
   }
 

@@ -63,6 +63,12 @@ vi.mock('../../../../lib/ai/prometheus.js', () => ({
       this.name = 'PrometheusInvalidResponseError';
     }
   },
+  PrometheusTruncatedError: class PrometheusTruncatedError extends Error {
+    constructor() {
+      super('Prometheus response was truncated (max_tokens) — content loss, rejected');
+      this.name = 'PrometheusTruncatedError';
+    }
+  },
   demoteSplitLevelHeadings: vi.fn((content: string) => content),
 }));
 
@@ -75,7 +81,7 @@ import {
   createAgent,
   getAgentFull,
 } from '../../../../lib/db/repository/agents.js';
-import { callPrometheus } from '../../../../lib/ai/prometheus.js';
+import { callPrometheus, PrometheusTruncatedError } from '../../../../lib/ai/prometheus.js';
 import type { PrometheusProposal } from '../../../../lib/ai/prometheus.js';
 
 // Route handler under test
@@ -357,6 +363,24 @@ describe('POST /api/chat — propose-only (Phase 1)', () => {
 
     const json = await res.json() as { error: string };
     expect(json.error).toBe('cancelled');
+  });
+
+  // ── 7b. Truncated response (stop_reason === 'max_tokens') → 422, not 502 ──
+  // 2026-08-12: found live — a truncated response's cut-off JSON was previously
+  // either a 502 ai_upstream, or (after the non-JSON fallback fix) silently
+  // swallowed as a message-only turn. callPrometheus now throws
+  // PrometheusTruncatedError before parsing is ever attempted; the route must
+  // map it to its own distinct code, not ai_upstream.
+  it('truncated response (max_tokens) → 422 chat_truncated', async () => {
+    (callPrometheus as MockedFunction<typeof callPrometheus>).mockRejectedValueOnce(
+      new PrometheusTruncatedError(),
+    );
+
+    const res = await POST(makeRequest({ agentId: testAgentId, instruction: 'rewrite everything' }));
+    expect(res.status).toBe(422);
+
+    const json = (await res.json()) as { error: string };
+    expect(json.error).toBe('chat_truncated');
   });
 
   // ── 8. Unknown agentId → 404 ──────────────────────────────────────────────

@@ -71,6 +71,15 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     label: 'Chat history turns',
     hint: 'How many prior chat messages (user + assistant, combined) Prometheus is shown for conversational context on each new instruction. 0 disables history — every instruction is sent standalone.',
   },
+  {
+    key: 'chatMaxTokens',
+    datatype: 'int',
+    default: 8192,
+    min: 1024,
+    max: 64000,
+    label: 'Chat max output tokens',
+    hint: 'Max tokens Prometheus may generate per reply. A response that hits this ceiling is truncated mid-generation (max_tokens) and rejected as chat_truncated (2026-08-12) rather than silently losing content — raise this if large rewrites keep getting cut off. The max here is a safety guard against a mistyped huge value, not a confirmed model limit.',
+  },
 ] as const;
 
 // ─────────────────────────────  Parsing  ──────────────────────────────────────
@@ -192,6 +201,27 @@ export function getChatHistoryTurns(): number {
       `[settings] chatHistoryTurns has invalid value "${raw}" — using 0 (history disabled)`,
     );
     return 0;
+  }
+  return parsed as number;
+}
+
+/**
+ * Returns the current effective value of `chatMaxTokens`.
+ *
+ * Row absent → returns the SETTING_DEFS default (8192).
+ * Unparseable or below the def's min → returns that min (most restrictive) + console.warn.
+ */
+export function getChatMaxTokens(): number {
+  const def = SETTING_DEFS.find((d) => d.key === 'chatMaxTokens')!;
+  const raw = getSetting('chatMaxTokens');
+  if (raw === null) return def.default as number;
+
+  const parsed = parseSettingValue(raw, 'int');
+  if (parsed === null || (parsed as number) < def.min!) {
+    console.warn(
+      `[settings] chatMaxTokens has invalid value "${raw}" — using minimum of ${def.min}`,
+    );
+    return def.min as number;
   }
   return parsed as number;
 }
