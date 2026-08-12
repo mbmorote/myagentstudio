@@ -23,7 +23,12 @@ timing decision is not the same as a design decision.
 **Layout work still prototypes first** — `architecture/layout/Layout-Workbench.html` before
 live code, for iteration speed (see `CLAUDE.md` standing rule 4).
 
-**Last updated:** 2026-08-12 — real personal content scrubbed out of
+**Last updated:** 2026-08-12 — TODO item 1 (`scripts/build-prompts.ts` readable output)
+deferred out of TODO to FUTURE, at the user's explicit request ("lets defer topic one").
+No longer blocking v1's launch. Remaining TODO items renumbered 1–8 (was 1–9); every "item N"
+cross-reference elsewhere in this file updated to match. See FUTURE for the moved entry.
+
+**Last updated (prior):** 2026-08-12 — real personal content scrubbed out of
 `lib/serialize/__tests__/fixtures/*.md`, the 15 golden-file test fixtures, which were
 verbatim copies of the user's real `~/.claude/agents/` library (93 occurrences of the real
 name across 3 files alone). Replaced with fully synthetic agent definitions preserving the
@@ -492,7 +497,7 @@ here were promoted from FUTURE on that basis, tagged below.
 they actually require, not just launch necessity — **[UX]** = a visible UI/layout change
 (prototype in `Layout-Workbench.html` first, standing rule 4); **[Behavior]** = a product/logic
 decision or backend change with no direct UI; **[Infra]** = tooling/process/docs, not user-
-facing at all. The big flow test and "Deploy online" (items 4 and 9) are deliberately
+facing at all. The big flow test and "Deploy online" (items 3 and 8) are deliberately
 untagged — they're end-of-list gate tasks (final validation, then deploy), not day-to-day
 pick-off work; everything between them (company signature, the guided tour, DB backup, the
 disclaimer) sits there by deliberate user choice, not because they're the same kind of task.
@@ -523,22 +528,15 @@ docs/code/tests already known to be honest about their own state; then the big f
 itself; then company signature (deliberately placed **after** the test, not before it, so an
 asset that still doesn't exist doesn't gate functional validation) right before deploy.
 
-1. **[Infra]** **`scripts/build-prompts.ts` readable output.** TechDesign #26, tagged **[HIGH
-   PRIORITY]** there — currently emits one giant escaped-string line. A generator-script fix,
-   not user-facing (double-checked at the user's request — this is developer/build tooling,
-   unrelated to the admin-facing Activity Log). Sequenced deliberately before item 4 (the
-   pre-deploy big flow test): the user wants to be able to read the real compiled system
-   prompt to sanity-check what's actually being sent to the LLM, which is most useful
-   precisely when debugging a live chat-edit failure during that test, not after it.
-2. **[Infra]** **Second LLM provider.** *(Promoted from FUTURE 2026-07-31 — was P04a.)* A
+1. **[Infra]** **Second LLM provider.** *(Promoted from FUTURE 2026-07-31 — was P04a.)* A
    non-Anthropic, OpenAI-compatible or NVIDIA provider behind the existing `LLMProvider`
    interface — no user-visible change, same chat/import behavior through a different vendor.
    **The user wants this landed before going online**, while switching vendors is still cheap.
-3. **[Infra]** **Plan 09 — Pre-launch organization review (docs, code, tests).** *(Added
+2. **[Infra]** **Plan 09 — Pre-launch organization review (docs, code, tests).** *(Added
    2026-08-06, at the user's request — replaces what was previously here, a narrower doc-sync
    task, now absorbed as this plan's Track A finding A1.)* `plans/09-pre-launch-org-review.md`
    has the full charter. Three tracks, each asking "does this reflect/organize what it should,"
-   **not** "does it work" (that's the big flow test's job, item 4 below): **Track A (docs)** —
+   **not** "does it work" (that's the big flow test's job, item 3 below): **Track A (docs)** —
    audit `CLAUDE.md`/`TechDesign.md`/`README.md`/`docs/user-guide.md` against actual current
    behavior, including the absorbed Plan 06 Phase 6 doc-sync gap (Rules Index #63–71, the
    consent-popup supersession) and a newly-surfaced finding (`AgentDTO.validation` is
@@ -557,7 +555,7 @@ asset that still doesn't exist doesn't gate functional validation) right before 
    anything bigger spins into its own new TODO/FUTURE item. Sequenced right before the big flow
    test so that test runs against docs/code/tests already known to be honest about their own
    state.
-4. **Big flow test — import → manual edit → chat edit.** *(Added 2026-08-06, at the user's
+3. **Big flow test — import → manual edit → chat edit.** *(Added 2026-08-06, at the user's
    request.)* **The last functional validation before "Deploy online,"** run once every other
    TODO item above is done. One end-to-end pass through the whole real app, not a scripted
    unit-style check: **(a)** import a real agent file; **(b)** manually edit it in the
@@ -581,7 +579,7 @@ asset that still doesn't exist doesn't gate functional validation) right before 
    inline as part of the same pass; anything bigger becomes its own new TODO/FUTURE item
    rather than blocking the test itself — the point is to find gaps before real users do, not
    to gate the test on being bug-free beforehand.
-5. **[UX]** **Company signature on the platform.** Added 2026-07-31 — the user's real
+4. **[UX]** **Company signature on the platform.** Added 2026-07-31 — the user's real
    branding needs to appear somewhere on the live site before v1 goes online (footer,
    login/signup pages, Topbar — placement and exact content, e.g. name/logo/tagline/copyright
    line, not yet decided). Placement-in-layout work — prototype first once an asset/copy
@@ -600,7 +598,7 @@ asset that still doesn't exist doesn't gate functional validation) right before 
    branding would read worse than seeing nothing. **Sequenced right before deploy, after the
    big flow test** (2026-08-06 reorder, at the user's request) — a still-missing asset
    shouldn't gate functional validation; branding lands as the final step before going live.
-6. **[UX]** **First-login guided tour (mini-tour).** *(Added 2026-08-07, from the same
+5. **[UX]** **First-login guided tour (mini-tour).** *(Added 2026-08-07, from the same
    cross-check — supersedes the original plan to build a separate pre-login landing page for
    this launch; see NEXT items 14/15 below for what that split into instead.)* The user isn't
    confident every invited friend can be walked through the product live, and a written guide
@@ -620,7 +618,7 @@ asset that still doesn't exist doesn't gate functional validation) right before 
    "seen" flag (`localStorage` is enough, same pattern already used for the pending-proposal
    lock). Estimated at a session or two, not a multi-day build. **Prototype in
    `Layout-Workbench.html` first per standing rule 4** before touching real code.
-7. **[Infra]** **Production DB backup/restore.** *(Added 2026-08-07, from a cross-check
+6. **[Infra]** **Production DB backup/restore.** *(Added 2026-08-07, from a cross-check
    against `architecture/audits/0708 Copilot Roadmap.md`, an outside 30-day-launch review.)*
    Every existing "backup" reference in the repo (Plan 05 §4.5 step 0, Plan 06 Phase 5) is a
    one-time safety copy taken before running a risky migration — nothing covers `myagent.db`
@@ -628,12 +626,12 @@ asset that still doesn't exist doesn't gate functional validation) right before 
    assumed. Minimum bar: know how to snapshot the live SQLite file and how to restore it,
    documented somewhere findable (`README.md` or here). No code required unless the chosen
    hosting target makes this non-trivial.
-8. **[UX]** **"Experimental — don't paste sensitive data" disclaimer.** *(Added 2026-08-07,
+7. **[UX]** **"Experimental — don't paste sensitive data" disclaimer.** *(Added 2026-08-07,
     same source.)* No disclaimer text exists anywhere in the signup/login flow
     (`app/components/Auth/`) — confirmed by grep. One sentence, cheap, real risk-reduction
     given compliance-grade logging is explicitly not built (NEXT item 12). Placement TBD when
     picked up (signup form, a banner, or folded into the existing `ConsentPopup.tsx`).
-9. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
+8. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
     now (whatever the smallest real hosting step is); the *automated* version of this is
     CI/CD, tracked under FUTURE, not blocking this first deploy.
 
@@ -729,13 +727,13 @@ free to reorder within this bucket.
 14. **Pre-login landing page for prospective (non-signed-up) users.** *(Reworded 2026-08-07 —
     was "Presentation for prospective users," still decided-but-not-how, see IDEA note below.)*
     A real public-facing explainer page shown **before login**, for visitors who don't have an
-    account yet — a different audience than TODO item 6's first-login tour, which only
+    account yet — a different audience than TODO item 5's first-login tour, which only
     signed-up users ever see. Format/production still undecided (video, screenshots, static
     copy); the "we want this" part is settled, timing-wise the user wants this soon after
-    launch, not before — TODO item 6's welcome step covers the "why" well enough for this
+    launch, not before — TODO item 5's welcome step covers the "why" well enough for this
     launch's small, invited audience.
 15. **Improve the guided tour.** *(Reworded 2026-08-07 — was "Interactive tour for signed-up
-    users." The MVP tour itself is now TODO item 6, built before launch — this item is what's
+    users." The MVP tour itself is now TODO item 5, built before launch — this item is what's
     left after that ships.)* Candidates once the dim-panel MVP is live: true anchored
     coach-marks (`@radix-ui/react-popover` or similar, precise positioning instead of dimming
     fixed regions); more/different trigger conditions (first import, not just first login);
@@ -774,6 +772,14 @@ free to reorder within this bucket.
 Flat list, no sub-headers. Lower urgency than NEXT — genuinely free to reorder. Full "why" for
 the TechDesign-numbered ones lives in `TechDesign.md`'s Deferred Decisions table / Rules Index.
 
+- **`scripts/build-prompts.ts` readable output.** *(Moved out of TODO 2026-08-12, at the
+  user's explicit request — no longer blocking v1.)* TechDesign #26, tagged **[HIGH
+  PRIORITY]** there — the script currently emits the compiled system prompt as one giant
+  escaped-string line. A generator-script fix, not user-facing (developer/build tooling,
+  unrelated to the admin-facing Activity Log). The original motivation still holds whenever
+  this is picked up: being able to read the real compiled system prompt is most useful when
+  debugging a live chat-edit failure, which is why it was originally sequenced right before
+  the big flow test — worth keeping that ordering in mind if it's ever pulled back into TODO.
 - **Structured outputs for Prometheus (`output_config.format` / a JSON Schema contract) instead
   of prompt-instructed JSON.** *(Added 2026-08-12, debated and explicitly deferred — "too big
   for now and could touch some places we don't wanna right now.")* Would replace the current
@@ -855,7 +861,7 @@ the TechDesign-numbered ones lives in `TechDesign.md`'s Deferred Decisions table
   app is single-file SQLite (`better-sqlite3`), single-process, and the first deploy target
   is a handful of friends (`maxUsers` currently 5) — that's comfortably within SQLite's
   range. The real trigger isn't user count, it's the *hosting choice* for "deploy online"
-  (TODO item 9): a host with a persistent disk (Fly.io, a VM, Azure App Service with a
+  (TODO item 8): a host with a persistent disk (Fly.io, a VM, Azure App Service with a
   mounted volume) keeps SQLite working fine; a stateless/serverless host (e.g. Vercel's
   default) would force this decision immediately rather than later. Worth deciding the
   hosting target with this in mind, not migrating pre-emptively.
@@ -868,7 +874,7 @@ the TechDesign-numbered ones lives in `TechDesign.md`'s Deferred Decisions table
 - **Dedicated group-management view** — punch-list item 7. New panel, not started, not
   researched. Prototype in `Layout-Workbench.html` first per standing rule 4 whenever it's
   picked up.
-- **CI/CD** — test → build → deploy automation. The automated counterpart to TODO item 9;
+- **CI/CD** — test → build → deploy automation. The automated counterpart to TODO item 8;
   that item is "get something online," this is "stop doing it by hand."
 - **Docker** — containerize once the app runs end-to-end online.
 - **Azure / hosting infra maturity** — App Service first, K8s only if that ever becomes the
@@ -897,25 +903,27 @@ hatch (built as a real `datatype: 'json'` instead), the auth framework review (O
 live), the chat-mediator/Prometheus rework (propose/apply, the lock, the ChatPanel UI),
 (2026-08-06) custom-key creation/removal, the Settings modal, and ESLint config,
 (2026-08-12) section delete via chat, and (2026-08-12) manual-edit save frequency (confirmed
-already built as decided, no code change) — see "What's built" for all nine. Current TODO is
-1–9, **explicitly ordered by the user 2026-08-06** (not a free pick-off list like the prior
-numbering; ESLint itself was item 1 in that ordering and has since closed out, then chat
-section delete was item 1, then manual-edit save frequency, hence the list below now starts
-at build-prompts readable output): **1** build-prompts readable output (confirmed
-developer-tooling, not admin/logging) → **2** second LLM provider (wanted landed before launch
-while switching vendors is still cheap) → **3** Plan 09 (`plans/09-pre-launch-org-review.md` —
-docs/code/tests organization review, findings-list output, not a fix-everything pass) → **4**
-the big flow test (final functional validation, now including an explicit export→reimport
-round-trip check, and — since chat section add/edit/delete are all built — no longer caveated
-to edit-only on the chat side) → **5** company signature (deliberately after the test, so a
-still-missing asset doesn't gate it) → **6** the first-login guided tour → **7** production DB
-backup/restore → **8** the experimental-use disclaimer → **9** deploy online. Items 6–8
+already built as decided, no code change) — see "What's built" for all nine. **One more item
+moved out of TODO the same day (2026-08-12), at the user's explicit request** — build-prompts
+readable output deferred to FUTURE, no longer blocking v1; see that bucket for the entry.
+Current TODO is 1–8, **explicitly ordered by the user 2026-08-06** (not a free pick-off list
+like the prior numbering; ESLint itself was item 1 in that ordering and has since closed out,
+then chat section delete was item 1, then manual-edit save frequency, then build-prompts
+readable output deferred out entirely, hence the list below now starts at second LLM
+provider): **1** second LLM provider (wanted landed before launch while switching vendors is
+still cheap) → **2** Plan 09 (`plans/09-pre-launch-org-review.md` — docs/code/tests
+organization review, findings-list output, not a fix-everything pass) → **3** the big flow
+test (final functional validation, now including an explicit export→reimport round-trip
+check, and — since chat section add/edit/delete are all built — no longer caveated to
+edit-only on the chat side) → **4** company signature (deliberately after the test, so a
+still-missing asset doesn't gate it) → **5** the first-login guided tour → **6** production DB
+backup/restore → **7** the experimental-use disclaimer → **8** deploy online. Items 5–7
 **added 2026-08-07**, from a cross-check against `architecture/audits/0708 Copilot Roadmap.md`
 (an outside 30-day-launch review) — everything else in that review either was already built,
 was already correctly placed in NEXT, or was scoped for a public beta this launch isn't
-running. Item 6 (the guided tour) replaces what would otherwise have been a separate
+running. Item 5 (the guided tour) replaces what would otherwise have been a separate
 pre-login landing-page build for this launch — see NEXT items 14/15 for how that split
-changed. Item 3 (Plan 09's docs track) is worth doing close to whenever NEXT item 3 (Settings
+changed. Item 2 (Plan 09's docs track) is worth doing close to whenever NEXT item 3 (Settings
 layout) lands if that happens before launch, so the docs reflect both in one pass —
 otherwise that becomes a NEXT-bucket follow-up.
 
