@@ -43,11 +43,11 @@ Serializes a `StructuredAgent` back to a markdown string:
 
 1. **Frontmatter** — reconstructs a YAML block from `frontmatter` entries using `yaml.dump` with `sortKeys: false` (insertion order preserved) and `lineWidth: -1` (no line wrapping). The dump schema is `DEFAULT_SCHEMA` (not `FAILSAFE_SCHEMA`) so scalars that need quoting for round-trip safety get quoted, but string-typed values that need no quoting are emitted bare.
 
-2. **Body blocks** — sorted by `order`, each emitted as `heading + '\n' + content`. Headingless blocks (`heading: null`) emit bare content with no invented heading.
+2. **Body blocks** — sorted by `order`, each emitted as `heading + '\n' + content`. Headingless blocks (`heading: null`) emit bare content with no invented heading. **A missing newline before a heading is inserted** (2026-08-12, found live): if the preceding block's content doesn't already end in `\n`, one is added before the next heading is written — otherwise the heading lands mid-line, `splitBody()` doesn't recognize it as a heading on re-parse, and that section silently disappears into the previous one. A no-op whenever content already ends in a newline (true for every well-formed section), so the round-trip invariant for existing content is unaffected.
 
 **Why semantic-not-byte fidelity:** the exporter normalizes YAML formatting (e.g. it may add or remove quotes around values that look like YAML booleans or numbers) but it does not sort keys and does not wrap long lines. The round-trip invariant holds at the `parse()` level, not the raw string level. This is documented and tested as the intended behavior.
 
-**Section body bytes are stored and emitted verbatim** (Rules Index #2). The exporter never reformats, rewraps, or alters body content.
+**Section body bytes are stored and emitted verbatim** (Rules Index #2), with one exception: the single inserted newline above, which is structural (keeping sections distinguishable), not a content rewrite. The exporter never reformats, rewraps, or otherwise alters body content.
 
 ## Golden-file tests
 

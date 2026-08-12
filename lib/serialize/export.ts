@@ -8,6 +8,11 @@
  * - Sections by ascending order.
  * - Headingless blocks (heading: null) are rendered as bare content — no heading invented.
  * - Section body is byte-for-byte the stored content (Rules Index #2).
+ * - A single newline is inserted before a heading if the preceding block's content
+ *   doesn't already end in one (2026-08-12 — found live: a section saved without a
+ *   trailing newline glued the next heading onto its last line, which splitBody()
+ *   then failed to recognize as a heading at all on re-parse, silently dropping
+ *   that section). A no-op whenever content is already well-formed.
  *
  * This is the right side of the round-trip invariant:
  *   parse(exportAgent(parse(md))) deep-equals parse(md)
@@ -64,6 +69,17 @@ export function exportAgent(structured: StructuredAgent): string {
       // Headingless preamble block — bare content, no invented heading (Rules Index #2)
       output += block.content;
     } else {
+      // Guard against the preceding block's content running directly into this
+      // heading with no line break. splitBody() only recognizes a heading at
+      // the start of a line, so content saved without a trailing newline (a
+      // manual edit, a chat-applied section, imported content — any write
+      // path) would otherwise glue the next heading onto its last line,
+      // silently dropping that section on re-parse (e.g. Raw view, re-import).
+      // Only intervenes when a newline is genuinely absent — a no-op for every
+      // already-well-formed section, so the round-trip invariant is unaffected.
+      if (output.length > 0 && !output.endsWith('\n')) {
+        output += '\n';
+      }
       // Headed block — heading line + content bytes
       output += block.heading + '\n' + block.content;
     }

@@ -110,4 +110,58 @@ describe('targeted asserts', () => {
       }
     }
   });
+
+  // 2026-08-12 — found live: a section saved without a trailing newline (e.g. a
+  // manual edit) glued the next block's heading onto its last line on export,
+  // which splitBody() then failed to recognize as a heading on re-parse — the
+  // section silently disappeared. exportAgent() now inserts a newline before a
+  // heading if the preceding block's content doesn't already end in one.
+  it('exportAgent inserts a missing newline so a heading is never glued onto the prior content', () => {
+    const structured = {
+      frontmatter: [{ key: 'name', rawValue: 'test-agent' }],
+      splitLevel: 1,
+      blocks: [
+        {
+          blockId: 'block-0',
+          heading: '# GUARDRAILS',
+          // No trailing newline at all — the exact defect found live.
+          content: '- Never do the thing.',
+          order: 0,
+        },
+        {
+          blockId: 'block-1',
+          heading: '# OUTPUT FORMAT',
+          content: 'A short summary.\n',
+          order: 1,
+        },
+      ],
+    };
+
+    const exported = exportAgent(structured);
+    // The heading must land at the start of its own line, not mid-line.
+    expect(exported).not.toContain('the thing.# OUTPUT FORMAT');
+    expect(exported).toContain('- Never do the thing.\n# OUTPUT FORMAT');
+
+    // And re-parsing must recover both sections distinctly.
+    const reparsed = parse(exported);
+    const headings = reparsed.blocks.map((b) => b.heading);
+    expect(headings).toContain('# GUARDRAILS');
+    expect(headings).toContain('# OUTPUT FORMAT');
+  });
+
+  it('exportAgent is a no-op (adds nothing) when content already ends in a newline', () => {
+    const structured = {
+      frontmatter: [{ key: 'name', rawValue: 'test-agent' }],
+      splitLevel: 1,
+      blocks: [
+        { blockId: 'block-0', heading: '# ROLE', content: 'You are a test agent.\n\n', order: 0 },
+        { blockId: 'block-1', heading: '# OUTPUT FORMAT', content: 'Answer plainly.\n', order: 1 },
+      ],
+    };
+
+    const exported = exportAgent(structured);
+    expect(exported).toContain('You are a test agent.\n\n# OUTPUT FORMAT');
+    // No extra blank line inserted on top of the one already present.
+    expect(exported).not.toContain('\n\n\n');
+  });
 });
