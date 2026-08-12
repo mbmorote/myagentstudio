@@ -17,6 +17,10 @@
  *   7.  Unknown sectionKey → adds a new section (2026-08-11 — was "skipped[]" until
  *       found live that chat-proposed new sections were silently dropped; see
  *       CHANGELOG.md 2026-08-11). 7b covers the non-catalog-key heading fallback.
+ *       7c/7d (2026-08-12) cover the remaining chat half: a sectionKey mapped to
+ *       `null` deletes the matching section (mirrors config's null-to-delete
+ *       convention); a `null` for a sectionKey that doesn't exist is a no-op,
+ *       listed in skipped[], not an error.
  *   8.  `name` in payload → ignored, listed in skipped[], agent.name unchanged.
  *   9.  Split-level demotion applied at the apply route (not left to the caller).
  *   10. Cross-owner agent id → 404, zero writes.
@@ -435,6 +439,66 @@ describe('POST /api/agents/[id]/apply-proposal', () => {
     expect(added).toBeDefined();
     expect(added?.heading).toBe('# KNOWN LIMITS');
     expect(added?.content).toBe('What this agent cannot do.\n\n');
+  });
+
+  // ── 7c. Section delete — null value removes the section (2026-08-12) ─────
+  it('section delete: null value removes the section; other sections and config untouched', async () => {
+    seedConfig(testAgentId, [{ propKey: 'model', value: 'claude-opus-4' }]);
+
+    const agentBefore = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
+    const guardrailsBefore = agentBefore.sections.find((s) => s.sectionKey === 'guardrails')!;
+    const sectionCountBefore = agentBefore.sections.length;
+
+    const res = await POST(
+      makeRequest({ modifications: { sections: { guardrails: null } } }),
+      makeContext(testAgentId),
+    );
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as {
+      agent: { sections: { sectionKey: string }[]; config: { propKey: string; value: unknown }[] };
+      applied: { sectionKeys: string[]; removedSectionKeys: string[] };
+    };
+
+    // The section is gone from the response
+    expect(json.agent.sections.find((s) => s.sectionKey === 'guardrails')).toBeUndefined();
+    expect(json.agent.sections.length).toBe(sectionCountBefore - 1);
+
+    // applied.removedSectionKeys records the deletion; sectionKeys does not
+    expect(json.applied.removedSectionKeys).toContain('guardrails');
+    expect(json.applied.sectionKeys).not.toContain('guardrails');
+
+    // Config untouched
+    expect(json.agent.config.find((c) => c.propKey === 'model')?.value).toBe('claude-opus-4');
+
+    // Verify DB directly — the section row is actually gone
+    const agentAfter = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
+    expect(agentAfter.sections.find((s) => s.id === guardrailsBefore.id)).toBeUndefined();
+  });
+
+  // ── 7d. Deleting a sectionKey that doesn't exist → skipped, no error ─────
+  it('section delete: unknown sectionKey is a no-op, listed in skipped[], zero writes', async () => {
+    const agentBefore = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
+    expect(agentBefore.sections.find((s) => s.sectionKey === 'no-such-section')).toBeUndefined();
+    const sectionCountBefore = agentBefore.sections.length;
+
+    const res = await POST(
+      makeRequest({ modifications: { sections: { 'no-such-section': null } } }),
+      makeContext(testAgentId),
+    );
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as {
+      agent: { sections: { sectionKey: string }[] };
+      applied: { removedSectionKeys: string[] };
+      skipped: { part: string; key: string; reason: string }[];
+    };
+
+    expect(json.agent.sections.length).toBe(sectionCountBefore);
+    expect(json.applied.removedSectionKeys).not.toContain('no-such-section');
+    const skip = json.skipped.find((s) => s.key === 'no-such-section');
+    expect(skip).toBeDefined();
+    expect(skip?.reason).toBe('no_such_section');
   });
 
   // ── 8. `name` in payload → skipped[], agent.name unchanged ───────────────

@@ -164,6 +164,26 @@ describe('parsePrometheusResponse — tolerance table (§4.3)', () => {
     );
   });
 
+  it('a null sections[key] value passes through as the delete sentinel (§4.1)', () => {
+    const raw = JSON.stringify({
+      message: 'removed the section',
+      modifications: {
+        sections: {
+          role: 'Good string content.',
+          output: null,
+        },
+      },
+    });
+    const result = parsePrometheusResponse(raw, 1);
+    expect(result.modifications.sections?.role).toBe('Good string content.');
+    // null must be preserved — it is the delete sentinel, not dropped like other bad types
+    expect('output' in (result.modifications.sections ?? {})).toBe(true);
+    expect(result.modifications.sections?.output).toBeNull();
+    expect(result.warnings.some((w) => /non-string value for sections\["output"\]/i.test(w))).toBe(
+      false,
+    );
+  });
+
   it('modifications.config not a plain object → whole config key dropped + warning', () => {
     const raw = JSON.stringify({
       message: 'ok',

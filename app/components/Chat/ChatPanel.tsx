@@ -320,15 +320,17 @@ export function ChatPanel({
           )}
 
         {/* Section rows */}
-        {sectionEntries.map(([key, content]) =>
-          renderContentRow(
+        {sectionEntries.map(([key, content]) => {
+          const isRemoval = content === null;
+          return renderContentRow(
             `section:${key}`,
             `Section · ${key}`,
-            content,
-            false,
+            isRemoval ? '' : content,
+            isRemoval,
             agent?.sections.find((s) => s.sectionKey === key)?.content ?? null,
-          ),
-        )}
+            'Remove this section',
+          );
+        })}
 
         {/* Config rows */}
         {configEntries.map(([key, rawValue]) => {
@@ -411,6 +413,7 @@ export function ChatPanel({
     value: string,
     isNullRemoval: boolean,
     beforeValue: string | null,
+    removalLabel: string = 'Remove this key',
   ) {
     const isLong = countLines(value) > 12;
     const isExpanded = expandedRows.has(rowId);
@@ -455,7 +458,7 @@ export function ChatPanel({
             )}
             {isNullRemoval ? (
               <pre className="font-[var(--mono,monospace)] text-[10.5px] whitespace-pre-wrap text-[var(--text)] m-0 bg-[var(--elev)] border border-[var(--border)] rounded-[5px] px-[8px] py-[5px] leading-[1.5] block">
-                <em className="not-italic text-[var(--muted)]">Remove this key</em>
+                <em className="not-italic text-[var(--muted)]">{removalLabel}</em>
               </pre>
             ) : (
               <div className="relative">
@@ -804,9 +807,17 @@ export function ChatPanel({
                           false,
                           null,
                         )}
-                      {Object.entries(msg.modifications.sections ?? {}).map(([key, content]) =>
-                        renderContentRow(`msg${i}:section:${key}`, `Section · ${key}`, content, false, null),
-                      )}
+                      {Object.entries(msg.modifications.sections ?? {}).map(([key, content]) => {
+                        const isRemoval = content === null;
+                        return renderContentRow(
+                          `msg${i}:section:${key}`,
+                          `Section · ${key}`,
+                          isRemoval ? '' : content,
+                          isRemoval,
+                          null,
+                          'Remove this section',
+                        );
+                      })}
                       {Object.entries(msg.modifications.config ?? {}).map(([key, rawValue]) => {
                         const { isNull, text } = formatConfigValue(rawValue);
                         return renderContentRow(`msg${i}:config:${key}`, `Config · ${key}`, text, isNull, null);

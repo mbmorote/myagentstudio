@@ -23,7 +23,13 @@ timing decision is not the same as a design decision.
 **Layout work still prototypes first** — `architecture/layout/Layout-Workbench.html` before
 live code, for iteration speed (see `CLAUDE.md` standing rule 4).
 
-**Last updated:** 2026-08-11 — TODO item 1 narrowed: chat-driven section *add* is built (found
+**Last updated:** 2026-08-12 — TODO item 1 (section delete via chat) fully closed — a
+`sectionKey` mapped to `null` now deletes the section, mirroring `config`'s existing
+null-to-delete convention; moved into "What's built," remaining TODO items renumbered 1–10
+(was 1–11). The big flow test (now item 5) no longer caveats its chat-edit stage to
+edit-only. See "What's built" for full detail.
+
+**Last updated (prior):** 2026-08-11 — TODO item 1 narrowed: chat-driven section *add* is built (found
 broken live, fixed same session — see the item's own entry for detail); chat-driven section
 *delete* stays open, item renamed accordingly. New NEXT item 19 added for a real UX gap found
 along the way (apply-proposal's `skipped[]` isn't surfaced anywhere in the UI).
@@ -258,6 +264,38 @@ Condensed — full detail lives at each pointer, not repeated here.
   by `assembleStructural.ts`'s own `HEADING_TO_KEY` map two lines above it) — a type-only
   change, no runtime behavior difference. `npx tsc --noEmit` now reports zero errors; full
   suite re-verified at 551/551 after this fix too.
+- **Section delete via chat** — 2026-08-12, was TODO item 1 (add half closed 2026-08-11,
+  delete half closes it out). A `sectionKey` mapped to `null` in `modifications.sections` now
+  deletes the matching section — the same convention `config` already used for key deletion
+  (§4.1), extended to `sections` for the first time. Changed across the whole propose/apply
+  chain: `PrometheusModifications.sections` (`lib/ai/prometheus.ts`) is now `Record<string,
+  string | null>`, and `parsePrometheusResponse()`'s sections branch passes a `null` value
+  through untouched (previously indistinguishable from any other non-string value, dropped
+  with a warning) — mirroring the config branch two blocks below it, which already allowed
+  `null`. `apply-proposal/route.ts`'s body validation now accepts `string | null` per section
+  key (still rejects any other type, e.g. a number); its per-key loop deletes via the existing
+  `deleteSection()` repository primitive (the same one the manual DELETE route already used)
+  when it finds a matching section, or no-ops into `skipped[]` with reason `no_such_section`
+  when the proposed key doesn't exist — never an error either way, matching the add path's
+  and update path's existing tolerance for a stale proposal. The response's `applied` gained
+  a `removedSectionKeys` array, separate from `sectionKeys` (which still means "added or
+  updated"), so a future UI surfacing `applied`/`skipped` (NEXT item 19) can tell the three
+  apart. `lib/proposalStore.ts`'s `PendingProposal.modifications.sections` type updated to
+  match, so the type change propagates through `ChatPanel.tsx` without a separate cast.
+  `prometheus.md` gained a GUARDRAILS #2 sentence (removal is allowed, only when the user
+  actually asked for it, only for a section they were shown) and an OUTPUT FORMAT sentence
+  documenting the `null` convention for sections, mirroring config's existing one.
+  **ChatPanel UI**: both the live proposal card and the reopenable past-turn "View proposed
+  changes" detail now detect a `null` section value and render it the same way a `null`
+  config value already does — `renderContentRow()` gained an optional `removalLabel` param
+  (default `'Remove this key'`) so the section rows can say "Remove this section" instead of
+  reusing the config wording verbatim. Test coverage added the same session (scoped `vitest
+  run`, no LLM calls): a `prometheus.test.ts` case mirroring the existing "null config value
+  passes through" test but for sections; two new `apply-proposal.test.ts` cases (delete an
+  existing section + confirm config/other-sections untouched; delete a nonexistent sectionKey
+  → skipped, zero writes). No schema change, no new repository primitive — `deleteSection()`
+  and its ownership/not-found handling already existed for the manual delete path (built
+  2026-08-11 alongside the add half); this closure only wired the chat contract to it.
 
 ## TODO — before v1 goes online
 
@@ -270,7 +308,7 @@ here were promoted from FUTURE on that basis, tagged below.
 they actually require, not just launch necessity — **[UX]** = a visible UI/layout change
 (prototype in `Layout-Workbench.html` first, standing rule 4); **[Behavior]** = a product/logic
 decision or backend change with no direct UI; **[Infra]** = tooling/process/docs, not user-
-facing at all. The big flow test and "Deploy online" (items 6 and 11) are deliberately
+facing at all. The big flow test and "Deploy online" (items 5 and 10) are deliberately
 untagged — they're end-of-list gate tasks (final validation, then deploy), not day-to-day
 pick-off work; everything between them (company signature, the guided tour, DB backup, the
 disclaimer) sits there by deliberate user choice, not because they're the same kind of task.
@@ -301,75 +339,28 @@ docs/code/tests already known to be honest about their own state; then the big f
 itself; then company signature (deliberately placed **after** the test, not before it, so an
 asset that still doesn't exist doesn't gate functional validation) right before deploy.
 
-1. **[Behavior]** **Section delete via chat — review.** *(Added 2026-08-05, from Plan 07's
-   confirmation point 3. Narrowed 2026-08-11 — the add half is done, see below.)* Still not
-   possible via chat today — `apply-proposal/route.ts` has no contract field for proposing a
-   removal (`sections` is add-or-update only), and no `modifications.sections[key] === null`
-   convention exists the way `config` already has one. If wanted: a new contract field (e.g.
-   `sectionsToRemove: string[]`, mirroring `config`'s `null`-to-delete convention) plus a new
-   `prometheus.md` guardrail. Kept here in TODO — not FUTURE — specifically so it gets
-   revisited before v1: review whether this is actually needed before launch. **Directly
-   relevant to item 6 below:** if this stays deferred, that test's "chat edit" stage can
-   exercise section add + edit but not remove.
-   **Add half done 2026-08-11** — found live: a real chat proposal added a new "OUTPUT FORMAT"
-   section to a real agent, apply-proposal silently skipped it (unknown `sectionKey`, logged
-   server-side into a `skipped[]` array the client never read or showed — confirmed against
-   the real `myagent.db`: `agent.updated_at` was bumped by the same Apply, meaning the config
-   half of that same proposal *did* write, but no new section row existed). Fixed:
-   `apply-proposal/route.ts`'s section loop now calls `addSection()` (the same repository
-   primitive the manual "+" add path already used) when a proposed `sectionKey` doesn't match
-   an existing section, instead of skipping it. Heading is derived server-side, never by the
-   model (the `sections` contract carries content only, GUARDRAILS #9) — `deriveHeadingForNewSection()`
-   (new, `lib/ai/prometheus.ts`) prefers a catalog match (`getSectionDefs(agent.platform)`,
-   so a chat-added standard section is identical to one added via the blueprint picker) and
-   falls back to formatting the key itself (`known-limits` → `# KNOWN LIMITS`) at the agent's
-   split level. `prometheus.md` GUARDRAILS #2 now explicitly documents this is allowed and
-   tells the model to use a blueprint section's real `key` (e.g. `output`) rather than
-   inventing a slug from the heading (`output-format` — what caused the live miss, even
-   though the correct key was already in the blueprint block sent every turn). New sections
-   always append at the end — no chat-controlled insertion position. The silent-skip UX gap
-   itself (the client still ignores `applied`/`skipped` in the apply-proposal response) is
-   real but out of scope for this fix — deferred, see NEXT.
-   **Two follow-on gaps found the same day, re-testing this fix live:** **(a)** the new
-   section landed after several non-core sections instead of near the top — `addSection()`
-   always appended at `max(order) + 1` with no concept of the blueprint's canonical order
-   (equally affected the pre-existing manual "+ add from catalog" path, not just chat — nobody
-   had exercised it out of order before). Rewrote `addSection()` to insert a catalog-matched
-   `sectionKey` at its canonical position relative to the agent's other catalog-matched
-   sections (reindexing every section's `order`, not just the new row's); a genuinely custom
-   `sectionKey` still appends at the end, unchanged. Also gave `addSection()` an `author`
-   param (`'user' | 'ai'`, default `'user'`) it never had — the chat call site now passes
-   `'ai'` explicitly. **(b)** the Raw panel never showed the new section at all —
-   `RawAgentView.tsx`'s re-fetch effect only depended on `agentId`, not on the agent's content
-   actually changing (a pre-existing bug, not specific to section-add — any edit left the Raw
-   panel stale until the agent was switched). Fixed by adding `updatedAt: string` to
-   `AgentDTO` and threading it into `RawAgentView`'s re-fetch dependency array.
-   **Test coverage added same day, at the user's request** (scoped `vitest run`, no LLM calls):
-   new `addSection` ordering/author cases in `repo.test.ts`; `apply-proposal.test.ts`'s
-   unknown-sectionKey test rewritten for add-not-skip; a new `sections.test.ts` covering the
-   manual add/remove routes, which had zero coverage before. 48/48 passing.
-2. **[Behavior]** **Manual-edit save frequency.** *(Promoted from FUTURE 2026-07-31 — was
+1. **[Behavior]** **Manual-edit save frequency.** *(Promoted from FUTURE 2026-07-31 — was
    Deferred Decisions #14.)* Resolved during triage: **the user wants an explicit Save
    action**, not autosave-on-every-keystroke or a debounced background save. Worth a quick
    check whether this was already effectively decided when manual editing shipped (unclear
    from a quick pass over `SectionBlock.tsx`) before implementing — no UI change expected
    either way, `SectionBlock.tsx` already has explicit Save/Cancel.
-3. **[Infra]** **`scripts/build-prompts.ts` readable output.** TechDesign #26, tagged **[HIGH
+2. **[Infra]** **`scripts/build-prompts.ts` readable output.** TechDesign #26, tagged **[HIGH
    PRIORITY]** there — currently emits one giant escaped-string line. A generator-script fix,
    not user-facing (double-checked at the user's request — this is developer/build tooling,
-   unrelated to the admin-facing Activity Log). Sequenced deliberately before item 6 (the
+   unrelated to the admin-facing Activity Log). Sequenced deliberately before item 5 (the
    pre-deploy big flow test): the user wants to be able to read the real compiled system
    prompt to sanity-check what's actually being sent to the LLM, which is most useful
    precisely when debugging a live chat-edit failure during that test, not after it.
-4. **[Infra]** **Second LLM provider.** *(Promoted from FUTURE 2026-07-31 — was P04a.)* A
+3. **[Infra]** **Second LLM provider.** *(Promoted from FUTURE 2026-07-31 — was P04a.)* A
    non-Anthropic, OpenAI-compatible or NVIDIA provider behind the existing `LLMProvider`
    interface — no user-visible change, same chat/import behavior through a different vendor.
    **The user wants this landed before going online**, while switching vendors is still cheap.
-5. **[Infra]** **Plan 09 — Pre-launch organization review (docs, code, tests).** *(Added
+4. **[Infra]** **Plan 09 — Pre-launch organization review (docs, code, tests).** *(Added
    2026-08-06, at the user's request — replaces what was previously here, a narrower doc-sync
    task, now absorbed as this plan's Track A finding A1.)* `plans/09-pre-launch-org-review.md`
    has the full charter. Three tracks, each asking "does this reflect/organize what it should,"
-   **not** "does it work" (that's the big flow test's job, item 6 below): **Track A (docs)** —
+   **not** "does it work" (that's the big flow test's job, item 5 below): **Track A (docs)** —
    audit `CLAUDE.md`/`TechDesign.md`/`README.md`/`docs/user-guide.md` against actual current
    behavior, including the absorbed Plan 06 Phase 6 doc-sync gap (Rules Index #63–71, the
    consent-popup supersession) and a newly-surfaced finding (`AgentDTO.validation` is
@@ -384,7 +375,7 @@ asset that still doesn't exist doesn't gate functional validation) right before 
    anything bigger spins into its own new TODO/FUTURE item. Sequenced right before the big flow
    test so that test runs against docs/code/tests already known to be honest about their own
    state.
-6. **Big flow test — import → manual edit → chat edit.** *(Added 2026-08-06, at the user's
+5. **Big flow test — import → manual edit → chat edit.** *(Added 2026-08-06, at the user's
    request.)* **The last functional validation before "Deploy online,"** run once every other
    TODO item above is done. One end-to-end pass through the whole real app, not a scripted
    unit-style check: **(a)** import a real agent file; **(b)** manually edit it in the
@@ -401,14 +392,14 @@ asset that still doesn't exist doesn't gate functional validation) right before 
    reply produces a correct proposal end-to-end) actually gets exercised — not run as a
    separate step, since this test's chat-edit stage already needs the same real, billed
    Anthropic API calls (standing rule 2 — ask before running this test for that reason).
-   **Known gap going in:** chat-driven section *add/remove* isn't implemented (item 1 above)
-   — this test's chat stage can only exercise section editing and config add/edit/remove
-   unless item 1 is resolved first; note this explicitly when the test is run, don't treat it
-   as a bug found by the test. **Anything else the test turns up:** small issues get fixed
+   **No longer a known gap as of 2026-08-12:** chat-driven section add/edit/remove are all
+   implemented now (see "What's built" — the delete half closed roadmap TODO item 1, which
+   this test's coverage description used to caveat around); this test's chat stage can
+   exercise all three. **Anything else the test turns up:** small issues get fixed
    inline as part of the same pass; anything bigger becomes its own new TODO/FUTURE item
    rather than blocking the test itself — the point is to find gaps before real users do, not
    to gate the test on being bug-free beforehand.
-7. **[UX]** **Company signature on the platform.** Added 2026-07-31 — the user's real
+6. **[UX]** **Company signature on the platform.** Added 2026-07-31 — the user's real
    branding needs to appear somewhere on the live site before v1 goes online (footer,
    login/signup pages, Topbar — placement and exact content, e.g. name/logo/tagline/copyright
    line, not yet decided). Placement-in-layout work — prototype first once an asset/copy
@@ -427,7 +418,7 @@ asset that still doesn't exist doesn't gate functional validation) right before 
    branding would read worse than seeing nothing. **Sequenced right before deploy, after the
    big flow test** (2026-08-06 reorder, at the user's request) — a still-missing asset
    shouldn't gate functional validation; branding lands as the final step before going live.
-8. **[UX]** **First-login guided tour (mini-tour).** *(Added 2026-08-07, from the same
+7. **[UX]** **First-login guided tour (mini-tour).** *(Added 2026-08-07, from the same
    cross-check — supersedes the original plan to build a separate pre-login landing page for
    this launch; see NEXT items 14/15 below for what that split into instead.)* The user isn't
    confident every invited friend can be walked through the product live, and a written guide
@@ -439,14 +430,15 @@ asset that still doesn't exist doesn't gate functional validation) right before 
    caption near the active one is enough; real coach-mark positioning logic (e.g.
    `@radix-ui/react-popover`) is deliberately not needed for a fixed 4-pane grid. **Six steps:**
    (1) welcome/why — this step folds in the "why does this exist" explanation, so the separate
-   pre-login landing page isn't needed for this launch; (2) Library panel; (3) Structured view;
+   pre-login landing page isn't needed for this launch (this step's own numbering is internal
+   to the tour, unrelated to this list's item numbers); (2) Library panel; (3) Structured view;
    (4) Chat panel; (5) cite-a-section (click a section/config value to narrow what's sent to
    chat); (6) Raw panel + download. **Skippable per-step and to finish** (Next/Skip/Finish on
    each step), **re-runnable anytime via a "?" affordance** — not one-shot, needs a persisted
    "seen" flag (`localStorage` is enough, same pattern already used for the pending-proposal
    lock). Estimated at a session or two, not a multi-day build. **Prototype in
    `Layout-Workbench.html` first per standing rule 4** before touching real code.
-9. **[Infra]** **Production DB backup/restore.** *(Added 2026-08-07, from a cross-check
+8. **[Infra]** **Production DB backup/restore.** *(Added 2026-08-07, from a cross-check
    against `architecture/audits/0708 Copilot Roadmap.md`, an outside 30-day-launch review.)*
    Every existing "backup" reference in the repo (Plan 05 §4.5 step 0, Plan 06 Phase 5) is a
    one-time safety copy taken before running a risky migration — nothing covers `myagent.db`
@@ -454,12 +446,12 @@ asset that still doesn't exist doesn't gate functional validation) right before 
    assumed. Minimum bar: know how to snapshot the live SQLite file and how to restore it,
    documented somewhere findable (`README.md` or here). No code required unless the chosen
    hosting target makes this non-trivial.
-10. **[UX]** **"Experimental — don't paste sensitive data" disclaimer.** *(Added 2026-08-07,
+9. **[UX]** **"Experimental — don't paste sensitive data" disclaimer.** *(Added 2026-08-07,
     same source.)* No disclaimer text exists anywhere in the signup/login flow
     (`app/components/Auth/`) — confirmed by grep. One sentence, cheap, real risk-reduction
     given compliance-grade logging is explicitly not built (NEXT item 12). Placement TBD when
     picked up (signup form, a banner, or folded into the existing `ConsentPopup.tsx`).
-11. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
+10. **Deploy online.** Get a version reachable outside the local network. Manual/simple for
     now (whatever the smallest real hosting step is); the *automated* version of this is
     CI/CD, tracked under FUTURE, not blocking this first deploy.
 
@@ -555,13 +547,13 @@ free to reorder within this bucket.
 14. **Pre-login landing page for prospective (non-signed-up) users.** *(Reworded 2026-08-07 —
     was "Presentation for prospective users," still decided-but-not-how, see IDEA note below.)*
     A real public-facing explainer page shown **before login**, for visitors who don't have an
-    account yet — a different audience than TODO item 8's first-login tour, which only
+    account yet — a different audience than TODO item 7's first-login tour, which only
     signed-up users ever see. Format/production still undecided (video, screenshots, static
     copy); the "we want this" part is settled, timing-wise the user wants this soon after
-    launch, not before — TODO item 8's welcome step covers the "why" well enough for this
+    launch, not before — TODO item 7's welcome step covers the "why" well enough for this
     launch's small, invited audience.
 15. **Improve the guided tour.** *(Reworded 2026-08-07 — was "Interactive tour for signed-up
-    users." The MVP tour itself is now TODO item 8, built before launch — this item is what's
+    users." The MVP tour itself is now TODO item 7, built before launch — this item is what's
     left after that ships.)* Candidates once the dim-panel MVP is live: true anchored
     coach-marks (`@radix-ui/react-popover` or similar, precise positioning instead of dimming
     fixed regions); more/different trigger conditions (first import, not just first login);
@@ -660,7 +652,7 @@ the TechDesign-numbered ones lives in `TechDesign.md`'s Deferred Decisions table
   app is single-file SQLite (`better-sqlite3`), single-process, and the first deploy target
   is a handful of friends (`maxUsers` currently 5) — that's comfortably within SQLite's
   range. The real trigger isn't user count, it's the *hosting choice* for "deploy online"
-  (TODO item 8): a host with a persistent disk (Fly.io, a VM, Azure App Service with a
+  (TODO item 10): a host with a persistent disk (Fly.io, a VM, Azure App Service with a
   mounted volume) keeps SQLite working fine; a stateless/serverless host (e.g. Vercel's
   default) would force this decision immediately rather than later. Worth deciding the
   hosting target with this in mind, not migrating pre-emptively.
@@ -673,7 +665,7 @@ the TechDesign-numbered ones lives in `TechDesign.md`'s Deferred Decisions table
 - **Dedicated group-management view** — punch-list item 7. New panel, not started, not
   researched. Prototype in `Layout-Workbench.html` first per standing rule 4 whenever it's
   picked up.
-- **CI/CD** — test → build → deploy automation. The automated counterpart to TODO item 8;
+- **CI/CD** — test → build → deploy automation. The automated counterpart to TODO item 10;
   that item is "get something online," this is "stop doing it by hand."
 - **Docker** — containerize once the app runs end-to-end online.
 - **Azure / hosting infra maturity** — App Service first, K8s only if that ever becomes the
@@ -697,32 +689,31 @@ Plan 04) before an item can move to FUTURE/NEXT with an understood scope, let al
 
 ## Recommended next stage
 
-Seven TODO items are done — zero-agents empty state Topbar, the `__raw` frontmatter escape
+Eight TODO items are done — zero-agents empty state Topbar, the `__raw` frontmatter escape
 hatch (built as a real `datatype: 'json'` instead), the auth framework review (OAuth verified
-live), the chat-mediator/Prometheus rework (propose/apply, the lock, the ChatPanel UI), and
-(2026-08-06) custom-key creation/removal, the Settings modal, and ESLint config — see "What's
-built" for all seven. Current TODO is 1–11, **explicitly ordered by the user 2026-08-06** (not a
-free pick-off list like the prior numbering; ESLint itself was item 1 in that ordering and has
-since closed out, hence the list below starts at section add/delete): **1** section add/delete
-via chat review and **2** manual-edit save frequency (grouped — both are "how the platform is
-actually used" behavior/UX calls) → **3** build-prompts readable output (confirmed
-developer-tooling, not admin/logging) → **4** second LLM provider (wanted landed before
-launch while switching vendors is still cheap) → **5** Plan 09 (`plans/09-pre-launch-org-
+live), the chat-mediator/Prometheus rework (propose/apply, the lock, the ChatPanel UI),
+(2026-08-06) custom-key creation/removal, the Settings modal, and ESLint config, and
+(2026-08-12) section delete via chat — see "What's built" for all eight. Current TODO is
+1–10, **explicitly ordered by the user 2026-08-06** (not a free pick-off list like the prior
+numbering; ESLint itself was item 1 in that ordering and has since closed out, same as chat
+section delete which was item 1 after that, hence the list below now starts at manual-edit
+save frequency): **1** manual-edit save frequency → **2** build-prompts readable output
+(confirmed developer-tooling, not admin/logging) → **3** second LLM provider (wanted landed
+before launch while switching vendors is still cheap) → **4** Plan 09 (`plans/09-pre-launch-org-
 review.md` — docs/code/tests organization review, findings-list output, not a fix-everything
-pass) → **6** the big flow test (final functional validation, now including an explicit
-export→reimport round-trip check) → **7** company signature (deliberately after the test, so
-a still-missing asset doesn't gate it) → **8** the first-login guided tour → **9** production
-DB backup/restore → **10** the experimental-use disclaimer → **11** deploy online. Items 8–10
-**added 2026-08-07**, from a cross-check against `architecture/audits/0708 Copilot Roadmap.md`
-(an outside 30-day-launch review) — everything else in that review either was already built,
-was already correctly placed in NEXT, or was scoped for a public beta this launch isn't
-running. Item 8 (the guided tour) replaces what would otherwise have been a separate pre-login
-landing-page build for this launch — see NEXT items 14/15 for how that split changed.
-Item 1 (section add/delete via chat) is worth resolving before item 6 if chat-driven section
-add/remove should be part of that test's coverage; otherwise item 6's own wording already
-accounts for testing edit-only. Item 5 (Plan 09's docs track) is worth doing close to whenever
-NEXT item 3 (Settings layout) lands if that happens before launch, so the docs reflect both in
-one pass — otherwise that becomes a NEXT-bucket follow-up.
+pass) → **5** the big flow test (final functional validation, now including an explicit
+export→reimport round-trip check, and — since chat section add/edit/delete are all built —
+no longer caveated to edit-only on the chat side) → **6** company signature (deliberately
+after the test, so a still-missing asset doesn't gate it) → **7** the first-login guided tour
+→ **8** production DB backup/restore → **9** the experimental-use disclaimer → **10** deploy
+online. Items 7–9 **added 2026-08-07**, from a cross-check against `architecture/audits/0708
+Copilot Roadmap.md` (an outside 30-day-launch review) — everything else in that review either
+was already built, was already correctly placed in NEXT, or was scoped for a public beta this
+launch isn't running. Item 7 (the guided tour) replaces what would otherwise have been a
+separate pre-login landing-page build for this launch — see NEXT items 14/15 for how that
+split changed. Item 4 (Plan 09's docs track) is worth doing close to whenever NEXT item 3
+(Settings layout) lands if that happens before launch, so the docs reflect both in one pass —
+otherwise that becomes a NEXT-bucket follow-up.
 
 Once v1 is live: NEXT item 1 (component/UI test coverage) first, per the user's explicit call.
 The rest of NEXT is free to reorder.

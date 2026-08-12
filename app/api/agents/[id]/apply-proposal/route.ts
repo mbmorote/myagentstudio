@@ -8,16 +8,20 @@
  *
  * Contract (plans/08-prometheus-apply.md §3.2, §3.3):
  *   Request:  { modifications: { description?, sections?, config? } }
- *   Response: { agent: AgentDTO, applied: { description, sectionKeys, configKeys }, skipped[] }
+ *   Response: { agent: AgentDTO,
+ *               applied: { description, sectionKeys, removedSectionKeys, configKeys },
+ *               skipped[] }
  *
  * Algorithm (§3.3 — order is normative):
  *   1. authenticate() → 401
  *   2. Parse body shape only (never content) → 400 invalid_body
  *   3. getAgentFull(id, session.userId) → 404 if null (enforces ownership)
  *   4. Drop modifications.name → skipped
- *   5. Sections first — a sectionKey matching an existing section goes through
+ *   5. Sections first — a sectionKey mapped to `null` deletes the matching section
+ *      (2026-08-12, closes roadmap TODO item 1's remaining chat half — mirrors config's
+ *      null-to-delete convention); a sectionKey matching an existing section goes through
  *      updateSectionContent(author:'ai', expectedVersion=current); a sectionKey with no
- *      match is treated as an add (2026-08-11, closes roadmap TODO item 1's chat half)
+ *      match is treated as an add (2026-08-11, closes roadmap TODO item 1's add half)
  *      via addSection(), with a heading derived server-side (catalog lookup, else
  *      derived from the key) since the sections contract carries content only.
  *   6. description + config together in one updateAgent() call (config = merged full set)
@@ -43,6 +47,7 @@ import {
   getAgentFull,
   updateSectionContent,
   addSection,
+  deleteSection,
   updateAgent,
   getSectionDefs,
   SectionNotFoundError,
@@ -84,13 +89,14 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
 
   const mods = rawMods as Record<string, unknown>;
 
-  // sections must be a plain object with string values (if present)
+  // sections must be a plain object with string or null values (if present) —
+  // null = delete the section, mirroring config's null-to-delete convention.
   if (mods.sections !== undefined) {
     if (typeof mods.sections !== 'object' || Array.isArray(mods.sections) || mods.sections === null) {
       return NextResponse.json({ error: 'invalid_body', field: 'sections' }, { status: 400 });
     }
     for (const val of Object.values(mods.sections as Record<string, unknown>)) {
-      if (typeof val !== 'string') {
+      if (typeof val !== 'string' && val !== null) {
         return NextResponse.json({ error: 'invalid_body', field: 'sections' }, { status: 400 });
       }
     }
@@ -105,7 +111,7 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
 
   const modifications = {
     description: typeof mods.description === 'string' ? mods.description : undefined,
-    sections: mods.sections as Record<string, string> | undefined,
+    sections: mods.sections as Record<string, string | null> | undefined,
     config: mods.config as Record<string, unknown> | undefined,
     name: mods.name,
   };
@@ -119,6 +125,7 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
   // Tracking for the response
   const skipped: { part: string; key: string; reason: string }[] = [];
   const appliedSectionKeys: string[] = [];
+  const removedSectionKeys: string[] = [];
   let appliedDescription = false;
   const appliedConfigKeys: string[] = [];
 
@@ -138,6 +145,30 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
 
   for (const [sectionKey, content] of Object.entries(modifications.sections ?? {})) {
     const entry = sectionMap.get(sectionKey);
+
+    if (content === null) {
+      // null = delete the section, mirroring config's null-to-delete convention (§3.4).
+      if (!entry) {
+        // Nothing to delete — proposing removal of a section that doesn't exist
+        // (or was already removed since the proposal was made) is a no-op, not an error.
+        skipped.push({ part: 'section', key: sectionKey, reason: 'no_such_section' });
+        continue;
+      }
+      try {
+        deleteSection(id, entry.id, session.userId);
+        removedSectionKeys.push(sectionKey);
+      } catch (err) {
+        if (err instanceof SectionNotFoundError) {
+          console.warn(`[apply-proposal] agent ${id}: sectionKey "${sectionKey}" disappeared mid-apply while deleting`);
+          skipped.push({ part: 'section', key: sectionKey, reason: 'no_such_section' });
+        } else {
+          console.error(`[apply-proposal] Unexpected write failure deleting section "${sectionKey}":`, String(err));
+          return NextResponse.json({ error: 'internal' }, { status: 500 });
+        }
+      }
+      continue;
+    }
+
     if (!entry) {
       // Unknown sectionKey — Prometheus is proposing a section that doesn't exist yet
       // on this agent (2026-08-11, closes roadmap TODO item 1's chat half). Same
@@ -250,6 +281,7 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
       applied: {
         description: appliedDescription,
         sectionKeys: appliedSectionKeys,
+        removedSectionKeys,
         configKeys: appliedConfigKeys,
       },
       skipped,

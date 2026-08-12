@@ -25,7 +25,8 @@ export interface PendingProposal {
   message: string;
   modifications: {
     description?: string;
-    sections?: Record<string, string>;
+    /** sectionKey → complete new content; null = delete the section */
+    sections?: Record<string, string | null>;
     config?: Record<string, unknown>;
   };
   warnings: string[];

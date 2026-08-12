@@ -40,8 +40,8 @@ export type PrometheusSection = {
 
 export type PrometheusModifications = {
   description?: string;
-  /** sectionKey → complete new content (§4.1) */
-  sections?: Record<string, string>;
+  /** sectionKey → complete new content; null = delete the section (§4.1) */
+  sections?: Record<string, string | null>;
   /** propKey → complete new value; null = delete the key (§4.1) */
   config?: Record<string, unknown>;
 };
@@ -376,7 +376,7 @@ export function parsePrometheusResponse(
         'Prometheus returned an invalid sections object; it was dropped.',
       );
     } else {
-      const sectionMap: Record<string, string> = {};
+      const sectionMap: Record<string, string | null> = {};
       const sectionScoped =
         !!citedSectionKeys && citedSectionKeys.length > 0;
 
@@ -393,7 +393,13 @@ export function parsePrometheusResponse(
           );
           continue;
         }
-        // Type check: value must be a string (§4.3)
+        // null = delete sentinel, mirroring config's convention (§4.1) — passes through
+        // untouched, no demotion (there's no content to scan).
+        if (value === null) {
+          sectionMap[key] = null;
+          continue;
+        }
+        // Type check: value must be a string otherwise (§4.3)
         if (typeof value !== 'string') {
           warnings.push(
             `Prometheus returned a non-string value for sections["${key}"]; it was dropped.`,
