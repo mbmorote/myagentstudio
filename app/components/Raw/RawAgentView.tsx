@@ -20,7 +20,11 @@
  *   - Everything else → plain text
  *
  * No full markdown parsing — a simple per-line classifier is enough (R11).
- * Re-fetches whenever the agentId prop changes (e.g. after a chat edit).
+ * Re-fetches whenever the agentId prop changes (switching agents), and — 2026-08-11,
+ * found live: adding a section via chat didn't show up here — whenever agentUpdatedAt
+ * changes (any edit to the same agent: manual save, chat apply, section add/remove).
+ * Before this fix the effect only depended on agentId, so this panel kept showing
+ * whatever it fetched on first mount until the agent itself was switched.
  *
  * Download (2026-07-29, roadmap Tier 3 item 4) — client-side Blob + <a download> of the
  * already-fetched markdown, no new API route. Download-only was the explicit choice over
@@ -40,6 +44,10 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 interface RawAgentViewProps {
   agentId: string;
   agentName: string;
+  /** AgentDTO.updatedAt (ISO 8601) — included in the re-fetch effect's dependency array
+   *  so any edit to the agent, not just switching to a different one, triggers a
+   *  re-fetch (2026-08-11). */
+  agentUpdatedAt: string;
   /** Current panel width in px (WorkbenchShell's rightWidth) — below DOWNLOAD_LABEL_MIN_WIDTH
    *  the Download button drops its "Download" text and shows just the arrow (2026-08-06). */
   panelWidth?: number;
@@ -137,7 +145,7 @@ function RawLines({ lines, size }: { lines: Line[]; size: 'compact' | 'zoom' }) 
   );
 }
 
-export function RawAgentView({ agentId, agentName, panelWidth }: RawAgentViewProps) {
+export function RawAgentView({ agentId, agentName, agentUpdatedAt, panelWidth }: RawAgentViewProps) {
   const showDownloadLabel = panelWidth === undefined || panelWidth >= DOWNLOAD_LABEL_MIN_WIDTH;
   const [markdown, setMarkdown] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -160,7 +168,7 @@ export function RawAgentView({ agentId, agentName, panelWidth }: RawAgentViewPro
       })
       .catch(() => setError('Network error'))
       .finally(() => setLoading(false));
-  }, [agentId]);
+  }, [agentId, agentUpdatedAt]);
 
   if (loading) {
     return (
@@ -196,9 +204,13 @@ export function RawAgentView({ agentId, agentName, panelWidth }: RawAgentViewPro
       {/* Band showing file info — matches mockup's .rband. No filename here (2026-08-06,
           removed) — the panel header (WorkbenchShell's Panel `role` prop) already shows
           "{agentName}.md · export preview" right above this, so repeating it here was
-          redundant and, at panel widths ~340px, wrapped the name onto its own line. */}
+          redundant and, at panel widths ~340px, wrapped the name onto its own line.
+          sticky + explicit bg (2026-08-11): Panel's own body div (app/components/shell/
+          Panel.tsx) is the actual overflow-auto scroll container, this band is just a
+          normal child inside it — without position:sticky it scrolled away with the
+          line-numbered content below instead of staying pinned at the top. */}
       <div
-        className="px-[14px] py-[6px] text-[var(--faint)] text-[10.5px] border-b border-[var(--border)] font-mono flex items-center gap-[10px]"
+        className="sticky top-0 z-10 bg-[var(--panel)] px-[14px] py-[6px] text-[var(--faint)] text-[10.5px] border-b border-[var(--border)] font-mono flex items-center gap-[10px]"
       >
         <span className="min-w-0 truncate" title="Markdown · UTF-8 · read reference">Markdown · UTF-8 · read reference</span>
         <button

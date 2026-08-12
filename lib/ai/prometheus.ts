@@ -528,3 +528,35 @@ export function stripEchoedHeading(content: string, heading: string | null): str
   while (rest.length > 0 && rest[0].trim() === '') rest = rest.slice(1);
   return rest.join('\n');
 }
+
+// ─────────────────────────────  New-section heading  ─────────────────────────────
+
+/**
+ * Derives the heading for a section proposed via chat that doesn't exist on the agent
+ * yet (2026-08-11 — closes roadmap TODO item 1's chat half). The `sections` output
+ * contract carries content only (GUARDRAILS #9 — heading is a separate field
+ * Prometheus never writes), so when a proposed `sectionKey` doesn't match any
+ * existing section, the apply route treats it as an add and needs a heading from
+ * somewhere other than the model's JSON.
+ *
+ * Prefers the section catalog: if `sectionKey` matches a known catalog def (e.g.
+ * `output` → `# OUTPUT FORMAT`), use that def's real heading — keeps a chat-proposed
+ * standard section indistinguishable from one added manually via the "+" picker
+ * (`AgentView.tsx`'s `addSectionFromCatalog`). Otherwise derives a heading from the
+ * key itself (kebab/snake case → spaced caps, e.g. `known-limits` → `KNOWN LIMITS`)
+ * at the agent's own split level, matching every other section's heading depth.
+ *
+ * Exported for unit testing; used only by the apply route (§4.4 pattern).
+ */
+export function deriveHeadingForNewSection(
+  sectionKey: string,
+  splitLevel: number,
+  catalogDefs: { key: string; defaultHeading: string }[],
+): string {
+  const catalogMatch = catalogDefs.find((d) => d.key === sectionKey);
+  if (catalogMatch) return catalogMatch.defaultHeading;
+
+  const words = sectionKey.replace(/[-_]+/g, ' ').trim().toUpperCase();
+  const label = words || sectionKey.toUpperCase();
+  return '#'.repeat(Math.max(1, splitLevel)) + ' ' + label;
+}

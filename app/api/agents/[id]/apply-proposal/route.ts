@@ -15,7 +15,11 @@
  *   2. Parse body shape only (never content) → 400 invalid_body
  *   3. getAgentFull(id, session.userId) → 404 if null (enforces ownership)
  *   4. Drop modifications.name → skipped
- *   5. Sections first via updateSectionContent(author:'ai', expectedVersion=current)
+ *   5. Sections first — a sectionKey matching an existing section goes through
+ *      updateSectionContent(author:'ai', expectedVersion=current); a sectionKey with no
+ *      match is treated as an add (2026-08-11, closes roadmap TODO item 1's chat half)
+ *      via addSection(), with a heading derived server-side (catalog lookup, else
+ *      derived from the key) since the sections contract carries content only.
  *   6. description + config together in one updateAgent() call (config = merged full set)
  *   7. Return fresh getAgentFull() read
  *
@@ -38,10 +42,17 @@ import { NextResponse } from 'next/server';
 import {
   getAgentFull,
   updateSectionContent,
+  addSection,
   updateAgent,
+  getSectionDefs,
   SectionNotFoundError,
 } from '@/lib/db/repository';
-import { demoteSplitLevelHeadings, ensureTrailingBlankLine, stripEchoedHeading } from '@/lib/ai/prometheus';
+import {
+  demoteSplitLevelHeadings,
+  ensureTrailingBlankLine,
+  stripEchoedHeading,
+  deriveHeadingForNewSection,
+} from '@/lib/ai/prometheus';
 import { authenticate } from '@/lib/auth/guard';
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -128,9 +139,28 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
   for (const [sectionKey, content] of Object.entries(modifications.sections ?? {})) {
     const entry = sectionMap.get(sectionKey);
     if (!entry) {
-      // Unknown sectionKey — skip, continue applying others (§8)
-      console.warn(`[apply-proposal] agent ${id}: unknown sectionKey "${sectionKey}" — skipped`);
-      skipped.push({ part: 'section', key: sectionKey, reason: 'no_such_section' });
+      // Unknown sectionKey — Prometheus is proposing a section that doesn't exist yet
+      // on this agent (2026-08-11, closes roadmap TODO item 1's chat half). Same
+      // content processing as an update (demotion, echoed-heading strip, trailing
+      // blank line), but against a heading derived here rather than one the model
+      // returned — the sections contract carries content only (GUARDRAILS #9).
+      const heading = deriveHeadingForNewSection(sectionKey, agent.splitLevel, getSectionDefs(agent.platform));
+      const stripped = stripEchoedHeading(content, heading);
+      const demoted = demoteSplitLevelHeadings(stripped, agent.splitLevel);
+      const safe = ensureTrailingBlankLine(demoted);
+      try {
+        addSection(id, session.userId, { sectionKey, heading, content: safe }, 'ai');
+        appliedSectionKeys.push(sectionKey);
+      } catch (err) {
+        if (err instanceof SectionNotFoundError) {
+          // Should never happen (we just loaded the agent in step 3), but handle cleanly.
+          console.warn(`[apply-proposal] agent ${id}: agent disappeared mid-apply while adding "${sectionKey}"`);
+          skipped.push({ part: 'section', key: sectionKey, reason: 'no_such_section' });
+        } else {
+          console.error(`[apply-proposal] Unexpected write failure adding section "${sectionKey}":`, String(err));
+          return NextResponse.json({ error: 'internal' }, { status: 500 });
+        }
+      }
       continue;
     }
 

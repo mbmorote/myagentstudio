@@ -427,7 +427,7 @@ export function WorkbenchShell({
               style={{ width: rightWidth }}
             >
               {agent ? (
-                <RawAgentView agentId={agent.id} agentName={agent.name} panelWidth={rightWidth} />
+                <RawAgentView agentId={agent.id} agentName={agent.name} agentUpdatedAt={agent.updatedAt} panelWidth={rightWidth} />
               ) : (
                 <div className="p-4 text-[12px] text-[var(--faint)]">
                   No agent loaded.

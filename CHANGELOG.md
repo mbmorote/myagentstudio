@@ -7,6 +7,106 @@ its actual commit if it was verified live before being committed.
 
 ---
 
+## 2026-08-11 — Chat-driven section add (found broken live, fixed same session)
+
+Found via real usage, not a planned task: the user asked Prometheus to review the real agent
+**Ada**, applied the resulting proposal, and nothing visually changed. Diagnosed directly
+against the real `myagent.db` (read-only query, no code run) rather than guessing — confirmed
+`agent.updated_at` for Ada *was* bumped by the Apply (the proposal's tool-list trim, removing
+`WebSearch`/`WebFetch`, really did persist), but no new section row existed anywhere in
+`agent_section` for the "OUTPUT FORMAT" section the proposal's message described adding.
+
+**Root cause: chat-driven section add was never implemented** (this is exactly
+`plans/roadmap.md` TODO item 1, previously scoped as "add/delete via chat"). Prometheus
+proposed a genuinely new `sectionKey` ("output-format"); `apply-proposal/route.ts`'s section
+loop only knew how to update a `sectionKey` matching an existing section — anything else was
+logged as a server warning and pushed into a `skipped[]` array in the response that the client
+never reads. Not a regression from anything touched this session or recently — the very first
+real attempt to propose a new section via chat, which nobody had tried until now.
+
+**Fix — real primitive, no shortcut.** `apply-proposal/route.ts`'s section loop now calls
+`addSection()` (`lib/db/repository/agents.ts` — the same repository function the manual "+"
+add path already used, built 2026-08-07 but never wired to chat) when a proposed `sectionKey`
+doesn't match an existing section, instead of skipping it. The one real design gap: the
+`sections` output contract carries content only (Prometheus never writes a heading — GUARDRAILS
+#9), so a brand-new section has no heading anywhere in the model's JSON. New
+`deriveHeadingForNewSection()` (`lib/ai/prometheus.ts`) resolves it server-side: prefers a
+match in the section catalog (`getSectionDefs(agent.platform)`) so a chat-added standard
+section is indistinguishable from one added via the blueprint picker, falling back to
+formatting the key itself (`known-limits` → `# KNOWN LIMITS`) at the agent's split level when
+there's no catalog match. Same content processing as an update (echoed-heading strip,
+split-level demotion, trailing blank line) runs against the derived heading before the write.
+
+**Prompt updated too**, not just the route — the live miss traced partly to `prometheus.md`
+itself: the Agent Blueprint block sent every turn already includes each catalog section's real
+`key` (confirmed by reading `lib/blueprint/prompt.ts`), but nothing told Prometheus to *use*
+that key when proposing a new section, so it invented `output-format` from the heading text
+instead of using the real key, `output`. `prometheus.md` GUARDRAILS #2 now explicitly says
+new-section proposals are allowed and to prefer a blueprint section's own `key` when the
+addition matches one. **Needs a dev-server restart to take effect** — prompts are compiled at
+build time (`scripts/build-prompts.ts`); restarted the same session (killed the stale PID
+listening on :3000, confirmed clean via `netstat`, `npm run dev` recompiled and came back up
+clean).
+
+**Not done, deliberately out of scope for this fix, spun into new roadmap items:**
+chat-driven section **delete** (roadmap TODO item 1, narrowed — the add half is what closed
+here) and surfacing `applied`/`skipped` in the UI at all (new NEXT item 19) — the response
+has always carried this data; `WorkbenchShell.tsx`'s `applyProposal` just never read it, so any
+future partial skip for any reason will look the same as this one did until that's built.
+
+**Two more gaps found live, same session, re-testing the fix above:**
+
+1. **Ordering.** The chat-added "OUTPUT FORMAT" section (core, catalog order 4) landed after
+   several non-core sections instead of near the top — `addSection()` had always appended
+   blindly at `max(order) + 1`, with no concept of the blueprint's canonical order. This
+   equally affected the pre-existing manual "+" add-from-catalog path, not just chat — nobody
+   had added a catalog section out of order before. Rewrote `addSection()`
+   (`lib/db/repository/agents.ts`): a `sectionKey` matching the platform's section catalog is
+   now inserted at its canonical position relative to the agent's other catalog-matched
+   sections (reindexing every section's `order`, not just the new row's — inserting in the
+   middle shifts what comes after it); a `sectionKey` with no catalog match (genuinely custom
+   sections) keeps the old append-at-the-end behavior, unchanged. Also gave `addSection()` an
+   `author` parameter (`'user' | 'ai'`, default `'user'`) it never had — the chat-add call site
+   in `apply-proposal/route.ts` now passes `'ai'` explicitly, matching the convention
+   `updateSectionContent`'s chat-driven calls already use; before this the section-add
+   revision was always attributed to `'user'` even when Prometheus wrote it.
+2. **Raw panel didn't show the new section.** `RawAgentView.tsx`'s re-fetch effect only
+   depended on `agentId` — switching agents re-fetched, but no dependency fired on an edit to
+   the *same* agent (manual save, chat apply, add/remove — this bug predates today, not
+   specific to section-add). Fixed by adding `updatedAt: string` to `AgentDTO`
+   (`lib/db/repository/agents.ts`, additive — `buildAgentDTO()` now returns
+   `agentRow.updatedAt.toISOString()`) and threading it into `RawAgentView` as a new
+   `agentUpdatedAt` prop, added to the re-fetch effect's dependency array
+   (`WorkbenchShell.tsx` passes `agent.updatedAt` at the one call site).
+
+**Ada's real DB row was manually backfilled** (direct `addSection`-equivalent write, no API
+call) to the correct order/author after the ordering fix landed — confirmed directly against
+`myagent.db`: `output` now sits at its canonical position (right after `guardrails`), its
+revision reads `author: 'ai'`. The user had already exercised the chat path once, live, before
+the ordering/author fix existed (that run is what surfaced both gaps); a second live chat
+re-test of the corrected ordering specifically has not happened yet.
+
+**Test coverage — added same session, at the user's request** (scoped run, no LLM calls, per
+the standing ask-first rule — the user explicitly authorized this specific run): `repo.test.ts`
+gained three new `addSection` cases (canonical-position insertion with reindexing, custom-key
+still-appends-at-end, `author` param defaults to `'user'`/chat passes `'ai'`); two pre-existing
+`addSection` cases had their `maxExistingOrder + 1` expectation corrected — `createAgent()`
+seeds sections with `order: def.defaultOrder` (1-based), but the rewritten `addSection()`
+reindexes every section to a contiguous 0-based sequence on each call, so the right prediction
+is `existingCount`, not the old max-order-based math (both still describe the exact same
+observed behavior; only the *assertion*, not the function, needed the fix — confirmed by the
+one-line diff between old/new expected values). `apply-proposal.test.ts`'s test 7 (previously
+"unknown sectionKey → skipped[]") was rewritten for the new add-on-unknown-key behavior, plus a
+new 7b for the non-catalog-key heading-derivation fallback. A new file,
+`app/api/agents/[id]/__tests__/sections.test.ts`, was added from scratch — the manual "+"
+add / "Remove" routes (`sections/route.ts`, `sections/[sectionId]/route.ts`) had zero test
+coverage of any kind before this, at any layer. **48/48 passing** across all three files
+(`lib/db/repository/__tests__/repo.test.ts`, `app/api/agents/[id]/__tests__/apply-proposal.test.ts`,
+`app/api/agents/[id]/__tests__/sections.test.ts`) — a scoped `vitest run` naming just those
+files, not the full suite. No `tsc`/build pass run this session.
+
+---
+
 ## 2026-08-07 — Chat history: Prometheus now sees prior turns, not just the current instruction
 
 Ad hoc improvement (no formal plan doc — user explicitly opted to skip one and go straight to

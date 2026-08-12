@@ -23,7 +23,12 @@ timing decision is not the same as a design decision.
 **Layout work still prototypes first** — `architecture/layout/Layout-Workbench.html` before
 live code, for iteration speed (see `CLAUDE.md` standing rule 4).
 
-**Last updated:** 2026-08-06 — TODO items 2, 3, and 6 (the chat-mediator/Prometheus rework)
+**Last updated:** 2026-08-11 — TODO item 1 narrowed: chat-driven section *add* is built (found
+broken live, fixed same session — see the item's own entry for detail); chat-driven section
+*delete* stays open, item renamed accordingly. New NEXT item 19 added for a real UX gap found
+along the way (apply-proposal's `skipped[]` isn't surfaced anywhere in the UI).
+
+**Last updated (prior):** 2026-08-06 — TODO items 2, 3, and 6 (the chat-mediator/Prometheus rework)
 closed out into "What's built" now that Plans 07–08 are built and doc-synced (Plan 08 Phases
 0–3 and 5; Phase 4's live-LLM verification is deferred, folded into a new item rather than run
 separately — see below). One new TODO item added at the user's request: a **"big flow test"**
@@ -296,21 +301,53 @@ docs/code/tests already known to be honest about their own state; then the big f
 itself; then company signature (deliberately placed **after** the test, not before it, so an
 asset that still doesn't exist doesn't gate functional validation) right before deploy.
 
-1. **[Behavior]** **Section add/delete via chat — review.** *(Added 2026-08-05, from Plan
-   07's confirmation point 3.)* Neither is possible via chat today — an unknown `sectionKey`
-   from a proposal is skipped, and no repository primitive exists to add a section outside
-   import (`updateSectionContent` only updates). Plans 07/08 deliberately shipped without
-   either (chat stays edit-only for existing sections; see TechDesign Deferred Decisions row
-   P08b). A scope/product decision plus repository + prompt-guardrail work if built — the
-   existing proposal-card UI already renders whatever a proposal contains generically, so no
-   new UI is anticipated even if this is built. Kept here in TODO — not FUTURE — specifically
-   so it gets revisited before v1, not left to drift: review whether either is actually needed
-   before launch, or whether it's fine to genuinely defer. If wanted, it's real new work — new
-   repository functions, new contract fields (e.g. `sections: { key: string | null }` for
-   deletion), and new `prometheus.md` guardrail rules. **Directly relevant to item 6 below:**
-   if this stays deferred, that test's "chat edit" stage can only exercise section *editing*,
-   not add/remove — its own wording accounts for this; resolve this item first if the test
-   should cover chat-driven section add/remove too.
+1. **[Behavior]** **Section delete via chat — review.** *(Added 2026-08-05, from Plan 07's
+   confirmation point 3. Narrowed 2026-08-11 — the add half is done, see below.)* Still not
+   possible via chat today — `apply-proposal/route.ts` has no contract field for proposing a
+   removal (`sections` is add-or-update only), and no `modifications.sections[key] === null`
+   convention exists the way `config` already has one. If wanted: a new contract field (e.g.
+   `sectionsToRemove: string[]`, mirroring `config`'s `null`-to-delete convention) plus a new
+   `prometheus.md` guardrail. Kept here in TODO — not FUTURE — specifically so it gets
+   revisited before v1: review whether this is actually needed before launch. **Directly
+   relevant to item 6 below:** if this stays deferred, that test's "chat edit" stage can
+   exercise section add + edit but not remove.
+   **Add half done 2026-08-11** — found live: a real chat proposal added a new "OUTPUT FORMAT"
+   section to a real agent, apply-proposal silently skipped it (unknown `sectionKey`, logged
+   server-side into a `skipped[]` array the client never read or showed — confirmed against
+   the real `myagent.db`: `agent.updated_at` was bumped by the same Apply, meaning the config
+   half of that same proposal *did* write, but no new section row existed). Fixed:
+   `apply-proposal/route.ts`'s section loop now calls `addSection()` (the same repository
+   primitive the manual "+" add path already used) when a proposed `sectionKey` doesn't match
+   an existing section, instead of skipping it. Heading is derived server-side, never by the
+   model (the `sections` contract carries content only, GUARDRAILS #9) — `deriveHeadingForNewSection()`
+   (new, `lib/ai/prometheus.ts`) prefers a catalog match (`getSectionDefs(agent.platform)`,
+   so a chat-added standard section is identical to one added via the blueprint picker) and
+   falls back to formatting the key itself (`known-limits` → `# KNOWN LIMITS`) at the agent's
+   split level. `prometheus.md` GUARDRAILS #2 now explicitly documents this is allowed and
+   tells the model to use a blueprint section's real `key` (e.g. `output`) rather than
+   inventing a slug from the heading (`output-format` — what caused the live miss, even
+   though the correct key was already in the blueprint block sent every turn). New sections
+   always append at the end — no chat-controlled insertion position. The silent-skip UX gap
+   itself (the client still ignores `applied`/`skipped` in the apply-proposal response) is
+   real but out of scope for this fix — deferred, see NEXT.
+   **Two follow-on gaps found the same day, re-testing this fix live:** **(a)** the new
+   section landed after several non-core sections instead of near the top — `addSection()`
+   always appended at `max(order) + 1` with no concept of the blueprint's canonical order
+   (equally affected the pre-existing manual "+ add from catalog" path, not just chat — nobody
+   had exercised it out of order before). Rewrote `addSection()` to insert a catalog-matched
+   `sectionKey` at its canonical position relative to the agent's other catalog-matched
+   sections (reindexing every section's `order`, not just the new row's); a genuinely custom
+   `sectionKey` still appends at the end, unchanged. Also gave `addSection()` an `author`
+   param (`'user' | 'ai'`, default `'user'`) it never had — the chat call site now passes
+   `'ai'` explicitly. **(b)** the Raw panel never showed the new section at all —
+   `RawAgentView.tsx`'s re-fetch effect only depended on `agentId`, not on the agent's content
+   actually changing (a pre-existing bug, not specific to section-add — any edit left the Raw
+   panel stale until the agent was switched). Fixed by adding `updatedAt: string` to
+   `AgentDTO` and threading it into `RawAgentView`'s re-fetch dependency array.
+   **Test coverage added same day, at the user's request** (scoped `vitest run`, no LLM calls):
+   new `addSection` ordering/author cases in `repo.test.ts`; `apply-proposal.test.ts`'s
+   unknown-sectionKey test rewritten for add-not-skip; a new `sections.test.ts` covering the
+   manual add/remove routes, which had zero coverage before. 48/48 passing.
 2. **[Behavior]** **Manual-edit save frequency.** *(Promoted from FUTURE 2026-07-31 — was
    Deferred Decisions #14.)* Resolved during triage: **the user wants an explicit Save
    action**, not autosave-on-every-keystroke or a debounced background save. Worth a quick
@@ -549,7 +586,14 @@ free to reorder within this bucket.
     re-expose. Worth a quick real-usage check when re-enabled (does drag-and-drop still feel
     right against whatever else changed in the interim) rather than assuming it's exactly as
     it was.
-    tools, no-fabricated-headings) but for a client the platform doesn't control the prompt of.
+19. **Surface `applied`/`skipped` from apply-proposal in the UI.** *(Added 2026-08-11, found
+    live while diagnosing the section-add gap above.)* `apply-proposal/route.ts`'s response
+    has always carried `applied: { description, sectionKeys, configKeys }` and `skipped[]`
+    (each with a `reason`), but `WorkbenchShell.tsx`'s `applyProposal` only reads `data.agent`
+    — any part of a proposal that gets skipped (unknown config datatype, a write that
+    silently no-ops, etc.) currently looks identical to Apply succeeding in full. Needs a
+    UI decision (a toast, a note appended to the proposal card, something in the chat
+    transcript) more than new backend work — the data is already there.
 
 ## FUTURE — decided to build eventually, not prioritized
 

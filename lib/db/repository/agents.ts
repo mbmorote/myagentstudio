@@ -57,6 +57,10 @@ export type AgentDTO = {
   source: 'created' | 'imported';
   platform: string;
   splitLevel: number;
+  /** ISO 8601 — bumped on every write to the agent or its sections/config (2026-08-11,
+   *  added so the Raw panel can tell content actually changed and re-fetch the export
+   *  instead of only re-fetching when the agent switches). */
+  updatedAt: string;
   config: { propKey: string; value: unknown; def: ConfigDefLite | null }[];
   sections: {
     id: string;
@@ -172,6 +176,7 @@ function buildAgentDTO(
     source: agentRow.source,
     platform: agentRow.platform,
     splitLevel: agentRow.splitLevel,
+    updatedAt: agentRow.updatedAt.toISOString(),
     config,
     sections,
     validation,
@@ -413,26 +418,35 @@ export function updateSectionContent(
 }
 
 /**
- * Adds a new section to an agent — manual add via the structured view (D3, TODO item 1's
- * non-chat half). Not exposed to chat/Prometheus; that stays deferred (roadmap TODO #1).
+ * Adds a new section to an agent — the manual "+" add path (D3, TODO item 1's non-chat
+ * half) and, as of 2026-08-11, Prometheus's chat-driven add too (apply-proposal calls
+ * this when a proposed sectionKey doesn't match an existing section).
  *
- * Appended at the end (order = current max + 1, or 0 if this is the agent's first
- * section) — the caller decides sectionKey/heading/content; this function doesn't
- * validate against the blueprint catalog (that's a route/UI concern, same separation
- * as updateSectionContent not validating content against datatype/allowedValues —
- * Rules Index #76, "never block").
+ * Ordering (rewritten 2026-08-11 — found live: a chat-added core "output" section
+ * landed after several non-core ones, always-append-at-end had no concept of the
+ * blueprint's canonical order). A sectionKey matching the platform's section catalog
+ * is inserted at its canonical position *relative to the agent's other catalog-matched
+ * sections* — sections with no catalog match (genuinely custom ones, sectionKey
+ * "custom" or otherwise unrecognized) keep their existing relative order and the new
+ * one, if it's one of them, is appended after all catalog-matched sections, same as
+ * before. This reindexes every section's `order` on the agent, not just the new row's —
+ * inserting in the middle requires shifting what comes after it. This function doesn't
+ * validate content against the blueprint catalog beyond ordering (that stays a
+ * route/UI concern, same separation as updateSectionContent not validating content
+ * against datatype/allowedValues — Rules Index #76, "never block").
  *
- * Revision #0 is author:'user' (a human created this row directly, not import/
- * scaffold/ai) — same D5 reasoning that gives platform-scaffolded sections
- * author:'scaffold' instead.
+ * `author` defaults to 'user' (the manual-add path, a human creating this row
+ * directly) — the chat-add caller passes 'ai' explicitly, same convention
+ * updateSectionContent's chat-driven calls already use.
  */
 export function addSection(
   agentId: string,
   ownerId: string,
   input: { sectionKey: string; heading: string | null; content: string },
+  author: 'user' | 'ai' = 'user',
 ): { id: string; order: number; version: number } {
   const agent = db
-    .select({ id: schema.agent.id })
+    .select({ id: schema.agent.id, platform: schema.agent.platform })
     .from(schema.agent)
     .where(and(eq(schema.agent.id, agentId), eq(schema.agent.ownerId, ownerId)))
     .get();
@@ -441,40 +455,69 @@ export function addSection(
     throw new SectionNotFoundError(agentId);
   }
 
-  const existingOrders = db
-    .select({ order: schema.agentSection.order })
+  const existing = db
+    .select({ id: schema.agentSection.id, sectionKey: schema.agentSection.sectionKey })
     .from(schema.agentSection)
     .where(eq(schema.agentSection.agentId, agentId))
+    .orderBy(schema.agentSection.order)
     .all();
 
-  const nextOrder = existingOrders.length > 0
-    ? Math.max(...existingOrders.map((s) => s.order)) + 1
-    : 0;
+  const catalogDefs = db
+    .select({ key: schema.sectionDef.key, defaultOrder: schema.sectionDef.defaultOrder })
+    .from(schema.sectionDef)
+    .where(eq(schema.sectionDef.platform, agent.platform))
+    .all();
+  const catalogOrder = new Map(catalogDefs.map((d) => [d.key, d.defaultOrder]));
 
+  type Item = { id: string | null; catalogOrder: number };
+  const catalogItems: Item[] = [];
+  const customItems: Item[] = [];
+  for (const s of existing) {
+    const order = catalogOrder.get(s.sectionKey);
+    if (order !== undefined) catalogItems.push({ id: s.id, catalogOrder: order });
+    else customItems.push({ id: s.id, catalogOrder: Infinity });
+  }
+  const newCatalogOrder = catalogOrder.get(input.sectionKey);
   const sectionId = crypto.randomUUID();
+  if (newCatalogOrder !== undefined) {
+    catalogItems.push({ id: sectionId, catalogOrder: newCatalogOrder });
+  } else {
+    customItems.push({ id: sectionId, catalogOrder: Infinity });
+  }
+  // Stable sort — ties (shouldn't happen for real catalog rows, but harmless if they
+  // do) keep their prior relative order since Array.prototype.sort is stable.
+  catalogItems.sort((a, b) => a.catalogOrder - b.catalogOrder);
+  const finalOrder = [...catalogItems, ...customItems];
 
+  let newOrder = 0;
   db.transaction((tx) => {
-    tx.insert(schema.agentSection).values({
-      id: sectionId,
-      agentId,
-      sectionKey: input.sectionKey,
-      heading: input.heading,
-      content: input.content,
-      order: nextOrder,
-      version: 0,
-    }).run();
-
-    tx.insert(schema.sectionRevision).values({
-      id: crypto.randomUUID(),
-      sectionId,
-      content: input.content,
-      author: 'user',
-    }).run();
+    finalOrder.forEach((item, idx) => {
+      if (item.id === sectionId) {
+        newOrder = idx;
+        tx.insert(schema.agentSection).values({
+          id: sectionId,
+          agentId,
+          sectionKey: input.sectionKey,
+          heading: input.heading,
+          content: input.content,
+          order: idx,
+          version: 0,
+        }).run();
+        tx.insert(schema.sectionRevision).values({
+          id: crypto.randomUUID(),
+          sectionId,
+          content: input.content,
+          author,
+        }).run();
+      } else {
+        tx.update(schema.agentSection).set({ order: idx }).where(eq(schema.agentSection.id, item.id!)).run();
+      }
+    });
 
     tx.update(schema.agent).set({ updatedAt: new Date() }).where(eq(schema.agent.id, agentId)).run();
   });
 
-  return { id: sectionId, order: nextOrder, version: 0 };
+  return { id: sectionId, order: newOrder, version: 0 };
 }
 
 /**
@@ -482,10 +525,9 @@ export function addSection(
  * non-chat half). Not exposed to chat/Prometheus.
  *
  * SectionRevision rows are NOT cascade-deleted (rule 4, same as every other deletion
- * path in this file) — history outlives the row. Whether a *core* section should be
- * blockable from deletion is a policy/product decision, deliberately left to the
- * caller (route layer) — this function performs the mutation, same separation
- * updateSectionContent already draws between mechanism and policy.
+ * path in this file) — history outlives the row. No isCore check here or at the
+ * route layer — core sections are removable like any other (2026-08-11, at the
+ * user's explicit request).
  */
 export function deleteSection(agentId: string, sectionId: string, ownerId: string): void {
   const section = db

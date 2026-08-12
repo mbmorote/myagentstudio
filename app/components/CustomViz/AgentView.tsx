@@ -814,8 +814,6 @@ export function AgentView({
       const res = await apiFetch(`/api/agents/${agent.id}/sections/${sectionId}`, { method: 'DELETE' });
       if (res.ok) {
         onAgentUpdated({ ...agent, sections: agent.sections.filter((s) => s.id !== sectionId) });
-      } else if (res.status === 400) {
-        window.alert('Core sections cannot be removed.');
       } else {
         setSectionError('Could not remove the section. Please try again.');
       }

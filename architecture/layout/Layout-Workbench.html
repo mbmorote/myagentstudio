@@ -344,9 +344,48 @@
   .sec-h:hover{background:var(--bg)}
   .sec-h .chev{color:var(--faint);font-size:10px}
   .sec-h .h{font-weight:600;font-size:12px;letter-spacing:.02em}
-  .sec-h .core{margin-left:auto;font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
-  .sec-h .edited{margin-left:auto;font-size:9.5px;color:var(--accent-ink);background:var(--accent-wash);
+  /* .sec-trail wraps everything trailing the heading (core badge + actions, whichever
+     layout option is active) so a single margin-left:auto keeps the group right-aligned
+     regardless of which pieces are present (2026-08-11 — same fix as the real app's
+     SectionBlock.tsx, applied here so the mock stays accurate). */
+  .sec-h .sec-trail{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .sec-h .core{font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em}
+  .sec-h .edited{font-size:9.5px;color:var(--accent-ink);background:var(--accent-wash);
                  border:1px solid var(--accent);border-radius:5px;padding:1px 7px;letter-spacing:.02em}
+  /* ---- section header action-layout options (2026-08-11 prototyping pass) ---- */
+  .sec-act{border:none;background:transparent;padding:2px 8px;border-radius:5px;font-size:11px;
+           color:var(--muted);cursor:pointer;font-family:var(--ui)}
+  .sec-act:hover{background:var(--bg);color:var(--text)}
+  .sec-act.rm:hover{color:var(--err)}
+  .sec-icon-btn{border:none;background:transparent;padding:2px 6px;border-radius:5px;font-size:12px;
+                color:var(--muted);cursor:pointer;line-height:1}
+  .sec-icon-btn:hover{background:var(--bg);color:var(--text)}
+  .sec-icon-btn.rm:hover{color:var(--err)}
+  .sec-trail-hover .sec-icon-btn{opacity:0;transition:opacity .12s}
+  .sec:hover .sec-trail-hover .sec-icon-btn{opacity:1}
+  .kebab-anchor{position:relative}
+  .kebab-btn{border:none;background:transparent;padding:2px 7px;border-radius:5px;font-size:13px;
+             color:var(--muted);cursor:pointer;line-height:1}
+  .kebab-btn:hover{background:var(--bg);color:var(--text)}
+  .kebab-menu{position:absolute;top:100%;right:0;margin-top:4px;background:var(--elev);
+              border:1px solid var(--border);border-radius:7px;box-shadow:0 6px 18px rgba(0,0,0,.18);
+              z-index:20;min-width:110px;overflow:hidden}
+  .kebab-menu button{display:block;width:100%;text-align:left;border:none;background:transparent;
+                      padding:6px 10px;font-size:11.5px;color:var(--text);cursor:pointer;font-family:var(--ui)}
+  .kebab-menu button:hover{background:var(--bg)}
+  .kebab-menu button.danger{color:var(--err)}
+  .seg-group{display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+  .seg-btn{border:none;background:transparent;padding:2px 9px;font-size:11px;color:var(--muted);
+           cursor:pointer;font-family:var(--ui)}
+  .seg-btn:hover{background:var(--bg);color:var(--text)}
+  .seg-btn.rm:hover{color:var(--err)}
+  .seg-btn+.seg-btn{border-left:1px solid var(--border)}
+  .layout-switch{display:flex;justify-content:flex-end;align-items:center;gap:5px;margin:0 0 6px;
+                 font-size:9.5px;color:var(--faint)}
+  .ls-opt{border:1px solid var(--border);background:var(--elev);border-radius:5px;padding:1px 7px;
+          font-size:10px;color:var(--muted);cursor:pointer;font-family:var(--ui)}
+  .ls-opt:hover{color:var(--text);border-color:var(--accent)}
+  .ls-opt.active{background:var(--accent);border-color:var(--accent);color:#fff}
   .sec-b{padding:0 12px 12px 30px;color:var(--muted);font-size:12px}
   .sec-b.cite{cursor:alias}
   .sec-b.cite:hover{background:var(--accent-wash)}
@@ -1294,6 +1333,10 @@ or any tool that modifies files — intentionally excluded.</pre>
                       editingRestriction: false, expandedCustom: null, expandedPrompt: false, addKeyMenuOpen: false,
                       editingSection: null, keysCollapsed: false, sectionsCollapsed: false, selectedItem: null,
                       listExpanded: {},
+                      // Section header action-layout prototyping (2026-08-11) — which of the
+                      // A/B/C/D header designs is currently shown for every section; openKebab
+                      // tracks which section's Option-C dropdown is open, if any.
+                      headerLayout: 'A', openKebab: null,
                       // Chevron state (2026-08-06) — separate from expandedCustom/expandedPrompt
                       // ("is editing"), same relationship as SectionBlock.tsx's expanded/isEditing.
                       promptCollapsed: true, customCollapsed: {},
@@ -1750,6 +1793,10 @@ or any tool that modifies files — intentionally excluded.</pre>
       text: "1. Discovery — locate agent, skill, MCP server, hook, and permission/mode configs; classify into core runtime, integration, and governance.\n2. Risk assessment — evaluate each component for security, safety, and compliance risk; assign a severity of Critical, High, Medium, or Low.\n3. Guardrail design — recommend concrete changes: tightening tools/disallowedTools, permission modes, PreToolUse/PostToolUse hooks, isolation, and memory settings.\n4. Behavioral patterns — encode reusable agent patterns (secure coding agent, deployment gatekeeper, incident responder) with scope, tools, hooks, and permissions.\n5. Reporting and audit — produce structured findings by severity with what, why, where, and how to fix, plus quick wins and long-term governance recommendations." },
     { key: 'output-format', heading: 'Output format', core: true, collapsed: false,
       text: "Governance posture overview (summary and key stats), Findings by severity (Critical / High / Medium / Low, each with a Finding ID, title, context, details, recommendation, and an example configuration), Recommended guardrails (agent patterns, hook patterns, permission and isolation strategy, monitoring and audit), and Next steps (immediate actions, short-term improvements, long-term governance)." },
+    // Non-core demo section (2026-08-11) — added so the header-layout options below can be
+    // compared with AND without the "core" badge present, not just the core case.
+    { key: 'boundaries', heading: 'Boundaries', core: false, collapsed: false,
+      text: "1. Never modify production infrastructure directly — propose changes for human review.\n2. Never exfiltrate credentials, API keys, or customer data outside the sanctioned channel.\n3. Escalate instead of guessing when a request's intent is ambiguous or its risk is unclear." },
   ];
   function cfgSectionBodyHtml(text) {
     const lines = text.split('\n').filter(l => l.trim() !== '');
@@ -1757,10 +1804,84 @@ or any tool that modifies files — intentionally excluded.</pre>
     if (isList) return '<ol>' + lines.map(l => `<li>${cfgEsc(l.trim().replace(/^\d+\.\s*/, ''))}</li>`).join('') + '</ol>';
     return text.split(/\n\s*\n/).map(p => `<p>${cfgEsc(p.trim())}</p>`).join('');
   }
+  // ---- Section header action-layout options (2026-08-11 prototyping pass) ----
+  // Four alternatives for how the CORE badge + Edit/Remove sit in the header's trailing
+  // group, all switchable live via the "Header layout" control above the section list —
+  // see plans/roadmap.md TODO item 1's non-chat half. The real app currently ships Option A.
+  //   A — current/baseline: plain text buttons, always visible.
+  //   B — hover-reveal icon buttons: only appear on row hover, less visual noise at rest.
+  //   C — kebab (⋯) menu: single trigger, Edit/Remove tucked into a dropdown.
+  //   D — segmented action group: Edit/Remove joined into one bordered mini-toolbar.
+  function cfgSecCoreBadge(sec) {
+    return sec.core ? `<span class="core">core</span>` : '';
+  }
+  function cfgSecActionsHtml(sec) {
+    const coreHtml = cfgSecCoreBadge(sec);
+    const removeTitle = sec.core ? `Remove ${cfgEsc(sec.heading)} (core)` : `Remove ${cfgEsc(sec.heading)}`;
+    if (cfgState.headerLayout === 'B') {
+      return `<span class="sec-trail sec-trail-hover">${coreHtml}` +
+        `<button type="button" class="sec-icon-btn" title="Edit" onclick="event.stopPropagation();window.__cfgEditSection(event,'${sec.key}')">✎</button>` +
+        `<button type="button" class="sec-icon-btn rm" title="${removeTitle}" onclick="event.stopPropagation();window.__cfgRemoveSection('${sec.key}')">🗑</button>` +
+        `</span>`;
+    }
+    if (cfgState.headerLayout === 'C') {
+      const open = cfgState.openKebab === sec.key;
+      const menu = !open ? '' : `<div class="kebab-menu" onclick="event.stopPropagation()">` +
+        `<button type="button" onclick="window.__cfgEditSection(event,'${sec.key}')">Edit</button>` +
+        `<button type="button" class="danger" onclick="window.__cfgRemoveSection('${sec.key}')">Remove</button>` +
+        `</div>`;
+      return `<span class="sec-trail">${coreHtml}` +
+        `<span class="kebab-anchor">` +
+        `<button type="button" class="kebab-btn" title="Section actions" onclick="window.__cfgToggleKebab(event,'${sec.key}')">⋯</button>${menu}` +
+        `</span></span>`;
+    }
+    if (cfgState.headerLayout === 'D') {
+      return `<span class="sec-trail">${coreHtml}` +
+        `<span class="seg-group">` +
+        `<button type="button" class="seg-btn" onclick="event.stopPropagation();window.__cfgEditSection(event,'${sec.key}')">Edit</button>` +
+        `<button type="button" class="seg-btn rm" onclick="event.stopPropagation();window.__cfgRemoveSection('${sec.key}')">Remove</button>` +
+        `</span></span>`;
+    }
+    // Option A — current/baseline (matches the real app's SectionBlock.tsx)
+    return `<span class="sec-trail">${coreHtml}` +
+      `<button type="button" class="sec-act" onclick="event.stopPropagation();window.__cfgEditSection(event,'${sec.key}')">Edit</button>` +
+      `<button type="button" class="sec-act rm" title="${removeTitle}" onclick="event.stopPropagation();window.__cfgRemoveSection('${sec.key}')">Remove</button>` +
+      `</span>`;
+  }
+  window.__cfgSetHeaderLayout = function (opt) {
+    cfgState.headerLayout = opt;
+    cfgState.openKebab = null;
+    buildSections(document.getElementById('centerTop'));
+  };
+  window.__cfgToggleKebab = function (e, key) {
+    e.stopPropagation();
+    cfgState.openKebab = cfgState.openKebab === key ? null : key;
+    buildSections(document.getElementById('centerTop'));
+  };
+  document.addEventListener('click', (e) => {
+    if (cfgState.openKebab && !e.target.closest('.kebab-anchor')) {
+      cfgState.openKebab = null;
+      buildSections(document.getElementById('centerTop'));
+    }
+  });
+  // Core sections are removable too (2026-08-11, at the user's explicit request) — the
+  // confirm wording just calls out that it's core, mirroring SectionBlock.tsx's dialog.
+  window.__cfgRemoveSection = function (key) {
+    const sec = CFG_SECTIONS.find(s => s.key === key);
+    if (!sec) return;
+    const msg = sec.core
+      ? `${sec.heading} is a core section — remove it from this agent anyway?`
+      : `Remove ${sec.heading} from this agent?`;
+    if (!confirm(msg)) return;
+    const idx = CFG_SECTIONS.findIndex(s => s.key === key);
+    if (idx !== -1) CFG_SECTIONS.splice(idx, 1);
+    cfgState.openKebab = null;
+    buildSections(document.getElementById('centerTop'));
+  };
   function cfgSectionHtml(sec) {
     if (cfgState.editingSection === sec.key) {
       return `<div class="sec" data-key="${sec.key}" data-citable>` +
-        `<div class="sec-h"><span class="h">${sec.heading}</span><span class="core">${sec.core ? 'core' : 'optional'}</span></div>` +
+        `<div class="sec-h"><span class="h">${sec.heading}</span><span class="sec-trail">${cfgSecCoreBadge(sec)}</span></div>` +
         `<div class="sec-b" style="cursor:default" onclick="event.stopPropagation()">` +
         `<textarea id="cfgSecTextarea" autofocus>${cfgEsc(sec.text)}</textarea>` +
         `<div class="ip-actions"><button class="save" onclick="window.__cfgSaveSection('${sec.key}')">Save</button><button class="cancel" onclick="window.__cfgCancelSection()">Cancel</button></div>` +
@@ -1770,7 +1891,7 @@ or any tool that modifies files — intentionally excluded.</pre>
     const bodyHtml = sec.collapsed ? '' : `<div class="sec-b cite" title="Click to cite in chat · double-click to edit" ` +
       `onclick="window.__cfgToggleCite('section','${sec.key}')" ondblclick="window.__cfgEditSection(event,'${sec.key}')">${cfgSectionBodyHtml(sec.text)}</div>`;
     return `<div class="sec${cfgIsCited('section', sec.key) ? ' cited' : ''}" data-key="${sec.key}" data-citable>` +
-      `<div class="sec-h" onclick="window.__cfgToggleSectionCollapse('${sec.key}')"><span class="chev">${chev}</span><span class="h">${sec.heading}</span><span class="core">${sec.core ? 'core' : 'optional'}</span></div>` +
+      `<div class="sec-h" onclick="window.__cfgToggleSectionCollapse('${sec.key}')"><span class="chev">${chev}</span><span class="h">${sec.heading}</span>${cfgSecActionsHtml(sec)}</div>` +
       bodyHtml + `</div>`;
   }
   window.__cfgToggleSectionCollapse = function (key) {
@@ -1808,13 +1929,24 @@ or any tool that modifies files — intentionally excluded.</pre>
     if (cfgState.editingSection && !e.target.closest(`.sec[data-key="${cfgState.editingSection}"]`)) window.__cfgOutsideCloseSection();
   });
   window.__cfgToggleSectionsCollapse = function () { cfgState.sectionsCollapsed = !cfgState.sectionsCollapsed; buildSections(document.getElementById('centerTop')); };
+  // Prototyping-only control (2026-08-11) — not part of the real app, lets the header
+  // layout options above be compared live without touching real code. Remove once a
+  // layout is picked and the real change lands.
+  const HEADER_LAYOUT_LABELS = { A: 'A · text buttons', B: 'B · hover icons', C: 'C · kebab menu', D: 'D · segmented' };
+  function cfgHeaderLayoutSwitch() {
+    const opts = Object.keys(HEADER_LAYOUT_LABELS).map((o) =>
+      `<button type="button" class="ls-opt${cfgState.headerLayout === o ? ' active' : ''}" ` +
+      `onclick="window.__cfgSetHeaderLayout('${o}')" title="${HEADER_LAYOUT_LABELS[o]}">${o}</button>`
+    ).join('');
+    return `<div class="layout-switch"><span>Header layout (prototype only):</span>${opts}</div>`;
+  }
   function buildSections(host) {
     const area = host && host.querySelector('#sectionsArea'); if (!area) return;
     const chev = cfgState.sectionsCollapsed ? '▸' : '▾';
     const sectionsLabel = `<div class="zone-label" style="cursor:pointer" onclick="window.__cfgToggleSectionsCollapse()" title="${cfgState.sectionsCollapsed ? 'Expand' : 'Collapse'} sections">` +
       `<span class="tier">Sections</span> Body <span class="chev" style="color:var(--faint);font-size:9px">${chev}</span></div>`;
     const sectionsHtml = cfgState.sectionsCollapsed ? '' : CFG_SECTIONS.map(cfgSectionHtml).join('');
-    area.innerHTML = sectionsLabel + sectionsHtml;
+    area.innerHTML = cfgHeaderLayoutSwitch() + sectionsLabel + sectionsHtml;
   }
 
   // ---------- Model + effort header control ----------

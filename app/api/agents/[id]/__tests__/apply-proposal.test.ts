@@ -14,7 +14,9 @@
  *   4.  Section apply — content written, version bumped by 1, one ai revision.
  *   5.  Multi-part apply — description + 2 sections + 1 config in one call → all land.
  *   6.  Description-only apply does NOT touch agent_config rows at all.
- *   7.  Unknown sectionKey → skipped[], 200, other parts still applied.
+ *   7.  Unknown sectionKey → adds a new section (2026-08-11 — was "skipped[]" until
+ *       found live that chat-proposed new sections were silently dropped; see
+ *       CHANGELOG.md 2026-08-11). 7b covers the non-catalog-key heading fallback.
  *   8.  `name` in payload → ignored, listed in skipped[], agent.name unchanged.
  *   9.  Split-level demotion applied at the apply route (not left to the caller).
  *   10. Cross-owner agent id → 404, zero writes.
@@ -356,18 +358,24 @@ describe('POST /api/agents/[id]/apply-proposal', () => {
     }
   });
 
-  // ── 7. Unknown sectionKey → skipped[], other parts still applied ──────────
-  it('unknown sectionKey is listed in skipped[]; other parts in the same call still apply', async () => {
+  // ── 7. Unknown sectionKey → added as a new section (2026-08-11) ───────────
+  // Rewritten — previously an unknown sectionKey was skipped (this test asserted
+  // exactly that); found live that Prometheus proposing a genuinely new section
+  // silently no-op'd instead of creating it. apply-proposal now calls addSection()
+  // for any sectionKey that doesn't match an existing section, same as the manual
+  // "+" add path. See lib/db/repository/__tests__/repo.test.ts's addSection describe
+  // block for the ordering-insertion behavior itself — these tests cover the route.
+  it('unknown sectionKey adds a new section (catalog-matched key gets its canonical heading + position)', async () => {
     const agentBefore = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
-    const roleSection = agentBefore.sections.find((s) => s.sectionKey === 'role')!;
-    const versionBefore = roleSection.version;
+    expect(agentBefore.sections.find((s) => s.sectionKey === 'sources')).toBeUndefined();
+    const roleVersionBefore = agentBefore.sections.find((s) => s.sectionKey === 'role')!.version;
 
     const res = await POST(
       makeRequest({
         modifications: {
           sections: {
-            ghost: 'This key does not exist.',
-            role: 'Updated role after ghost skip.',
+            sources: 'Files it reads.',
+            role: 'Updated role in the same call.',
           },
         },
       }),
@@ -376,20 +384,57 @@ describe('POST /api/agents/[id]/apply-proposal', () => {
     expect(res.status).toBe(200);
 
     const json = await res.json() as {
-      agent: { sections: { sectionKey: string; version: number }[] };
+      agent: { sections: { id: string; sectionKey: string; heading: string | null; content: string; version: number }[] };
       applied: { sectionKeys: string[] };
       skipped: { part: string; key: string; reason: string }[];
     };
 
-    // ghost is in skipped
-    const ghostSkip = json.skipped.find((s) => s.key === 'ghost');
-    expect(ghostSkip).toBeDefined();
-    expect(ghostSkip?.reason).toBe('no_such_section');
-
-    // role was still applied
+    // Nothing skipped — both the add and the update landed.
+    expect(json.skipped.find((s) => s.part === 'section')).toBeUndefined();
+    expect(json.applied.sectionKeys).toContain('sources');
     expect(json.applied.sectionKeys).toContain('role');
+
+    // The new section exists with its catalog heading (sources → "# SOURCES") and
+    // the normalized (trailing-blank-line) content.
+    const sourcesSection = json.agent.sections.find((s) => s.sectionKey === 'sources');
+    expect(sourcesSection).toBeDefined();
+    expect(sourcesSection?.heading).toBe('# SOURCES');
+    expect(sourcesSection?.content).toBe('Files it reads.\n\n');
+
+    // The existing section in the same call still updated normally.
     const roleInResponse = json.agent.sections.find((s) => s.sectionKey === 'role')!;
-    expect(roleInResponse.version).toBe(versionBefore + 1);
+    expect(roleInResponse.version).toBe(roleVersionBefore + 1);
+
+    // The new section's revision is attributed to 'ai', not 'user' — it was
+    // proposed by Prometheus, not typed manually via the "+" add path.
+    const revisions = testDb
+      .select()
+      .from(schema.sectionRevision)
+      .where(eq(schema.sectionRevision.sectionId, sourcesSection!.id))
+      .all();
+    expect(revisions.length).toBe(1);
+    expect(revisions[0].author).toBe('ai');
+  });
+
+  // ── 7b. A genuinely custom (non-catalog) sectionKey still adds, with a derived
+  // heading instead of a catalog one ──
+  it('a non-catalog sectionKey adds a new section with a heading derived from the key', async () => {
+    const res = await POST(
+      makeRequest({ modifications: { sections: { 'known-limits': 'What this agent cannot do.' } } }),
+      makeContext(testAgentId),
+    );
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as {
+      agent: { sections: { sectionKey: string; heading: string | null; content: string }[] };
+      applied: { sectionKeys: string[] };
+    };
+
+    expect(json.applied.sectionKeys).toContain('known-limits');
+    const added = json.agent.sections.find((s) => s.sectionKey === 'known-limits');
+    expect(added).toBeDefined();
+    expect(added?.heading).toBe('# KNOWN LIMITS');
+    expect(added?.content).toBe('What this agent cannot do.\n\n');
   });
 
   // ── 8. `name` in payload → skipped[], agent.name unchanged ───────────────

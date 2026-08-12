@@ -246,7 +246,11 @@ describe('updateSectionContent', () => {
 describe('addSection', () => {
   it('creates a new section appended after the existing ones, with author:user revision #0', () => {
     const dto = createAgent(owner.id, 'add-section-agent', 'Testing manual section add');
-    const maxExistingOrder = Math.max(...dto.sections.map((s) => s.order));
+    // addSection() reindexes every section to a contiguous 0-based order on each call
+    // (see the "Ordering" tests below) — createAgent() itself seeds order:defaultOrder
+    // (1-based, e.g. 1..4), so the count of existing sections, not their max raw order
+    // value, is what predicts where an appended one lands post-reindex.
+    const existingCount = dto.sections.length;
 
     const result = addSection(dto.id, owner.id, {
       sectionKey: 'sources',
@@ -254,7 +258,7 @@ describe('addSection', () => {
       content: 'Files it reads.',
     });
 
-    expect(result.order).toBe(maxExistingOrder + 1);
+    expect(result.order).toBe(existingCount);
     expect(result.version).toBe(0);
 
     const row = testDb
@@ -265,7 +269,7 @@ describe('addSection', () => {
     expect(row?.sectionKey).toBe('sources');
     expect(row?.heading).toBe('# SOURCES');
     expect(row?.content).toBe('Files it reads.');
-    expect(row?.order).toBe(maxExistingOrder + 1);
+    expect(row?.order).toBe(existingCount);
 
     const revisions = testDb
       .select()
@@ -287,6 +291,66 @@ describe('addSection', () => {
     expect(() =>
       addSection('not-a-real-agent-id', owner.id, { sectionKey: 'sources', heading: null, content: 'x' }),
     ).toThrow(SectionNotFoundError);
+  });
+
+  // ── Ordering (2026-08-11 — found live: a chat-added core "output" section landed
+  // after several non-core sections; addSection() used to always append at the end
+  // with no concept of the blueprint's canonical order). ──
+  it('a catalog-matched sectionKey is inserted at its canonical position, reindexing sections after it', () => {
+    const dto = createAgent(owner.id, 'add-section-ordering-agent', 'Testing catalog-order insertion');
+    // createAgent seeds only the 4 core sections: role(1) behavior(2) guardrails(3) output(4)
+    expect(dto.sections.map((s) => s.sectionKey)).toEqual(['role', 'behavior', 'guardrails', 'output']);
+
+    // Add 'tone' (catalog order 8) first — lands right after the 4 core sections, index 4.
+    const tone = addSection(dto.id, owner.id, { sectionKey: 'tone', heading: '# TONE', content: 'x' });
+    expect(tone.order).toBe(4);
+
+    // Now add 'sources' (catalog order 5) — must be inserted BEFORE 'tone' (order 8),
+    // not appended after it, and 'tone' must be shifted from index 4 to index 5.
+    const sources = addSection(dto.id, owner.id, { sectionKey: 'sources', heading: '# SOURCES', content: 'y' });
+    expect(sources.order).toBe(4);
+
+    const rows = testDb
+      .select({ sectionKey: schema.agentSection.sectionKey, order: schema.agentSection.order })
+      .from(schema.agentSection)
+      .where(eq(schema.agentSection.agentId, dto.id))
+      .orderBy(schema.agentSection.order)
+      .all();
+    expect(rows.map((r) => r.sectionKey)).toEqual([
+      'role', 'behavior', 'guardrails', 'output', 'sources', 'tone',
+    ]);
+  });
+
+  it('a sectionKey with no catalog match still appends at the end, same as before', () => {
+    const dto = createAgent(owner.id, 'add-section-custom-agent', 'Testing custom-key append');
+    const existingCount = dto.sections.length;
+
+    const result = addSection(dto.id, owner.id, {
+      sectionKey: 'custom',
+      heading: '# MISSION',
+      content: 'z',
+    });
+
+    expect(result.order).toBe(existingCount);
+  });
+
+  it('author defaults to "user" but a chat-add caller can pass "ai" explicitly', () => {
+    const dto = createAgent(owner.id, 'add-section-author-agent', 'Testing author param');
+
+    const result = addSection(
+      dto.id,
+      owner.id,
+      { sectionKey: 'sources', heading: '# SOURCES', content: 'Chat-proposed content.' },
+      'ai',
+    );
+
+    const revisions = testDb
+      .select()
+      .from(schema.sectionRevision)
+      .where(eq(schema.sectionRevision.sectionId, result.id))
+      .all();
+    expect(revisions.length).toBe(1);
+    expect(revisions[0].author).toBe('ai');
   });
 });
 

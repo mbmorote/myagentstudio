@@ -21,17 +21,17 @@
  *
  * DELETE /api/agents/[id]/sections/[sectionId]
  *   Manual remove via the structured view (roadmap TODO item 1's non-chat half).
- *   A core section cannot be deleted — checked here (policy), not in the repository
- *   function (mechanism) — same separation updateSectionContent already draws.
+ *   Core sections can be removed too, same as any other — no isCore policy gate,
+ *   here or in the client (2026-08-11: an earlier pass had blocked this, reverted
+ *   at the user's explicit request).
  *   Response: 204 on success.
- *   Errors: 401 unauthorized; 400 cannot_delete_core_section; 404 not found or not owned.
+ *   Errors: 401 unauthorized; 404 not found or not owned.
  */
 
 import { NextResponse } from 'next/server';
 import {
   updateSectionContent,
   deleteSection,
-  getAgentFull,
   VersionConflictError,
   SectionNotFoundError,
 } from '@/lib/db/repository';
@@ -95,22 +95,6 @@ export async function DELETE(_request: Request, { params }: RouteContext): Promi
   const { session } = auth;
 
   const { id: agentId, sectionId } = await params;
-
-  // Load first — need the section's def.isCore for the policy check below, and this
-  // also gives us the ownership check for free (getAgentFull returns null if not owned).
-  const agent = getAgentFull(agentId, session.userId);
-  if (!agent) {
-    return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  }
-
-  const section = agent.sections.find((s) => s.id === sectionId);
-  if (!section) {
-    return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  }
-
-  if (section.def?.isCore) {
-    return NextResponse.json({ error: 'cannot_delete_core_section' }, { status: 400 });
-  }
 
   try {
     deleteSection(agentId, sectionId, session.userId);

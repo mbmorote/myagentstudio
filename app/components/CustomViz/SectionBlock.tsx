@@ -250,57 +250,67 @@ export function SectionBlock({
         <span className="font-semibold text-[12px] tracking-[.02em] text-[var(--text)]">
           {sectionLabel.toUpperCase()}
         </span>
-        {isCore && (
-          <span className="ml-auto text-[9px] text-[var(--faint)] uppercase tracking-[.06em]">
-            core
-          </span>
-        )}
-        {hasUnsavedChanges && (
-          <span className="ml-auto text-[9.5px] text-[var(--accent-ink)] bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[5px] px-[7px] py-[1px] tracking-[.02em]">
-            edited
-          </span>
-        )}
-        {/* Edit / Save+Cancel — shown top-right of the header, same slot either way
-            (2026-07-31: matches the custom JSON block's top-right Save/Cancel). */}
-        {isEditing ? (
-          <span
-            onClick={(e) => e.stopPropagation()}
-            className="ml-2 flex items-center gap-[6px]"
-          >
-            <button
-              onClick={handleSave}
-              disabled={isSaving || !hasUnsavedChanges}
-              className="rounded px-2 py-0.5 text-[11px] font-semibold bg-[var(--accent)] text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSaving ? 'Saving…' : 'Save'}
-            </button>
-            <button
-              onClick={handleCancel}
-              disabled={isSaving}
-              className="rounded px-2 py-0.5 text-[11px] text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Cancel
-            </button>
-          </span>
-        ) : (
-          <span onClick={(e) => e.stopPropagation()} className="ml-2 flex items-center gap-[6px]">
-            <button
-              onClick={() => {
-                if (!expanded) setExpanded(true);
-                handleEditToggle();
-              }}
-              disabled={!canEdit}
-              title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress — raw edit disabled') : 'Edit raw content'}
-              className="rounded px-2 py-0.5 text-[11px] text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Edit
-            </button>
-            {/* Remove (roadmap TODO item 1's non-chat half, 2026-08-07) — core sections
-                can't be removed; mirrors the config zone's Remove-key convention. */}
-            {!isCore && (
+        {/* Trailing group — badges + Edit/Remove (or Save/Cancel) — always pushed to
+            the header's right edge via ml-auto on this single wrapper, regardless of
+            which optional badges are present (2026-08-11 fix: previously ml-auto lived
+            on the badges themselves, so a non-core section with no unsaved changes had
+            neither badge to push the buttons right, and Edit/Remove sat immediately
+            after the label instead of aligning with the core-section position). */}
+        <span
+          onClick={(e) => e.stopPropagation()}
+          className="ml-auto flex items-center gap-[6px]"
+        >
+          {isCore && (
+            <span className="text-[9px] text-[var(--faint)] uppercase tracking-[.06em]">
+              core
+            </span>
+          )}
+          {hasUnsavedChanges && (
+            <span className="text-[9.5px] text-[var(--accent-ink)] bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[5px] px-[7px] py-[1px] tracking-[.02em]">
+              edited
+            </span>
+          )}
+          {isEditing ? (
+            <>
+              <button
+                onClick={handleSave}
+                disabled={isSaving || !hasUnsavedChanges}
+                className="rounded px-2 py-0.5 text-[11px] font-semibold bg-[var(--accent)] text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSaving ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={isSaving}
+                className="rounded px-2 py-0.5 text-[11px] text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
               <button
                 onClick={() => {
-                  if (window.confirm(`Remove ${sectionLabel} from this agent?`)) onRemove();
+                  if (!expanded) setExpanded(true);
+                  handleEditToggle();
+                }}
+                disabled={!canEdit}
+                title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress — raw edit disabled') : 'Edit raw content'}
+                className="rounded px-2 py-0.5 text-[11px] text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Edit
+              </button>
+              {/* Remove (roadmap TODO item 1's non-chat half, 2026-08-07) — available for
+                  core sections too (2026-08-11: an earlier pass had blocked core removal,
+                  reverted at the user's explicit request); mirrors the config zone's
+                  Remove-key convention. Core sections get a stronger confirm wording since
+                  removing one is a bigger, less-reversible-feeling change. */}
+              <button
+                onClick={() => {
+                  const confirmMsg = isCore
+                    ? `${sectionLabel} is a core section — remove it from this agent anyway?`
+                    : `Remove ${sectionLabel} from this agent?`;
+                  if (window.confirm(confirmMsg)) onRemove();
                 }}
                 disabled={!canEdit}
                 title={!canEdit ? (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress') : `Remove ${sectionLabel}`}
@@ -308,9 +318,9 @@ export function SectionBlock({
               >
                 Remove
               </button>
-            )}
-          </span>
-        )}
+            </>
+          )}
+        </span>
       </div>
 
       {/* .sec-b — body, shown only when expanded */}
