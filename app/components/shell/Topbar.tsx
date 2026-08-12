@@ -13,6 +13,10 @@
  *   <Link href="/settings"> full-page nav to a button opening SettingsModal,
  *   so opening Settings no longer unmounts the workbench (and loses ChatPanel's
  *   in-memory message history). See SettingsModal.tsx for the data/scope notes.
+ * 2026-08-12 — "Account" changed the same way, to AccountModal. See
+ *   AccountModal.tsx for the data/scope notes (one real difference from
+ *   Settings: GET /api/account needed extending to also return hasPassword
+ *   and linkedAccounts' providerEmail).
  *
  * Right-to-left order: theme toggle · ⚙ System Settings (admin only) ·
  * Account (always) · signed-in email · Logout.
@@ -22,10 +26,10 @@
  */
 
 import { useState } from 'react';
-import Link from 'next/link';
 import type { Session } from '@/lib/auth/session';
 import { apiFetch } from '@/lib/apiFetch';
 import { SettingsModal } from '@/app/components/Settings/SettingsModal';
+import { AccountModal } from '@/app/components/Account/AccountModal';
 
 interface TopbarProps {
   session: Session;
@@ -33,6 +37,7 @@ interface TopbarProps {
 
 export function Topbar({ session }: TopbarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   function toggleTheme() {
     const root = document.documentElement;
@@ -86,13 +91,15 @@ export function Topbar({ session }: TopbarProps) {
           </>
         )}
 
-        {/* Account — always visible (§5.7) */}
-        <Link
-          href="/account"
-          className="text-[12px] text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] rounded-[7px] px-[11px] py-[5px] hover:text-[var(--text)] transition-colors"
+        {/* Account — always visible (§5.7). Opens AccountModal (2026-08-12) instead
+            of navigating to /account. */}
+        <button
+          onClick={() => setAccountOpen(true)}
+          className="text-[12px] text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] rounded-[7px] px-[11px] py-[5px] hover:text-[var(--text)] transition-colors cursor-pointer"
         >
           Account
-        </Link>
+        </button>
+        <AccountModal open={accountOpen} onOpenChange={setAccountOpen} />
 
         {/* Signed-in email */}
         <span className="text-[12px] text-[var(--faint)] hidden sm:block">

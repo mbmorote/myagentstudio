@@ -36,6 +36,10 @@ interface AccountViewProps {
   hasPassword: boolean;
   /** OAuth provider links for this user — [] for password-only accounts. */
   linkedAccounts: LinkedAccount[];
+  /** When set, renders a "← Close" button calling this instead of a "Back to
+   *  Workbench" link — passed by AccountModal (2026-08-12), same pattern as
+   *  SettingsView's onClose. Omitted by the full-page /account route. */
+  onClose?: () => void;
 }
 
 export function AccountView({
@@ -44,6 +48,7 @@ export function AccountView({
   shareLogsWithAdmin: initialShare,
   hasPassword,
   linkedAccounts,
+  onClose,
 }: AccountViewProps) {
   const [sharing, setSharing] = useState(initialShare);
   const [saving, setSaving] = useState(false);
@@ -89,14 +94,24 @@ export function AccountView({
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-8 max-w-lg">
-      {/* Back link */}
+      {/* Back link (full-page /account route) or Close button (AccountModal, 2026-08-12) —
+          mirrors SettingsView's identical onClose pattern. */}
       <div>
-        <Link
-          href="/"
-          className="text-[13px] text-[var(--muted)] hover:text-[var(--text)] transition-colors"
-        >
-          ← Back to Workbench
-        </Link>
+        {onClose ? (
+          <button
+            onClick={onClose}
+            className="text-[13px] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
+          >
+            ← Close
+          </button>
+        ) : (
+          <Link
+            href="/"
+            className="text-[13px] text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+          >
+            ← Back to Workbench
+          </Link>
+        )}
       </div>
 
       {/* Account info */}

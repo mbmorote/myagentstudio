@@ -1,18 +1,24 @@
 /**
  * app/api/account/route.ts
  *
- * GET  /api/account — returns the caller's own email, role, and consent setting
+ * GET  /api/account — returns the caller's own email, role, consent setting,
+ *                      hasPassword, and linkedAccounts (provider + providerEmail)
  * PATCH /api/account — updates the caller's log-sharing consent
  *
  * Access: any authenticated session (§7.1, §5.7).
  * No user id is accepted from the body, URL, or query string — only session.userId
  * is ever operated on (§8 invariant 17).
+ *
+ * hasPassword/linkedAccounts added 2026-08-12 so AccountModal (client-side fetch,
+ * no server-component DB read available) can render the same "Signed in with" line
+ * app/account/page.tsx's server component already computes directly from the DB.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticate } from '@/lib/auth/guard';
 import { getUserById, setUserLogSharing } from '@/lib/db/repository/users';
 import { listOAuthAccountsForUser } from '@/lib/db/repository/oauthAccounts';
+import { NO_PASSWORD_SENTINEL } from '@/lib/auth/constants';
 
 // ── GET /api/account ──────────────────────────────────────────────────────────
 
@@ -25,15 +31,19 @@ export async function GET(): Promise<NextResponse> {
     const user = getUserById(session.userId);
     if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-    // linkedProviders: read-only, session user's own rows only (§7.1, invariant 17)
+    // linkedAccounts: read-only, session user's own rows only (§7.1, invariant 17)
     const oauthAccounts = listOAuthAccountsForUser(session.userId);
-    const linkedProviders = oauthAccounts.map((a) => a.provider);
+    const linkedAccounts = oauthAccounts.map((a) => ({
+      provider: a.provider,
+      providerEmail: a.providerEmail,
+    }));
 
     return NextResponse.json({
       email: user.email,
       role: user.role,
       shareLogsWithAdmin: user.shareLogsWithAdmin,
-      linkedProviders,
+      hasPassword: user.passwordHash !== NO_PASSWORD_SENTINEL,
+      linkedAccounts,
     });
   } catch (err) {
     console.error('[account] GET error:', String(err));
