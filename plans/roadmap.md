@@ -23,7 +23,23 @@ timing decision is not the same as a design decision.
 **Layout work still prototypes first** — `architecture/layout/Layout-Workbench.html` before
 live code, for iteration speed (see `CLAUDE.md` standing rule 4).
 
-**Last updated:** 2026-08-12 — closing out the same-day Prometheus reliability session
+**Last updated:** 2026-08-12 — real personal content scrubbed out of
+`lib/serialize/__tests__/fixtures/*.md`, the 15 golden-file test fixtures, which were
+verbatim copies of the user's real `~/.claude/agents/` library (93 occurrences of the real
+name across 3 files alone). Replaced with fully synthetic agent definitions preserving the
+exact structural properties `golden.test.ts` and `lib/import`'s structural/import tests
+depend on (round-trip, `orchestrator.md`'s fenced-code-block heading, `scribe.md`/`ux.md`'s
+headingless body, `zara.md`'s verbatim name, `dev.md`'s exact 4-heading structure — the last
+one found and fixed only after initially missing that cross-folder test dependency). Because
+the repo may go public later, this wasn't a plain content swap: the real-content versions of
+these 15 files were removed entirely from git history via `git-filter-repo` (full backup
+bundle taken first), then the anonymized versions committed fresh and force-pushed. Scope was
+explicitly limited to just these 15 files, at the user's request — two incidental "the user"
+mentions found in `CLAUDE.md`/`plans/Evaluation-260730.md` during the same search were left
+alone and folded into the existing Plan 09 docs-audit TODO item instead (see below) rather
+than fixed standalone.
+
+**Last updated (prior):** 2026-08-12 — closing out the same-day Prometheus reliability session
 (prior note below) with a deliberate debate rather than a fourth reactive patch. Considered
 "wrapping" Prometheus more structurally: **(a)** moving the Agent Blueprint out of the
 per-turn user message into a cacheable system-prompt position — **rejected**, the user wants
@@ -529,7 +545,11 @@ asset that still doesn't exist doesn't gate functional validation) right before 
    server-computed but read by zero UI components — dead code or an unfinished feature the
    mockup's ⚠/✕ legend already promised; needs a decision either way) and a specific
    "what's on the log is on the log" pass verifying the Activity Log's actual behavior against
-   its documentation. **Track B (code)** — structural fit against each folder's own stated
+   its documentation. **Newly-surfaced finding (2026-08-12):** `CLAUDE.md` and
+   `plans/Evaluation-260730.md` each have one stray mention of the user's real name
+   ("requested by the user, 2026-07-30") — violates the existing no-real-name-in-files project
+   rule; both are simple find-replace fixes, roll into this pass rather than done standalone.
+   **Track B (code)** — structural fit against each folder's own stated
    `CLAUDE.md` map: dead code, duplicated logic, scope creep past a component's own docblock.
    **Track C (tests)** — coverage/organization shape, not pass/fail: gaps, stale tests for
    superseded designs, naming/location conventions. **Output is a findings list, triaged after
