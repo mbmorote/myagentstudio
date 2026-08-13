@@ -34,8 +34,8 @@ aren't detailed further, the description here is all there is.
 | **Big flow test** |  | TODO | Ready to run — needs your OK to spend real Anthropic money |
 | **Company branding on the platform** | UX | TODO | Blocked on your assets/copy |
 | **First-login guided tour (mini-tour)** | UX | TODO | Not started |
-| **Production DB backup/restore** | Infra | TODO | Not started |
 | **"Don't paste sensitive data" disclaimer** | UX | TODO | Not started |
+| **Production DB backup/restore** | Infra | TODO | Not started |
 | **Deploy online** |  | TODO | Not started — always last |
 | **Component/UI test coverage** | Infra | NEXT | Not started — first thing once v1 is live |
 | **AI chat persistence** | Behavior | NEXT | Not started — approach undecided |
@@ -121,8 +121,8 @@ goes before it.
 | **Big flow test** | — | Ready to run — needs your OK to spend real Anthropic money |
 | **Company branding on the platform** | UX | Blocked on your assets/copy |
 | **First-login guided tour (mini-tour)** | UX | Not started |
-| **Production DB backup/restore** | Infra | Not started |
 | **"Don't paste sensitive data" disclaimer** | UX | Not started |
+| **Production DB backup/restore** | Infra | Not started |
 | **Deploy online** | — | Not started — always last |
 
 ---
@@ -201,21 +201,6 @@ this launch (see NEXT).
 
 ---
 
-### **Production DB backup/restore**
-
-**Current state:** No ongoing backup exists — every "backup" reference in the repo today is a
-one-time safety copy taken before a risky migration, not a repeatable procedure.
-
-**Scope:**
-- Document how to snapshot the live SQLite file and restore it, somewhere findable
-- No code required unless the eventual hosting target makes this non-trivial
-
-**Effort:** Small, mostly documentation
-**Depends on:** None
-**Status:** Not started
-
----
-
 ### **"Experimental — don't paste sensitive data" disclaimer**
 
 **Current state:** No disclaimer exists anywhere in the signup/login flow.
@@ -226,6 +211,21 @@ one-time safety copy taken before a risky migration, not a repeatable procedure.
 **Why:** real risk-reduction given compliance-grade logging isn't built (see NEXT).
 
 **Effort:** Trivial
+**Depends on:** None
+**Status:** Not started
+
+---
+
+### **Production DB backup/restore**
+
+**Current state:** No ongoing backup exists — every "backup" reference in the repo today is a
+one-time safety copy taken before a risky migration, not a repeatable procedure.
+
+**Scope:**
+- Document how to snapshot the live SQLite file and restore it, somewhere findable
+- No code required unless the eventual hosting target makes this non-trivial
+
+**Effort:** Small, mostly documentation
 **Depends on:** None
 **Status:** Not started
 
