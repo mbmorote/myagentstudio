@@ -3,7 +3,6 @@
  *
  * Barrel — the ONLY DB import surface for anything outside lib/db.
  * Routes, server components, and other lib/ modules import from here.
- * (Rules Index #8a.)
  */
 
 export {
@@ -38,7 +37,8 @@ export type { GroupDTO } from './groups.js';
 
 export { getSetting, setSetting, getAllSettings } from './settings.js';
 
-export { writeCallLog, listCallLogs, getCallLog, countLlmCallsInWindow } from './llmCallLog.js';
+export { writeCallLog, listCallLogs, getCallLog, countLlmCallsInWindow, reserveCallSlot, finalizeCallLog } from './llmCallLog.js';
+export type { ReserveCallSlotInput, FinalizeCallLogInput } from './llmCallLog.js';
 export type {
   LlmCallKind,
   WriteCallLogInput,

@@ -125,7 +125,7 @@ describe('PATCH /api/account', () => {
     expect(after?.shareLogsWithAdmin).toBe(initialValue);
   });
 
-  it('§8 invariant 17: a body that mentions another user ID has no effect on that row', async () => {
+  it('§8 invariant 17: PATCH only ever affects the session\'s own user row, never another user\'s (the route accepts no user-id field at all)', async () => {
     // userA operates on their own row; userB should not be affected
     currentSession = { userId: userA.id, email: userA.email, role: 'user' };
 

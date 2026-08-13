@@ -10,17 +10,18 @@ import 'server-only';
  * via PROMETHEUS_PROMPT and returns a PrometheusProposal — a real chat message
  * plus a modifications object covering description, sections, and config.
  *
- * Key invariants enforced here (Rules Index #3/#7/#23):
+ * Key invariants enforced here:
  *   - Server-scoped to one agent: all content is loaded server-side, never from
  *     the client. The model sees only what the server chose to attach.
  *   - No tools exposed.
  *   - Split-level demotion: every sections value is scanned and demoted at propose
- *     time (§4.4), so the proposal card shows byte-identical content to what will
+ *     time, so the proposal card shows byte-identical content to what will
  *     be written on Apply.
- *   - Out-of-scope filter runs at propose time (§5.4), not at apply time, so the
+ *   - Out-of-scope filter runs at propose time, not at apply time, so the
  *     user never sees a proposed change that would be silently dropped later.
- *   - Cancellation (Rules Index #23): request.signal is passed through as the
- *     Anthropic SDK RequestOptions.signal.
+ *   - Cancellation: request.signal is passed through as the
+ *     Anthropic SDK RequestOptions.signal, so a cancelled client request also
+ *     cancels the upstream call.
  */
 
 import { getGateway, LlmDryRunBlockedError, LlmUserCapReachedError } from './gateway.js';
@@ -120,7 +121,8 @@ export class PrometheusTruncatedError extends Error {
  * Calls Prometheus with the agent content and the user's instruction and returns
  * a typed proposal — the model's chat message plus its proposed modifications.
  *
- * @param input  Agent context + instruction + optional AbortSignal (Rules Index #23)
+ * @param input  Agent context + instruction + optional AbortSignal (propagated to the
+ *   upstream call so a cancelled client request also cancels it)
  * @param sectionDefs  The agent's platform section catalog — fetched by the route via
  *   getSectionDefs(agent.platform) and forwarded here (same boundary reasoning as
  *   daedalus.ts/hermes.ts — lib/ai only touches lib/db through the gateway).
@@ -143,7 +145,8 @@ export async function callPrometheus(
 
   // Prior turns, capped to the last `chatHistoryTurns` (settings, admin-configurable) —
   // dialogue only (message text), never re-derived content. Cap enforced server-side
-  // regardless of how much history the client sent (server-scoped, Rules Index #7).
+  // regardless of how much history the client sent — client-supplied history is
+  // never trusted at face value, same as every other client-supplied value here.
   const historyCap = getChatHistoryTurns();
   const cappedHistory = (input.history ?? []).slice(-historyCap);
   const historyMessages = cappedHistory.map((turn) => ({
@@ -154,7 +157,8 @@ export async function callPrometheus(
   // Dry-run check outside the catch-all so it can never be swallowed as ai_upstream.
   let res;
   try {
-    // Pass signal through to the gateway → provider → SDK (Rules Index #23).
+    // Pass signal through to the gateway → provider → SDK, so a cancelled
+    // client request also cancels the upstream call.
     // Uses stream(), not complete(): the Anthropic SDK refuses a non-streaming
     // request once maxTokens is high enough that generation could plausibly
     // exceed 10 minutes (~21,333 tokens for claude-sonnet-5 — see the SDK's
@@ -286,7 +290,7 @@ function buildUserMessage(input: PrometheusInput, blueprint: string): string {
 /**
  * Extracts, validates, and normalises Prometheus's JSON response into a
  * PrometheusProposal. Exported so unit tests can call it directly
- * (plans/07-prometheus-propose-apply.md §6.2).
+ * (plans/archive/07-prometheus-propose-apply.md §6.2).
  *
  * Extraction is a three-step ordered attempt (§4.2):
  *   1. JSON.parse(responseText.trim())        — normal well-behaved model output
@@ -521,23 +525,52 @@ export function parsePrometheusResponse(
  * Scans `content` line by line and demotes any heading that sits exactly at
  * `splitLevel` (e.g. `# Heading` when splitLevel=1) by prepending one `#`.
  *
- * Defense-in-depth guard for Rules Index #3 — the prompt already instructs
- * the model not to emit these; we verify and fix server-side.
+ * Defense-in-depth guard: a section's content must never contain a heading at
+ * the agent's split level, or export→re-import would silently fabricate an
+ * extra section. The prompt already instructs the model not to emit these;
+ * we verify and fix server-side anyway.
  *
  * Exported so the apply route can import it independently without creating a
- * circular dependency (§4.4 — two separate implementations are intentional).
+ * circular dependency — a deliberate second call site, not a bug to consolidate.
  *
  * Examples:
  *   splitLevel=1: `# Foo` → `## Foo`; `## Foo` unchanged; `#Foo` unchanged.
  *   splitLevel=2: `## Bar` → `### Bar`; `# Bar` unchanged.
+ *
+ * Fence-aware (found in code review, 2026-08-12): a ``` or ~~~ fenced code
+ * block is tracked the same way lib/serialize/splitBody.ts tracks it, so a
+ * `#`-prefixed line inside a fence (e.g. a shell comment or a markdown
+ * example in AI-proposed content) is never mistaken for a real heading.
  */
 export function demoteSplitLevelHeadings(content: string, splitLevel: number): string {
   const exactPrefix = '#'.repeat(splitLevel) + ' ';
   const nextLevelPrefix = '#'.repeat(splitLevel + 1);
 
+  let inFence = false;
+  let fenceChar = '';
+  let fenceMinLen = 0;
+
   return content
     .split('\n')
     .map((line) => {
+      const marker = /^(`{3,}|~{3,})/.exec(line)?.[1] ?? null;
+
+      if (inFence) {
+        if (marker && marker[0] === fenceChar && marker.length >= fenceMinLen) {
+          inFence = false;
+          fenceChar = '';
+          fenceMinLen = 0;
+        }
+        return line; // inside a fence — never touch heading-like lines
+      }
+
+      if (marker) {
+        inFence = true;
+        fenceChar = marker[0];
+        fenceMinLen = marker.length;
+        return line;
+      }
+
       if (line.startsWith(exactPrefix) && !line.startsWith(nextLevelPrefix)) {
         return '#' + line;
       }

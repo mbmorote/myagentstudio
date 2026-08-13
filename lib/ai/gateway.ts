@@ -22,7 +22,7 @@ import 'server-only';
  */
 
 import { getLiveLlmCalls, parseSettingValue } from '../settings.js';
-import { writeCallLog, countLlmCallsInWindow } from '../db/repository/llmCallLog.js';
+import { writeCallLog, countLlmCallsInWindow, reserveCallSlot, finalizeCallLog } from '../db/repository/llmCallLog.js';
 import { getUserPolicy } from '../db/repository/users.js';
 import { getSetting } from '../db/repository/settings.js';
 import { createAnthropicProvider } from './anthropicProvider.js';
@@ -53,7 +53,7 @@ export type LlmCallContext = {
 export type LlmGatewayResult =
   | { ok: true;  response: LlmResponse; logId: string | null }
   | { ok: false; reason: 'dry_run_blocked';  model: string; logId: string | null }
-  | { ok: false; reason: 'llm_cap_reached';  model: string; logId: null;
+  | { ok: false; reason: 'llm_cap_reached';  model: string; logId: null; kind: LlmCallKind;
       limit: number; windowSeconds: number; retryAfterSeconds: number };
 
 // ─────────────────────────────  Errors  ───────────────────────────────────────
@@ -95,7 +95,7 @@ export class LlmUserCapReachedError extends Error {
     super(
       `LLM call blocked: per-user cap reached (limit=${result.limit}, window=${result.windowSeconds}s, retry=${result.retryAfterSeconds}s)`,
     );
-    this.kind = result.model as unknown as LlmCallKind; // unused directly — carried for logging
+    this.kind = result.kind;
     this.model = result.model;
     this.limit = result.limit;
     this.windowSeconds = result.windowSeconds;
@@ -206,7 +206,12 @@ export function createGateway(provider: LLMProvider): LlmGateway {
     // Skip when: userId is null (pre-auth/scripts/tests) or user is admin (exempt)
     if (userId !== null) {
       const policy = getUserPolicy(userId);
-      if (policy !== null && policy.role !== 'admin') {
+      // Fail-closed on a missing policy row, not fail-open (same asymmetry as
+      // getLiveLlmCalls — money-spending exemptions may only come from a
+      // CONFIRMED admin role, never from the absence of a policy row).
+      // Found in code review, 2026-08-12: the prior `policy !== null && ...`
+      // check silently skipped the cap for a null policy too.
+      if (policy?.role !== 'admin') {
         const limit = getMaxLlmCallsPerUserPerHour();
         const sinceEpochSeconds = Math.floor(Date.now() / 1000) - CAP_WINDOW_SECONDS;
         const { count, oldestAt } = countLlmCallsInWindow(userId, sinceEpochSeconds);
@@ -230,12 +235,34 @@ export function createGateway(provider: LLMProvider): LlmGateway {
             reason: 'llm_cap_reached',
             model,
             logId: null,
+            kind: ctx.kind,
             limit,
             windowSeconds: CAP_WINDOW_SECONDS,
             retryAfterSeconds,
           };
         }
       }
+    }
+
+    // Step 4.5 (race fix, 2026-08-12): reserve the slot BEFORE the network call,
+    // not after — this is what actually closes the cap-check race (§3.9 fix).
+    // Applied uniformly (admin/userId-null calls included) so there's one log-
+    // write path, not two; it only changes *when* the row exists, not who gets
+    // one. A reservation failure is swallowed, same as any other live-path log
+    // failure (§5.5) — the call proceeds with logId: null and nothing to finalize.
+    let logId: string | null = null;
+    try {
+      logId = reserveCallSlot({
+        kind: ctx.kind,
+        agentId: ctx.agentId ?? null,
+        agentLabel: ctx.agentLabel ?? null,
+        model,
+        requestPayload,
+        userId,
+        sharedWithAdmin,
+      });
+    } catch (reserveErr) {
+      console.error('[llm-log] Failed to reserve call slot:', String(reserveErr));
     }
 
     // Step 5: Live path
@@ -246,55 +273,38 @@ export function createGateway(provider: LLMProvider): LlmGateway {
         ? await provider.stream(resolvedReq)
         : await provider.complete(resolvedReq);
     } catch (err) {
-      // Provider threw — write a log row with the error, then re-throw the ORIGINAL object
-      // (identity preserved — err.name === 'AbortError' must keep working downstream, §3.3 step 4)
+      // Provider threw — finalize the reserved row with the error, then re-throw
+      // the ORIGINAL object (identity preserved — err.name === 'AbortError' must
+      // keep working downstream, §3.3 step 4)
       const durationMs = Date.now() - t0;
       const errMsg = err instanceof Error
         ? `${err.name}: ${err.message}`.slice(0, 2000)
         : String(err).slice(0, 2000);
-      try {
-        writeCallLog({
-          kind: ctx.kind,
-          agentId: ctx.agentId ?? null,
-          agentLabel: ctx.agentLabel ?? null,
-          dryRun: false,
-          model,
-          requestPayload,
-          responsePayload: null,
-          error: errMsg,
-          durationMs,
-          usage: null,
-          userId,
-          sharedWithAdmin,
-        });
-      } catch (logErr) {
-        // Swallow log failure; re-throw the original provider error below (§5.5)
-        console.error('[llm-log] Failed to write error log entry:', String(logErr));
+      if (logId !== null) {
+        try {
+          finalizeCallLog(logId, { responsePayload: null, error: errMsg, durationMs, usage: null });
+        } catch (logErr) {
+          // Swallow log failure; re-throw the original provider error below (§5.5)
+          console.error('[llm-log] Failed to finalize error log entry:', String(logErr));
+        }
       }
       throw err; // re-throw original — identity preserved
     }
 
-    // Success — write log row
+    // Success — finalize the reserved row
     const durationMs = Date.now() - t0;
-    let logId: string | null = null;
-    try {
-      logId = writeCallLog({
-        kind: ctx.kind,
-        agentId: ctx.agentId ?? null,
-        agentLabel: ctx.agentLabel ?? null,
-        dryRun: false,
-        model,
-        requestPayload,
-        responsePayload: { text: response.text, stopReason: response.stopReason },
-        error: null,
-        durationMs,
-        usage: response.usage,
-        userId,
-        sharedWithAdmin,
-      });
-    } catch (logErr) {
-      // Log write failed after a successful live call — swallow, response is real (§5.5)
-      console.error('[llm-log] Failed to write success log entry:', String(logErr));
+    if (logId !== null) {
+      try {
+        finalizeCallLog(logId, {
+          responsePayload: { text: response.text, stopReason: response.stopReason },
+          error: null,
+          durationMs,
+          usage: response.usage,
+        });
+      } catch (logErr) {
+        // Finalize failed after a successful live call — swallow, response is real (§5.5)
+        console.error('[llm-log] Failed to finalize success log entry:', String(logErr));
+      }
     }
 
     return { ok: true, response, logId };

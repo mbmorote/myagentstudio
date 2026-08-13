@@ -8,17 +8,17 @@
  *               history?: { role: 'user'|'assistant', message: string }[] }
  *   Response: { proposal: { message, modifications, warnings }, meta }
  *
- * Invariants (Rules Index #73/#7/#22/#23):
+ * Invariants:
  *   - POST /api/chat NEVER writes to agent, agent_section, agent_config, or
  *     section_revision. The only row it can produce is the gateway's llm_call_log row.
  *   - Server ALWAYS loads the full agent from DB (never trusts client-supplied content).
- *   - callPrometheus is cancelled via request.signal if the client disconnects
- *     (Rules Index #23).
+ *   - callPrometheus is cancelled via request.signal if the client disconnects, so a
+ *     cancelled client request also cancels the upstream call.
  *   - The out-of-scope filter runs inside parsePrometheusResponse — sections in
  *     proposal.modifications are already filtered by the time the route gets them.
  *   - The API key is never in the response body or any log statement.
  *
- * Error codes (plans/08-prometheus-apply.md §8):
+ * Error codes (plans/archive/08-prometheus-apply.md §8):
  *   400  malformed request body
  *   401  unauthorized
  *   404  agentId not found or not owned by caller
@@ -66,7 +66,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const { agentId, instruction } = body as { agentId: string; instruction: string };
-  // forceDryRun: client may request dry-run mode explicitly (may only downgrade, Rules Index #61)
+  // forceDryRun: client may request dry-run mode explicitly. This can only ever
+  // downgrade a live call to a dry run — it cannot cause a real call that would
+  // not otherwise have happened, since it can't unset the global live-calls setting.
   const forceDryRun = (body as { dryRun?: unknown }).dryRun === true;
 
   // citedSectionKeys: optional, validated defensively — array of strings or ignored (unscoped fallback).
@@ -79,7 +81,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       : undefined;
 
   // citedConfigKeys: same defensive validation as citedSectionKeys — array of strings or
-  // ignored entirely, falling back to unscoped (plans/08-prometheus-apply.md §3.1)
+  // ignored entirely, falling back to unscoped (plans/archive/08-prometheus-apply.md §3.1)
   const rawCitedConfig = (body as { citedConfigKeys?: unknown }).citedConfigKeys;
   const citedConfigKeys =
     Array.isArray(rawCitedConfig) &&
@@ -104,13 +106,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       ? (rawHistory as { role: 'user' | 'assistant'; message: string }[])
       : undefined;
 
-  // ── Load whole agent server-side (Rules Index #7 — never trust client content) ──
+  // ── Load whole agent server-side — never trust client-supplied content ──
   const agent = getAgentFull(agentId, session.userId);
   if (!agent) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
 
-  // ── Call Prometheus (signal passthrough for cancellation — Rules Index #23) ──
+  // ── Call Prometheus (signal passthrough for cancellation) ──
   // Section catalog scoped to this agent's own platform — not hardcoded 'claude' here,
   // since (unlike import) the target agent already exists and knows its platform.
   const sectionDefs = getSectionDefs(agent.platform);
@@ -180,7 +182,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ error: 'chat_truncated' }, { status: 422 });
     }
     if (err instanceof PrometheusInvalidResponseError) {
-      // Log reason (not the raw response — it contains agent content, Rules Index #59 reasoning)
+      // Log reason only, not the raw response — it contains agent content, and an
+      // unredacted payload should never be written somewhere a viewer doesn't control
       console.error('[chat] Prometheus response parse failure:', err.message);
       return NextResponse.json({ error: 'ai_upstream' }, { status: 502 });
     }
@@ -193,7 +196,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'internal' }, { status: 500 });
   }
 
-  // POST /api/chat never writes — return the proposal as-is (Rules Index #73).
+  // POST /api/chat never writes — return the proposal as-is.
   return NextResponse.json(
     {
       proposal: {

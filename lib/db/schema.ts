@@ -1,9 +1,10 @@
 /**
  * lib/db/schema.ts
  *
- * All Drizzle sqliteTable definitions — verbatim from §3 of Plan 01.
+ * All Drizzle sqliteTable definitions.
  *
- * Conservative column types (Rules Index #8a):
+ * Conservative column types (chosen so a future storage-engine migration is a
+ * schema-file rewrite behind the repository layer, not an app-wide one):
  *   UUIDs as text, timestamps as integer({mode:'timestamp'}),
  *   booleans as integer({mode:'boolean'}), JSON as text({mode:'json'}).
  *
@@ -11,7 +12,7 @@
  * sectionRevision.sectionId, agentSnapshot.agentId) intentionally have NO
  * Drizzle references() FK cascades — deletion cascades are handled explicitly
  * in the repository so the soft-reference pattern is uniform and visible in
- * one place (Plan §3 notes, Rules Index #8a).
+ * one place, rather than half enforced by the database and half by code.
  */
 
 import { sqliteTable, text, integer, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
@@ -60,7 +61,7 @@ export const agent = sqliteTable('agent', {
 // ─────────────────────  Zone 1: Config catalog + values  ─────────────────────
 export const configDef = sqliteTable('config_def', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  platform: text('platform').notNull().default('claude'), // open catalog, same convention as agent.platform (Rules Index #17/#18)
+  platform: text('platform').notNull().default('claude'), // open catalog, not a closed DB enum — same convention as agent.platform, so a second platform is a catalog entry, not a migration
   key: text('key').notNull(),                       // frontmatter key: model, tools… — unique per platform, not globally
   label: text('label').notNull(),
   datatype: text('datatype', {
@@ -76,8 +77,8 @@ export const configDef = sqliteTable('config_def', {
   exportable: integer('exportable', { mode: 'boolean' }).notNull().default(true),
   // Added 2026-07-29 — AgentView.tsx reads the full config catalog (incl. hint) from the
   // DB via a page-load fetch instead of a static CONFIG_DEFS import. Nullable: rows are
-  // DB-owned and admin-editable (platform scoping, Rules Index #18) — catalog.ts only
-  // seeds a row on first insert (lib/db/seed.ts), it no longer heals it on every reseed.
+  // DB-owned and admin-editable — catalog.ts only seeds a row on first insert
+  // (lib/db/seed.ts), it no longer heals it on every reseed.
   hint: text('hint'),
 }, (t) => ({
   platformKey: uniqueIndex('config_def_platform_key_unique').on(t.platform, t.key),
@@ -95,7 +96,7 @@ export const agentConfig = sqliteTable('agent_config', {
 // ─────────────────────  Zone 2: Section catalog + values  ─────────────────────
 export const sectionDef = sqliteTable('section_def', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  platform: text('platform').notNull().default('claude'), // open catalog, same convention as agent.platform (Rules Index #17/#18)
+  platform: text('platform').notNull().default('claude'), // open catalog, not a closed DB enum — same convention as agent.platform, so a second platform is a catalog entry, not a migration
   key: text('key').notNull(),                       // role, behavior, guardrails, output… — unique per platform, not globally
   // No separate `label` column (removed 2026-08-07) — it had exactly one consumer
   // (SectionBlock.tsx's display header) and nothing ever kept it consistent with

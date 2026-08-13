@@ -6,7 +6,7 @@
  * The single writer in the propose/apply flow. Accepts a modifications object
  * produced by POST /api/chat and applies it to the agent.
  *
- * Contract (plans/08-prometheus-apply.md §3.2, §3.3):
+ * Contract (plans/archive/08-prometheus-apply.md §3.2, §3.3):
  *   Request:  { modifications: { description?, sections?, config? } }
  *   Response: { agent: AgentDTO,
  *               applied: { description, sectionKeys, removedSectionKeys, configKeys },
@@ -34,7 +34,7 @@
  *   value = set. Only passes config to updateAgent() when modifications.config is present
  *   and non-empty (§3.4 last paragraph).
  *
- * Error codes (plans/08-prometheus-apply.md §8):
+ * Error codes (plans/archive/08-prometheus-apply.md §8):
  *   400  malformed body (modifications not a plain object, sections values not strings,
  *        config not a plain object)
  *   401  unauthorized

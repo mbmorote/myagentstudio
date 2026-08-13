@@ -7,7 +7,7 @@
  * The Anthropic API is NEVER called — the apply route performs no LLM calls.
  * The DB client is replaced with an in-memory test instance.
  *
- * Tests (plans/08-prometheus-apply.md §10.2, in order given there):
+ * Tests (plans/archive/08-prometheus-apply.md §10.2, in order given there):
  *   1.  CONFIG MERGE REGRESSION — apply one key; all other keys survive.
  *   2.  Config delete (null value removes the key; other keys untouched).
  *   3.  Config add (new key inserted; existing keys survive).

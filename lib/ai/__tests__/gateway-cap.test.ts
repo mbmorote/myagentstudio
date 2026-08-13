@@ -22,6 +22,7 @@
  */
 
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { and, eq } from 'drizzle-orm';
 
 // ── Replace lib/db/client.ts with in-memory test DB ───────────────────────────
 vi.mock('../../db/client.js', async () => {
@@ -175,6 +176,38 @@ describe('per-user cap gate', () => {
     // No new log row written
     const rowsAfter = testDb.select().from(schema.llmCallLog).all().length;
     expect(rowsAfter).toBe(rowsBefore);
+  });
+
+  it('concurrent burst at the cap boundary: exactly `limit` calls succeed, the rest are capped (race fix, 2026-08-12)', async () => {
+    // cap = 2 (beforeAll). Fire 4 concurrent complete() calls with none of
+    // them individually awaited first — this is exactly the scenario the
+    // pre-fix code got wrong: the cap-check read and the log-write that made
+    // a call "count" were separated by the provider round-trip (an awaited
+    // call), so concurrent requests could all read the same stale count and
+    // all pass. The fix (reserveCallSlot before the network call, synchronous
+    // with the cap check) closes this — see gateway.ts Step 4.5.
+    const gw = createGateway(fakeProvider);
+    const results = await Promise.all([
+      gw.complete(MINIMAL_REQ, { kind: 'chat', userId }),
+      gw.complete(MINIMAL_REQ, { kind: 'chat', userId }),
+      gw.complete(MINIMAL_REQ, { kind: 'chat', userId }),
+      gw.complete(MINIMAL_REQ, { kind: 'chat', userId }),
+    ]);
+
+    const succeeded = results.filter((r) => r.ok);
+    const capped = results.filter((r) => !r.ok && r.reason === 'llm_cap_reached');
+
+    expect(succeeded.length).toBe(2); // exactly the cap, never more
+    expect(capped.length).toBe(2);
+    expect(fakeComplete).toHaveBeenCalledTimes(2); // provider never over-called either
+
+    // The DB agrees: exactly 2 live rows for this user, not 4.
+    const rows = testDb
+      .select()
+      .from(schema.llmCallLog)
+      .where(and(eq(schema.llmCallLog.userId, userId), eq(schema.llmCallLog.dryRun, false)))
+      .all();
+    expect(rows.length).toBe(2);
   });
 
   it('admin at the cap → provider called (admin exempt)', async () => {

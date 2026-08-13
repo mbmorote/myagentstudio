@@ -280,11 +280,12 @@ export function getAgentFull(agentId: string, ownerId: string): AgentDTO | null 
 
 /**
  * Looks up an agent by name within an owner's scope and returns its ID + rawSourceSnapshot.
- * Used by the import route's short-circuit check (Rules Index #36 — B3).
- * Returns null if no agent with that name exists for this owner.
+ * Used by the import route's re-import short-circuit: if the incoming raw bytes exactly
+ * match this snapshot, the AI call is skipped entirely and the current AgentDTO is
+ * returned as-is. Returns null if no agent with that name exists for this owner.
  *
- * ownerId is required — owner-scoped (§6.3 security fix: prevents B's import from
- * short-circuiting on A's identical file and returning A's AgentDTO).
+ * ownerId is required — owner-scoped, so this can never short-circuit user B's import
+ * on user A's identical file and return A's AgentDTO.
  */
 export function getAgentSnapshotInfo(
   name: string,
@@ -433,7 +434,8 @@ export function updateSectionContent(
  * inserting in the middle requires shifting what comes after it. This function doesn't
  * validate content against the blueprint catalog beyond ordering (that stays a
  * route/UI concern, same separation as updateSectionContent not validating content
- * against datatype/allowedValues — Rules Index #76, "never block").
+ * against datatype/allowedValues — the project-wide flag-don't-block posture, applied
+ * the same way regardless of who or what produced the value).
  *
  * `author` defaults to 'user' (the manual-add path, a human creating this row
  * directly) — the chat-add caller passes 'ai' explicitly, same convention
@@ -579,10 +581,11 @@ export type ImportedAgentData = {
 };
 
 /**
- * Creates or updates an agent from import data (Rules Index #11a/#11b/#33).
+ * Creates or updates an agent from import data. A name collision with an existing
+ * agent is always an update-in-place — never a duplicate, never an error.
  *
- * ownerId is a separate parameter (§5.3) — never a field on ImportedAgentData.
- * The lookup is owner-scoped (§6.3 security fix: prevents B's import from
+ * ownerId is a separate parameter — never a field on ImportedAgentData.
+ * The lookup is owner-scoped (this can never short-circuit B's import from
  * overwriting A's agent when their frontmatter names collide).
  *
  * First-time import: creates agent (source:'imported') + writes AgentSnapshot(post-import).
@@ -656,9 +659,10 @@ export function upsertAgentFromImport(ownerId: string, data: ImportedAgentData):
         ).run();
       }
 
-      // Reconcile sections by (sectionKey, heading) identity in document order (A1).
-      // Rules Index #33: sectionKey alone is not unique per agent — multiple 'custom' rows
-      // are routine. Using a sectionKey-only Map collapses distinct rows on re-import.
+      // Reconcile sections by (sectionKey, heading) identity in document order.
+      // sectionKey alone is not unique per agent — multiple 'custom' rows are routine
+      // (the headingless preamble, every unmapped/last-resort block). A sectionKey-only
+      // Map would silently collapse those distinct rows onto each other on re-import.
       //
       // Algorithm: build a multimap keyed by (sectionKey, heading). Walk incoming sections
       // in document order; for each, pop the first unmatched db section with the same
@@ -847,11 +851,12 @@ export function deleteAgent(agentId: string, ownerId: string): boolean {
  * Updates an agent's name, description, and/or config rows.
  * Returns the updated AgentDTO, or null if the agent was not found or owner mismatch.
  *
- * ownerId is required — enforced in the same lookup (constraint 1, §6.2).
+ * ownerId is required — enforced in the same lookup that reads or writes the row,
+ * so there is no code path that can return or modify another owner's agent.
  *
  * Throws with name 'NameExistsError' if the new name collides with another agent
- * of the SAME owner (§6.3 fix — the check is now per-owner, not global).
- * name stored verbatim — flag-don't-block (Rules Index #1).
+ * of the SAME owner (the check is per-owner, not global).
+ * name stored verbatim — flag-don't-block: never silently rewritten or rejected.
  */
 export function updateAgent(
   agentId: string,
@@ -884,31 +889,48 @@ export function updateAgent(
     }
   }
 
-  db.transaction((tx) => {
-    // Build the set payload for agent row fields being updated
-    const agentSet: Partial<typeof schema.agent.$inferInsert> = {
-      updatedAt: new Date(),
-    };
-    if (updates.name !== undefined) agentSet.name = updates.name;
-    if (updates.description !== undefined) agentSet.description = updates.description;
+  try {
+    db.transaction((tx) => {
+      // Build the set payload for agent row fields being updated
+      const agentSet: Partial<typeof schema.agent.$inferInsert> = {
+        updatedAt: new Date(),
+      };
+      if (updates.name !== undefined) agentSet.name = updates.name;
+      if (updates.description !== undefined) agentSet.description = updates.description;
 
-    tx
-      .update(schema.agent)
-      .set(agentSet)
-      .where(eq(schema.agent.id, agentId))
-      .run();
+      tx
+        .update(schema.agent)
+        .set(agentSet)
+        .where(eq(schema.agent.id, agentId))
+        .run();
 
-    // Replace all config rows if config is supplied
-    if (updates.config !== undefined) {
-      tx.delete(schema.agentConfig).where(eq(schema.agentConfig.agentId, agentId)).run();
-      if (updates.config.length > 0) {
-        tx
-          .insert(schema.agentConfig)
-          .values(updates.config.map((c) => ({ agentId, propKey: c.propKey, value: c.value })))
-          .run();
+      // Replace all config rows if config is supplied
+      if (updates.config !== undefined) {
+        tx.delete(schema.agentConfig).where(eq(schema.agentConfig.agentId, agentId)).run();
+        if (updates.config.length > 0) {
+          tx
+            .insert(schema.agentConfig)
+            .values(updates.config.map((c) => ({ agentId, propKey: c.propKey, value: c.value })))
+            .run();
+        }
       }
+    });
+  } catch (err) {
+    // The pre-check above closes most races, but two concurrent renames to the
+    // same name can both pass it before either UPDATE commits — catch the raw
+    // UNIQUE-constraint failure here too, same pattern createAgent already uses,
+    // so this lands on the intended 409 name_exists instead of a generic 500.
+    if (
+      err instanceof Error &&
+      (err.message.includes('UNIQUE constraint failed') ||
+        err.message.includes('SQLITE_CONSTRAINT'))
+    ) {
+      const nameErr = new Error('name_exists');
+      nameErr.name = 'NameExistsError';
+      throw nameErr;
     }
-  });
+    throw err;
+  }
 
   const updatedRow = db
     .select()

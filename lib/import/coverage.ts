@@ -1,7 +1,10 @@
 /**
  * lib/import/coverage.ts
  *
- * Deterministic coverage check for Structural Import (Rules Index #31, Phase B5).
+ * Deterministic coverage check for Structural Import — backs up the model's own
+ * verbatim-movement guardrail with a code-enforced check, since (unlike Strict
+ * Import) the server never sees or verifies the model's restructured output byte
+ * by byte.
  *
  * After the structural converter returns a restructured body document, this check
  * compares each Stage-1 source block against what survived in the output. Low

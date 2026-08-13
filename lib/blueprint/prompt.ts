@@ -20,10 +20,11 @@ import type { SectionDefLite } from '../db/repository/agents.js';
  * @param sectionDefs  The platform's section catalog, in canonical order —
  *   fetched by the caller via getSectionDefs(platform) and forwarded here.
  * @param options.includeConfig  Include the "Configuration fields" section.
- *   Default true (the chat mediator needs full agent context, config included).
+ *   Default true (Prometheus needs full agent context, config included).
  *   The import converter passes `false` — Stage 2 never classifies config data
- *   (Rules Index #28, propKey removed 2026-07-26), so including it there was
- *   pure dead-weight tokens for a decision the model is never asked to make.
+ *   (propKey removed 2026-07-26: frontmatter keys are already exact, unambiguous
+ *   strings, so there was never a real classification problem there), so including
+ *   it there was pure dead-weight tokens for a decision the model is never asked to make.
  */
 export function renderBlueprintForPrompt(
   sectionDefs: readonly SectionDefLite[],

@@ -2,7 +2,7 @@
  * lib/db/sectionDefsSeed.ts
  *
  * Bootstrap-only default section catalog for the 'claude' platform — the first-run
- * values lib/db/seed.ts inserts into section_def (Rules Index #18). Not read by the
+ * values lib/db/seed.ts inserts into section_def. Not read by the
  * live LLM round-trip: getSectionDefs(platform) (lib/db/repository/catalog.ts) is
  * the actual live source for the blueprint sent to Daedalus/Prometheus/Hermes and
  * the heading→sectionKey matcher — see lib/blueprint/prompt.ts and

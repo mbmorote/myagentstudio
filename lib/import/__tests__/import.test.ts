@@ -42,15 +42,18 @@ vi.mock('../../db/client.js', async () => {
 });
 
 // ── Mock callHermes — never calls the real Anthropic API ─────────
-vi.mock('../../ai/hermes.js', () => ({
-  callHermes: vi.fn(),
-  HermesUpstreamError: class HermesUpstreamError extends Error {
-    constructor(msg: string) { super(msg); this.name = 'HermesUpstreamError'; }
-  },
-  HermesInvalidResponseError: class HermesInvalidResponseError extends Error {
-    constructor(msg: string) { super(msg); this.name = 'HermesInvalidResponseError'; }
-  },
-}));
+// parseHermesLabels is re-exported from the REAL module (via importActual) so the
+// A4 overlapping-blockIds test below exercises the actual validator, not a mock's
+// own configured return value.
+vi.mock('../../ai/hermes.js', async () => {
+  const actual = await vi.importActual<typeof import('../../ai/hermes.js')>('../../ai/hermes.js');
+  return {
+    callHermes: vi.fn(),
+    parseHermesLabels: actual.parseHermesLabels,
+    HermesUpstreamError: actual.HermesUpstreamError,
+    HermesInvalidResponseError: actual.HermesInvalidResponseError,
+  };
+});
 
 // ── Imports (after mocks are declared) ───────────────────────────────────
 import * as schema from '../../db/schema.js';
@@ -64,7 +67,7 @@ import {
 import { BOOTSTRAP_USER_ID } from '../../auth/constants.js';
 import { parse } from '../../serialize/index.js';
 import { assemble } from '../assemble.js';
-import { callHermes } from '../../ai/hermes.js';
+import { callHermes, parseHermesLabels, HermesInvalidResponseError } from '../../ai/hermes.js';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -491,8 +494,8 @@ describe('assemble — unit-level checks', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// A1 — identity-based re-import reconciliation (multi-custom sections)
-// Rules Index #33: sectionKey alone is not unique per agent; reconcile by
+// Identity-based re-import reconciliation (multi-custom sections)
+// sectionKey alone is not unique per agent; reconcile by
 // (sectionKey, heading) in document order.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -763,27 +766,82 @@ describe('A3 — block-list frontmatter value round-trip', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('A4 — overlapping blockIds in Stage-2 mappings', () => {
-  it('parseAndValidateLabels via callHermes rejects overlapping blockId mappings', async () => {
-    // We test the validator by mocking the Anthropic client response with an overlapping mapping.
-    // The actual callHermes is mocked globally, so we test the internal logic directly
-    // by importing the real module's internals via a workaround.
-    // Instead, verify the route-level behavior: the mock callHermes can be configured
-    // to return overlapping mappings to simulate the validator catching it.
-    //
-    // The cleanest test: call the validator via the assemble pipeline by checking that
-    // when labels with overlapping blockIds are assembled, the belt-and-braces fallback
-    // de-duplicates them correctly (since the validator now rejects such responses, we
-    // verify the assemble fallback handles any surviving unprocessed blocks).
-    //
-    // Since callHermes is mocked, we directly test the HermesInvalidResponseError
-    // is thrown when the mock produces an overlapping response:
-    const { HermesInvalidResponseError: ICError } = await import('../../ai/hermes.js');
+  it('parseHermesLabels (the real validator) rejects a response where a blockId appears in more than one mapping entry', () => {
+    const overlapping = JSON.stringify({
+      mappings: [
+        { blockId: 'block-0', sectionKey: 'role' },
+        { blockIds: ['block-0', 'block-1'], sectionKey: 'behavior' },
+      ],
+      unmapped: [],
+    });
 
-    vi.mocked(callHermes).mockRejectedValueOnce(
-      new ICError('blockId "block-0" appears in more than one mapping entry (overlapping groups)'),
+    expect(() => parseHermesLabels(overlapping)).toThrow(HermesInvalidResponseError);
+    expect(() => parseHermesLabels(overlapping)).toThrow(
+      /blockId "block-0" appears in more than one mapping entry/,
     );
+  });
 
-    // Calling the mock should now throw HermesInvalidResponseError.
-    await expect(callHermes([], SECTION_DEFS)).rejects.toBeInstanceOf(ICError);
+  it('parseHermesLabels accepts a response with no overlapping blockIds', () => {
+    const clean = JSON.stringify({
+      mappings: [
+        { blockId: 'block-0', sectionKey: 'role' },
+        { blockIds: ['block-1', 'block-2'], sectionKey: 'behavior' },
+      ],
+      unmapped: ['block-3'],
+    });
+
+    expect(() => parseHermesLabels(clean)).not.toThrow();
+    expect(parseHermesLabels(clean).unmapped).toEqual(['block-3']);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Headingless block folded into a merge group must not swallow its co-member
+// (found in code review, 2026-08-12 — see assemble.ts's mergeBlocks filter)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('headingless block inside a merge group (data-loss regression)', () => {
+  it('does not drop the other block\'s content when Hermes incorrectly includes the headingless block-0 in a merge group', () => {
+    // A synthetic StructuredAgent — deliberately not dev.md, since dev.md's
+    // block-0 already has a real heading and can't reproduce this scenario.
+    const structured = {
+      frontmatter: [{ key: 'description', rawValue: 'test agent' }],
+      splitLevel: 1,
+      blocks: [
+        { blockId: 'block-0', heading: null, content: 'Some intro text.\n', order: 0 },
+        { blockId: 'block-1', heading: '# WHAT YOU DO', content: '1. Do X.\n2. Do Y.\n', order: 1 },
+        { blockId: 'block-2', heading: '# RULES', content: '- Never Z.\n', order: 2 },
+      ],
+    };
+
+    // Guardrail violation, not a legal AI response — the model should never do
+    // this (hermes.md guardrail #3), but nothing in parseHermesLabels rejects
+    // it: the overlap check only catches a blockId in TWO SEPARATE mapping
+    // entries, not one block legitimately included once inside a group.
+    const labels = {
+      mappings: [
+        { blockIds: ['block-1', 'block-0'], sectionKey: 'behavior' },
+        { blockId: 'block-2', sectionKey: 'guardrails' },
+      ],
+      unmapped: [] as string[],
+    };
+
+    const result = assemble(structured, labels, 'raw source, unused by this assertion');
+
+    // block-1's content must survive somewhere in the output — pre-fix, it was
+    // silently dropped entirely (marked processed, never pushed to sections,
+    // and the belt-and-braces fallback didn't catch it either).
+    const allContent = result.sections.map((s) => s.content).join('\n');
+    expect(allContent).toContain('1. Do X.');
+    expect(allContent).toContain('2. Do Y.');
+
+    // The headingless block is still independently emitted as custom/null.
+    const preamble = result.sections.find((s) => s.heading === null);
+    expect(preamble?.content).toBe('Some intro text.\n');
+
+    // block-1's content lands under the intended sectionKey (possibly merged
+    // with something else, but never vanished into thin air).
+    const behaviorSection = result.sections.find((s) => s.content.includes('1. Do X.'));
+    expect(behaviorSection).toBeDefined();
   });
 });

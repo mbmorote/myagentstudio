@@ -21,7 +21,11 @@
  *      sectionKeys, config from original frontmatter, snapshots/revisions per §6 rule 7,
  *      coverage warnings empty.
  *   2. Short-circuit: re-import identical bytes → mock not called, no new snapshots/revisions.
- *   3. Truncation: mock throws DaedalusTruncatedError → nothing written to DB.
+ *
+ * The real end-to-end truncation-handling test (real caller + gateway + route,
+ * fake provider) lives in
+ * app/api/agents/__tests__/import-structural-truncation.test.ts — this file has
+ * no route-level orchestration to test that scenario against meaningfully.
  */
 
 import { readFileSync } from 'fs';
@@ -60,7 +64,7 @@ import { BOOTSTRAP_USER_ID } from '../../auth/constants.js';
 import { parse } from '../../serialize/index.js';
 import { assembleStructural } from '../assembleStructural.js';
 import { checkCoverage } from '../coverage.js';
-import { callDaedalus, DaedalusTruncatedError } from '../../ai/daedalus.js';
+import { callDaedalus } from '../../ai/daedalus.js';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -250,28 +254,12 @@ describe('structural import short-circuit — identical rawSourceSnapshot', () =
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Test 3: Truncation — DaedalusTruncatedError → nothing written
+//
+// The real truncation check (stop_reason === 'max_tokens') lives inside
+// callDaedalus itself, which this file mocks entirely — so there is no
+// meaningful pipeline-layer assertion to make here beyond confirming the mock
+// is wired correctly. The real end-to-end coverage (the actual truncation
+// check running, and the route's 422 structural_truncated mapping + zero DB
+// writes) lives in app/api/agents/__tests__/import-structural-truncation.test.ts,
+// which mocks one layer down (the provider) so the real caller and route run.
 // ─────────────────────────────────────────────────────────────────────────────
-
-describe('structural import truncation — DaedalusTruncatedError', () => {
-  it('throws DaedalusTruncatedError when max_tokens is hit (never stored)', async () => {
-    // Mock the converter to throw the truncation error.
-    vi.mocked(callDaedalus).mockRejectedValueOnce(
-      new DaedalusTruncatedError(),
-    );
-
-    // Count DB state before to verify nothing is written.
-    const agentCountBefore = testDb.select().from(schema.agent).all().length;
-    const snapshotCountBefore = testDb.select().from(schema.agentSnapshot).all().length;
-
-    // Calling the mocked converter should throw.
-    await expect(callDaedalus(devMdRaw, SECTION_DEFS)).rejects.toBeInstanceOf(
-      DaedalusTruncatedError,
-    );
-
-    // Nothing should have been written to the DB.
-    const agentCountAfter = testDb.select().from(schema.agent).all().length;
-    const snapshotCountAfter = testDb.select().from(schema.agentSnapshot).all().length;
-    expect(agentCountAfter).toBe(agentCountBefore);
-    expect(snapshotCountAfter).toBe(snapshotCountBefore);
-  });
-});

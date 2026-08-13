@@ -18,13 +18,15 @@
  * and modifications.description presence (replaces the old sections-only R13 chips).
  *
  * Sends { agentId, instruction, citedSectionKeys?, citedConfigKeys?, history? } to
- * POST /api/chat via AbortController (Rules Index #23). `history` is this session's
+ * POST /api/chat via AbortController, so a cancelled request also cancels the
+ * upstream call. `history` is this session's
  * prior turns (role + text), excluding client-side synthetic notices — server caps
  * how much of it is used (settings.chatHistoryTurns).
  * Response shape: { proposal: { message, modifications, warnings }, meta }
  * (old { sections: {...} } shape removed in Plan 08 Phase 1).
  *
- * Interaction lock (§6 rule 12, Rules Index #22):
+ * Interaction lock (chat / manual edit / a pending proposal are mutually exclusive
+ * per agent, client-enforced only — no server-side enforcement):
  *   - In flight: onChatStart() → lock='chat', edit disabled.
  *   - Done: onChatEnd() → lock released.
  *   - Cancel: abort() → lock released immediately.

@@ -96,7 +96,7 @@ Two settings are configurable from **System Settings** (`/settings`, admin only)
 
 The UI is a four-pane IDE layout:
 
-- **Library** (left, foldable) — your agent list, organized into collapsible groups. Drag an agent onto a group to add it as a member. Create groups and import files from the action bar at the bottom.
+- **Library** (left, foldable) — your agent list. Import files from the action bar at the bottom. (Grouping agents into collapsible groups is built underneath but not yet enabled in this release.)
 - **Custom Visualization** (center top) — the currently selected agent split into its named sections (Role, Behavior, Guardrails, Output, and any optional or custom sections). Each section can be expanded, collapsed, or edited in place.
 - **AI Chat** (center bottom) — type an instruction and ✦ Prometheus proposes a change to the description, sections, and/or config. Review the proposal card and click Apply (or Discard) — nothing lands until you do.
 - **Raw** (right, foldable) — a live read-only export preview of the agent as it would be written to a `.md` file. Updates after every save.
@@ -106,5 +106,6 @@ All four panels resize via drag gutters. Library and Raw fold to rails to reclai
 ## Documentation
 
 - **[User guide](docs/user-guide.md)** — how to import, edit, organize, and export agents.
-- **[Concept](architecture/Concept.md)** — the what and why: problem statement, design decisions, agent schema.
-- **[Technical design](architecture/TechDesign.md)** — the how: data model, import pipeline, Blueprint catalog, Rules Index.
+- **[Project explanation](docs/project-explanation.md)** — the product story: the problem, who it's for, how it works, how it was built.
+- **[System About](docs/system-about.md)** — the engineering reference: stack, architecture, data model, design principles.
+- **[Roadmap](docs/roadmap.md)** — what's available today, coming next, and planned.

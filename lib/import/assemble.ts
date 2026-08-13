@@ -5,20 +5,20 @@
  * (from callHermes()) and produces the ImportedAgentData shape expected
  * by repository.upsertAgentFromImport().
  *
- * Key invariants (§6 rule 2, Rules Index #5/#6):
+ * Key invariants:
  * - Content bytes are ALWAYS copied from Stage-1 blocks by blockId.
  * - The AI's labels only determine sectionKey assignment — never content.
  * - Unmapped / low-confidence blocks → sectionKey: "custom".
  * - The order-0 headingless block (heading: null) passes through as sectionKey: "custom",
  *   heading: null (per hermes.md guardrail #3 — the AI never assigns it a key).
  * - Config values come from the deterministically-parsed frontmatter only — Stage 2 never
- *   classifies config data (Rules Index #28, 2026-07-26: the propKey mapping capability
- *   was removed — frontmatter keys are already exact, unambiguous strings, so there was
- *   never a classification problem there for AI to solve).
+ *   classifies config data (the propKey mapping capability was removed 2026-07-26:
+ *   frontmatter keys are already exact, unambiguous strings, so there was never a
+ *   classification problem there for AI to solve).
  *
  * Name/description handling:
- * - name stored verbatim — never normalised (Rules Index #1, flag-don't-block).
- * - Missing description → placeholder string + descriptionMissing flag on DTO (Rules Index #12).
+ * - name stored verbatim — never normalised (flag-don't-block: never silently rewritten).
+ * - Missing description → placeholder string + descriptionMissing flag on DTO.
  */
 
 import type { StructuredAgent, BodyBlock, FrontmatterEntry } from '../serialize/types.js';
@@ -77,10 +77,10 @@ export function assemble(
   const toScalar = (v: FrontmatterEntry['rawValue'] | undefined): string | undefined =>
     v === undefined ? undefined : Array.isArray(v) ? v.join(', ') : typeof v === 'string' ? v : undefined;
 
-  // name: verbatim (Rules Index #1 — flag-don't-block)
+  // name: verbatim (flag-don't-block — never silently rewritten)
   const name = toScalar(fmMap.get('name')) ?? '';
 
-  // description: placeholder if missing (Rules Index #12)
+  // description: placeholder if missing
   const descriptionRaw = toScalar(fmMap.get('description'));
   const description =
     descriptionRaw !== undefined && descriptionRaw.trim().length > 0
@@ -155,9 +155,15 @@ export function assemble(
     }
 
     // Resolve all blocks in this assignment group (merge), sorted by order.
+    // Excludes the headingless preamble block even if the AI incorrectly
+    // included it in a merge group (guardrail says it never gets a sectionKey,
+    // but that's prompt-enforced, not code-enforced) — it's already emitted
+    // independently by the heading===null branch above, so including it here
+    // would make it the "primary" and cause the real primary's content to be
+    // silently dropped (found in code review, 2026-08-12).
     const mergeBlocks = assignment.blockIds
       .map((id) => blockById.get(id))
-      .filter((b): b is BodyBlock => b !== undefined)
+      .filter((b): b is BodyBlock => b !== undefined && b.heading !== null)
       .sort((a, b) => a.order - b.order);
 
     // Only process when we're at the primary (first-by-order) block.
@@ -168,7 +174,7 @@ export function assemble(
     }
 
     // ── Build merged content: primary content + (secondary heading + content)*
-    // Content bytes are ALWAYS from Stage-1 blocks (Rules Index #5/#6).
+    // Content bytes are ALWAYS from Stage-1 blocks, never from the AI's output.
     let content = mergeBlocks[0].content;
     for (let i = 1; i < mergeBlocks.length; i++) {
       const secondary = mergeBlocks[i];

@@ -15,7 +15,9 @@
  * 6. Any model: value in the real fixture files is stored as a string
  *    (FAILSAFE_SCHEMA — no YAML float/bool coercion).
  *
- * These six assertions discharge Rules Index #1–#6.
+ * These six assertions cover the core parse/export invariants: flag-don't-block naming,
+ * the headingless-preamble null-heading representation, split-level heading demotion,
+ * string-preserving YAML, labels-only Stage 2 output, and merge-group content ownership.
  */
 
 import { describe, it, expect } from 'vitest';

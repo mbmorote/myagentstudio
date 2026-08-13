@@ -34,11 +34,11 @@ export type LlmRequest = {
   /**
    * Omitted ⇒ provider default; the GATEWAY resolves it before forwarding.
    * Model is resolved at the gateway so a dry-run row records the model that
-   * WOULD have been used (§3.3 step 1).
+   * WOULD have been used.
    */
   model?: string;
   /**
-   * Rules Index #23 — must survive the abstraction. Forwarded by the gateway
+   * Must survive the provider-agnostic abstraction. Forwarded by the gateway
    * to the provider so a cancelled client request also cancels the upstream call.
    */
   signal?: AbortSignal;

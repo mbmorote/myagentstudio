@@ -19,7 +19,9 @@
  *
  * Step 6: Build ImportedAgentData:
  *   - name / description / config from the **original** Stage-1 frontmatter
- *     (never from the model's output — Rules Index #27 decision #2).
+ *     (never from the model's output — Structural Import's output is a body-only
+ *     document, and config values are exact YAML strings the model has no reason
+ *     to touch anyway).
  *   - splitLevel from the *output* document (will be 1; canonical headings are `#`).
  *   - sections from step 4.
  *   - rawSourceSnapshot: rawMd (the original raw bytes — NOT the model's output).
@@ -106,8 +108,9 @@ export function assembleStructural(
   // custom block left mid-document instead of last). Ordering is purely mechanical once
   // sectionKey is known — same "don't leave a deterministic decision to the model" logic
   // already applied to sectionKey classification itself (the exact-heading-match above)
-  // and to heading fabrication (Rules Index #3, enforced at write time, not just asked
-  // for in the prompt). One exception: a headingless preamble block (heading === null)
+  // and to heading fabrication (a section's content must never contain a heading at the
+  // agent's split level — enforced at write time, not just asked for in the prompt).
+  // One exception: a headingless preamble block (heading === null)
   // is not a last-resort custom block — daedalus.md's Behavior #4 explicitly wants it
   // kept as the *opening* block, not pushed to the end, even though it shares
   // sectionKey 'custom' with a named-but-unmatched heading.

@@ -18,14 +18,15 @@ export type FrontmatterEntry = {
   /** The YAML key, e.g. "model" */
   key: string;
   /**
-   * The value preserved from YAML — no type coercion (Rules Index #4, #35).
+   * The value preserved from YAML — no type coercion.
    * - string: a scalar value (all plain scalars under FAILSAFE_SCHEMA are already strings).
    * - string[]: a flat list of scalars (e.g. `tools: [Read, Write]` or block-list style).
    * - Record<string, unknown> / unknown[]: a genuine nested mapping or a list containing
    *   non-scalar items (e.g. `mcpServers`, `hooks`). Preserved verbatim through
    *   parse → store → export for catalog keys whose ConfigDef.datatype is 'json' — this
-   *   supersedes A3's original hard-reject (Rules Index #35/#40; the deferred `__raw`
-   *   escape hatch was retired in favor of this). FAILSAFE_SCHEMA guarantees every YAML
+   *   supersedes an earlier hard-reject-on-nested-value behavior (the deferred `__raw`
+   *   escape hatch that would have addressed it was retired in favor of this).
+   *   FAILSAFE_SCHEMA guarantees every YAML
    *   value — nested or not — resolves to only string/array/object, never a bare
    *   null/number/boolean, so these two shapes are exhaustive.
    */
@@ -36,12 +37,12 @@ export type BodyBlock = {
   /**
    * Stable block identifier, derived deterministically from the block's position
    * in the parsed output ("block-0", "block-1", …).
-   * Used by Stage-2 import to map blocks to sectionKeys (Phase 3).
+   * Used by Stage-2 import to map blocks to sectionKeys.
    */
   blockId: string;
   /**
    * The full heading line including the # prefix (e.g. "# ROLE"), or null for a
-   * headingless preamble block (Rules Index #2).
+   * headingless preamble block.
    */
   heading: string | null;
   /**
@@ -54,7 +55,7 @@ export type BodyBlock = {
 };
 
 export type StructuredAgent = {
-  /** Ordered frontmatter entries, preserved as strings (failsafe YAML, Rules Index #4). */
+  /** Ordered frontmatter entries, preserved as strings (failsafe YAML — no scalar coercion). */
   frontmatter: FrontmatterEntry[];
   /**
    * The heading level used to split the body (1 = #, 2 = ##, …).

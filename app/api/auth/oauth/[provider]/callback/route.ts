@@ -49,6 +49,7 @@ import { getMaxUsers } from '@/lib/settings';
 import { signSessionToken } from '@/lib/auth/jwt';
 import { SESSION_COOKIE, NO_PASSWORD_SENTINEL, getSessionTtlSeconds } from '@/lib/auth/constants';
 import { NEW_ACCOUNT_QUERY_PARAM } from '@/lib/auth/consentPopupFlag';
+import { checkRateLimit } from '@/lib/auth/rateLimit';
 
 type Params = { provider: string };
 
@@ -92,6 +93,15 @@ export async function GET(
       });
     }
     return res;
+  }
+
+  // Step 0.5: Rate limit — same protection login/signup/oauth-start already have.
+  // This route does a real network call to the provider plus a DB transaction
+  // per request, unlike those; unlike them it must exit through redirectTo()
+  // (§8 invariant — every exit clears the tx cookie), so a block redirects to
+  // /login?error=rate_limited instead of returning a raw 429 JSON body.
+  if (checkRateLimit(request, 'oauth_callback')) {
+    return redirectTo('/login?error=rate_limited');
   }
 
   // Step 1: Read and validate the tx cookie

@@ -1,19 +1,22 @@
 /**
  * lib/serialize/parseFrontmatter.ts
  *
- * String-preserving YAML frontmatter parser (Rules Index #4, #34, #35).
+ * String-preserving YAML frontmatter parser.
  *
  * - Uses js-yaml FAILSAFE_SCHEMA: all plain scalars are kept as strings.
  *   This prevents coercions like `claude-sonnet-4-6` → float, `no` → false.
  * - Returns an ordered {key, rawValue}[] array.
  * - rawValue: scalar → string, flat list → string[], nested mapping or a list
  *   containing non-scalars → Record<string, unknown> | unknown[], preserved verbatim
- *   (Rules Index #35/#40 — superseded A3's original hard-reject; the deferred `__raw`
- *   escape hatch is retired in favor of catalog keys declaring `datatype: 'json'`).
- * - YAML comments are silently dropped — this is documented and tested as
- *   an accepted loss per Rules Index #4.
- * - Matched-but-unparseable frontmatter throws FrontmatterParseError (A2).
- *   No frontmatter block at all (regex no-match) remains a valid [] case.
+ *   (supersedes an earlier hard-reject-on-nested-value behavior; the deferred `__raw`
+ *   escape hatch that would have addressed it was retired in favor of catalog keys
+ *   declaring `datatype: 'json'` instead).
+ * - YAML comments are silently dropped — this is documented and tested as an
+ *   accepted, deliberate exception to lossless round-tripping (there's no `custom`
+ *   slot to hold a comment in, since it isn't a key).
+ * - Matched-but-unparseable frontmatter throws FrontmatterParseError (loud, never a
+ *   silently-discarded frontmatter block). No frontmatter block at all (regex
+ *   no-match) remains a valid [] case.
  */
 
 import * as yaml from 'js-yaml';
@@ -27,8 +30,8 @@ import type { FrontmatterEntry } from './types.js';
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
 
 /**
- * Thrown when a frontmatter block is present but cannot be parsed as valid YAML (A2).
- * Nested values no longer throw (Rules Index #35/#40, superseded) — this is the only
+ * Thrown when a frontmatter block is present but cannot be parsed as valid YAML.
+ * Nested values no longer throw (see the file header) — this is the only
  * remaining failure mode, so there is no error `code`/`key` discriminant to carry.
  *
  * Routes catch this and return 400 `invalid_frontmatter`.

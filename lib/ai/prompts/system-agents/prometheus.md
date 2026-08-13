@@ -6,7 +6,7 @@ tools: []
 # No tools, structurally — this app's Anthropic call chain has no `tools` plumbing at all
 # (see lib/ai/provider.ts). `[]` is written here for parity with the real subagent schema,
 # not because this field is actually read anywhere; GUARDRAILS #6 is the real enforcement.
-# model: not set — deferred (plans/07-prometheus-propose-apply.md §8 point 2). Uses the
+# model: not set — deferred (plans/archive/07-prometheus-propose-apply.md §8 point 2). Uses the
 #   platform's default model until a specific one is chosen AND build-prompts.ts reads it.
 ---
 

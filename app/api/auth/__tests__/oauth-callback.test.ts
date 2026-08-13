@@ -125,6 +125,12 @@ function buildTxCookieValue(overrides: Partial<{
 
 // ── Request builder ───────────────────────────────────────────────────────────
 
+// checkRateLimit keys on (route, IP) with no reset between tests in this file
+// (module-level store) — give each call a distinct IP so the new rate limit
+// (added 2026-08-12, code-review fix #5) never interferes with unrelated test
+// cases exercising other behavior.
+let callbackRequestCounter = 0;
+
 function makeCallbackRequest(opts: {
   code?: string;
   state?: string;
@@ -138,7 +144,10 @@ function makeCallbackRequest(opts: {
   if (opts.state !== undefined) url.searchParams.set('state', opts.state);
   if (opts.error !== undefined) url.searchParams.set('error', opts.error);
 
-  const headers: Record<string, string> = {};
+  callbackRequestCounter += 1;
+  const headers: Record<string, string> = {
+    'x-forwarded-for': `10.0.${Math.floor(callbackRequestCounter / 256)}.${callbackRequestCounter % 256}`,
+  };
   if (opts.txCookieValue !== undefined) {
     headers['Cookie'] = `${OAUTH_TX_COOKIE}=${opts.txCookieValue}`;
   }

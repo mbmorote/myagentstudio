@@ -18,7 +18,7 @@ Entry point: `importParse.ts`'s `parse()` function. Composes two lower-level fun
 
 Extracts the YAML block between `---` delimiters using `js-yaml` with `FAILSAFE_SCHEMA`. This schema treats all plain scalars as strings — `claude-sonnet-4-6` stays a string (not a float), `no` stays a string (not false), `true` stays a string (not boolean). This is intentional: the workbench stores and re-emits frontmatter values verbatim.
 
-Returns an ordered `{key, rawValue}[]` array. `rawValue` is `string` for scalar values, `string[]` for flat YAML lists, and `Record<string, unknown> | unknown[]` for a genuine nested mapping or a list containing non-scalars (e.g. an inline `mcpServers` server-config object, or `hooks`) — preserved verbatim, not rejected. This supersedes the original A3 hard-reject (Rules Index #35/#40); the deferred `__raw` escape hatch was retired in favor of catalog keys declaring `datatype: 'json'` (`lib/blueprint/catalog.ts`), which controls how such a value renders in the UI (a raw-JSON editor block) — the parser itself no longer distinguishes "supported" from "unsupported" shapes.
+Returns an ordered `{key, rawValue}[]` array. `rawValue` is `string` for scalar values, `string[]` for flat YAML lists, and `Record<string, unknown> | unknown[]` for a genuine nested mapping or a list containing non-scalars (e.g. an inline `mcpServers` server-config object, or `hooks`) — preserved verbatim, not rejected. This supersedes an earlier hard-reject-on-nested-value behavior; the deferred `__raw` escape hatch that would have addressed it was retired in favor of catalog keys declaring `datatype: 'json'` (`lib/blueprint/catalog.ts`), which controls how such a value renders in the UI (a raw-JSON editor block) — the parser itself no longer distinguishes "supported" from "unsupported" shapes.
 
 A matched-but-unparseable frontmatter block (malformed YAML) throws `FrontmatterParseError` — the only remaining failure mode now that nested values no longer throw. A file with no frontmatter block at all returns `[]` without error.
 
@@ -47,7 +47,7 @@ Serializes a `StructuredAgent` back to a markdown string:
 
 **Why semantic-not-byte fidelity:** the exporter normalizes YAML formatting (e.g. it may add or remove quotes around values that look like YAML booleans or numbers) but it does not sort keys and does not wrap long lines. The round-trip invariant holds at the `parse()` level, not the raw string level. This is documented and tested as the intended behavior.
 
-**Section body bytes are stored and emitted verbatim** (Rules Index #2), with one exception: the single inserted newline above, which is structural (keeping sections distinguishable), not a content rewrite. The exporter never reformats, rewraps, or otherwise alters body content.
+**Section body bytes are stored and emitted verbatim**, with one exception: the single inserted newline above, which is structural (keeping sections distinguishable), not a content rewrite. The exporter never reformats, rewraps, or otherwise alters body content.
 
 ## Golden-file tests
 
@@ -61,7 +61,7 @@ The test suite asserts:
 4. `zara.md`'s `name` field is stored verbatim as `"Zara"` (capital Z — the workbench never normalizes names).
 5. Any `model:` value is stored as a string, not a float or boolean.
 
-These six assertions directly cover Rules Index #1–#6 and constitute Gate 1 for the build sequence.
+These six assertions cover the core parse/export invariants and constitute Gate 1 for the build sequence.
 
 ## Files in this folder
 

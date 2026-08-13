@@ -15,8 +15,9 @@
  *
  * Response handling (D.4):
  *   - Success → close dialog, navigate to /agents/{dto.id}
- *   - warnings present (Structural mode, Rules Index #31) → show inline warnings
- *   - {skipped: 'unchanged'} (Rules Index #36) → "already up to date" notice, no navigation
+ *   - warnings present (Structural mode content-coverage check) → show inline warnings
+ *   - {skipped: 'unchanged'} (raw bytes matched the last import, AI call skipped) →
+ *     "already up to date" notice, no navigation
  *   - Error codes (400/422/502) → inline message keyed off error code vocabulary from lib/import
  *   - Dialog stays open on error (user's pasted text preserved)
  *
@@ -150,7 +151,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
         return;
       }
 
-      // skipped: 'unchanged' (Rules Index #36) → no navigation, just notice
+      // skipped: 'unchanged' (raw bytes matched the last import) → no navigation, just notice
       if (body.skipped === 'unchanged') {
         setUpToDate(true);
         return;
@@ -168,7 +169,7 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
         return; // Keep dialog open so user's text is not lost
       }
 
-      // Warnings from Structural mode (Rules Index #31) — show inline
+      // Warnings from Structural mode's content-coverage check — show inline
       if (body.warnings && body.warnings.length > 0) {
         setWarnings(body.warnings);
       }

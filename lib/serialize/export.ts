@@ -7,7 +7,7 @@
  * - Frontmatter: normalized YAML (FAILSAFE_SCHEMA, no key sorting, no line-wrap).
  * - Sections by ascending order.
  * - Headingless blocks (heading: null) are rendered as bare content — no heading invented.
- * - Section body is byte-for-byte the stored content (Rules Index #2).
+ * - Section body is byte-for-byte the stored content.
  * - A single newline is inserted before a heading if the preceding block's content
  *   doesn't already end in one (2026-08-12 — found live: a section saved without a
  *   trailing newline glued the next heading onto its last line, which splitBody()
@@ -66,7 +66,9 @@ export function exportAgent(structured: StructuredAgent): string {
 
   for (const block of sortedBlocks) {
     if (block.heading === null) {
-      // Headingless preamble block — bare content, no invented heading (Rules Index #2)
+      // Headingless preamble block — bare content, no invented heading (an invented
+      // heading would re-parse as a real section on the next import, breaking the
+      // round-trip)
       output += block.content;
     } else {
       // Guard against the preceding block's content running directly into this

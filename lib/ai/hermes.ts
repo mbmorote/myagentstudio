@@ -7,7 +7,7 @@ import 'server-only';
  * content) + the Agent Blueprint + the compiled HERMES_PROMPT to Claude
  * and parses the labels-only JSON.
  *
- * Hard rule (Rules Index #5): the AI response must NEVER contain a `content` or `text`
+ * Hard rule: the AI response must NEVER contain a `content` or `text`
  * field at the top level or inside any mapping entry. If it does, we throw
  * HermesInvalidResponseError — the server always copies content bytes from
  * Stage-1 blocks by blockId; the AI only supplies labels.
@@ -42,12 +42,26 @@ export class HermesUpstreamError extends Error {
 
 /**
  * Thrown when the AI returns a structurally invalid response, or when it includes
- * forbidden content/text fields (defense-in-depth on Rules Index #5).
+ * forbidden content/text fields — Stage 2 output is labels only, never content;
+ * this is the defense-in-depth check for that rule.
  */
 export class HermesInvalidResponseError extends Error {
   constructor(reason: string) {
     super(`Invalid AI label response: ${reason}`);
     this.name = 'HermesInvalidResponseError';
+  }
+}
+
+/**
+ * Thrown when Hermes's response was truncated (stop_reason === 'max_tokens').
+ * A truncated label response is content loss by definition — never trusted
+ * (same rationale as DaedalusTruncatedError, generalized to Strict Import).
+ * Routes to 422 { error: 'strict_truncated' }.
+ */
+export class HermesTruncatedError extends Error {
+  constructor() {
+    super('Hermes response was truncated (max_tokens) — content loss, rejected');
+    this.name = 'HermesTruncatedError';
   }
 }
 
@@ -77,7 +91,9 @@ export async function callHermes(
   sectionDefs: readonly SectionDefLite[],
   ctx: LlmCallContext = { kind: 'import-strict' },
 ): Promise<Stage2Labels> {
-  // Stage 2 never classifies config data (Rules Index #28) — omit it from the prompt.
+  // Stage 2 never classifies config/frontmatter data — frontmatter keys are already
+  // exact, unambiguous strings, unlike headings, so there's no classification
+  // problem for the AI to solve there. Omit it from the prompt.
   const blueprint = renderBlueprintForPrompt(sectionDefs, { includeConfig: false });
 
   const userMessage = [
@@ -114,6 +130,12 @@ export async function callHermes(
     throw new LlmDryRunBlockedError(res.logId, ctx.kind, res.model);
   }
 
+  // Hard fail on truncation — a truncated label response is content loss by
+  // definition, same rule daedalus.ts/prometheus.ts already enforce for their own calls.
+  if (res.response.stopReason === 'max_tokens') {
+    throw new HermesTruncatedError();
+  }
+
   // Provider-level errors (no text block) are already mapped by anthropicProvider.ts —
   // any remaining upstream error would come through the catch above.
   return parseHermesLabels(res.response.text);
@@ -121,7 +143,7 @@ export async function callHermes(
 
 // ─────────────────────────────  Internal validation  ──────────────────────────
 
-function parseHermesLabels(responseText: string): Stage2Labels {
+export function parseHermesLabels(responseText: string): Stage2Labels {
   // Extract the JSON object — the AI may wrap it in a code fence.
   const jsonMatch = responseText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
@@ -141,7 +163,8 @@ function parseHermesLabels(responseText: string): Stage2Labels {
 
   const obj = parsed as Record<string, unknown>;
 
-  // Defense-in-depth: top-level content/text fields are forbidden (Rules Index #5).
+  // Defense-in-depth: top-level content/text fields are forbidden — Stage 2
+  // output is labels only, never content.
   if ('content' in obj || 'text' in obj) {
     throw new HermesInvalidResponseError(
       'AI response contains forbidden "content" or "text" field at top level',
@@ -163,7 +186,7 @@ function parseHermesLabels(responseText: string): Stage2Labels {
     }
     const m = entry as Record<string, unknown>;
 
-    // Forbidden fields inside a mapping (Rules Index #5 — defense-in-depth).
+    // Forbidden fields inside a mapping — same labels-only rule, defense-in-depth.
     if ('content' in m || 'text' in m) {
       throw new HermesInvalidResponseError(
         'Mapping entry contains forbidden "content" or "text" field',
@@ -184,7 +207,8 @@ function parseHermesLabels(responseText: string): Stage2Labels {
     }
 
     // Must have sectionKey. (propKey removed 2026-07-26 — config mapping is fully
-    // deterministic from frontmatter; see TechDesign.md Rules Index #28.)
+    // deterministic from frontmatter: frontmatter keys are already exact, unambiguous
+    // strings, so there's no classification problem for the AI to solve there.)
     const hasSectionKey = 'sectionKey' in m && typeof m.sectionKey === 'string';
     if (!hasSectionKey) {
       throw new HermesInvalidResponseError('Mapping entry missing "sectionKey"');

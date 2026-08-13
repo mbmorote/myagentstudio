@@ -8,9 +8,10 @@
  * §4 route contract:
  *   GET errors: 401 unauthorized; 404 if the agent doesn't exist or is not owned by caller
  *
- * Business rules (Plan 03 §5 rule 8, R11):
- *   This route is read-only — no AgentSnapshot row is written (Rules Index #16,
- *   still deferred to a later export-UX plan). exportAgentMarkdown() is compute-on-read.
+ * Business rules:
+ *   This route is read-only — no AgentSnapshot row is written. The `kind: 'export'`
+ *   snapshot capture point (and a diff view over it) is a real, still-deferred feature —
+ *   see `plans/roadmap.md` — not built here. exportAgentMarkdown() is compute-on-read.
  */
 
 import { NextResponse } from 'next/server';

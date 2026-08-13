@@ -18,7 +18,7 @@
  * is offered afterward as a dismissible popup on first load of the main app
  * (WorkbenchShell), so it never blocks or gates account creation. This is a
  * conscious supersession of §5.6/§7.2's original "must answer before submit"
- * design — see plans/06-auth-review-google-oauth.md's Phase 5 note for context.
+ * design — see plans/archive/06-auth-review-google-oauth.md's Phase 5 note for context.
  * SIGNUP_CONSENT_FLAG_KEY is the handoff: set here right before navigating to
  * '/', read once by WorkbenchShell, then cleared.
  *

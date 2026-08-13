@@ -2,7 +2,7 @@
  * lib/db/client.ts
  *
  * better-sqlite3 + drizzle() singleton. Server-only — the DB is never touched
- * in a client bundle. (Rules Index #8a; Plan §1 guiding constraint.)
+ * in a client bundle.
  *
  * The database file path is resolved relative to the project root so the
  * singleton works regardless of cwd during tests.

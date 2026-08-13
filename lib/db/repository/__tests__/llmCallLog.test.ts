@@ -9,7 +9,9 @@
  *   - dryRun / kind / limit filters
  *   - list rows omit requestPayload / responsePayload
  *   - getCallLog returns them
- *   - module exports no update/delete functions
+ *   - reserveCallSlot / finalizeCallLog (the one sanctioned update pair, added
+ *     2026-08-12 to close the cap-check race — see llmCallLog.ts's own header)
+ *   - module exports no DELETE function, and no update function beyond that pair
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -22,7 +24,7 @@ vi.mock('../../client.js', async () => {
 
 // ── Imports after mock ─────────────────────────────────────────────────────────
 import * as llmCallLogModule from '../llmCallLog.js';
-import { writeCallLog, listCallLogs, getCallLog } from '../llmCallLog.js';
+import { writeCallLog, listCallLogs, getCallLog, reserveCallSlot, finalizeCallLog } from '../llmCallLog.js';
 import type { WriteCallLogInput } from '../llmCallLog.js';
 
 // Shared fixture for a minimal valid request payload
@@ -135,8 +137,82 @@ describe('llmCallLog repository', () => {
     expect(rows.length).toBeLessThanOrEqual(2);
   });
 
-  it('module exports no updateCallLog or deleteCallLog', () => {
-    expect('updateCallLog' in llmCallLogModule).toBe(false);
+  it('module exports no deleteCallLog, and no free-form updateCallLog', () => {
     expect('deleteCallLog' in llmCallLogModule).toBe(false);
+    expect('updateCallLog' in llmCallLogModule).toBe(false);
+    // The one sanctioned exception — narrow, paired, documented (llmCallLog.ts header).
+    expect(typeof llmCallLogModule.reserveCallSlot).toBe('function');
+    expect(typeof llmCallLogModule.finalizeCallLog).toBe('function');
+  });
+
+  it('reserveCallSlot writes a row that immediately counts (dryRun:false) with a null response', () => {
+    const id = reserveCallSlot({
+      kind: 'chat',
+      agentId: 'agent-1',
+      agentLabel: 'test-agent',
+      model: 'claude-opus-4-8',
+      requestPayload: REQ,
+      userId: null,
+      sharedWithAdmin: false,
+    });
+    expect(typeof id).toBe('string');
+
+    const row = getCallLog(id, VIEWER_ID);
+    expect(row).not.toBeNull();
+    expect(row?.dryRun).toBe(false);
+    expect(row?.responsePayload).toBeNull();
+    expect(row?.error).toBeNull();
+    expect(row?.durationMs).toBe(0);
+  });
+
+  it('finalizeCallLog completes a reserved row with the real outcome, in place (no new row)', () => {
+    const id = reserveCallSlot({
+      kind: 'chat',
+      agentId: 'agent-1',
+      agentLabel: 'test-agent',
+      model: 'claude-opus-4-8',
+      requestPayload: REQ,
+      userId: null,
+      sharedWithAdmin: false,
+    });
+    const rowsBefore = listCallLogs().length;
+
+    finalizeCallLog(id, {
+      responsePayload: RESP,
+      error: null,
+      durationMs: 250,
+      usage: { inputTokens: 5, outputTokens: 10 },
+    });
+
+    const rowsAfter = listCallLogs().length;
+    expect(rowsAfter).toBe(rowsBefore); // updated in place, not a second row
+
+    const row = getCallLog(id, VIEWER_ID);
+    expect(row?.responsePayload).toEqual(RESP);
+    expect(row?.durationMs).toBe(250);
+    expect(row?.usage).toEqual({ inputTokens: 5, outputTokens: 10 });
+  });
+
+  it('finalizeCallLog can record an error outcome on a reserved row', () => {
+    const id = reserveCallSlot({
+      kind: 'chat',
+      agentId: null,
+      agentLabel: null,
+      model: 'claude-opus-4-8',
+      requestPayload: REQ,
+      userId: null,
+      sharedWithAdmin: false,
+    });
+
+    finalizeCallLog(id, {
+      responsePayload: null,
+      error: 'AbortError: The operation was aborted',
+      durationMs: 42,
+      usage: null,
+    });
+
+    const row = getCallLog(id, VIEWER_ID);
+    expect(row?.responsePayload).toBeNull();
+    expect(row?.error).toBe('AbortError: The operation was aborted');
   });
 });

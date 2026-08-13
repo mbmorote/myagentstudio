@@ -17,7 +17,8 @@
  *
  * Library panel body is empty in Phase B — filled by Phase C's LibraryPanel.
  *
- * Interaction lock invariants (§6 rule 12, Rules Index #22):
+ * Interaction lock invariants (chat / manual edit / a pending proposal are mutually
+ * exclusive per agent, client-enforced only — no server-side enforcement):
  *   - 'chat' lock: a /api/chat request is in flight
  *   - 'edit' lock: a section raw-edit has unsaved changes
  *   - 'proposal' lock: a pending proposal exists in localStorage (Plan 08 Phase 2)

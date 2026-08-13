@@ -8,8 +8,8 @@
  *   3. Files under app/api/account/** contain authenticate( and do NOT contain
  *      authenticateAdmin( — the user settings surface must never acquire an admin gate
  *      by copy-paste from its neighbour (§5.7).
- *   4. (Phase 4 — skipped until apiFetch migration is complete) No 'use client' file
- *      under app/ calls a bare fetch('/api/ — they must use apiFetch.
+ *   4. No 'use client' file under app/ calls a bare fetch('/api/ — they must use apiFetch
+ *      (apiFetch migration is complete; this assertion runs unconditionally).
  *
  * No mocks — pure file I/O. Kept short so it is easy to understand and maintain.
  */
@@ -280,8 +280,8 @@ describe('Phase 0 fitness — middleware import closure is Edge-clean', () => {
  * `arctic` is imported by exactly `lib/auth/oauth/google.ts`.
  * No other source file and no test file may import it directly.
  *
- * Modelled on lib/ai/__tests__/architecture.test.ts's one-SDK-importer test
- * (Rules Index #41).
+ * Modelled on lib/ai/__tests__/architecture.test.ts's one-SDK-importer test —
+ * the same fitness-function pattern applied to middleware.ts's import graph.
  */
 describe('Phase 1 fitness — single arctic importer', () => {
   /** Non-test source files — mirrors the helper in the Phase 0 block. */

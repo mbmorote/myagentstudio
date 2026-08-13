@@ -6,7 +6,11 @@ import 'server-only';
  * Append-only audit log for AI call attempts (§4.2, §10.3).
  *
  * Invariants:
- *   - No UPDATE or DELETE is exported — append-only by design.
+ *   - No DELETE is exported — append-only by design. One narrow exception to
+ *     "no UPDATE" (added 2026-08-12, code-review fix #3): reserveCallSlot()/
+ *     finalizeCallLog() together close a cap-check race (see their own
+ *     docstrings) — a reserved row is updated exactly once, by its own
+ *     writer, to attach the real outcome. It is never otherwise mutated.
  *   - Deleting an agent leaves its log rows intact (soft agentId ref).
  *   - listCallLogs selects explicit columns so a future column cannot silently
  *     leak into the list DTO (Plan B readiness, §4.2).
@@ -109,6 +113,78 @@ export function writeCallLog(input: WriteCallLogInput): string {
     sharedWithAdmin: input.sharedWithAdmin,
   }).run();
   return id;
+}
+
+// ─────────────────────────────  Reserve / finalize (live-path race fix)  ────
+
+export type ReserveCallSlotInput = {
+  kind: LlmCallKind;
+  agentId?: string | null;
+  agentLabel?: string | null;
+  model: string;
+  requestPayload: LoggedRequest;
+  userId?: string | null;
+  sharedWithAdmin: boolean;
+};
+
+/**
+ * Reserves a row for a live call BEFORE the network call happens, so it
+ * counts toward countLlmCallsInWindow() immediately — closing the race where
+ * the cap-check read and the log-write that used to make a call "count" were
+ * separated by the full provider round-trip, letting concurrent requests all
+ * read the same stale count and all pass the cap (found in code review,
+ * 2026-08-12). Row starts with dryRun:false and a null response/error/usage;
+ * MUST be completed by finalizeCallLog() on every exit path (success,
+ * provider error, or abort) — see that function.
+ *
+ * Throws if the INSERT fails, same as writeCallLog — callers catch this and
+ * proceed without a logId per §5.5 (a failed log write is never a reason to
+ * block a live call).
+ */
+export function reserveCallSlot(input: ReserveCallSlotInput): string {
+  const id = crypto.randomUUID();
+  db.insert(schema.llmCallLog).values({
+    id,
+    kind: input.kind,
+    agentId: input.agentId ?? null,
+    agentLabel: input.agentLabel ?? null,
+    dryRun: false,
+    model: input.model,
+    requestPayload: input.requestPayload,
+    responsePayload: null,
+    error: null,
+    durationMs: 0,
+    usage: null,
+    userId: input.userId ?? null,
+    sharedWithAdmin: input.sharedWithAdmin,
+  }).run();
+  return id;
+}
+
+export type FinalizeCallLogInput = {
+  responsePayload?: LoggedResponse | null;
+  error?: string | null;
+  durationMs: number;
+  usage?: { inputTokens: number; outputTokens: number } | null;
+};
+
+/**
+ * Completes a row created by reserveCallSlot() with the real outcome — the
+ * ONE UPDATE exported from this file (see the file-header invariant and
+ * reserveCallSlot's docstring). Every reserve MUST be paired with exactly one
+ * finalize, on every exit path, or the row is left permanently looking
+ * "in progress" (durationMs:0, error:null, responsePayload:null).
+ */
+export function finalizeCallLog(id: string, input: FinalizeCallLogInput): void {
+  db.update(schema.llmCallLog)
+    .set({
+      responsePayload: input.responsePayload ?? null,
+      error: input.error ?? null,
+      durationMs: input.durationMs,
+      usage: input.usage ?? null,
+    })
+    .where(eq(schema.llmCallLog.id, id))
+    .run();
 }
 
 // ─────────────────────────────  Read — list  ────────────────────────────────

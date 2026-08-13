@@ -5,9 +5,9 @@
  * lib/blueprint/catalog.ts for the 'claude' platform, but ONLY if a
  * (platform, key) row doesn't already exist (INSERT … ON CONFLICT DO NOTHING).
  *
- * These rows are DB-owned and admin-editable going forward (catalog platform
- * scoping, Rules Index #18) — catalog.ts is a first-run default, not a perpetual
- * mirror. A prior version of this file used ON CONFLICT DO UPDATE to force
+ * These rows are DB-owned and admin-editable going forward — catalog.ts is a
+ * first-run default, not a perpetual mirror. A prior version of this file used
+ * ON CONFLICT DO UPDATE to force
  * catalog.ts to win on every `npm run dev`/`npm run build`; that's exactly what
  * would silently clobber an admin's in-DB catalog edits, so it's gone — same
  * "operator-owned, DoNothing" reasoning already used below for `setting`.
@@ -92,7 +92,7 @@ async function seed() {
   console.log('  ~ setting: liveLlmCalls (skip if exists)');
 
   // maxUsers and maxLlmCallsPerUserPerHour — added by Plan 05 (§8 policy 18, §8 policy 24).
-  // onConflictDoNothing is CRITICAL (Rules Index #47): these are admin-owned runtime values;
+  // onConflictDoNothing is CRITICAL: these are admin-owned runtime values;
   // a DoUpdate would silently reset user-configured limits on every `npm run dev`.
   await db
     .insert(schema.setting)

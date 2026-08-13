@@ -42,9 +42,9 @@ export type SectionDefRow = ReturnType<typeof getSectionDefs>[number];
  * same ConfigDefLite shape AgentDTO.config[].def already uses. Added 2026-07-29 so
  * AgentView.tsx can source model/tools/permissionMode allowedValues, the "+" add-key menu,
  * and unknown-key detection from the DB (fresh on every page load) instead of a static
- * CONFIG_DEFS import. These rows are DB-owned and admin-editable (platform scoping,
- * Rules Index #18) — `catalog.ts` only seeds a row the first time it's inserted
- * (lib/db/seed.ts), it does not overwrite an existing row on later reseeds.
+ * CONFIG_DEFS import. These rows are DB-owned and admin-editable — `catalog.ts`
+ * only seeds a row the first time it's inserted (lib/db/seed.ts), it does not
+ * overwrite an existing row on later reseeds.
  */
 export function getConfigCatalog(): ConfigDefLite[] {
   return getConfigDefs().map((def) => ({

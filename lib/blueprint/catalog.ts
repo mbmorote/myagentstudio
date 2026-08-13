@@ -2,8 +2,9 @@
  * lib/blueprint/catalog.ts
  *
  * In-code source for CONFIG_DEFS — still the live catalog `lib/blueprint/rules.ts`
- * and `lib/blueprint/prompt.ts` read directly (config platform-scoping is a
- * separate, not-yet-done migration, Rules Index #18).
+ * and `lib/blueprint/prompt.ts` read directly (making the config catalog itself
+ * platform-aware, the way the section catalog already is, is a separate,
+ * not-yet-done migration — see `plans/roadmap.md` FUTURE).
  *
  * SECTION_DEFS used to live here too but moved to `lib/db/sectionDefsSeed.ts`
  * 2026-08-07 — it's bootstrap-seed-only (its one real consumer is
@@ -14,7 +15,7 @@
  *
  * The CONFIG_DEFS array is verbatim from §4 of Plan 01, refreshed 2026-07-28 against the real
  * Claude Code subagent frontmatter schema (code.claude.com/docs/en/sub-agents,
- * .../tools-reference) — see TechDesign.md Rules Index #37-#40. This is the
+ * .../tools-reference), refreshed against the real docs 2026-07-28. This is the
  * Claude Code CLI's own subagent format (`.claude/agents/*.md`), which is also
  * what a self-hosted Claude Agent SDK runtime loads — NOT Anthropic's separate,
  * subscription-hosted Managed Agents product (platform.claude.com/docs/en/
@@ -35,7 +36,8 @@ export const CONFIG_DEFS = [
   {
     // #37 (2026-07-28): real subagent docs show short aliases are the primary
     // documented form, with 'inherit' as the actual default (not just "kept
-    // for now" — Rules Index #19 originally locked full-IDs-only; superseded).
+    // for now" — an earlier version of this catalog locked full-IDs-only,
+    // corrected once the real docs were checked).
     key: 'model',
     label: 'Model',
     datatype: 'enum' as const,

@@ -8,7 +8,7 @@
  * responses. The DB client is replaced with an in-memory test instance.
  *
  * KEY INVARIANT: POST /api/chat NEVER writes to agent, agent_section, agent_config,
- * or section_revision (Rules Index #73, plans/08-prometheus-apply.md §7 invariant 1).
+ * or section_revision (plans/archive/08-prometheus-apply.md §7 invariant 1).
  * The ZERO WRITES test (test 1 below) is the load-bearing enforcement of this invariant.
  *
  * Tests:
@@ -146,7 +146,8 @@ describe('POST /api/chat — propose-only (Phase 1)', () => {
   // ── 1. ZERO WRITES unconditionally (the load-bearing test) ───────────────
   // A successful call with non-empty modifications must not touch any agent row,
   // section row, section_revision row, or config row. This single test enforces
-  // Rules Index #73 and supersedes the old section-auto-apply behavior.
+  // the rule that POST /api/chat never writes to the agent, and supersedes the
+  // old section-auto-apply behavior.
   it('ZERO WRITES: non-empty modifications response leaves DB unchanged for sections, description, and config', async () => {
     const agentBefore = getAgentFull(testAgentId, BOOTSTRAP_USER_ID)!;
     const descriptionBefore = agentBefore.description;

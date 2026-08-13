@@ -1,7 +1,7 @@
 /**
  * lib/ai/__tests__/prometheus.test.ts
  *
- * Unit tests for parsePrometheusResponse() — plans/07-prometheus-propose-apply.md §6.2.
+ * Unit tests for parsePrometheusResponse() — plans/archive/07-prometheus-propose-apply.md §6.2.
  *
  * The generated prompt module is mocked so this suite never depends on
  * `npm run dev` / `npm run build` having run first (§13.1 note on module loading).

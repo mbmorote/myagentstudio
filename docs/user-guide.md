@@ -8,13 +8,13 @@ MyAgent is a local workbench for building Claude Code subagents. You import exis
 
 MyAgent requires an account. Go to `/login` and enter your email and password.
 
-If you do not have an account yet, ask the admin (the person who runs this deployment) for an invite code. With that code in hand, go to `/signup` and create your account. The signup page will ask you to make one privacy choice — see the **Activity log** section below for what that choice means.
+If you do not have an account yet, ask the admin (the person who runs this deployment) for an invite code. With that code in hand, go to `/signup` and create your account. Every new account starts private by default — the first time you land on the workbench after signing up, a one-time popup offers to also share your activity-log content with the admin; dismissing it (or choosing "Keep private") leaves the private default in place, and you can change your mind anytime from your Account page. See the **Activity log** section below for what this choice means.
 
 When your session expires (default 7 days, may be shorter or longer on this deployment), you will be redirected to `/login` with your intended destination preserved — signing back in returns you to the page you were on.
 
 ### Signing in with Google
 
-If this deployment has Google sign-in enabled, a **Continue with Google** button appears on `/login` and `/signup`. It is a second way to prove who you are, not a second way to get in — **an invite code is still required** the first time you sign in with Google, exactly as with a password account. On `/signup`, the button stays disabled until you've entered a code and answered the privacy question below it.
+If this deployment has Google sign-in enabled, a **Continue with Google** button appears on `/login` and `/signup`. It is a second way to prove who you are, not a second way to get in — **an invite code is still required** the first time you sign in with Google, exactly as with a password account. On `/signup`, the button stays disabled until you've entered a code; the activity-log privacy choice happens later, in the one-time popup described above, not on the signup page itself.
 
 If you already have a password account and later sign in with Google using the same, Google-verified email address, MyAgent links the two automatically — you land in your existing account, no second account is created, and no invite code is spent. Your original password keeps working afterward.
 
@@ -121,29 +121,13 @@ The Edit button is grayed out while a chat request is in progress, or while a ch
 
 ---
 
-## Groups
+## Groups (coming soon)
 
-Groups are labels, not folders. An agent can belong to multiple groups at once. Adding an agent to a group does not move it — it just appears under that group heading in the Library panel. Removing a group membership does not delete the agent.
-
-### Adding an agent to a group
-
-Drag any agent from the Library list onto a group header. A drag overlay shows the agent name while dragging; release over the group to add the membership.
-
-### Creating a group
-
-Click **＋ New group** at the bottom of the Library action bar. Type a name and press Enter or click Create group. Group names must be unique.
-
-### Removing an agent from a group
-
-Each agent row inside a group section shows a small **×** button. Click it to remove that membership. The agent stays in "All agents" and "Ungrouped" (if it has no other memberships).
-
-### Deleting a group
-
-Each group header has a delete control. Deleting a group removes the group and all its memberships. The agents themselves are not deleted.
-
-### "All agents" and "Ungrouped"
-
-These are always-present read-only views below the real groups. "All agents" lists every agent in the platform. "Ungrouped" lists only agents with no group memberships. Both can be collapsed by clicking their headers.
+The Library is designed to let you file an agent into any number of groups at once — a
+group is a label, not a folder, so one agent can appear under several group headings
+without being duplicated. This is built underneath but not yet switched on in this
+release: the Library shows a single flat list of every agent for now, with no group
+controls. This will be enabled in a coming update.
 
 ---
 

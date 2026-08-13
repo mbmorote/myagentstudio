@@ -3,7 +3,7 @@ import 'server-only';
 /**
  * lib/ai/daedalus.ts
  *
- * Stage-2b caller for Structural Import mode (Rules Index #27, #31).
+ * Stage-2b caller for Structural Import mode.
  *
  * Unlike Hermes (Strict Import) which receives only
  * blockId + heading and returns labels, Daedalus receives the
@@ -12,13 +12,15 @@ import 'server-only';
  * is handled 100% deterministically by the server in both modes).
  *
  * The returned document is then persisted by re-running Stage-1 parse() on it
- * and mapping headings → sectionKeys via the section catalog's defaultHeading (B3) —
+ * and mapping headings → sectionKeys via the section catalog's defaultHeading —
  * the same sectionDefs passed into this call, DB-owned as of 2026-08-07.
  *
- * Safety model: prompt-enforced restructure (daedalus.md)
- * plus deterministic coverage check (lib/import/coverage.ts — B5).
+ * Safety model: prompt-enforced restructure (daedalus.md) plus a deterministic
+ * coverage check (lib/import/coverage.ts) — unlike Strict Import, where the server
+ * deterministically copies content and the AI never sees or emits it, Structural
+ * Import trusts the model's own restructuring, so a code-enforced check backs it up.
  * A truncated response (stop_reason === 'max_tokens') is a hard fail — never
- * stored, routes to 422 (Rules Index #31).
+ * stored, routes to 422. A truncated document is silent content loss by definition.
  */
 
 import { getGateway, LlmDryRunBlockedError, LlmUserCapReachedError } from './gateway.js';
@@ -39,7 +41,7 @@ export class DaedalusUpstreamError extends Error {
 
 /**
  * Thrown when Daedalus's response was truncated (stop_reason === 'max_tokens').
- * A truncated document is silent content loss by definition — never stored (Rules Index #31).
+ * A truncated document is silent content loss by definition — never stored.
  * Routes to 422 { error: 'structural_truncated' }.
  */
 export class DaedalusTruncatedError extends Error {
@@ -131,8 +133,8 @@ export async function callDaedalus(
     throw new LlmDryRunBlockedError(res.logId, ctx.kind, res.model);
   }
 
-  // Hard fail on truncation — a truncated document is content loss (Rules Index #31).
-  // Domain rule stays in the caller — the gateway only records stopReason, never acts on it (§3.5).
+  // Hard fail on truncation — a truncated document is content loss by definition.
+  // Domain rule stays in the caller — the gateway only records stopReason, never acts on it.
   if (res.response.stopReason === 'max_tokens') {
     throw new DaedalusTruncatedError();
   }

@@ -3,11 +3,11 @@
  *
  * POST /api/agents/import
  *
- * Supports two import modes (Rules Index #27, A1–A4, B2–B3):
+ * Supports two import modes:
  *   - 'structural' (default): AI receives the full raw text + blueprint, returns a
  *     restructured body document; headings are deterministically mapped → sectionKeys.
  *   - 'strict': two-stage labels-only pipeline (Stage 2 classifies blockId→sectionKey,
- *     server reassembles content from Stage-1 bytes — Rules Index #5/#6).
+ *     server reassembles content from Stage-1 bytes — content never touches the AI).
  *
  * Both modes share Stage 1 (deterministic parse) and upsertAgentFromImport.
  *
@@ -31,7 +31,7 @@
 import { NextResponse } from 'next/server';
 import { parse } from '@/lib/serialize';
 import { FrontmatterParseError } from '@/lib/serialize/parseFrontmatter';
-import { callHermes, HermesUpstreamError, HermesInvalidResponseError } from '@/lib/ai/hermes';
+import { callHermes, HermesUpstreamError, HermesInvalidResponseError, HermesTruncatedError } from '@/lib/ai/hermes';
 import { callDaedalus, DaedalusTruncatedError, DaedalusUpstreamError } from '@/lib/ai/daedalus';
 import { LlmDryRunBlockedError, LlmUserCapReachedError } from '@/lib/ai/gateway';
 import { assemble } from '@/lib/import/assemble';
@@ -107,7 +107,7 @@ async function runStructuralPipeline(
   userId: string,
   forceDryRun: boolean,
 ): Promise<NextResponse> {
-  // ── Short-circuit: identical raw bytes (Rules Index #36 — B3) ────────────
+  // ── Short-circuit: identical raw bytes — skip the AI call on a no-op re-import ──
   // Extract name from Stage-1 frontmatter to look up the existing agent.
   // name is always a scalar string in a well-formed agent file; the frontmatter type
   // now also allows nested object/array values for datatype:'json' keys (#35/#40),
@@ -135,7 +135,7 @@ async function runStructuralPipeline(
   const agentId = agentName ? (getAgentSnapshotInfo(agentName, userId)?.id ?? null) : null;
 
   // Platform is hardcoded 'claude' — no import-target platform picker exists yet
-  // (only 'claude' exists, Rules Index #18). Fetched once, shared with assembleStructural
+  // (only 'claude' exists as a catalog entry today). Fetched once, shared with assembleStructural
   // below so the blueprint sent to Daedalus and the heading-matcher use the same catalog.
   const sectionDefs = getSectionDefs('claude');
 
@@ -222,7 +222,7 @@ async function runStrictPipeline(
   forceDryRun: boolean,
 ): Promise<NextResponse> {
   // ── Stage 2: AI labels-only call ─────────────────────────────────────────
-  // Only blockId + heading go to the model — never content (Rules Index #5).
+  // Only blockId + heading go to the model — never content.
   const blockRefs = structured.blocks.map((b) => ({ blockId: b.blockId, heading: b.heading }));
 
   // §5.2: agentId best-effort at call time — the agent may not exist yet.
@@ -281,6 +281,10 @@ async function runStrictPipeline(
         },
         { status: 409 },
       );
+    }
+    if (err instanceof HermesTruncatedError) {
+      console.error('[import/strict] Stage-2 response truncated:', err.message);
+      return NextResponse.json({ error: 'strict_truncated' }, { status: 422 });
     }
     if (err instanceof HermesInvalidResponseError) {
       console.error('[import/strict] Stage-2 invalid AI labels:', err.message);

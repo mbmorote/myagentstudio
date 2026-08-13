@@ -10,8 +10,9 @@
  * Response: { agent: AgentDTO, sectionId: string }
  *
  * No validation against the blueprint catalog here — sectionKey/heading are accepted
- * as given (flag-don't-block, Rules Index #76/#1); the client is expected to offer
- * sensible choices (a blueprint section not yet present, or a custom name).
+ * as given (flag-don't-block: AI-authored and manually-entered content both get the
+ * same non-enforcement); the client is expected to offer sensible choices (a blueprint
+ * section not yet present, or a custom name).
  *
  * Errors: 401 unauthorized; 400 invalid body; 404 agent not found or not owned.
  */

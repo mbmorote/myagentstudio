@@ -21,7 +21,8 @@
  *   On 409 version_conflict: inline conflict notice, edit mode stays open.
  *   On success: onSaved(content, newVersion) propagates the new version up.
  *
- * Interaction lock (§6 rule 12, Rules Index #22):
+ * Interaction lock (chat / manual edit / a pending proposal are mutually exclusive
+ * per agent, client-enforced only — no server-side enforcement):
  *   - Opening raw-edit with any change calls onEditStart() → lock='edit', chat disabled.
  *   - Saving or cancelling calls onEditEnd() → lock released.
  *   - While lock='chat', the "Edit" button is disabled.
