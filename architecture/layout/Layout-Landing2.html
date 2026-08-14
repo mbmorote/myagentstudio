@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landing Page v2 — Layout</title>
+<style>
+  /* Migrated from a new externally-authored design ("Version A" of
+     Landing-standalone.html — originally a serif-driven "Broadsheet" system
+     with an interactive walkthrough carousel), with TWO deliberate changes
+     on top of the original round-square button migration:
+
+     1. Buttons use the "round square" shape (~8px radius) already
+        established by Layout-Landing.html, instead of that design's own
+        near-square 2px radius.
+     2. Colors and font now match Layout-Landing.html's token set exactly
+        (the same one Layout-Workbench.html uses) — full light/dark support
+        included — instead of Version A's own CMYK-inspired teal/magenta
+        two-tone palette and serif type. Version A had two accent hues
+        (--color-accent teal for primary actions, --color-accent-2 magenta
+        for the carousel's step-counter/active-dot); Layout-Landing.html only
+        has one accent hue, so both collapse onto it here — accent/accent-2
+        share the same value, and accent-700/accent-2-700 both become the
+        darker "ink" shade. Layout, copy, spacing, and the halftone texture
+        are still Version A's own, unchanged.
+
+     Font note: with the palette now matching Layout-Landing.html, heading
+     and body both use its --ui sans-serif stack — Version A's serif
+     treatment (and the broken bundler-internal @font-face it relied on) is
+     gone, not just patched around. */
+
+  :root{
+    --color-bg: #e9edf2;
+    --color-surface: #f6f8fb;
+    --color-text: #1b2430;
+    --color-accent: #1479c9;
+    --color-accent-2: #1479c9;
+    --color-divider: #d2dae4;
+
+    --color-neutral-200: #d2dae4;
+
+    --color-accent-700: #0b4f85;
+    --color-accent-2-700: #0b4f85;
+    --color-faint: #8996a6;
+
+    --font-heading: system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --font-heading-weight: 600;
+    --font-body: system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+
+    --space-1: 5px;  --space-2: 10px; --space-3: 15px;
+    --space-4: 20px; --space-5: 25px; --space-6: 30px; --space-8: 40px;
+
+    /* — round-square button radius, migrated from Layout-Landing.html's
+       .cta/.loginbtn (8px) / .navlogin (7px) — replaces this design's own
+       --radius-md: 2px for buttons specifically, nothing else. */
+    --radius-btn: 8px;
+    --radius-md: 2px;
+    --radius-lg: 4px;
+
+    --shadow-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
+    --shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+  }
+  /* Light/dark values below are Layout-Landing.html's own tokens, ported
+     1:1 (same mechanism: OS preference by default, data-theme overrides it). */
+  @media (prefers-color-scheme:dark){
+    :root{
+      --color-bg: #12151a; --color-surface: #191d23; --color-text: #e6ebf2;
+      --color-accent: #4fa8e0; --color-accent-2: #4fa8e0;
+      --color-divider: #2a3039; --color-neutral-200: #2a3039;
+      --color-accent-700: #a8d4f5; --color-accent-2-700: #a8d4f5;
+      --color-faint: #616c7c;
+    }
+  }
+  :root[data-theme="light"]{
+    --color-bg: #e9edf2; --color-surface: #f6f8fb; --color-text: #1b2430;
+    --color-accent: #1479c9; --color-accent-2: #1479c9;
+    --color-divider: #d2dae4; --color-neutral-200: #d2dae4;
+    --color-accent-700: #0b4f85; --color-accent-2-700: #0b4f85;
+    --color-faint: #8996a6;
+  }
+  :root[data-theme="dark"]{
+    --color-bg: #12151a; --color-surface: #191d23; --color-text: #e6ebf2;
+    --color-accent: #4fa8e0; --color-accent-2: #4fa8e0;
+    --color-divider: #2a3039; --color-neutral-200: #2a3039;
+    --color-accent-700: #a8d4f5; --color-accent-2-700: #a8d4f5;
+    --color-faint: #616c7c;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; background: var(--color-bg); color: var(--color-text);
+    font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+  h1, h2, h3, h4 {
+    font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+    line-height: 1.12; letter-spacing: -0.015em; margin: 0 0 var(--space-2);
+  }
+  h2 { font-size: 32px; }
+  h3 { font-size: 25px; }
+  h4 { font-size: 20px; }
+  p { margin: 0 0 var(--space-3); }
+  a { color: var(--color-accent); text-underline-offset: 3px; }
+
+  .halftone{position:relative;filter:grayscale(0.35) contrast(1.15);overflow:hidden}
+  .halftone::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:radial-gradient(circle,rgba(0,0,0,0.22) 30%,transparent 32%);
+    background-size:3px 3px;mix-blend-mode:multiply}
+
+  .card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
+
+  /* — buttons: this is the migrated bit — round squares, not this design's
+     own near-sharp corners and not a pill shape either. */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    cursor: pointer; text-decoration: none;
+    font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+    font-size: 14px; line-height: 1.2; color: var(--color-text);
+    background: transparent; border: 1px solid transparent;
+    padding: var(--space-2) calc(var(--space-3) * 1.2);
+    border-radius: var(--radius-btn);
+  }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary { background: var(--color-accent); color: var(--color-bg); }
+  .btn-primary:hover { background: #007494; }
+  .btn-primary:active { background: #006585; }
+  .btn-secondary { border-color: var(--color-divider); }
+  .btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+  .btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+  .btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
+  .btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+  .btn-icon { width: 36px; height: 36px; padding: 0; }
+  .btn-block { width: 100%; margin-top: var(--space-2); }
+
+  .field > label {
+    display: block; font-size: 12px; margin-bottom: 5px;
+    color: color-mix(in srgb, var(--color-text) 70%, transparent);
+  }
+  .input {
+    width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
+    font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
+    background: var(--color-surface);
+    border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  }
+  .input::placeholder { color: color-mix(in srgb, var(--color-text) 65%, transparent); opacity: 1; }
+  .input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+  .input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+
+  .nav {
+    display: flex; align-items: center; gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface); border-bottom: 1px solid var(--color-divider);
+  }
+  .nav-brand {
+    display: flex; align-items: center; gap: 9px;
+    font-family: var(--font-heading); font-weight: 700; letter-spacing: -.01em;
+    font-size: 15px; margin-right: auto;
+  }
+
+  /* Feature cards — ported from Layout-Landing.html's .feats/.featgrid/.feat
+     (background/border/icon color use this file's own token names). */
+  .feats{padding:8px var(--space-4) 64px; max-width:980px; margin:0 auto; width:100%}
+  .featgrid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px}
+  .feat{border:1px solid var(--color-divider); border-radius:10px; padding:16px 14px; background:var(--color-surface)}
+  .feat .fico{color:var(--color-accent); font-size:16px; margin-bottom:8px}
+  .feat h4{font-size:12.5px; margin:0 0 5px}
+  .feat p{font-size:11.5px; color:var(--color-faint); margin:0}
+  .nav-brand .dot{width:9px;height:9px;border-radius:2px;background:var(--color-accent);
+    box-shadow:0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent)}
+
+  .dialog-backdrop {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    padding: var(--space-4);
+    background: color-mix(in srgb, #2d2b2b 50%, transparent);
+  }
+
+  :focus { outline: none; }
+  :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <div class="nav-brand"><span class="dot"></span>MyAgent</div>
+  <button class="btn btn-secondary" id="btnOpenLogin">Log in</button>
+</div>
+
+<div style="max-width:640px;margin:0 auto;padding:80px var(--space-4) 60px;text-align:center">
+  <h1 style="font-size:34px;line-height:1.2;letter-spacing:-.02em">Build and edit AI agents without fighting YAML frontmatter</h1>
+  <p style="font-size:15.5px;opacity:.75;margin:var(--space-3) 0 var(--space-6)">Import an agent, edit it in a structured view or by chatting with it, export it back out — one workbench, no hand-editing markdown.</p>
+</div>
+
+<div style="max-width:880px;margin:0 auto;padding:0 var(--space-4) var(--space-8);text-align:center">
+  <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:var(--space-2)">See how it works</div>
+  <h2 style="margin-bottom:6px">From messy frontmatter to a clean export</h2>
+  <p style="opacity:.65;margin:0 0 var(--space-6)">without hand-editing markdown</p>
+
+  <div style="text-align:left;background:var(--color-surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);padding:var(--space-6)">
+    <div class="step-counter" style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-accent-2-700);margin-bottom:var(--space-2)"></div>
+    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:var(--space-6);align-items:center;min-height:240px">
+      <div>
+        <div class="card-kicker step-kicker"></div>
+        <h3 class="step-title" style="font-size:24px"></h3>
+        <p class="step-desc" style="opacity:.75"></p>
+      </div>
+      <div class="halftone" style="border:1px solid var(--color-divider);border-radius:var(--radius-md);min-height:180px;display:flex;align-items:center;justify-content:center;background:repeating-linear-gradient(135deg, var(--color-surface), var(--color-surface) 8px, var(--color-neutral-200) 8px, var(--color-neutral-200) 16px)">
+        <span class="step-shot" style="font-family:ui-monospace,monospace;font-size:11px;opacity:.6;text-align:center;padding:var(--space-3)"></span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:var(--space-3);margin-top:var(--space-5)">
+      <button class="btn btn-secondary" id="btnPrev">← Previous</button>
+      <button class="btn btn-primary" id="btnPlay">❚❚ Pause</button>
+      <button class="btn btn-secondary" id="btnNext">Next →</button>
+      <div class="dots" style="flex:1;display:flex;justify-content:center;gap:8px"></div>
+    </div>
+  </div>
+  <button class="btn btn-secondary" style="margin-top:var(--space-4)" id="btnOpenModal">⤢ View fullscreen</button>
+</div>
+
+<div class="feats">
+  <div class="featgrid">
+    <div class="feat"><div class="fico">◆</div><h4>Structured + raw views</h4><p>See the same agent both ways, always in sync.</p></div>
+    <div class="feat"><div class="fico">◆</div><h4>AI-guided editing</h4><p>Propose changes in chat, review before anything applies.</p></div>
+    <div class="feat"><div class="fico">◆</div><h4>Export to your platform</h4><p>Round-trips cleanly back to plain agent files.</p></div>
+    <div class="feat"><div class="fico">◆</div><h4>More providers, soon</h4><p>Not locked to a single model vendor.</p></div>
+  </div>
+</div>
+
+<div style="border-top:1px solid var(--color-divider);padding:var(--space-4) var(--space-4);display:flex;gap:var(--space-3);flex-wrap:wrap;font-size:12px;opacity:.65;max-width:980px;margin:0 auto">
+  <span>Built by the user</span>
+  <a href="#">LinkedIn</a><a href="#">GitHub</a><a href="#">Email</a>
+  <span style="flex:1;min-width:200px">© 2026. All rights reserved. · <a href="#">Terms</a> · <a href="#">Privacy</a> · Experimental software — please don't paste sensitive data.</span>
+</div>
+
+<!-- ============= LOGIN DRAWER ============= -->
+<div id="loginOverlay" hidden style="position:fixed;inset:0;z-index:60;background:color-mix(in srgb, #2d2b2b 45%, transparent)">
+  <div style="position:absolute;top:0;right:0;bottom:0;width:min(380px,92vw);background:var(--color-surface);box-shadow:var(--shadow-lg);display:flex;flex-direction:column;justify-content:center;padding:var(--space-6)" id="loginPanel">
+    <button class="btn btn-icon btn-ghost" style="position:absolute;top:var(--space-3);right:var(--space-3)" id="btnCloseLogin">✕</button>
+    <div style="max-width:280px;margin:0 auto;width:100%">
+      <div class="nav-brand" style="margin-bottom:var(--space-6)"><span class="dot"></span>MyAgent</div>
+      <h2 style="font-size:20px">Access your account</h2>
+      <div class="field" style="margin-top:var(--space-4)"><label>Email</label><input class="input" placeholder="you@example.com"></div>
+      <div class="field"><label>Password</label><input class="input" type="password" placeholder="Your password"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin:var(--space-2) 0 var(--space-4)">
+        <label style="display:flex;align-items:center;gap:6px;opacity:.75"><input type="checkbox"> Remember me</label>
+        <a href="#">Forgot password?</a>
+      </div>
+      <button class="btn btn-primary btn-block">Log in →</button>
+      <div style="font-size:12px;opacity:.6;text-align:center;margin-top:var(--space-3)">Invite-only beta — no open signup yet.</div>
+      <div style="font-size:11px;opacity:.5;text-align:center;margin-top:var(--space-4)">Your data stays yours.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============= WALKTHROUGH MODAL ============= -->
+<div id="modalOverlay" class="dialog-backdrop" hidden style="z-index:50">
+  <div style="width:min(880px,94vw);background:var(--color-bg);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:var(--space-6);position:relative" id="modalPanel">
+    <button class="btn btn-icon btn-ghost" style="position:absolute;top:var(--space-3);right:var(--space-3)" id="btnCloseModal">✕</button>
+    <div class="step-counter" style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-accent-2-700);margin-bottom:var(--space-2)"></div>
+    <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:var(--space-6);align-items:center;min-height:280px">
+      <div>
+        <div class="card-kicker step-kicker"></div>
+        <h3 class="step-title" style="font-size:26px"></h3>
+        <p class="step-desc" style="opacity:.75"></p>
+      </div>
+      <div class="halftone" style="border:1px solid var(--color-divider);border-radius:var(--radius-md);min-height:200px;display:flex;align-items:center;justify-content:center;background:repeating-linear-gradient(135deg, var(--color-surface), var(--color-surface) 8px, var(--color-neutral-200) 8px, var(--color-neutral-200) 16px)">
+        <span class="step-shot" style="font-family:ui-monospace,monospace;font-size:11px;opacity:.6;text-align:center;padding:var(--space-3)"></span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:var(--space-3);margin-top:var(--space-6)">
+      <button class="btn btn-secondary" id="btnPrev2">← Previous</button>
+      <button class="btn btn-primary" id="btnPlay2">❚❚ Pause</button>
+      <button class="btn btn-secondary" id="btnNext2">Next →</button>
+      <div class="dots" style="flex:1;display:flex;justify-content:center;gap:8px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var steps = [
+    { kicker: 'STEP 1 — IMPORT', title: 'Bring in any agent file', desc: 'Drop in a .md agent — Structural mode reorganizes it into a canonical layout, Strict mode keeps your structure and just labels it.', shot: '[ screenshot — import dialog ]' },
+    { kicker: 'STEP 2 — EDIT', title: 'Change it directly, or describe the change', desc: 'Edit fields in the structured view, or tell the built-in chat what you want changed — it proposes the edit for review.', shot: '[ screenshot — structured view + chat ]' },
+    { kicker: 'STEP 3 — REVIEW', title: 'See exactly what changed', desc: 'Every proposed edit shows as a diff against the raw file before it applies. Nothing changes silently.', shot: '[ screenshot — raw view / diff ]' },
+    { kicker: 'STEP 4 — EXPORT', title: 'Take it back out clean', desc: 'Download the result as a plain agent file, ready to drop back into your own tools.', shot: '[ screenshot — export ]' }
+  ];
+
+  var state = { step: 0, playing: true };
+  var timer = null;
+  var AUTOPLAY_MS = 4200;
+
+  // Every instance of a repeated bit (inline card + fullscreen modal) shares
+  // one render pass, keyed by class, so both always agree.
+  function render() {
+    var s = steps[state.step];
+    var counter = String(state.step + 1).padStart(2, '0') + ' / ' + String(steps.length).padStart(2, '0');
+    document.querySelectorAll('.step-counter').forEach(function (el) { el.textContent = counter; });
+    document.querySelectorAll('.step-kicker').forEach(function (el) { el.textContent = s.kicker; });
+    document.querySelectorAll('.step-title').forEach(function (el) { el.textContent = s.title; });
+    document.querySelectorAll('.step-desc').forEach(function (el) { el.textContent = s.desc; });
+    document.querySelectorAll('.step-shot').forEach(function (el) { el.textContent = s.shot; });
+    document.querySelectorAll('#btnPlay, #btnPlay2').forEach(function (el) {
+      el.textContent = state.playing ? '❚❚ Pause' : '▶ Start';
+    });
+    document.querySelectorAll('.dots').forEach(function (container) {
+      container.innerHTML = '';
+      steps.forEach(function (_, i) {
+        var dot = document.createElement('span');
+        dot.style.cssText = 'width:8px;height:8px;border-radius:50%;cursor:pointer;background:' +
+          (i === state.step ? 'var(--color-accent-2)' : 'var(--color-divider)');
+        dot.addEventListener('click', function () { goTo(i); });
+        container.appendChild(dot);
+      });
+    });
+  }
+
+  function next() { state.step = (state.step + 1) % steps.length; render(); }
+  function prev() { state.step = (state.step - 1 + steps.length) % steps.length; render(); }
+  function goTo(i) { state.step = i; render(); }
+
+  function startTimer() { stopTimer(); timer = setInterval(next, AUTOPLAY_MS); }
+  function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
+  function togglePlay() {
+    state.playing = !state.playing;
+    if (state.playing) startTimer(); else stopTimer();
+    render();
+  }
+
+  ['btnPrev', 'btnPrev2'].forEach(function (id) { document.getElementById(id).addEventListener('click', prev); });
+  ['btnNext', 'btnNext2'].forEach(function (id) { document.getElementById(id).addEventListener('click', next); });
+  ['btnPlay', 'btnPlay2'].forEach(function (id) { document.getElementById(id).addEventListener('click', togglePlay); });
+
+  // — login drawer —
+  var loginOverlay = document.getElementById('loginOverlay');
+  document.getElementById('btnOpenLogin').addEventListener('click', function () { loginOverlay.hidden = false; });
+  document.getElementById('btnCloseLogin').addEventListener('click', function () { loginOverlay.hidden = true; });
+  loginOverlay.addEventListener('click', function (e) { if (e.target === loginOverlay) loginOverlay.hidden = true; });
+  document.getElementById('loginPanel').addEventListener('click', function (e) { e.stopPropagation(); });
+
+  // — walkthrough modal —
+  var modalOverlay = document.getElementById('modalOverlay');
+  document.getElementById('btnOpenModal').addEventListener('click', function () {
+    state.step = 0; state.playing = true; render(); startTimer();
+    modalOverlay.hidden = false;
+  });
+  function closeModal() { stopTimer(); state.playing = false; render(); modalOverlay.hidden = true; }
+  document.getElementById('btnCloseModal').addEventListener('click', closeModal);
+  modalOverlay.addEventListener('click', function (e) { if (e.target === modalOverlay) closeModal(); });
+  document.getElementById('modalPanel').addEventListener('click', function (e) { e.stopPropagation(); });
+
+  render();
+  startTimer();
+})();
+</script>
+
+</body>
+</html>

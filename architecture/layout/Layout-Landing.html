@@ -1,0 +1,383 @@
+<meta charset="utf-8">
+<title>Landing Page — Layout</title>
+<style>
+  /* Same token set as Layout-Workbench.html, kept in sync on purpose so the landing
+     page and the post-login app read as one product, not two designs stitched together. */
+  :root{
+    --bg:#e9edf2; --panel:#f6f8fb; --elev:#ffffff; --border:#d2dae4;
+    --text:#1b2430; --muted:#5b6879; --faint:#8996a6;
+    --accent:#1479c9; --accent-ink:#0b4f85; --accent-wash:rgba(20,121,201,.10);
+    --ok:#2f9e5f; --warn:#b3801c; --err:#cf4b41;
+    --mono:ui-monospace,"Cascadia Code","SF Mono",Consolas,"Liberation Mono",monospace;
+    --ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#12151a; --panel:#191d23; --elev:#20252d; --border:#2a3039;
+      --text:#e6ebf2; --muted:#8b95a5; --faint:#616c7c;
+      --accent:#4fa8e0; --accent-ink:#a8d4f5; --accent-wash:rgba(79,168,224,.12);
+      --ok:#5fb87a; --warn:#d9a441; --err:#e0685f;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#e9edf2; --panel:#f6f8fb; --elev:#ffffff; --border:#d2dae4;
+    --text:#1b2430; --muted:#5b6879; --faint:#8996a6;
+    --accent:#1479c9; --accent-ink:#0b4f85; --accent-wash:rgba(20,121,201,.10);
+    --ok:#2f9e5f; --warn:#b3801c; --err:#cf4b41;
+  }
+  :root[data-theme="dark"]{
+    --bg:#12151a; --panel:#191d23; --elev:#20252d; --border:#2a3039;
+    --text:#e6ebf2; --muted:#8b95a5; --faint:#616c7c;
+    --accent:#4fa8e0; --accent-ink:#a8d4f5; --accent-wash:rgba(79,168,224,.12);
+    --ok:#5fb87a; --warn:#d9a441; --err:#e0685f;
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:var(--ui); font-size:14px; line-height:1.55;
+    /* "enrich the layout" pass: scale spacing/sizing together, not just font-size —
+       zoom does that in one declaration instead of hand-tuning every padding/gap/icon. */
+    zoom:1.1}
+
+  a{color:var(--accent-ink)}
+  /* Without this, .modalback/.loginback's own `display` declarations (needed
+     to lay them out while shown) win over the UA stylesheet's [hidden]
+     rule once JS toggles the attribute back on — an element stays visible
+     forever after its first open. */
+  [hidden]{display:none !important}
+
+  /* ---- shared: top nav (sticky, same pattern as .foot below) ---- */
+  .nav{position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:16px; padding:12px 28px; border-bottom:1px solid var(--border); background:var(--panel)}
+  .brand{display:flex; align-items:center; gap:9px; font-weight:700; letter-spacing:-.01em; font-size:15px}
+  .brand .dot{width:9px;height:9px;border-radius:2px;background:var(--accent);box-shadow:0 0 0 3px var(--accent-wash)}
+  .nav .spacer{flex:1}
+  .navlogin{font:inherit; font-size:13px; font-weight:600; color:var(--accent-ink); background:transparent;
+    border:1px solid var(--border); border-radius:7px; padding:7px 16px; cursor:pointer}
+  .navlogin:hover{border-color:var(--accent)}
+
+  /* ---- shared: placeholder screenshot frame ---- */
+  .shot{border:1px solid var(--border); border-radius:10px; background:var(--elev); overflow:hidden;
+    box-shadow:0 12px 28px -18px rgba(0,0,0,.35)}
+  .shot .shotbar{display:flex; gap:5px; padding:8px 10px; border-bottom:1px solid var(--border); background:var(--panel)}
+  .shot .shotbar span{width:8px;height:8px;border-radius:50%;background:var(--border)}
+  .shot .shotbody{padding:26px 18px; display:flex; align-items:center; justify-content:center;
+    color:var(--faint); font-size:12px; font-style:italic; text-align:center; min-height:120px}
+
+  /* ---- shared: sticky footer ---- */
+  .foot{position:sticky; bottom:0; z-index:5; display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+    padding:10px 24px; background:var(--panel); border-top:1px solid var(--border); font-size:11.5px; color:var(--faint)}
+  .foot .fbrand{display:flex; align-items:center; gap:12px; color:var(--muted); font-weight:600}
+  .foot .fbrand a{color:var(--muted); text-decoration:none}
+  .foot .fbrand a:hover{color:var(--accent-ink)}
+  .foot .fsep{color:var(--border)}
+  .foot .flegal{flex:1; min-width:220px}
+  .foot .fwarn{color:var(--warn)}
+
+  /* ==================================================================
+     The landing page (scrolls; sticky nav at top, sticky footer at bottom)
+     ================================================================== */
+  #verA{display:flex; min-height:100vh; flex-direction:column}
+
+  /* Container matches the same 980px edge as everything below it (alignment),
+     but the headline/subtitle each keep their own narrower reading-width,
+     centered within that wider container — a full-width H1 would just be
+     harder to scan, not "more aligned." Bottom padding cut to close the gap
+     down to the trust strip. */
+  .hero{padding:72px 28px 32px; text-align:center; max-width:980px; margin:0 auto}
+  .hero h1{font-size:34px; line-height:1.2; margin:0 auto 14px; letter-spacing:-.02em; max-width:720px}
+  .hero p{font-size:15.5px; color:var(--muted); margin:0 auto 12px; max-width:640px}
+
+  /* ---- trust strip: the killer-feature claim, pulled from project-explanation.md,
+     not filler copy — closes the dead gap between hero and "How it works". Same
+     width and card treatment as .wcard below on purpose, so it reads as one
+     family of components instead of an odd narrow box floating on its own. */
+  .trust{max-width:980px; margin:0 auto; padding:0 28px 40px; width:100%; text-align:left}
+  .trust .box{display:flex; align-items:flex-start; gap:14px; background:var(--elev); width:100%;
+    border:1px solid var(--border); border-radius:10px; box-shadow:0 12px 28px -18px rgba(0,0,0,.35);
+    padding:22px 26px}
+  .trust .fico{color:var(--accent); font-size:18px; flex:0 0 auto; margin-top:2px}
+  .trust .kicker{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:6px}
+  .trust h3{font-size:16px; margin:0 0 4px; letter-spacing:-.01em}
+  .trust p{font-size:13px; color:var(--muted); margin:0; max-width:620px}
+
+  /* ---- interactive walkthrough (replaces the old static 3-card
+     .steps/.steplist section — same "How it works" slot, now one real
+     Prev/Play/Next carousel instead of three side-by-side cards) ---- */
+  .walk{padding:8px 28px 60px; max-width:980px; margin:0 auto; width:100%; text-align:center}
+  .walk h2{font-size:20px; margin:0 0 8px}
+  .walk .sub{color:var(--muted); font-size:13px; margin:0 0 32px}
+  .wcard{text-align:left; background:var(--elev); border:1px solid var(--border); border-radius:10px;
+    box-shadow:0 12px 28px -18px rgba(0,0,0,.35); padding:28px}
+  .wcard .counter{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); margin-bottom:8px}
+  .wgrid{display:grid; grid-template-columns:1.1fr 1fr; gap:26px; align-items:center; min-height:200px}
+  .wgrid .wkicker{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:8px}
+  .wgrid h3{font-size:22px; margin:0 0 8px; letter-spacing:-.01em}
+  .wgrid p{font-size:13.5px; color:var(--muted); margin:0}
+  .wctrls{display:flex; align-items:center; gap:10px; margin-top:22px}
+  .wbtn{font:inherit; font-size:13px; font-weight:600; color:var(--text); background:transparent;
+    border:1px solid var(--border); border-radius:7px; padding:8px 16px; cursor:pointer}
+  .wbtn:hover{border-color:var(--accent)}
+  .wbtn-primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700}
+  .wdots{flex:1; display:flex; justify-content:center; gap:8px}
+  .wdots span{width:8px; height:8px; border-radius:50%; cursor:pointer; background:var(--border)}
+  .wdots span.on{background:var(--accent)}
+  .wfull{font:inherit; font-size:13px; font-weight:600; color:var(--accent-ink); background:transparent;
+    border:1px solid var(--border); border-radius:7px; padding:7px 16px; cursor:pointer; margin-top:18px}
+  .wfull:hover{border-color:var(--accent)}
+
+  .modalback{position:fixed; inset:0; z-index:50; display:grid; place-items:center; padding:20px;
+    background:rgba(20,24,30,.5)}
+  .modalcard{width:min(860px,94vw); background:var(--elev); border:1px solid var(--border); border-radius:12px;
+    box-shadow:0 24px 60px -20px rgba(0,0,0,.4); padding:32px; position:relative}
+  .modalx{position:absolute; top:14px; right:14px; background:transparent; border:none; font-size:16px;
+    color:var(--faint); cursor:pointer; padding:6px}
+  .modalx:hover{color:var(--text)}
+
+  /* ---- Version A: login drawer, slides in from the RIGHT on "Log in" ---- */
+  .loginback{position:fixed; inset:0; z-index:60; background:rgba(20,24,30,.45)}
+  .logindrawer{position:absolute; top:0; right:0; bottom:0; width:min(380px,92vw); background:var(--elev);
+    box-shadow:0 0 40px -10px rgba(0,0,0,.4); display:flex; flex-direction:column; justify-content:center;
+    padding:40px 36px}
+
+  .feats{padding:8px 28px 64px; max-width:980px; margin:0 auto; width:100%}
+  .featgrid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px}
+  .feat{border:1px solid var(--border); border-radius:10px; padding:16px 14px; background:var(--panel)}
+  .feat .fico{color:var(--accent); font-size:16px; margin-bottom:8px}
+  .feat h4{font-size:12.5px; margin:0 0 5px}
+  .feat p{font-size:11.5px; color:var(--faint); margin:0}
+
+  /* ---- "What's coming" timeline ---- */
+  .roadmap{padding:8px 28px 60px; max-width:980px; margin:0 auto; width:100%; text-align:center}
+  .roadmap h2{font-size:20px; margin:0 0 8px}
+  .roadmap .sub{color:var(--muted); font-size:13px; margin:0 0 40px}
+  .rmline{display:grid; grid-template-columns:repeat(4,1fr); position:relative}
+  /* Line + dots span the FULL row width, matching the feature grid's edges below —
+     not inset to each column's center, which is what made this row read narrower
+     than everything else on the page. */
+  .rmline::before{content:"";position:absolute;top:5px;left:5px;right:5px;height:1px;background:var(--border)}
+  .rmitem{position:relative; padding-top:20px; text-align:center}
+  .rmitem:first-child{text-align:left}
+  .rmitem:last-child{text-align:right}
+  .rmdot{position:absolute; top:0; left:50%; transform:translateX(-50%); width:11px; height:11px;
+    border-radius:50%; background:var(--accent); border:2px solid var(--accent)}
+  .rmitem:first-child .rmdot{left:0; transform:none}
+  .rmitem:last-child .rmdot{left:auto; right:0; transform:none}
+  .rmitem.rm-open .rmdot{background:var(--elev)}
+  .rmstatus{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink);
+    font-weight:700; margin:14px 0 6px}
+  .rmitem h4{font-size:14px; margin:0 0 4px}
+  .rmitem p{font-size:12px; color:var(--muted); margin:0}
+
+  /* ---- shared: login form fields (used by Version A's login drawer) ---- */
+  .loginbox{max-width:300px; margin:0 auto; width:100%}
+  .loginbox .lbrand{display:flex; align-items:center; gap:8px; font-weight:700; margin-bottom:26px; font-size:14px}
+  .loginbox .lbrand .dot{width:8px;height:8px;border-radius:2px;background:var(--accent)}
+  .loginbox h2{font-size:19px; margin:0 0 22px}
+  .field{margin-bottom:14px}
+  .field label{display:block; font-size:11.5px; font-weight:600; color:var(--muted); margin-bottom:5px}
+  .field input{width:100%; font:inherit; font-size:13px; padding:9px 11px; border:1px solid var(--border);
+    border-radius:7px; background:var(--bg); color:var(--text)}
+  .field input::placeholder{color:var(--faint)}
+  .rowline{display:flex; align-items:center; justify-content:space-between; font-size:11.5px; margin:2px 0 18px}
+  .rowline label{display:flex; align-items:center; gap:6px; color:var(--muted)}
+  .rowline a{font-size:11.5px}
+  .loginbtn{width:100%; font:inherit; font-size:13.5px; font-weight:700; color:#fff; background:var(--accent);
+    border:none; border-radius:8px; padding:11px; cursor:pointer; margin-bottom:14px}
+  .altline{font-size:11.5px; color:var(--faint); text-align:center}
+  .trustline{font-size:10.5px; color:var(--faint); text-align:center; margin-top:22px}
+</style>
+
+<div id="verA">
+  <div class="nav">
+    <div class="brand"><span class="dot"></span> MyAgent</div>
+    <div class="spacer"></div>
+    <button class="navlogin" id="btnOpenLogin">Log in</button>
+  </div>
+
+  <div class="hero">
+    <h1>Build and edit AI agents without fighting YAML frontmatter</h1>
+    <p>Import an agent, edit it in a structured view or by chatting with it, export it back out — one workbench, no hand-editing markdown.</p>
+  </div>
+
+  <div class="trust">
+    <div class="box">
+      <span class="fico">◆</span>
+      <div>
+        <div class="kicker">Agent-aware chat</div>
+        <h3>Not a generic assistant</h3>
+        <p>It always knows your agent's full current state and proposes changes in plain language — nothing gets written until you review and approve the diff.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="walk">
+    <h2>How it works</h2>
+    <p class="sub">The same real workbench, step by step</p>
+    <div class="wcard">
+      <div class="counter step-counter"></div>
+      <div class="wgrid">
+        <div>
+          <div class="wkicker step-kicker"></div>
+          <h3 class="step-title"></h3>
+          <p class="step-desc"></p>
+        </div>
+        <div class="shot"><div class="shotbar"><span></span><span></span><span></span></div>
+          <div class="shotbody step-shot"></div></div>
+      </div>
+      <div class="wctrls">
+        <button class="wbtn" id="btnPrev">← Previous</button>
+        <button class="wbtn wbtn-primary" id="btnPlay">❚❚ Pause</button>
+        <button class="wbtn" id="btnNext">Next →</button>
+        <div class="wdots"></div>
+      </div>
+    </div>
+    <button class="wfull" id="btnOpenModal">⤢ View fullscreen</button>
+  </div>
+
+  <div class="feats">
+    <div class="featgrid">
+      <div class="feat"><div class="fico">◆</div><h4>Structured + raw views</h4><p>See the same agent both ways, always in sync.</p></div>
+      <div class="feat"><div class="fico">◆</div><h4>AI-guided editing</h4><p>Propose changes in chat, review before anything applies.</p></div>
+      <div class="feat"><div class="fico">◆</div><h4>Export to your platform</h4><p>Round-trips cleanly back to plain agent files.</p></div>
+      <div class="feat"><div class="fico">◆</div><h4>More providers, soon</h4><p>Not locked to a single model vendor.</p></div>
+    </div>
+  </div>
+
+  <div class="roadmap">
+    <h2>What's coming</h2>
+    <p class="sub">No dates — just the direction we're headed</p>
+    <div class="rmline">
+      <div class="rmitem"><div class="rmdot"></div><div class="rmstatus">Shipped</div><h4>Import &amp; export</h4><p>.md round-trip</p></div>
+      <div class="rmitem"><div class="rmdot"></div><div class="rmstatus">Shipped</div><h4>Structured + chat editing</h4><p>edit fields or ask the chat</p></div>
+      <div class="rmitem rm-open"><div class="rmdot"></div><div class="rmstatus">Building now</div><h4>Version history</h4><p>see and revert past edits</p></div>
+      <div class="rmitem rm-open"><div class="rmdot"></div><div class="rmstatus">Planned</div><h4>More model providers</h4><p>not locked to one vendor</p></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="fbrand">
+      <span>Built by the user</span>
+      <a href="#">LinkedIn</a><a href="#">GitHub</a><a href="#">Email</a>
+    </div>
+    <div class="flegal">© 2026. All rights reserved. · <a href="#">Terms</a> · <a href="#">Privacy</a>
+      <span class="fsep">·</span> <span class="fwarn">Experimental software — please don't paste sensitive data.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== walkthrough fullscreen modal (Version A) ===== -->
+<div class="modalback" id="modalOverlay" hidden>
+  <div class="modalcard" id="modalPanel">
+    <button class="modalx" id="btnCloseModal">✕</button>
+    <div class="counter step-counter"></div>
+    <div class="wgrid" style="min-height:240px">
+      <div>
+        <div class="wkicker step-kicker"></div>
+        <h3 class="step-title" style="font-size:24px"></h3>
+        <p class="step-desc"></p>
+      </div>
+      <div class="shot"><div class="shotbar"><span></span><span></span><span></span></div>
+        <div class="shotbody step-shot" style="min-height:160px"></div></div>
+    </div>
+    <div class="wctrls">
+      <button class="wbtn" id="btnPrev2">← Previous</button>
+      <button class="wbtn wbtn-primary" id="btnPlay2">❚❚ Pause</button>
+      <button class="wbtn" id="btnNext2">Next →</button>
+      <div class="wdots"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== login drawer, slides in from the right (Version A) ===== -->
+<div class="loginback" id="loginOverlay" hidden>
+  <div class="logindrawer" id="loginPanel">
+    <button class="modalx" id="btnCloseLogin">✕</button>
+    <div class="loginbox">
+      <div class="lbrand"><span class="dot"></span> MyAgent</div>
+      <h2>Access your account</h2>
+      <div class="field"><label>Email</label><input placeholder="you@example.com"></div>
+      <div class="field"><label>Password</label><input type="password" placeholder="Your password"></div>
+      <div class="rowline"><label><input type="checkbox"> Remember me</label><a href="#">Forgot password?</a></div>
+      <button class="loginbtn">Log in →</button>
+      <div class="altline">Invite-only beta — no open signup yet.</div>
+      <div class="trustline">Your data stays yours.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ---- Version A: walkthrough carousel (inline card + fullscreen modal share one render pass) ----
+  (function () {
+    var steps = [
+      { kicker: 'STEP 1 — IMPORT', title: 'Bring in any agent file', desc: 'Drop in a .md agent — Structural mode reorganizes it into a canonical layout, Strict mode keeps your structure and just labels it.', shot: '[ screenshot — import dialog ]' },
+      { kicker: 'STEP 2 — EDIT', title: 'Change it directly, or describe the change', desc: 'Edit fields in the structured view, or tell the built-in chat what you want changed — it proposes the edit for review.', shot: '[ screenshot — structured view + chat ]' },
+      { kicker: 'STEP 3 — REVIEW', title: 'See exactly what changed', desc: 'Every proposed edit shows as a diff against the raw file before it applies. Nothing changes silently.', shot: '[ screenshot — raw view / diff ]' },
+      { kicker: 'STEP 4 — EXPORT', title: 'Take it back out clean', desc: 'Download the result as a plain agent file, ready to drop back into your own tools.', shot: '[ screenshot — export ]' }
+    ];
+
+    var state = { step: 0, playing: true };
+    var timer = null;
+    var AUTOPLAY_MS = 4200;
+
+    function render() {
+      var s = steps[state.step];
+      var counter = String(state.step + 1).padStart(2, '0') + ' / ' + String(steps.length).padStart(2, '0');
+      document.querySelectorAll('.step-counter').forEach(function (el) { el.textContent = counter; });
+      document.querySelectorAll('.step-kicker').forEach(function (el) { el.textContent = s.kicker; });
+      document.querySelectorAll('.step-title').forEach(function (el) { el.textContent = s.title; });
+      document.querySelectorAll('.step-desc').forEach(function (el) { el.textContent = s.desc; });
+      document.querySelectorAll('.step-shot').forEach(function (el) { el.textContent = s.shot; });
+      document.querySelectorAll('#btnPlay, #btnPlay2').forEach(function (el) {
+        el.textContent = state.playing ? '❚❚ Pause' : '▶ Start';
+      });
+      document.querySelectorAll('.wdots').forEach(function (container) {
+        container.innerHTML = '';
+        steps.forEach(function (_, i) {
+          var dot = document.createElement('span');
+          if (i === state.step) dot.classList.add('on');
+          dot.addEventListener('click', function () { goTo(i); });
+          container.appendChild(dot);
+        });
+      });
+    }
+
+    function next() { state.step = (state.step + 1) % steps.length; render(); }
+    function prev() { state.step = (state.step - 1 + steps.length) % steps.length; render(); }
+    function goTo(i) { state.step = i; render(); }
+
+    function startTimer() { stopTimer(); timer = setInterval(next, AUTOPLAY_MS); }
+    function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
+    function togglePlay() {
+      state.playing = !state.playing;
+      if (state.playing) startTimer(); else stopTimer();
+      render();
+    }
+
+    ['btnPrev', 'btnPrev2'].forEach(function (id) { document.getElementById(id).addEventListener('click', prev); });
+    ['btnNext', 'btnNext2'].forEach(function (id) { document.getElementById(id).addEventListener('click', next); });
+    ['btnPlay', 'btnPlay2'].forEach(function (id) { document.getElementById(id).addEventListener('click', togglePlay); });
+
+    // — walkthrough fullscreen modal —
+    var modalOverlay = document.getElementById('modalOverlay');
+    document.getElementById('btnOpenModal').addEventListener('click', function () {
+      state.step = 0; state.playing = true; render(); startTimer();
+      modalOverlay.hidden = false;
+    });
+    function closeModal() { stopTimer(); state.playing = false; render(); modalOverlay.hidden = true; }
+    document.getElementById('btnCloseModal').addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', function (e) { if (e.target === modalOverlay) closeModal(); });
+    document.getElementById('modalPanel').addEventListener('click', function (e) { e.stopPropagation(); });
+
+    render();
+    startTimer();
+  })();
+
+  // ---- Version A: login drawer, opens from the right on "Log in" ----
+  (function () {
+    var loginOverlay = document.getElementById('loginOverlay');
+    document.getElementById('btnOpenLogin').addEventListener('click', function () { loginOverlay.hidden = false; });
+    document.getElementById('btnCloseLogin').addEventListener('click', function () { loginOverlay.hidden = true; });
+    loginOverlay.addEventListener('click', function (e) { if (e.target === loginOverlay) loginOverlay.hidden = true; });
+    document.getElementById('loginPanel').addEventListener('click', function (e) { e.stopPropagation(); });
+  })();
+</script>
