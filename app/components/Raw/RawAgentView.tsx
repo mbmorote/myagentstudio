@@ -222,6 +222,7 @@ export function RawAgentView({ agentId, agentName, agentUpdatedAt, panelWidth }:
           🔍
         </button>
         <button
+          id="tourDownloadBtn"
           type="button"
           onClick={handleDownload}
           title={`Download ${agentName}.md`}

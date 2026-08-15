@@ -80,6 +80,15 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     label: 'Chat max output tokens',
     hint: 'Max tokens Prometheus may generate per reply. A response that hits this ceiling is truncated mid-generation (max_tokens) and rejected as chat_truncated (2026-08-12) rather than silently losing content — raise this if large rewrites keep getting cut off. The max here is a safety guard against a mistyped huge value, not a confirmed model limit.',
   },
+  {
+    key: 'accessRequestCodeExpiryHours',
+    datatype: 'int',
+    default: 5,
+    min: 1,
+    max: 168,
+    label: 'Access-request code expiry (hours)',
+    hint: 'How long an invite code generated from an access request ("Request access" on the signup form) stays valid before it expires. Only applies to those codes — one you create yourself via "+ Generate code" never expires.',
+  },
 ] as const;
 
 // ─────────────────────────────  Parsing  ──────────────────────────────────────
@@ -220,6 +229,27 @@ export function getChatMaxTokens(): number {
   if (parsed === null || (parsed as number) < def.min!) {
     console.warn(
       `[settings] chatMaxTokens has invalid value "${raw}" — using minimum of ${def.min}`,
+    );
+    return def.min as number;
+  }
+  return parsed as number;
+}
+
+/**
+ * Returns the current effective value of `accessRequestCodeExpiryHours`.
+ *
+ * Row absent → returns the SETTING_DEFS default (5).
+ * Unparseable or below the def's min → returns that min (most restrictive) + console.warn.
+ */
+export function getAccessRequestCodeExpiryHours(): number {
+  const def = SETTING_DEFS.find((d) => d.key === 'accessRequestCodeExpiryHours')!;
+  const raw = getSetting('accessRequestCodeExpiryHours');
+  if (raw === null) return def.default as number;
+
+  const parsed = parseSettingValue(raw, 'int');
+  if (parsed === null || (parsed as number) < def.min!) {
+    console.warn(
+      `[settings] accessRequestCodeExpiryHours has invalid value "${raw}" — using minimum of ${def.min}`,
     );
     return def.min as number;
   }

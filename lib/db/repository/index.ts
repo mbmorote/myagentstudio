@@ -64,9 +64,20 @@ export type {
   UserRow,
   UserPolicy,
   InviteCodeRow,
+  CreateInviteCodeInput,
   CreateUserWithInviteInput,
   CreateUserWithInviteResult,
 } from './users.js';
 
 export { getOAuthAccount, listOAuthAccountsForUser, linkOAuthAccount } from './oauthAccounts.js';
 export type { OAuthAccountRow, LinkOAuthAccountInput } from './oauthAccounts.js';
+
+export {
+  createAccessRequest,
+  listAccessRequests,
+  getAccessRequest,
+  deleteAccessRequest,
+  hasOpenAccessRequest,
+  hasActiveInviteCodeForEmail,
+} from './accessRequests.js';
+export type { AccessRequestRow, CreateAccessRequestInput } from './accessRequests.js';

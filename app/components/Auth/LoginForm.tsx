@@ -49,9 +49,18 @@ const OAUTH_ERROR_FALLBACK = 'Something went wrong. Please try again.';
 
 interface LoginFormProps {
   oauthConfigured: boolean;
+  /** When true, renders just the card (no full-viewport centering wrapper) — for use
+   *  inside a modal that already provides its own backdrop/centering (Plan 12,
+   *  WelcomePage.tsx's login modal, 2026-08-14). The standalone /login page omits this. */
+  embedded?: boolean;
+  /** When set (embedded mode only), "Sign up with an invite code" switches to the signup
+   *  modal instead of navigating to /signup — keeps the modal flow from breaking out to a
+   *  full-page nav mid-flow. Standalone /login has no modal to switch to, so it keeps the
+   *  plain Link. */
+  onSwitchToSignup?: () => void;
 }
 
-export function LoginForm({ oauthConfigured }: LoginFormProps) {
+export function LoginForm({ oauthConfigured, embedded = false, onSwitchToSignup }: LoginFormProps) {
   const searchParams = useSearchParams();
   const nextPath = safeNext(searchParams.get('next'));
 
@@ -103,9 +112,8 @@ export function LoginForm({ oauthConfigured }: LoginFormProps) {
     }
   }
 
-  return (
-    <div className="flex h-screen items-center justify-center bg-[var(--bg)]">
-      <div className="w-full max-w-sm mx-6 border border-[var(--border)] rounded-[14px] bg-[var(--elev)] p-8">
+  const card = (
+      <div className={embedded ? 'w-full' : 'w-full max-w-sm mx-6 border border-[var(--border)] rounded-[14px] bg-[var(--elev)] p-8'}>
         {/* Brand */}
         <div className="flex items-center gap-[9px] mb-8">
           <span
@@ -202,11 +210,26 @@ export function LoginForm({ oauthConfigured }: LoginFormProps) {
 
         <p className="mt-4 text-[12px] text-[var(--muted)] text-center">
           Need an account?{' '}
-          <Link href="/signup" className="text-[var(--accent)] hover:underline">
-            Sign up with an invite code
-          </Link>
+          {onSwitchToSignup ? (
+            <button
+              type="button"
+              onClick={onSwitchToSignup}
+              className="text-[var(--accent)] hover:underline bg-transparent border-none p-0 font-[inherit] cursor-pointer"
+            >
+              Sign up with an invite code
+            </button>
+          ) : (
+            <Link href="/signup" className="text-[var(--accent)] hover:underline">
+              Sign up with an invite code
+            </Link>
+          )}
         </p>
       </div>
-    </div>
+  );
+
+  if (embedded) return card;
+
+  return (
+    <div className="flex h-screen items-center justify-center bg-[var(--bg)]">{card}</div>
   );
 }

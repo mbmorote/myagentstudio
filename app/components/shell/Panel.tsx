@@ -14,6 +14,9 @@
  */
 
 interface PanelProps {
+  /** Optional id on the panel's root element — lets other UI (e.g. GuidedTour) target a
+   *  specific panel by selector without threading refs through every caller. */
+  id?: string;
   /** Icon character shown before the label (e.g. "▤", "◈", "✦", "≡") */
   glyph: string;
   /** Uppercase panel label */
@@ -39,6 +42,7 @@ interface PanelProps {
 }
 
 export function Panel({
+  id,
   glyph,
   label,
   role,
@@ -51,6 +55,7 @@ export function Panel({
 }: PanelProps) {
   return (
     <div
+      id={id}
       className={`flex flex-col min-w-0 min-h-0 overflow-hidden rounded-[9px] border border-[var(--border)] bg-[var(--panel)] ${className}`}
       style={style}
     >

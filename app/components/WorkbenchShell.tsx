@@ -25,7 +25,7 @@
  *   - null: idle
  */
 
-import { useState, useCallback, useEffect, useSyncExternalStore } from 'react';
+import { useState, useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { AgentDTO, AgentLiteDTO, GroupDTO, ConfigDefLite, SectionDefLite } from '@/lib/db/repository';
 import type { Session } from '@/lib/auth/session';
 import { AgentView } from '@/app/components/CustomViz/AgentView';
@@ -43,6 +43,7 @@ import { Topbar } from '@/app/components/shell/Topbar';
 import { Panel } from '@/app/components/shell/Panel';
 import { Rail } from '@/app/components/shell/Rail';
 import { Gutter } from '@/app/components/shell/Gutter';
+import { GuidedTour, type GuidedTourHandle } from '@/app/components/shell/GuidedTour';
 import { RawAgentView } from '@/app/components/Raw/RawAgentView';
 import { LibraryPanel } from '@/app/components/Library/LibraryPanel';
 import { ConsentPopup } from '@/app/components/Auth/ConsentPopup';
@@ -229,6 +230,9 @@ export function WorkbenchShell({
   const [leftFolded, setLeftFolded] = useState(false);
   const [rightFolded, setRightFolded] = useState(false);
 
+  // ── Guided tour (Plan 12, ported from Layout-Workbench.html 2026-08-14) ─────
+  const tourRef = useRef<GuidedTourHandle>(null);
+
   // ── Library Agents/Grouped toggle (prototyped 2026-07-29) ───────────────────
   // Lives here (not inside LibraryPanel) because the toggle control itself sits in
   // the Panel header's `role` slot, which only WorkbenchShell renders — LibraryPanel
@@ -257,7 +261,13 @@ export function WorkbenchShell({
       {showConsentPopup && <ConsentPopup onClose={() => setShowConsentPopup(false)} />}
 
       {/* ── Topbar ──────────────────────────────────────────────────────── */}
-      <Topbar session={session} />
+      <Topbar session={session} onReplayTour={() => tourRef.current?.start()} />
+
+      <GuidedTour
+        ref={tourRef}
+        onUnfoldLeft={() => setLeftFolded(false)}
+        onUnfoldRight={() => setRightFolded(false)}
+      />
 
       {/* ── Workbench grid ──────────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0 p-[9px] gap-0">
@@ -268,6 +278,7 @@ export function WorkbenchShell({
         ) : (
           <>
             <Panel
+              id="tourLibrary"
               glyph="▤"
               label="Library"
               role={
@@ -309,6 +320,7 @@ export function WorkbenchShell({
         <div className="flex flex-col flex-1 min-w-0 min-h-0">
           {/* Custom Viz — center-top */}
           <Panel
+            id="tourCustomViz"
             glyph="◈"
             label="Custom Visualization"
             role="platform main view"
@@ -370,6 +382,7 @@ export function WorkbenchShell({
               distinct from the Config panel's agent-color border above (identity vs.
               "this is where you act"). */}
           <Panel
+            id="tourChat"
             glyph="✦"
             label="AI Chat"
             role="agent-aware · edits sections in place"
@@ -418,6 +431,7 @@ export function WorkbenchShell({
                 it's the "read reference" copy of the same data, not a second primary view.
                 Theme-agnostic (unlike hand-picking a lighter border color per theme). */}
             <Panel
+              id="tourRaw"
               glyph="≡"
               label="Raw agent"
               role={agent ? `${agent.name}.md · export preview` : 'export preview'}
@@ -437,6 +451,18 @@ export function WorkbenchShell({
             </Panel>
           </>
         )}
+      </div>
+
+      {/* ── Branding footer ─────────────────────────────────────────────
+          Ported from Layout-Workbench.html's .foot-brand (2026-08-14). The mockup
+          folded this into a chip-legend footer bar explaining panel color-coding —
+          that legend was mockup-only explanatory UI for design review, never a real
+          product feature, so it wasn't ported. This bar carries just the branding
+          line the legend used to host. */}
+      <div className="flex-none flex items-center justify-end gap-2 px-4 py-[6px] bg-[var(--panel)] border-t border-[var(--border)] text-[11px] text-[var(--faint)]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/processmind-mark.png" alt="" className="w-4 h-4 object-contain" />
+        <span>Produced by ProcessMind Solutions</span>
       </div>
     </div>
   );

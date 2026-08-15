@@ -60,6 +60,27 @@ type InviteCodeRow = {
   createdAt: string;
   redeemedBy: string | null;
   redeemedAt: string | null;
+  boundEmail: string | null;
+  expiresAt: string | null;
+};
+
+// Plan 12 (2026-08-14) — "Request access" grid. referralSource kept as a plain string
+// here (not the ReferralSource union) since a raw fetch response is untyped data, not a
+// value this component constructs — matches how the rest of this file treats API JSON.
+type AccessRequestRow = {
+  id: string;
+  name: string;
+  email: string;
+  referralSource: string | null;
+  createdAt: string;
+};
+
+const REFERRAL_SOURCE_LABELS: Record<string, string> = {
+  linkedin: 'LinkedIn',
+  thread: 'A thread/post online',
+  github: 'GitHub',
+  friend: 'A friend',
+  other: 'Other',
 };
 
 interface SettingsViewProps {
@@ -100,6 +121,20 @@ function formatTs(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+/** null → "No expiry". Past → "Expired". Otherwise a short "in Xh Ym" countdown — this
+ *  is only ever a few hours out (Plan 12's default is 5h), so a coarser "in 2 days"
+ *  granularity would be less useful than minutes here. */
+function formatExpiry(iso: string | null): { text: string; expired: boolean } {
+  if (!iso) return { text: 'No expiry', expired: false };
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return { text: 'Expired', expired: true };
+  const totalMinutes = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const text = hours > 0 ? `in ${hours}h ${minutes}m` : `in ${minutes}m`;
+  return { text, expired: false };
 }
 
 /** Pretty-prints a payload and unescapes literal `\r`/`\n` sequences inside string values
@@ -164,6 +199,28 @@ export function SettingsView({
       })
       .catch(() => setCodesError('Network error loading invite codes.'))
       .finally(() => setCodesLoading(false));
+  }, []);
+
+  // ── Access requests state (Plan 12, 2026-08-14) ─────────────────────────────
+  const [accessRequests, setAccessRequests] = useState<AccessRequestRow[]>([]);
+  const [accessRequestsLoading, setAccessRequestsLoading] = useState(false);
+  const [accessRequestsError, setAccessRequestsError] = useState<string | null>(null);
+  // Per-row id currently mid-action, so only that row's buttons show a busy state.
+  const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAccessRequestsLoading(true);
+    apiFetch('/api/settings/access-requests')
+      .then(async (res) => {
+        if (res.ok) {
+          const body = await res.json() as { requests: AccessRequestRow[] };
+          setAccessRequests(body.requests);
+        } else {
+          setAccessRequestsError('Failed to load access requests.');
+        }
+      })
+      .catch(() => setAccessRequestsError('Network error loading access requests.'))
+      .finally(() => setAccessRequestsLoading(false));
   }, []);
 
   // Scroll to highlighted row on first paint
@@ -329,6 +386,49 @@ export function SettingsView({
     }
   }
 
+  // ── Access request actions (Plan 12, 2026-08-14) ────────────────────────────
+
+  async function handleGenerateCodeFromRequest(id: string) {
+    setBusyRequestId(id);
+    setAccessRequestsError(null);
+    try {
+      const res = await apiFetch(`/api/settings/access-requests/${encodeURIComponent(id)}/generate-code`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const row = await res.json() as InviteCodeRow;
+        setNewCode(row.code); // reuse the same "here's the code, copy it" banner as + Generate code
+        setCodes((prev) => [row, ...prev]);
+        setAccessRequests((prev) => prev.filter((r) => r.id !== id));
+      } else {
+        setAccessRequestsError('Failed to generate a code for this request.');
+      }
+    } catch {
+      setAccessRequestsError('Network error generating code.');
+    } finally {
+      setBusyRequestId(null);
+    }
+  }
+
+  async function handleDismissRequest(id: string) {
+    setBusyRequestId(id);
+    setAccessRequestsError(null);
+    try {
+      const res = await apiFetch(`/api/settings/access-requests/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      if (res.ok || res.status === 204) {
+        setAccessRequests((prev) => prev.filter((r) => r.id !== id));
+      } else {
+        setAccessRequestsError('Failed to dismiss this request.');
+      }
+    } catch {
+      setAccessRequestsError('Network error dismissing request.');
+    } finally {
+      setBusyRequestId(null);
+    }
+  }
+
   // ── Filter entries ───────────────────────────────────────────────────────────
 
   const filtered = entries.filter((e) => {
@@ -414,6 +514,72 @@ export function SettingsView({
         </div>
       </section>
 
+      {/* ── Access requests panel (Plan 12, 2026-08-14) ─────────────────── */}
+      <section>
+        <h2 className="text-[15px] font-semibold text-[var(--text)] mb-4">Access requests</h2>
+        <p className="text-[12px] text-[var(--muted)] mb-3">
+          From "Request access" on the signup form. Generate a code to offer a spot (bound
+          to their email, expires per the setting above — currently{' '}
+          {localSettings.find((s) => s.key === 'accessRequestCodeExpiryHours')?.value ?? 5}h); the
+          code isn't emailed automatically yet, so copy it and send it to them yourself.
+        </p>
+
+        {accessRequestsError && (
+          <p className="text-[12px] text-[var(--err)] mb-3">{accessRequestsError}</p>
+        )}
+
+        {accessRequestsLoading ? (
+          <p className="text-[12px] text-[var(--faint)]">Loading requests…</p>
+        ) : accessRequests.length === 0 ? (
+          <p className="text-[12px] text-[var(--faint)]">No open requests.</p>
+        ) : (
+          <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[9px] overflow-hidden mb-4">
+            <table className="w-full text-[12px]">
+              <thead>
+                <tr className="border-b border-[var(--border)] text-left">
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Name</th>
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Email</th>
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Found us via</th>
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Requested</th>
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium w-40"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {accessRequests.map((r) => {
+                  const busy = busyRequestId === r.id;
+                  return (
+                    <tr key={r.id} className="border-b border-[var(--border)] hover:bg-[var(--bg)]">
+                      <td className="px-3 py-2 text-[var(--text)]">{r.name}</td>
+                      <td className="px-3 py-2 text-[var(--muted)]">{r.email}</td>
+                      <td className="px-3 py-2 text-[var(--muted)]">
+                        {r.referralSource ? (REFERRAL_SOURCE_LABELS[r.referralSource] ?? r.referralSource) : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatTs(r.createdAt)}</td>
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
+                        <button
+                          onClick={() => handleGenerateCodeFromRequest(r.id)}
+                          disabled={busy}
+                          className="text-[11px] text-[var(--accent-ink)] hover:underline disabled:opacity-50 disabled:cursor-not-allowed mr-3"
+                        >
+                          {busy ? 'Working…' : 'Generate code'}
+                        </button>
+                        <button
+                          onClick={() => handleDismissRequest(r.id)}
+                          disabled={busy}
+                          className="text-[11px] text-[var(--faint)] hover:text-[var(--err)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Dismiss
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       {/* ── Invite codes panel ──────────────────────────────────────────── */}
       <section>
         <h2 className="text-[15px] font-semibold text-[var(--text)] mb-4">Invite codes</h2>
@@ -469,34 +635,47 @@ export function SettingsView({
                 <tr className="border-b border-[var(--border)] text-left">
                   <th className="px-3 py-2 text-[var(--muted)] font-medium">Code</th>
                   <th className="px-3 py-2 text-[var(--muted)] font-medium">Label</th>
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium">For</th>
                   <th className="px-3 py-2 text-[var(--muted)] font-medium">Created</th>
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Expires</th>
                   <th className="px-3 py-2 text-[var(--muted)] font-medium">Status</th>
                   <th className="px-3 py-2 text-[var(--muted)] font-medium w-16"></th>
                 </tr>
               </thead>
               <tbody>
-                {unredeemedCodes.map((c) => (
-                  <tr key={c.code} className="border-b border-[var(--border)] hover:bg-[var(--bg)]">
-                    <td className="px-3 py-2 font-mono text-[var(--text)] tracking-wider">{c.code}</td>
-                    <td className="px-3 py-2 text-[var(--muted)]">{c.note ?? '—'}</td>
-                    <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatTs(c.createdAt)}</td>
-                    <td className="px-3 py-2 text-[var(--ok)]">Unused</td>
-                    <td className="px-3 py-2 text-right">
-                      <button
-                        onClick={() => handleRevokeCode(c.code)}
-                        className="text-[11px] text-[var(--faint)] hover:text-[var(--err)] transition-colors"
-                        title="Revoke this code"
-                      >
-                        Revoke
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {unredeemedCodes.map((c) => {
+                  const expiry = formatExpiry(c.expiresAt);
+                  return (
+                    <tr key={c.code} className="border-b border-[var(--border)] hover:bg-[var(--bg)]">
+                      <td className="px-3 py-2 font-mono text-[var(--text)] tracking-wider">{c.code}</td>
+                      <td className="px-3 py-2 text-[var(--muted)]">{c.note ?? '—'}</td>
+                      <td className="px-3 py-2 text-[var(--muted)]">{c.boundEmail ?? 'Anyone'}</td>
+                      <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatTs(c.createdAt)}</td>
+                      <td className={`px-3 py-2 whitespace-nowrap ${expiry.expired ? 'text-[var(--err)]' : 'text-[var(--muted)]'}`}>
+                        {expiry.text}
+                      </td>
+                      <td className={expiry.expired ? 'px-3 py-2 text-[var(--err)]' : 'px-3 py-2 text-[var(--ok)]'}>
+                        {expiry.expired ? 'Expired' : 'Unused'}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          onClick={() => handleRevokeCode(c.code)}
+                          className="text-[11px] text-[var(--faint)] hover:text-[var(--err)] transition-colors"
+                          title="Revoke this code"
+                        >
+                          Revoke
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {redeemedCodes.map((c) => (
                   <tr key={c.code} className="border-b border-[var(--border)] opacity-50">
                     <td className="px-3 py-2 font-mono text-[var(--muted)] tracking-wider line-through">{c.code}</td>
                     <td className="px-3 py-2 text-[var(--muted)]">{c.note ?? '—'}</td>
+                    <td className="px-3 py-2 text-[var(--muted)]">{c.boundEmail ?? 'Anyone'}</td>
                     <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatTs(c.createdAt)}</td>
+                    <td className="px-3 py-2 text-[var(--faint)]">—</td>
                     <td className="px-3 py-2 text-[var(--faint)]">
                       Redeemed {c.redeemedAt ? formatTs(c.redeemedAt) : ''}
                     </td>

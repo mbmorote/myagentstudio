@@ -33,12 +33,36 @@ export const user = sqliteTable('user', {
 export const inviteCode = sqliteTable('invite_code', {
   code: text('code').primaryKey(),                  // canonical 'XXXX-XXXX-XXXX-XXXX'
   note: text('note'),                               // optional admin label
-  createdBy: text('created_by').notNull(),          // soft ref → user.id
+  createdBy: text('created_by'),                    // soft ref → user.id; NULL = self-requested
+                                                      // (no admin created it — see boundEmail)
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   redeemedBy: text('redeemed_by'),                  // soft ref → user.id; NULL = unused
   redeemedAt: integer('redeemed_at', { mode: 'timestamp' }),
+  // Plan 12 (2026-08-14) — access-request flow. Both NULL on every code created via the
+  // admin's plain "+ Generate code" (today's only path): unbound, never expires, unchanged
+  // behavior. Both set only on a code an admin generates from an access request (see
+  // accessRequest below): only that email can redeem it, and only before it expires.
+  boundEmail: text('bound_email'),                  // NULL = any email may redeem
+  expiresAt: integer('expires_at', { mode: 'timestamp' }), // NULL = never expires
 }, (t) => ({
   byRedeemed: index('invite_code_redeemed_idx').on(t.redeemedBy),
+}));
+
+// ─────────────────────────────  AccessRequest  ─────────────────────────────
+// Plan 12 (2026-08-14) — "Request access" on the signup form, for visitors without an
+// invite code. A row here is an OPEN request the admin hasn't acted on yet — generating a
+// code for one deletes the row (the resulting code, in inviteCode above, is the durable
+// record from then on); dismissing one also just deletes it. Rows are deduplicated at
+// creation (see hasOpenAccessRequest in the repository) so re-submitting the same email
+// while a request is still open doesn't pile up duplicates.
+export const accessRequest = sqliteTable('access_request', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  referralSource: text('referral_source'),          // 'linkedin' | 'thread' | 'github' | 'friend' | 'other' | NULL
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+}, (t) => ({
+  byEmail: index('access_request_email_idx').on(t.email),
 }));
 
 // ─────────────────────────────  Agent  ─────────────────────────────

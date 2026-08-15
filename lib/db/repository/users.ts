@@ -38,10 +38,14 @@ export type UserPolicy = {
 export type InviteCodeRow = {
   code: string;
   note: string | null;
-  createdBy: string;
+  createdBy: string | null; // NULL = self-requested (see boundEmail)
   createdAt: Date;
   redeemedBy: string | null;
   redeemedAt: Date | null;
+  /** NULL = any email may redeem; set = only this email may (Plan 12 access requests). */
+  boundEmail: string | null;
+  /** NULL = never expires; set = invalid after this instant (Plan 12 access requests). */
+  expiresAt: Date | null;
 };
 
 // ─────────────────────────────  User reads  ────────────────────────────────
@@ -206,6 +210,23 @@ export function createUserWithInvite(
         return; // no DML yet — return commits nothing
       }
 
+      // 1a. Plan 12 access-request guardrails — both fold into the same generic
+      // 'invalid_code' reason as the checks above (not a distinct error): telling a
+      // visitor *why* a code failed (wrong email vs. expired vs. never existed) leaks
+      // information the rest of this auth system deliberately doesn't leak.
+      if (codeRow.boundEmail !== null && codeRow.boundEmail !== input.email) {
+        result = { ok: false, reason: 'invalid_code' };
+        return;
+      }
+      if (codeRow.expiresAt !== null) {
+        const expiresAtMs =
+          codeRow.expiresAt instanceof Date ? codeRow.expiresAt.getTime() : (codeRow.expiresAt as number) * 1000;
+        if (Date.now() >= expiresAtMs) {
+          result = { ok: false, reason: 'invalid_code' };
+          return;
+        }
+      }
+
       // 2. Check user cap
       const countResult = tx.select({ count: sql<number>`COUNT(*)` }).from(schema.user).get();
       const count = countResult?.count ?? 0;
@@ -314,7 +335,11 @@ export function getInviteCode(code: string): InviteCodeRow | null {
 export type CreateInviteCodeInput = {
   code: string;        // already generated and normalized
   note?: string | null;
-  createdBy: string;   // admin's user id
+  createdBy: string | null; // admin's user id; null for a self-requested code
+  /** Set to scope the code to one email (Plan 12 access requests). Omit/null = any email. */
+  boundEmail?: string | null;
+  /** Set to give the code a lifetime (Plan 12 access requests). Omit/null = never expires. */
+  expiresAt?: Date | null;
 };
 
 export function createInviteCode(input: CreateInviteCodeInput): InviteCodeRow {
@@ -323,6 +348,8 @@ export function createInviteCode(input: CreateInviteCodeInput): InviteCodeRow {
     note: input.note ?? null,
     createdBy: input.createdBy,
     redeemedBy: null,
+    boundEmail: input.boundEmail ?? null,
+    expiresAt: input.expiresAt ?? null,
   }).run();
 
   const row = db.select().from(schema.inviteCode).where(eq(schema.inviteCode.code, input.code)).get();
@@ -372,11 +399,15 @@ function mapInviteCodeRow(row: typeof schema.inviteCode.$inferSelect): InviteCod
   return {
     code: row.code,
     note: row.note ?? null,
-    createdBy: row.createdBy,
+    createdBy: row.createdBy ?? null,
     createdAt: row.createdAt instanceof Date ? row.createdAt : new Date((row.createdAt as number) * 1000),
     redeemedBy: row.redeemedBy ?? null,
     redeemedAt: row.redeemedAt
       ? (row.redeemedAt instanceof Date ? row.redeemedAt : new Date((row.redeemedAt as number) * 1000))
+      : null,
+    boundEmail: row.boundEmail ?? null,
+    expiresAt: row.expiresAt
+      ? (row.expiresAt instanceof Date ? row.expiresAt : new Date((row.expiresAt as number) * 1000))
       : null,
   };
 }

@@ -297,7 +297,7 @@ export function ChatPanel({
     const descriptionValue = mods.description;
 
     return (
-      <details className="mt-[8px] border border-[var(--border)] rounded-[9px] overflow-hidden bg-[var(--bg)]">
+      <details id="tourProposalCard" className="mt-[8px] border border-[var(--border)] rounded-[9px] overflow-hidden bg-[var(--bg)]">
         <summary className="flex items-center gap-[7px] px-[10px] py-[6px] bg-[var(--panel)] border-b border-[var(--border)] list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none">
           <span className="text-[11px] font-semibold text-[var(--text)]">Proposed changes</span>
           <span className="text-[10.5px] text-[var(--faint)]">{summary}</span>
@@ -363,6 +363,7 @@ export function ChatPanel({
         <div className="px-[10px] py-[7px] border-t border-[var(--border)] bg-[var(--panel)]">
           <div className="flex items-center gap-[7px] flex-wrap">
             <button
+              id="tourApplyBtn"
               type="button"
               disabled={applying}
               onClick={() => void onApplyProposal?.()}

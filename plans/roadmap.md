@@ -32,7 +32,7 @@ aren't detailed further, the description here is all there is.
 |---|---|---|---|
 | **Second LLM provider** | Infra | TODO | Not started |
 | **Big flow test** |  | TODO | Ready to run — needs your OK to spend real Anthropic money |
-| **Company branding on the platform** | UX | TODO | Blocked on your assets/copy |
+| **Company branding on the platform** | UX | TODO | Mostly shipped — Workbench footer done, `/welcome` footer identity still placeholder |
 | **First-login guided tour (mini-tour)** | UX | TODO | Prototyped, copy drafted not signed off |
 | **"Don't paste sensitive data" disclaimer** | UX | TODO | Not started |
 | **Production DB backup/restore** | Infra | TODO | Not started |
@@ -50,6 +50,7 @@ aren't detailed further, the description here is all there is.
 | **Cost estimation in currency on log rows** | Behavior | NEXT | Not started |
 | **Compliance-grade (non-droppable) logging** | Infra | NEXT | Undecided if wanted |
 | **Pre-login landing page for prospective users** | UX | NEXT | Mockup done, Terms/Privacy pages + browser check left |
+| **Automated invite-code email delivery** | Infra | NEXT | Not started — provider undecided |
 | **Improve the guided tour** | UX | NEXT | Not started |
 | **Optional call-log persistence toggle** | Infra | NEXT | Undecided if wanted |
 | **MCP server exposing MyAgent's agents** | Infra | NEXT | Undecided if wanted |
@@ -119,7 +120,7 @@ goes before it.
 |---|---|---|
 | **Second LLM provider** | Infra | Not started |
 | **Big flow test** | — | Ready to run — needs your OK to spend real Anthropic money |
-| **Company branding on the platform** | UX | Blocked on your assets/copy |
+| **Company branding on the platform** | UX | Mostly shipped — `/welcome` footer identity still placeholder |
 | **First-login guided tour (mini-tour)** | UX | Prototyped, copy drafted not signed off |
 | **"Don't paste sensitive data" disclaimer** | UX | Not started |
 | **Production DB backup/restore** | Infra | Not started |
@@ -168,19 +169,19 @@ gaps before real users do, not to gate the test on being bug-free beforehand.
 
 ### **Company branding on the platform**
 
-**Current state:** Design reviewed against your own rubric — footer placement (primary) plus
-a quiet login/signup line (secondary) recommended. Footer already prototyped in
-`Layout-Workbench.html` with demo-only "ACME Corp" content.
+**Current state (2026-08-14):** Live in the real app — the Workbench footer shows the
+ProcessMind Solutions mark + name (`app/components/WorkbenchShell.tsx`, replacing the
+mockup's "ACME Corp" placeholder). The `/welcome` landing page also has an identity line in
+its own footer, though that one's author name/LinkedIn/GitHub/email are still placeholder
+constants pending real values (see `plans/12-ui-batch-launch-polish.md`'s placeholder list).
 
-**Scope:**
-- Real company name/logo/copyright line/tagline
-- Login/signup line placement isn't prototyped yet
-- No placeholder branding goes into real code — a real viewer seeing demo branding reads worse than seeing nothing
+**Scope — what's left:**
+- Real values for the `/welcome` footer's author identity (name, LinkedIn, GitHub, email)
+- The quiet login/signup-page branding line (secondary placement) was recommended but never prototyped
 
-**Effort:** Small, once assets exist
+**Effort:** Small
 **Depends on:** None
-**Blocker:** Your actual brand assets/copy — nothing else here can start without them
-**Status:** Blocked on you
+**Status:** Mostly shipped — Workbench footer done, `/welcome` footer identity still placeholder
 
 ---
 
@@ -273,6 +274,7 @@ this bucket is free to reorder.
 | **Cost estimation in currency on log rows** | Not started |
 | **Compliance-grade (non-droppable) logging** | Undecided if wanted |
 | **Pre-login landing page for prospective users** | Mockup done, Terms/Privacy pages + browser check left |
+| **Automated invite-code email delivery** | Not started — provider undecided |
 | **Improve the guided tour** | Not started — depends on the MVP tour shipping first |
 | **Optional call-log persistence toggle** | Undecided if wanted |
 | **MCP server exposing MyAgent's agents** | Undecided if wanted |
@@ -449,13 +451,35 @@ this" part is settled; timing-wise wanted soon after launch, not before. The tou
 step covers the "why" well enough for this launch's small, invited audience.
 
 **Mockup:** Done — `architecture/layout/Layout-Landing.html` (hero, walkthrough card, feats
-grid, wave roadmap timeline, footer). Still needed before it ships: Terms/Privacy pages
-(footer already links to `#terms`/`#privacy` placeholders) and a real-browser check that the
-walkthrough card's "⤢ Full view" button label renders and never wraps/clips (light/dark, at
-110% zoom).
+grid, wave roadmap timeline, footer).
+
+**Ported (2026-08-14):** Live at `/welcome` (`app/components/Welcome/WelcomePage.tsx`),
+including "Log in"/"Get started" as modals (reusing the real `LoginForm`/`SignupForm` via a
+new `embedded` prop) instead of navigating away. Still needed before it ships: Terms/Privacy
+pages (footer links to `#terms`/`#privacy` placeholders — pages don't exist yet).
 
 **Effort:** Medium
-**Status:** Mockup done, real-build items open (see `plans/12-ui-batch-launch-polish.md`)
+**Status:** Ported and verified in-browser; Terms/Privacy pages still open (see
+`plans/12-ui-batch-launch-polish.md`)
+
+---
+
+### **Automated invite-code email delivery**
+
+**Current state:** "Request access" on the signup form (Plan 12, 2026-08-14) lets a
+visitor without an invite code submit their name/email; an admin sees the request in
+Settings and can generate a code for them (bound to that email, expires per the
+"Access-request code expiry" setting — default 5h) — but nothing emails that code to the
+requester automatically. The admin has to copy it and send it themselves, for now.
+
+**Scope:** Pick an email provider (e.g. Resend — modern API, generous free tier) and wire
+it in: an API key, a small send-email module, and a call from the "Generate code" action
+(and optionally the plain "+ Generate code" admin flow too). No schema change needed — the
+invite code and the requester's email already exist together in `invite_code`.
+
+**Effort:** Small–Medium (mostly provider setup + one API call), once a provider is chosen
+**Depends on:** None
+**Status:** Not started — provider undecided
 
 ---
 

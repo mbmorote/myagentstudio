@@ -3,8 +3,10 @@
  *
  * In-process fixed-window rate limiter for the two public auth routes (§3.8).
  *
- * Scope: POST /api/auth/login and POST /api/auth/signup only — the only
- * endpoints reachable without a session on the public internet.
+ * Scope: POST /api/auth/login, POST /api/auth/signup, and POST /api/auth/request-access
+ * (Plan 12, 2026-08-14) — the public, session-free endpoints reachable from the
+ * internet. The `route` string param keys the limiter per-route, so adding a new caller
+ * is just a new `checkRateLimit(request, 'some-route-name')` call site, no change here.
  *
  * Limit: 10 attempts per 15-minute window per (route, client IP).
  * IP source: first entry of x-forwarded-for, falling back to 'unknown'.

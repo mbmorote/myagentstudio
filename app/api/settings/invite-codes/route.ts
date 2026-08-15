@@ -25,6 +25,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         createdAt: c.createdAt.toISOString(),
         redeemedBy: c.redeemedBy,
         redeemedAt: c.redeemedAt?.toISOString() ?? null,
+        boundEmail: c.boundEmail,
+        expiresAt: c.expiresAt?.toISOString() ?? null,
       })),
     });
   } catch (err) {
@@ -59,6 +61,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           code: row.code,
           note: row.note,
           createdAt: row.createdAt.toISOString(),
+          boundEmail: row.boundEmail,
+          expiresAt: row.expiresAt?.toISOString() ?? null,
         },
         { status: 201 },
       );

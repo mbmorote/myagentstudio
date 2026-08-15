@@ -199,3 +199,44 @@
     border: 3px solid var(--panel);
   }
 }
+
+/* ── Guided tour spotlight (app/components/shell/GuidedTour.tsx, ported from the
+   Layout-Workbench.html prototype, 2026-08-14) — a giant box-shadow cutout dims
+   everything except the target rect, with a pulsing accent ring for "focus". Plain CSS,
+   not a Tailwind arbitrary value, because the animation is a multi-layer box-shadow that
+   Tailwind's arbitrary-value syntax can't express in one utility class. Position/size are
+   set inline per-render by GuidedTour; only the visual (shadow, radius, animation) lives
+   here. */
+.tour-spot {
+  border-radius: 10px;
+  animation: tourPulse 2s ease-in-out infinite;
+}
+@keyframes tourPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 9999px rgba(10, 14, 20, .6), 0 0 0 2px var(--accent), 0 0 16px 2px var(--accent-wash);
+  }
+  50% {
+    box-shadow: 0 0 0 9999px rgba(10, 14, 20, .6), 0 0 0 4px var(--accent), 0 0 26px 6px var(--accent-wash);
+  }
+}
+
+/* ── Welcome page roadmap-teaser wave line (app/components/Welcome/WelcomePage.tsx,
+   ported from Layout-Landing.html, 2026-08-14) — a sine wave (2 full periods = 4
+   extrema, one per teaser item), plain CSS because the gradient-stroked SVG path is a
+   data URI Tailwind's arbitrary-value syntax can't hold cleanly. */
+.welcome-rmline {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0%25' stop-color='%231479c9' stop-opacity='0'/%3E%3Cstop offset='12.5%25' stop-color='%231479c9' stop-opacity='1'/%3E%3Cstop offset='37.5%25' stop-color='%231479c9' stop-opacity='1'/%3E%3Cstop offset='62.5%25' stop-color='%23d2dae4' stop-opacity='1'/%3E%3Cstop offset='100%25' stop-color='%23d2dae4' stop-opacity='1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M0,50 C6.25,50 6.25,20 12.5,20 C18.75,20 18.75,50 25,50 C31.25,50 31.25,70 37.5,70 C43.75,70 43.75,50 50,50 C56.25,50 56.25,20 62.5,20 C68.75,20 68.75,50 75,50 C81.25,50 81.25,70 87.5,70 C93.75,70 93.75,50 100,50' fill='none' stroke='url(%23g)' stroke-width='1' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+@media (prefers-color-scheme: dark) {
+  .welcome-rmline {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0%25' stop-color='%234fa8e0' stop-opacity='0'/%3E%3Cstop offset='12.5%25' stop-color='%234fa8e0' stop-opacity='1'/%3E%3Cstop offset='37.5%25' stop-color='%234fa8e0' stop-opacity='1'/%3E%3Cstop offset='62.5%25' stop-color='%232a3039' stop-opacity='1'/%3E%3Cstop offset='100%25' stop-color='%232a3039' stop-opacity='1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M0,50 C6.25,50 6.25,20 12.5,20 C18.75,20 18.75,50 25,50 C31.25,50 31.25,70 37.5,70 C43.75,70 43.75,50 50,50 C56.25,50 56.25,20 62.5,20 C68.75,20 68.75,50 75,50 C81.25,50 81.25,70 87.5,70 C93.75,70 93.75,50 100,50' fill='none' stroke='url(%23g)' stroke-width='1' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+  }
+}
+/* [data-theme] attribute selectors outrank the plain :root the @media block above
+   targets (matches this file's existing --bg/--panel/etc. token pattern), so this wins
+   regardless of source order or system preference. */
+:root[data-theme="dark"] .welcome-rmline {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='0'%3E%3Cstop offset='0%25' stop-color='%234fa8e0' stop-opacity='0'/%3E%3Cstop offset='12.5%25' stop-color='%234fa8e0' stop-opacity='1'/%3E%3Cstop offset='37.5%25' stop-color='%234fa8e0' stop-opacity='1'/%3E%3Cstop offset='62.5%25' stop-color='%232a3039' stop-opacity='1'/%3E%3Cstop offset='100%25' stop-color='%232a3039' stop-opacity='1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M0,50 C6.25,50 6.25,20 12.5,20 C18.75,20 18.75,50 25,50 C31.25,50 31.25,70 37.5,70 C43.75,70 43.75,50 50,50 C56.25,50 56.25,20 62.5,20 C68.75,20 68.75,50 75,50 C81.25,50 81.25,70 87.5,70 C93.75,70 93.75,50 100,50' fill='none' stroke='url(%23g)' stroke-width='1' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+}
