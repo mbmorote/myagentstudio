@@ -36,6 +36,7 @@ Thumbs.db
 # Local test/eval scratch — import fixtures and ad hoc outside-review docs, not project source
 ImportTestAgent/
 architecture/audits/
+architecture/layout/Old Ones/
 
 # Ad hoc comparison-export .md files the user drops in the golden-fixtures folder
 # for manual diffing against a live agent (e.g. Trainer.md, 2026-08-12) — not part

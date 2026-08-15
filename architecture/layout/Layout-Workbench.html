@@ -534,19 +534,16 @@
         color:var(--faint);font-size:11px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
   .foot .chip{display:inline-flex;align-items:center;gap:6px}
   .foot .sw{width:9px;height:9px;border-radius:3px}
-  /* Branding placement demo (roadmap TODO item 10, plans/Branding-Design-Review-260806.md)
+  /* Branding placement (roadmap TODO item 10, plans/Branding-Design-Review-260806.md)
      — folded into the EXISTING .foot legend row rather than a new strip, since the review
      itself flagged how tight the workbench's vertical budget already is (center-bottom alone
      grew 240→320px the same day for weight reasons); this adds the requested footer presence
-     at zero extra vertical cost. "ACME Corp" / the mark below are obviously-fake demo content
-     (same convention as this file's demo agent name) — placeholder for the real logo/company
-     name once they exist, per the review's own gating note. Neutral border color, not
-     var(--accent) — the review's color-system section explicitly recommends keeping a brand
-     mark's color local to itself, never wired to the functional accent token. */
+     at zero extra vertical cost. Neutral border color, not var(--accent) — the review's
+     color-system section explicitly recommends keeping a brand mark's color local to itself,
+     never wired to the functional accent token. */
   .foot-brand{display:inline-flex;align-items:center;gap:7px;padding-left:16px;
     border-left:1px solid var(--border)}
-  .foot-brand .mark{width:14px;height:14px;border-radius:3px;border:1.5px solid var(--faint);
-    flex:none}
+  .foot-brand .mark{width:16px;height:16px;flex:none;object-fit:contain}
 
   /* ── Import modal (Plan 08 doc-sync follow-up, 2026-08-06 — mockup had no import
      modal at all before this; built here first per standing rule 4 before the copy/
@@ -622,6 +619,40 @@
     letter-spacing:.04em;font-size:9.5px;padding:4px 8px;border-bottom:1px solid var(--border)}
   .set-table td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--text)}
   .settings-trigger{margin-left:auto}
+
+  /* ── Guided tour (Plan 12 mini-tour prototype) — spotlight + popover, six steps over
+     the core loop (import → edit custom → edit chat → compare → apply → export), plus a
+     welcome step. The "zoom" the user asked for is a pulsing accent ring + padding around
+     the target rect, not a literal transform:scale on the target — scaling a real flex
+     panel risks overlapping its tightly-packed neighbors, a glow reads as "focus" just as
+     well without that risk. ── */
+  .tour-backdrop{position:fixed;inset:0;z-index:200;background:transparent;cursor:default}
+  .tour-backdrop[hidden]{display:none}
+  .tour-spot{position:fixed;z-index:201;border-radius:10px;pointer-events:none;
+    transition:top .25s ease,left .25s ease,width .25s ease,height .25s ease;
+    animation:tourPulse 2s ease-in-out infinite}
+  .tour-spot[hidden]{display:none}
+  @keyframes tourPulse{
+    0%,100%{box-shadow:0 0 0 9999px rgba(10,14,20,.6),0 0 0 2px var(--accent),0 0 16px 2px var(--accent-wash)}
+    50%{box-shadow:0 0 0 9999px rgba(10,14,20,.6),0 0 0 4px var(--accent),0 0 26px 6px var(--accent-wash)}
+  }
+  .tour-pop{position:fixed;z-index:202;width:300px;background:var(--panel);color:var(--text);
+    border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.32);
+    padding:14px 16px}
+  .tour-pop[hidden]{display:none}
+  .tour-pop-count{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+  .tour-pop-title{font-size:14px;font-weight:700;margin-bottom:6px}
+  .tour-pop-body{font-size:12px;color:var(--muted);line-height:1.5}
+  .tour-pop-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}
+  .tour-btn{font:inherit;font-size:12px;border-radius:7px;padding:6px 12px;cursor:pointer}
+  .tour-exit{border:none;background:transparent;color:var(--muted);padding:6px 4px}
+  .tour-exit:hover{color:var(--text)}
+  .tour-pop-nav{display:flex;gap:8px}
+  .tour-prev{border:1px solid var(--border);background:var(--elev);color:var(--muted)}
+  .tour-prev:hover:not(:disabled){color:var(--text);border-color:var(--text)}
+  .tour-prev:disabled{opacity:.4;cursor:not-allowed}
+  .tour-next{border:none;background:var(--accent);color:#fff;font-weight:600}
+  .tour-next:hover{filter:brightness(1.08)}
 </style>
 
 <!--
@@ -637,6 +668,7 @@
        full-page nav in the real app; now opens an overlay so the workbench (and ChatPanel's
        message history) never unmounts. -->
   <button class="theme settings-trigger" id="settingsTrigger" title="System Settings">⚙ System Settings</button>
+  <button class="theme" id="tourReplayBtn" title="Replay the guided tour">ⓘ Guided tour</button>
   <button class="theme" id="themeBtn">◐ Theme</button>
 </div>
 
@@ -687,7 +719,7 @@
   <span class="chip"><span class="sw" style="background:var(--warn)"></span> ⚠ = outdated (unrecognized but well-formed)</span>
   <span class="chip"><span class="sw" style="background:var(--err)"></span> ✕ = invalid (structurally malformed)</span>
   <span class="chip" style="margin-left:auto;color:var(--faint)">drag any divider to resize · ⟨ ⟩ to fold side panels</span>
-  <span class="foot-brand"><span class="mark"></span> Produced by ACME Corp</span>
+  <span class="foot-brand"><img class="mark" src="assets/processmind-mark.png" alt=""> Produced by ProcessMind Solutions</span>
 </div>
 
 <!-- ================= content templates ================= -->
@@ -1038,6 +1070,25 @@ or any tool that modifies files — intentionally excluded.</pre>
           </tbody>
         </table>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Guided tour ── mockup-only: spotlight rect + popover, driven entirely by
+     TOUR_STEPS below. Blocks the page behind it (tourBackdrop swallows clicks) so Prev/
+     Next/Exit are the only way through, same modal-like posture as the import/settings
+     overlays above. -->
+<div class="tour-backdrop" id="tourBackdrop" hidden></div>
+<div class="tour-spot" id="tourSpot" hidden></div>
+<div class="tour-pop" id="tourPop" hidden role="dialog" aria-modal="true" aria-labelledby="tourPopTitle">
+  <div class="tour-pop-count" id="tourPopCount"></div>
+  <div class="tour-pop-title" id="tourPopTitle"></div>
+  <div class="tour-pop-body" id="tourPopBody"></div>
+  <div class="tour-pop-actions">
+    <button class="tour-btn tour-exit" id="tourExitBtn">Exit</button>
+    <div class="tour-pop-nav">
+      <button class="tour-btn tour-prev" id="tourPrevBtn">‹ Prev</button>
+      <button class="tour-btn tour-next" id="tourNextBtn">Next ›</button>
     </div>
   </div>
 </div>
@@ -2150,6 +2201,136 @@ or any tool that modifies files — intentionally excluded.</pre>
     }
   });
 
+  // ---------- Guided tour (Plan 12 mini-tour prototype) ----------
+  // Six steps over the actual core loop (import → edit on Custom → edit on Chat → see the
+  // comparison → apply → export), plus a welcome step. Each entry's `target` is a selector
+  // resolved fresh at step-render time (not cached) since the DOM under it changes as you
+  // use the app — e.g. clicking the live proposal card's Apply button (above) replaces it
+  // with an "✓ Applied" line, so `.proposal-card.live .pc-apply` can legitimately stop
+  // existing mid-tour. `target:null` centers the popover with no spotlight.
+  const TOUR_SEEN_KEY = 'myagent_tour_seen';
+  const TOUR_STEPS = [
+    { target: null, title: 'Welcome to the Workbench', body: 'A quick look at the core loop: import an agent, edit it two ways, review what would change, apply it, then export. Six steps — skip to any of them, or exit any time.' },
+    { target: '#left', title: 'Library', body: 'Every agent lives here, flat or grouped by folder. "⇪ Import agent" at the bottom brings in a .md file — its frontmatter is read directly, and the body goes to Daedalus or Hermes depending on the mode you pick.' },
+    { target: '#centerTop', title: 'Edit on Custom', body: 'The structured view: name, config, and sections as editable fields. Changes made here are direct — no AI in the loop, nothing to review before it’s saved.' },
+    { target: '#centerBottom', title: 'Edit on Chat', body: 'Describe the change you want in plain language. Prometheus proposes an edit here rather than applying it straight away — that proposal is what the next two steps walk through.' },
+    { target: '.proposal-card.live .pc-row, .proposal-card.live', title: 'See the comparison', body: 'Every proposal shows the current value next to what’s proposed, so you can see exactly what would change before you decide anything.' },
+    { target: '.proposal-card.live .pc-apply, .proposal-card.live', title: 'Apply', body: 'Apply writes the change into the agent. Discard, right next to it, throws the proposal away and unlocks editing again — either way the choice is explicit, nothing happens on its own.' },
+    { target: '#right .dl, #right', title: 'Export', body: 'The Raw panel mirrors the real exported .md, live, as you edit. Download grabs it any time — there’s no separate export step to run first.' },
+  ];
+  let tourIndex = 0;
+  const tourBackdrop = document.getElementById('tourBackdrop');
+  const tourSpot = document.getElementById('tourSpot');
+  const tourPop = document.getElementById('tourPop');
+  const tourPopCount = document.getElementById('tourPopCount');
+  const tourPopTitle = document.getElementById('tourPopTitle');
+  const tourPopBody = document.getElementById('tourPopBody');
+  const tourPrevBtn = document.getElementById('tourPrevBtn');
+  const tourNextBtn = document.getElementById('tourNextBtn');
+  const tourExitBtn = document.getElementById('tourExitBtn');
+
+  // Resolves a (possibly comma-separated, most-specific-first) selector to the first
+  // element that actually exists right now — guards against a step's precise target
+  // (e.g. the live proposal card's Apply button) having been clicked away already.
+  function tourResolveTarget(selector){
+    if(!selector) return null;
+    for(const sel of selector.split(',').map(s=>s.trim())){
+      const el = document.querySelector(sel);
+      if(el) return el;
+    }
+    return null;
+  }
+
+  function tourPositionFor(el){
+    const pad = 6, margin = 14;
+    let rect = null;
+    if(el){
+      const scroller = el.closest('.chat-scroll');
+      if(scroller){
+        // A proposal row can be taller than the chat's own scroll viewport — clamp the
+        // spotlight to what's actually visible, or the "hole" bleeds past the scroller's
+        // clipped edges into whatever panel sits above/below it.
+        el.scrollIntoView({block:'center'});
+        const er = el.getBoundingClientRect();
+        const sr = scroller.getBoundingClientRect();
+        const top = Math.max(er.top, sr.top), bottom = Math.min(er.bottom, sr.bottom);
+        const left = Math.max(er.left, sr.left), right = Math.min(er.right, sr.right);
+        rect = (bottom > top && right > left)
+          ? { top, bottom, left, right, width: right-left, height: bottom-top }
+          : sr;
+      } else {
+        rect = el.getBoundingClientRect();
+      }
+    }
+    if(rect){
+      tourSpot.hidden = false;
+      tourSpot.style.top = (rect.top-pad)+'px';
+      tourSpot.style.left = (rect.left-pad)+'px';
+      tourSpot.style.width = (rect.width+pad*2)+'px';
+      tourSpot.style.height = (rect.height+pad*2)+'px';
+    } else {
+      tourSpot.hidden = true;
+    }
+    // measure the popover at its natural size before placing it
+    tourPop.style.top = '-9999px'; tourPop.style.left = '-9999px';
+    const pw = tourPop.offsetWidth, ph = tourPop.offsetHeight;
+    let top, left;
+    if(!rect){
+      top = (window.innerHeight-ph)/2;
+      left = (window.innerWidth-pw)/2;
+    } else {
+      if(rect.bottom+margin+ph <= window.innerHeight) top = rect.bottom+margin;
+      else if(rect.top-margin-ph >= 0) top = rect.top-margin-ph;
+      else top = Math.max(margin,(window.innerHeight-ph)/2);
+      left = rect.left+rect.width/2-pw/2;
+      left = Math.max(margin, Math.min(left, window.innerWidth-pw-margin));
+    }
+    tourPop.style.top = top+'px';
+    tourPop.style.left = left+'px';
+  }
+
+  function tourShowStep(i){
+    tourIndex = Math.max(0, Math.min(TOUR_STEPS.length-1, i));
+    const step = TOUR_STEPS[tourIndex];
+    tourPopCount.textContent = (tourIndex+1)+' / '+TOUR_STEPS.length;
+    tourPopTitle.textContent = step.title;
+    tourPopBody.textContent = step.body;
+    tourPrevBtn.disabled = tourIndex === 0;
+    tourNextBtn.textContent = tourIndex === TOUR_STEPS.length-1 ? 'Finish ✓' : 'Next ›';
+    tourPositionFor(tourResolveTarget(step.target));
+  }
+
+  function tourStart(){
+    // both side panels must be visible for their steps to have a target to spotlight
+    setFold('left', false);
+    setFold('right', false);
+    tourBackdrop.hidden = false;
+    tourPop.hidden = false;
+    tourShowStep(0);
+  }
+  function tourEnd(){
+    tourBackdrop.hidden = true;
+    tourSpot.hidden = true;
+    tourPop.hidden = true;
+    localStorage.setItem(TOUR_SEEN_KEY, '1');
+  }
+
+  tourPrevBtn.addEventListener('click', ()=>tourShowStep(tourIndex-1));
+  tourNextBtn.addEventListener('click', ()=>{
+    if(tourIndex === TOUR_STEPS.length-1) tourEnd();
+    else tourShowStep(tourIndex+1);
+  });
+  tourExitBtn.addEventListener('click', tourEnd);
+  document.getElementById('tourReplayBtn').addEventListener('click', tourStart);
+  window.addEventListener('resize', ()=>{ if(!tourPop.hidden) tourShowStep(tourIndex); });
+
   layout();
   buildLibrary();
+
+  // Auto-run once per browser, same "seen" flag the real app will persist to localStorage
+  // (plans/12-ui-batch-launch-polish.md). Two rAFs, not a timeout — waits for layout() and
+  // buildLibrary() above to actually paint before the first step measures anything.
+  if(!localStorage.getItem(TOUR_SEEN_KEY)){
+    requestAnimationFrame(()=>requestAnimationFrame(tourStart));
+  }
 </script>

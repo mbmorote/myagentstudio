@@ -33,7 +33,7 @@ aren't detailed further, the description here is all there is.
 | **Second LLM provider** | Infra | TODO | Not started |
 | **Big flow test** |  | TODO | Ready to run — needs your OK to spend real Anthropic money |
 | **Company branding on the platform** | UX | TODO | Blocked on your assets/copy |
-| **First-login guided tour (mini-tour)** | UX | TODO | Not started |
+| **First-login guided tour (mini-tour)** | UX | TODO | Prototyped, copy drafted not signed off |
 | **"Don't paste sensitive data" disclaimer** | UX | TODO | Not started |
 | **Production DB backup/restore** | Infra | TODO | Not started |
 | **Deploy online** |  | TODO | Not started — always last |
@@ -49,7 +49,7 @@ aren't detailed further, the description here is all there is.
 | **Log retention / pruning / pagination** | Infra | NEXT | Not started |
 | **Cost estimation in currency on log rows** | Behavior | NEXT | Not started |
 | **Compliance-grade (non-droppable) logging** | Infra | NEXT | Undecided if wanted |
-| **Pre-login landing page for prospective users** | UX | NEXT | Not started |
+| **Pre-login landing page for prospective users** | UX | NEXT | Mockup done, Terms/Privacy pages + browser check left |
 | **Improve the guided tour** | UX | NEXT | Not started |
 | **Optional call-log persistence toggle** | Infra | NEXT | Undecided if wanted |
 | **MCP server exposing MyAgent's agents** | Infra | NEXT | Undecided if wanted |
@@ -120,7 +120,7 @@ goes before it.
 | **Second LLM provider** | Infra | Not started |
 | **Big flow test** | — | Ready to run — needs your OK to spend real Anthropic money |
 | **Company branding on the platform** | UX | Blocked on your assets/copy |
-| **First-login guided tour (mini-tour)** | UX | Not started |
+| **First-login guided tour (mini-tour)** | UX | Prototyped, copy drafted not signed off |
 | **"Don't paste sensitive data" disclaimer** | UX | Not started |
 | **Production DB backup/restore** | Infra | Not started |
 | **Deploy online** | — | Not started — always last |
@@ -186,18 +186,23 @@ a quiet login/signup line (secondary) recommended. Footer already prototyped in
 
 ### **First-login guided tour (mini-tour)**
 
-**Current state:** Fully specced, not started. Replaces a separate pre-login landing page for
-this launch (see NEXT).
+**Current state:** Prototyped in `Layout-Workbench.html`, verified in-browser (Chrome, both
+themes, all steps position correctly, no console errors). Replaces a separate pre-login
+landing page for this launch (see NEXT).
 
 **Scope:**
 - Spotlight/dim-panel mechanism — no new dependency, `WorkbenchShell`'s 4 panels are fixed regions
-- Six steps: welcome/why, Library, Structured view, Chat, cite-a-section, Raw + download
-- Skippable per-step and to finish; re-runnable via a "?" affordance; a persisted "seen" flag (`localStorage`)
-- Prototype in `Layout-Workbench.html` first (standing rule 4)
+- Seven steps: welcome, then the core loop — Library (import), Custom Visualization (edit
+  direct), Chat (edit via AI), the proposal's before/after comparison, Apply, Export (Raw
+  panel's Download)
+- Skippable per-step (Exit) and to finish (Next → "Finish ✓" on the last step); re-runnable
+  via the topbar's "ⓘ Guided tour" button; a persisted "seen" flag (`localStorage`,
+  `myagent_tour_seen`)
+- Prototyped in `Layout-Workbench.html` first (standing rule 4)
 
 **Effort:** Medium (a session or two)
 **Depends on:** None
-**Status:** Not started
+**Status:** Prototyped — copy drafted but not signed off; port into the real app next
 
 ---
 
@@ -267,7 +272,7 @@ this bucket is free to reorder.
 | **Log retention / pruning / pagination** | Not started |
 | **Cost estimation in currency on log rows** | Not started |
 | **Compliance-grade (non-droppable) logging** | Undecided if wanted |
-| **Pre-login landing page for prospective users** | Not started |
+| **Pre-login landing page for prospective users** | Mockup done, Terms/Privacy pages + browser check left |
 | **Improve the guided tour** | Not started — depends on the MVP tour shipping first |
 | **Optional call-log persistence toggle** | Undecided if wanted |
 | **MCP server exposing MyAgent's agents** | Undecided if wanted |
@@ -443,8 +448,14 @@ which only signed-up users ever see.
 this" part is settled; timing-wise wanted soon after launch, not before. The tour's welcome
 step covers the "why" well enough for this launch's small, invited audience.
 
+**Mockup:** Done — `architecture/layout/Layout-Landing.html` (hero, walkthrough card, feats
+grid, wave roadmap timeline, footer). Still needed before it ships: Terms/Privacy pages
+(footer already links to `#terms`/`#privacy` placeholders) and a real-browser check that the
+walkthrough card's "⤢ Full view" button label renders and never wraps/clips (light/dark, at
+110% zoom).
+
 **Effort:** Medium
-**Status:** Not started
+**Status:** Mockup done, real-build items open (see `plans/12-ui-batch-launch-polish.md`)
 
 ---
 

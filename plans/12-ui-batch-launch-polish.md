@@ -42,16 +42,25 @@ reads worse than seeing nothing.
 
 ## First-login guided tour (mini-tour)
 
-**Current state:** Fully specced conceptually, not started, not prototyped.
-
-**Shape:** spotlight/dim-panel mechanism (no new dependency — `WorkbenchShell`'s four panels
-are fixed regions), six steps (welcome/why, Library, Structured view, Chat, cite-a-section,
-Raw + download), skippable per-step and to finish, re-runnable via a "?" affordance, a
-persisted "seen" flag (`localStorage`).
+**Current state:** Prototyped in `Layout-Workbench.html` — spotlight/dim-panel mechanism
+(a fixed spotlight rect with a giant `box-shadow` cutout + pulsing accent ring, plus a
+popover that follows it), no new dependency, `WorkbenchShell`'s panels are fixed regions.
+Seven steps: welcome, then the six-step core loop the user asked for — Library (import),
+Custom Visualization (edit direct), Chat (edit via AI), the proposal's before/after
+comparison, Apply, Export (Raw panel's Download). Skippable per-step (Exit, every step) and
+to finish (last step's Next becomes "Finish ✓"), re-runnable via the topbar's "ⓘ Guided
+tour" button, persisted "seen" flag via `localStorage` (`myagent_tour_seen`) — auto-runs
+once, replay always available regardless of the flag. Verified in-browser (Chrome, both
+themes): all seven steps position correctly, no console errors. One bug found and fixed
+during that check — the "see the comparison" step's target row is taller than the chat
+panel's own scroll viewport, so its spotlight needs clamping to the visible scroll area or
+it bleeds into the panel above; `tourPositionFor()` now intersects the target rect with its
+scroll-container's rect before drawing the spotlight.
 
 **What's still needed before this can move:**
-- Prototype in `Layout-Workbench.html` (the mechanism itself, not just described)
-- Exact copy/tone for each of the six steps — not yet written
+- Copy is drafted (all seven steps have real body text now, not placeholders) but not yet
+  signed off — open to a tone pass
+- Port the mechanism into the real app once the copy is confirmed
 
 ## "Experimental — don't paste sensitive data" disclaimer
 
@@ -63,6 +72,26 @@ folded into the existing `ConsentPopup.tsx`.
 **What's still needed before this can move:**
 - Placement decision
 - Exact wording
+
+## Pre-login landing page
+
+**Current state:** Mockup done in `architecture/layout/Layout-Landing.html` (hero,
+walkthrough card, feats grid, wave roadmap timeline, footer) — this is now the reference for
+the real build, alongside `Layout-Workbench.html` for the rest of the app. Earlier drafts
+(`Landing-standalone.html`, `Layout-Landing2.html`) are retired to the gitignored
+`architecture/layout/Old Ones/` folder, kept locally for history only.
+
+**Still needed before this ships:**
+- **Terms and Privacy pages.** Footer already links to `#terms`/`#privacy` placeholders but
+  the pages themselves don't exist yet. Structure/style reference given by the user:
+  https://antondevtips.com/legal/privacy and https://antondevtips.com/legal/terms — standard
+  SaaS boilerplate per the earlier decision (legal/license disclaimer, not legal-industry-
+  specific copy).
+- **Fix note — "Full view" button.** In testing, the walkthrough card's "⤢ Full view" button
+  text wasn't rendering visibly (label had gone missing/blank in the browser, separate from
+  the earlier text-wrap issue already patched with `white-space:nowrap` on `.wbtn`). Needs a
+  real browser check before this ships — confirm the label renders and never wraps/clips in
+  any state (light/dark, at 110% zoom) rather than just eyeballing the static mockup.
 
 ## Sequencing note
 
