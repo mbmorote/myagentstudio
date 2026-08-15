@@ -59,6 +59,10 @@ export function ConsentPopup({ onClose }: ConsentPopupProps) {
           You can change this choice later at any time in your Account settings. Changing it is
           not retroactive in either direction.
         </p>
+        <p className="text-[11px] text-[var(--faint)]">
+          Content you enter here is sent to an external AI provider — do not paste passwords,
+          API keys, or other sensitive or confidential data.
+        </p>
 
         <div className="flex gap-2 pt-1">
           <button

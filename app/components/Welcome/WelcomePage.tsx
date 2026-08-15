@@ -8,24 +8,26 @@
  * first thing a prospective, non-signed-up visitor sees; distinct audience from the
  * first-login guided tour (GuidedTour.tsx), which only signed-up users ever see.
  *
- * Known placeholders ported as literal TODOs below, tracked in
- * plans/12-ui-batch-launch-polish.md's "Known placeholders" list — replace before ship:
- *   - AUTHOR_NAME / AUTHOR_LINKEDIN / AUTHOR_GITHUB / AUTHOR_EMAIL (footer identity line)
- *   - Terms/Privacy hrefs (#terms/#privacy — pages don't exist yet)
+ * Known placeholder ported as a literal TODO below, tracked in
+ * plans/archive/12-ui-batch-launch-polish.md's "Known placeholders" list — replace before ship:
  *   - Walkthrough step "screenshots" (bracketed placeholder text — format undecided)
  * The feature grid and roadmap teaser use real content (not the mock's Lorem-Ipsum filler
  * cards / generic "Feature N" teaser items) — see docs/roadmap.md for the roadmap source.
+ *
+ * Footer author identity (name/LinkedIn/GitHub/email) is read from NEXT_PUBLIC_AUTHOR_*
+ * env vars rather than hardcoded here, so it's a one-line .env.local edit instead of a
+ * code change — see .env.example. Falls back to a visible placeholder when unset, never
+ * to blank/broken links.
  */
 
 import { Suspense, useState } from 'react';
 import { LoginForm } from '@/app/components/Auth/LoginForm';
 import { SignupForm } from '@/app/components/Auth/SignupForm';
 
-// TODO: replace before this page ships for real — see plans/12-ui-batch-launch-polish.md
-const AUTHOR_NAME = 'the user';
-const AUTHOR_LINKEDIN = '#';
-const AUTHOR_GITHUB = '#';
-const AUTHOR_EMAIL = '#';
+const AUTHOR_NAME = process.env.NEXT_PUBLIC_AUTHOR_NAME || 'the user';
+const AUTHOR_LINKEDIN = process.env.NEXT_PUBLIC_AUTHOR_LINKEDIN || '#';
+const AUTHOR_GITHUB = process.env.NEXT_PUBLIC_AUTHOR_GITHUB || '#';
+const AUTHOR_EMAIL = process.env.NEXT_PUBLIC_AUTHOR_EMAIL || '#';
 
 interface WalkStep {
   kicker: string;
@@ -263,8 +265,7 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
             <a href={AUTHOR_EMAIL} className="text-[var(--muted)] no-underline hover:text-[var(--accent-ink)]">Email</a>
           </div>
           <div className="flex-1 min-w-[220px] text-right">
-            {/* TODO: Terms/Privacy pages don't exist yet — see plans/12-ui-batch-launch-polish.md */}
-            © {new Date().getFullYear()}. All rights reserved. · <a href="#terms">Terms</a> · <a href="#privacy">Privacy</a>
+            © {new Date().getFullYear()} ProcessMind Solutions. All rights reserved. · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a>
           </div>
         </div>
       </div>
@@ -398,7 +399,7 @@ function WalkBtn({ onClick, children }: { onClick: () => void; children: React.R
 }
 
 /** Placeholder screenshot frame — TODO: real product screenshots, format undecided
- *  (plans/12-ui-batch-launch-polish.md / docs/roadmap.md "Improve the guided tour"). */
+ *  (plans/archive/12-ui-batch-launch-polish.md / docs/roadmap.md "Improve the guided tour"). */
 function WalkShot({ text, minHeight = 120 }: { text: string; minHeight?: number }) {
   return (
     <div className="border border-[var(--border)] rounded-[10px] bg-[var(--elev)] overflow-hidden shadow-[0_12px_28px_-18px_rgba(0,0,0,.35)] flex flex-col" style={{ aspectRatio: '9/5' }}>

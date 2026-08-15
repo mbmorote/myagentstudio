@@ -28,7 +28,7 @@ A new `providerRegistry.ts` is the only file that knows both providers exist; a 
 architecture fitness function (`lib/ai/__tests__/architecture.test.ts`) now enforces the
 transport isolation rule for both providers (not just a hardcoded single-SDK check) and
 additionally test-enforces the rule that no `lib/ai/` file except `gateway.ts` may import
-from `lib/db/`. See `plans/11-second-llm-provider.md` for the full design.
+from `lib/db/`. See `plans/archive/11-second-llm-provider.md` for the full design.
 
 ## 2026-08-12 — Pre-launch review & docs restructure (Plan 10)
 

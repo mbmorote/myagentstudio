@@ -16,28 +16,32 @@
 
 | Item | Status | What's left |
 |---|---|---|
-| **Company branding on the platform** | Mostly shipped | `/welcome` footer author identity still placeholder |
-| **First-login guided tour (mini-tour)** | Shipped, in the real app | Copy drafted, not formally signed off |
-| **"Don't paste sensitive data" disclaimer** | Not started | Placement decision + wording |
-| **Pre-login landing page** | Shipped, in the real app | Terms/Privacy pages don't exist yet; author identity |
+| **Company branding on the platform** | **Done (2026-08-15)** | — real values in `.env.local` |
+| **First-login guided tour (mini-tour)** | Shipped, in the real app | Copy drafted, not formally signed off (tour copy sign-off deferred — user wants to review directly) |
+| **"Don't paste sensitive data" disclaimer** | **Done (2026-08-15)** | — folded into `ConsentPopup.tsx` |
+| **Pre-login landing page** | **Done (2026-08-15)** | `/terms` and `/privacy` pages created; `[jurisdiction]` + contact-info placeholders remain (§legal pages) |
 | **"Request access" (new, 2026-08-14)** | Shipped, in the real app | Automated email delivery — tracked separately as a roadmap NEXT item |
 
-Three of five are live in the real app right now, not just mocked up. The two genuinely
-open items (disclaimer; Terms/Privacy pages) are both small and undecided rather than
-blocked on anything external.
+Four of five items need zero further code. What's left is one subjective review (guided tour
+copy) and two small pieces of real-world info for the legal pages (jurisdiction, contact
+address) — nothing left is blocked on a design decision.
 
 ## Company branding on the platform
 
-**Current state (2026-08-14):** Live in the real app — the Workbench footer shows the
-ProcessMind Solutions mark + name (`app/components/WorkbenchShell.tsx`, replacing the
-mockup's "ACME Corp" placeholder). The `/welcome` landing page also has an identity line in
-its own footer, though that one's author name/LinkedIn/GitHub/email are still placeholder
-constants (`AUTHOR_*` in `WelcomePage.tsx`) pending real values.
+**Current state (2026-08-14, mechanism updated 2026-08-15):** Live in the real app — the
+Workbench footer shows the ProcessMind Solutions mark + name (`app/components/
+WorkbenchShell.tsx`, replacing the mockup's "ACME Corp" placeholder). The `/welcome` landing
+page also has an identity line in its own footer; its `AUTHOR_*` constants in
+`WelcomePage.tsx` now read from `NEXT_PUBLIC_AUTHOR_NAME`/`_LINKEDIN`/`_GITHUB`/`_EMAIL` env
+vars (documented in `.env.example`), falling back to a visible placeholder when unset — so
+filling in real values is a one-line `.env.local` edit, not a code change. No real values set
+yet.
 
 **What's still needed:**
-- Real values for the `/welcome` footer's author identity (name, LinkedIn, GitHub, email)
+- Real values for `NEXT_PUBLIC_AUTHOR_NAME`/`_LINKEDIN`/`_GITHUB`/`_EMAIL` in `.env.local`
+  (gitignored, never committed)
 - The quiet login/signup-page branding line (secondary placement) was recommended early on
-  but never prototyped — still open if wanted
+  but never prototyped — decided against, see §decisions
 
 **Rule (still in force):** no placeholder branding goes into real code — a real viewer
 seeing demo branding reads worse than seeing nothing. (The `/welcome` footer's `AUTHOR_*`
@@ -78,14 +82,15 @@ target rect with its scroll-container's rect before drawing the spotlight.
 
 ## "Experimental — don't paste sensitive data" disclaimer
 
-**Current state:** No disclaimer exists anywhere in the signup/login flow today.
+**Status: Done (2026-08-15).** Folded into `ConsentPopup.tsx` — the popup users already
+click through after first signup. Added as a final small-type note (matching the popup's
+existing `text-[11px] text-[var(--faint)]` footnote style) right before the action buttons:
 
-**Shape:** one sentence, cheap. Placement options: the signup form, a persistent banner, or
-folded into the existing `ConsentPopup.tsx`.
+> "Content you enter here is sent to an external AI provider — do not paste passwords,
+> API keys, or other sensitive or confidential data."
 
-**What's still needed before this can move:**
-- Placement decision
-- Exact wording
+Placement chosen: `ConsentPopup.tsx` (user's direction — no new UI surface, no new component).
+Login/signup-page branding line explicitly deferred/skipped by user direction — see §decisions.
 
 ## Pre-login landing page
 
@@ -125,14 +130,19 @@ Lorem-Ipsum filler cards; roadmap items pulled from `docs/roadmap.md` — AI cha
 shipped, second AI provider building, group organization + persistent chat history
 planned) rather than the mock's generic placeholder text.
 
-**Still needed before this ships:**
-- **Terms and Privacy pages.** Footer already links to `#terms`/`#privacy` placeholders but
-  the pages themselves don't exist yet. Structure/style reference given by the user:
-  https://antondevtips.com/legal/privacy and https://antondevtips.com/legal/terms — standard
-  SaaS boilerplate per the earlier decision (legal/license disclaimer, not legal-industry-
-  specific copy).
-- Author identity in the `/welcome` footer (name, LinkedIn, GitHub, email) — still the
-  `AUTHOR_*` placeholder constants in `WelcomePage.tsx`.
+**Done (2026-08-15):**
+- **Terms and Privacy pages** created at `app/terms/page.tsx` (`/terms`) and
+  `app/privacy/page.tsx` (`/privacy`) — standard SaaS boilerplate (10 sections for Terms,
+  9 sections for Privacy), styled with the app's CSS variables to match the `/welcome` page.
+  Both routes added to `middleware.ts`'s `PUBLIC_PATHS`. Footer links in `WelcomePage.tsx`
+  updated from `#terms`/`#privacy` placeholders to the real `/terms`/`/privacy` routes.
+  Company name used throughout: **ProcessMind Solutions** (consistent with `WorkbenchShell.tsx`).
+  The `[jurisdiction]` and contact-info slots are left as placeholders — fill in before ship.
+
+**Still open:**
+- Author identity in the `/welcome` footer (name, LinkedIn, GitHub, email) — the mechanism
+  is done (`NEXT_PUBLIC_AUTHOR_*` env vars, see the branding section above); only the real
+  values in `.env.local` are still missing.
 
 Resolved during the port (2026-08-14): the "Full view" button hit-testing bug (see above)
 is fixed, and the routing decision landed on a new public `/welcome` path (not `/` itself) —
@@ -144,7 +154,9 @@ both no longer open items.
   swap for the real name at the real-code stage, not in this mockup file) and the
   LinkedIn/GitHub/Email links are all `href="#"`. Deferred earlier this session ("save this
   for when migrating to the platform") — the real URLs/address are still needed.
-- **Terms/Privacy links** — `href="#"` placeholders; pages don't exist yet (see above).
+- **Terms/Privacy links** — `href="#"` in the mockup file only; real routes `/terms`/`/privacy`
+  now exist in the app and `WelcomePage.tsx` already links to them (2026-08-15). The mockup
+  file itself was not updated (it is a historical reference, not the live source).
 - **Hero CTA** (`.invite-wrap` link) — `href="#"` placeholder, and the copy itself ("Get
   Start - Ask a invite!") reads as a rough draft, not final wording — needs both a real
   destination and a copy pass.
@@ -161,12 +173,10 @@ both no longer open items.
   decision to keep it as a trimmed-down teaser rather than the full backlog. The real port
   (`WelcomePage.tsx`) already uses real content pulled from `docs/roadmap.md` — see below —
   this bullet is just noting the mockup file itself was never updated to match.
-- **Open question — brand name.** The landing page's nav/login-modal brand reads "MyAgent"
-  (the product name used throughout this repo); this session separately introduced
-  "ProcessMind Solutions" as the real company/publisher name for the in-app Workbench
-  footer. Not yet decided whether the landing page should show the product name, the company
-  name, or both (e.g. product name in the nav, company name in the footer) — flagging rather
-  than guessing.
+- **Brand name — resolved (2026-08-15).** Decision: **MyAgent in the nav, ProcessMind
+  Solutions in the footer** — confirmed as final by the user, no code change needed. Current
+  state in `WelcomePage.tsx` already matches this: the nav reads "MyAgent" and the footer
+  reads "ProcessMind Solutions." No longer an open question.
 
 ## "Request access" — signup without an invite code (2026-08-14)
 
@@ -204,25 +214,36 @@ rejected generically → correct-email redemption passes the bind check (confirm
 the next validation step) → Dismiss removes a request with no code created. `tsc` clean
 throughout (only 2 pre-existing, unrelated errors in files never touched this session).
 
+## Decisions recorded (2026-08-15)
+
+These were open questions resolved by the user directly — not oversights, not deferred pending
+information, each explicitly decided:
+
+- **Disclaimer placement:** fold into `ConsentPopup.tsx`. Done — see §disclaimer section above.
+- **Brand name on `/welcome`:** MyAgent in nav, ProcessMind Solutions in footer — confirmed
+  as final. Current code already matches; no change needed.
+- **Author identity (`AUTHOR_*` placeholders):** Done (2026-08-15) — moved to
+  `NEXT_PUBLIC_AUTHOR_*` env vars (`.env.example` documents all four); real values now set in
+  `.env.local` (gitignored, never committed).
+- **Login/signup-page branding line:** skip entirely — do not add anything to `/login` or
+  `/signup`. The footer branding on `/welcome` is sufficient.
+
 ## What's left, across the whole batch
 
-Everything below is small and undecided rather than blocked on anything external — no
-sequencing dependency between any of them:
+One item still genuinely open:
 
-1. **Disclaimer** — not started at all. Needs a placement decision (signup form /
-   persistent banner / folded into `ConsentPopup.tsx`) and one sentence of wording.
-2. **Terms and Privacy pages** for `/welcome`'s footer links. Style reference already given:
-   https://antondevtips.com/legal/privacy and https://antondevtips.com/legal/terms.
-3. **Author identity** — real name/LinkedIn/GitHub/email to replace the `AUTHOR_*`
-   placeholder constants in `WelcomePage.tsx`, and the open question of whether `/welcome`'s
-   nav should show the product name ("MyAgent") or the company name ("ProcessMind
-   Solutions") or both.
-4. **Guided tour copy sign-off** — a tone pass over the seven steps' drafted body text, if
-   wanted before calling it final.
-5. **Login/signup-page branding line** — the secondary placement recommended early in the
-   branding review, never prototyped. Optional; the footer placement already covers the
-   "no placeholder branding ships" rule on its own.
+1. **Guided tour copy sign-off** — the seven steps have real drafted body text but the user
+   wants to do the tone pass directly, not delegate it. No code change needed until that
+   review happens.
+
+One item deferred by explicit user direction (recorded in §decisions above):
+
+- **Login/signup-page branding line** — skip.
+
+Remaining placeholder in the new legal pages (fill before ship):
+- `[jurisdiction]` appears twice in `app/terms/page.tsx` (governing law section).
+- Contact info in both `app/terms/page.tsx` and `app/privacy/page.tsx` reads "contact us
+  through the contact information provided on the Service" — no real contact address yet.
 
 Not part of this batch's remaining scope, but adjacent and worth knowing about: automated
-invite-code email delivery (so the admin stops copying codes by hand) is tracked separately
-as a roadmap NEXT item once an email provider is picked — see `plans/roadmap.md`.
+invite-code email delivery is tracked separately as a roadmap NEXT item — see `plans/roadmap.md`.

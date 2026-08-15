@@ -11,8 +11,8 @@
  * in the path.
  *
  * Behaviour:
- *   PUBLIC paths: /login, /signup, /welcome, /api/auth/login, /api/auth/signup,
- *   /api/auth/logout, /api/auth/request-access
+ *   PUBLIC paths: /login, /signup, /welcome, /terms, /privacy, /api/auth/login,
+ *   /api/auth/signup, /api/auth/logout, /api/auth/request-access
  *     - Allowed through without a token.
  *     - If the user already has a valid token and hits /login or /signup, redirect to /.
  *       /welcome (Plan 12's pre-login landing page, 2026-08-14) is NOT in that redirect
@@ -38,6 +38,8 @@ const PUBLIC_PATHS = new Set([
   '/login',
   '/signup',
   '/welcome',
+  '/terms',
+  '/privacy',
   '/api/auth/login',
   '/api/auth/signup',
   '/api/auth/logout',

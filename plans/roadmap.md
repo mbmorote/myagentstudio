@@ -30,11 +30,11 @@ aren't detailed further, the description here is all there is.
 
 | Item | Kind | Bucket | Status / description |
 |---|---|---|---|
-| **Second LLM provider** | Infra | TODO | Shipped 2026-08-15 (Plan 11) |
 | **Big flow test** |  | TODO | Ready to run — needs your OK to spend real Anthropic money |
-| **Company branding on the platform** | UX | TODO | Mostly shipped — Workbench footer done, `/welcome` footer identity still placeholder |
-| **First-login guided tour (mini-tour)** | UX | TODO | Prototyped, copy drafted not signed off |
-| **"Don't paste sensitive data" disclaimer** | UX | TODO | Not started |
+| **Check: NVIDIA live-call verification (second LLM provider)** | Infra | TODO | Needs API key + spend go-ahead |
+| **Check: full test suite + `tsc` after Plan 11** | Infra | TODO | Not run yet |
+| **Check: guided tour copy sign-off** | UX | TODO | User review pending |
+| **Check: Workbench branding + disclaimer render correctly** | UX | TODO | Visual QA, not run yet |
 | **Production DB backup/restore** | Infra | TODO | Not started |
 | **Deploy online** |  | TODO | Not started — always last |
 | **Component/UI test coverage** | Infra | NEXT | Not started — first thing once v1 is live |
@@ -49,11 +49,12 @@ aren't detailed further, the description here is all there is.
 | **Log retention / pruning / pagination** | Infra | NEXT | Not started |
 | **Cost estimation in currency on log rows** | Behavior | NEXT | Not started |
 | **Compliance-grade (non-droppable) logging** | Infra | NEXT | Undecided if wanted |
-| **Pre-login landing page for prospective users** | UX | NEXT | Mockup done, Terms/Privacy pages + browser check left |
+| **Check: `/terms` jurisdiction placeholder** | UX | NEXT | Needs a real jurisdiction |
+| **Check: `/welcome`, `/terms`, `/privacy` render correctly in browser** | UX | NEXT | Visual QA, not run yet |
 | **Automated invite-code email delivery** | Infra | NEXT | Not started — provider undecided |
 | **Improve the guided tour** | UX | NEXT | Not started |
 | **Optional call-log persistence toggle** | Infra | NEXT | Undecided if wanted |
-| **MCP server exposing MyAgent's agents** | Infra | NEXT | Undecided if wanted |
+| **MCP server exposing MyAgent's agents** | Infra | NEXT | Planned and decided — `plans/13-mcp-server-exposing-agents.md`; Medium (rescoped down from Large) |
 | **Re-enable group behavior** | UX | NEXT | Ready — three flag flips |
 | **Surface `applied`/`skipped` from apply-proposal in the UI** | UX | NEXT | Not started |
 | **`AgentView.tsx` save-name bypasses `apiFetch`** | Behavior | NEXT | Ready — trivial fix |
@@ -118,24 +119,13 @@ goes before it.
 
 | Item | Kind | Status |
 |---|---|---|
-| **Second LLM provider** | Infra | Shipped 2026-08-15 (Plan 11) |
 | **Big flow test** | — | Ready to run — needs your OK to spend real Anthropic money |
-| **Company branding on the platform** | UX | Mostly shipped — `/welcome` footer identity still placeholder |
-| **First-login guided tour (mini-tour)** | UX | Prototyped, copy drafted not signed off |
-| **"Don't paste sensitive data" disclaimer** | UX | Not started |
+| **Check: NVIDIA live-call verification (second LLM provider)** | Infra | Needs API key + spend go-ahead |
+| **Check: full test suite + `tsc` after Plan 11** | Infra | Not run yet |
+| **Check: guided tour copy sign-off** | UX | User review pending |
+| **Check: Workbench branding + disclaimer render correctly** | UX | Visual QA, not run yet |
 | **Production DB backup/restore** | Infra | Not started |
 | **Deploy online** | — | Not started — always last |
-
----
-
-### **Second LLM provider** ✅ Shipped 2026-08-15
-
-Closed by Plan 11. An OpenAI-compatible `fetch`-based provider
-(`lib/ai/openaiCompatibleProvider.ts`) sits behind the existing `LLMProvider`
-interface alongside Anthropic. No new npm dependency. The active provider is an
-admin-only setting (`'llmProvider'`, default `'anthropic'`), switching takes effect
-on the next call without a restart, and a provider with no key configured cannot be
-selected. See `CHANGELOG.md` for details.
 
 ---
 
@@ -161,57 +151,64 @@ gaps before real users do, not to gate the test on being bug-free beforehand.
 
 ---
 
-### **Company branding on the platform**
+### **Check: NVIDIA live-call verification (second LLM provider)**
 
-**Current state (2026-08-14):** Live in the real app — the Workbench footer shows the
-ProcessMind Solutions mark + name (`app/components/WorkbenchShell.tsx`, replacing the
-mockup's "ACME Corp" placeholder). The `/welcome` landing page also has an identity line in
-its own footer, though that one's author name/LinkedIn/GitHub/email are still placeholder
-constants pending real values (see `plans/12-ui-batch-launch-polish.md`'s placeholder list).
+**Current state:** Plan 11 shipped 2026-08-15 (`plans/archive/11-second-llm-provider.md`) —
+implementation and all mocked tests pass (53/53). The one step that plan deliberately left
+undone: a real call against NVIDIA NIM to confirm `stream()`/`complete()` work end-to-end and
+`llm_call_log.provider` reads `'openaiCompatible'` after a live call.
 
-**Scope — what's left:**
-- Real values for the `/welcome` footer's author identity (name, LinkedIn, GitHub, email)
-- The quiet login/signup-page branding line (secondary placement) was recommended but never prototyped
-
-**Effort:** Small
-**Depends on:** None
-**Status:** Mostly shipped — Workbench footer done, `/welcome` footer identity still placeholder
-
----
-
-### **First-login guided tour (mini-tour)**
-
-**Current state:** Prototyped in `Layout-Workbench.html`, verified in-browser (Chrome, both
-themes, all steps position correctly, no console errors). Replaces a separate pre-login
-landing page for this launch (see NEXT).
-
-**Scope:**
-- Spotlight/dim-panel mechanism — no new dependency, `WorkbenchShell`'s 4 panels are fixed regions
-- Seven steps: welcome, then the core loop — Library (import), Custom Visualization (edit
-  direct), Chat (edit via AI), the proposal's before/after comparison, Apply, Export (Raw
-  panel's Download)
-- Skippable per-step (Exit) and to finish (Next → "Finish ✓" on the last step); re-runnable
-  via the topbar's "ⓘ Guided tour" button; a persisted "seen" flag (`localStorage`,
-  `myagent_tour_seen`)
-- Prototyped in `Layout-Workbench.html` first (standing rule 4)
-
-**Effort:** Medium (a session or two)
-**Depends on:** None
-**Status:** Prototyped — copy drafted but not signed off; port into the real app next
-
----
-
-### **"Experimental — don't paste sensitive data" disclaimer**
-
-**Current state:** No disclaimer exists anywhere in the signup/login flow.
-
-**Scope:**
-- One sentence — placement TBD (signup form, a banner, or folded into the existing `ConsentPopup.tsx`)
-
-**Why:** real risk-reduction given compliance-grade logging isn't built (see NEXT).
+**Scope:** Set `OPENAI_COMPATIBLE_API_KEY`/`_BASE_URL`/`_MODEL` in `.env.local`, switch the
+`llmProvider` setting to `openaiCompatible` in `/settings`, send one chat message, confirm a
+log row appears with the right provider/model/usage.
 
 **Effort:** Trivial
-**Depends on:** None
+**Blocker:** Needs a real NVIDIA API key + your explicit go-ahead on the spend (standing rule 2)
+**Status:** Not started
+
+---
+
+### **Check: full test suite + `tsc` after Plan 11**
+
+**Current state:** The four test files Plan 11 touched directly (`gateway.test.ts`,
+`architecture.test.ts`, `openaiCompatibleProvider.test.ts`, `providerRegistry.test.ts`) all
+pass (53/53, verified 2026-08-15 — two bugs found and fixed were in the tests themselves, not
+the implementation). The full suite and a `tsc --noEmit` pass haven't been run since.
+
+**Scope:** `npm test` and `npx tsc --noEmit`, confirm nothing outside `lib/ai/` regressed.
+
+**Effort:** Trivial
+**Status:** Not started
+
+---
+
+### **Check: guided tour copy sign-off**
+
+**Current state:** All seven steps of the guided tour (`app/components/shell/GuidedTour.tsx`)
+have real drafted body text, shipped and working in the real app (ported from
+`Layout-Workbench.html`, verified in-browser). The user wants to do the tone/wording review
+directly rather than delegate it.
+
+**Scope:** Read through the seven steps, tighten wording if wanted. No code change unless the
+review finds something.
+
+**Effort:** Trivial
+**Status:** Not started — pending user review
+
+---
+
+### **Check: Workbench branding + disclaimer render correctly**
+
+**Current state:** The Workbench footer (ProcessMind Solutions mark) and the
+`ConsentPopup.tsx` sensitive-data disclaimer ("Content you enter here is sent to an external
+AI provider — do not paste passwords, API keys, or other sensitive or confidential data.")
+are both built and believed correct, but neither has been opened in a running app since
+shipping.
+
+**Scope:** Log in, trigger `ConsentPopup`, confirm the disclaimer line and the Workbench
+footer both render as expected, both themes.
+
+**Effort:** Trivial
 **Status:** Not started
 
 ---
@@ -267,11 +264,12 @@ this bucket is free to reorder.
 | **Log retention / pruning / pagination** | Not started |
 | **Cost estimation in currency on log rows** | Not started |
 | **Compliance-grade (non-droppable) logging** | Undecided if wanted |
-| **Pre-login landing page for prospective users** | Mockup done, Terms/Privacy pages + browser check left |
+| **Check: `/terms` jurisdiction placeholder** | Needs a real jurisdiction |
+| **Check: `/welcome`, `/terms`, `/privacy` render correctly in browser** | Visual QA, not run yet |
 | **Automated invite-code email delivery** | Not started — provider undecided |
 | **Improve the guided tour** | Not started — depends on the MVP tour shipping first |
 | **Optional call-log persistence toggle** | Undecided if wanted |
-| **MCP server exposing MyAgent's agents** | Undecided if wanted |
+| **MCP server exposing MyAgent's agents** | Planned and decided — `plans/13-mcp-server-exposing-agents.md`; Medium (rescoped down from Large) |
 | **Re-enable group behavior** | Ready — three flag flips |
 | **Surface `applied`/`skipped` from apply-proposal in the UI** | Not started |
 | **`AgentView.tsx` save-name bypasses `apiFetch`** | Ready — trivial fix |
@@ -434,27 +432,31 @@ deciding whether this is worth building at all.
 
 ---
 
-### **Pre-login landing page for prospective (non-signed-up) users**
+### **Check: `/terms` jurisdiction placeholder**
 
-**Current state:** A real public-facing explainer page shown before login, for visitors who
-don't have an account yet — a different audience than the first-login guided tour (TODO),
-which only signed-up users ever see.
+**Current state:** The pre-login landing page (`plans/archive/12-ui-batch-launch-polish.md`)
+shipped 2026-08-15 — live at `/welcome`, with `/terms` and `/privacy` built and linked.
+`app/terms/page.tsx`'s Governing Law section still has a literal `[jurisdiction]` placeholder
+(appears twice) — no real value supplied yet.
 
-**Scope:** Format/production undecided (video, screenshots, static copy) — the "we want
-this" part is settled; timing-wise wanted soon after launch, not before. The tour's welcome
-step covers the "why" well enough for this launch's small, invited audience.
+**Scope:** Fill in a real jurisdiction (state/country).
 
-**Mockup:** Done — `architecture/layout/Layout-Landing.html` (hero, walkthrough card, feats
-grid, wave roadmap timeline, footer).
+**Effort:** Trivial
+**Status:** Not started
 
-**Ported (2026-08-14):** Live at `/welcome` (`app/components/Welcome/WelcomePage.tsx`),
-including "Log in"/"Get started" as modals (reusing the real `LoginForm`/`SignupForm` via a
-new `embedded` prop) instead of navigating away. Still needed before it ships: Terms/Privacy
-pages (footer links to `#terms`/`#privacy` placeholders — pages don't exist yet).
+---
 
-**Effort:** Medium
-**Status:** Ported and verified in-browser; Terms/Privacy pages still open (see
-`plans/12-ui-batch-launch-polish.md`)
+### **Check: `/welcome`, `/terms`, `/privacy` render correctly in browser**
+
+**Current state:** All three pages are built, including the real author-identity and
+contact-email env values (set 2026-08-15), but none has been opened in a running app since.
+
+**Scope:** Load `/welcome`, `/terms`, `/privacy` in both themes; confirm the real
+name/LinkedIn/GitHub/email render and link correctly, the walkthrough/modals still work, and
+the footer Terms/Privacy links navigate correctly.
+
+**Effort:** Trivial
+**Status:** Not started
 
 ---
 
@@ -505,15 +507,36 @@ shown only transiently. Timing-wise: revisit soon after launch rather than let i
 
 ### **MCP server exposing MyAgent's agents**
 
-**Current state:** Not decided if wanted (see IDEA).
+**Current state:** **Wanted — confirmed 2026-08-15**, fully designed and scoped in
+`plans/13-mcp-server-exposing-agents.md` with all seven design decisions resolved. Nothing
+built yet.
 
-**Scope:** An MCP server so Claude (Claude Code, Claude Desktop, etc.) could access/update a
-user's agents outside the web UI. Needs its own auth story (an MCP client isn't a browser
-session) and raises the same guardrail questions the chat mediator already answers, for a
-client the platform doesn't control the prompt of.
+**Scope:** An MCP server so a **console MCP client** (Claude Code and equivalents) can
+read/import a user's agents outside the web UI. **Clients:** console/CLI only — Claude
+Desktop's GUI connector is explicitly not a target, which is what keeps an OAuth 2.1
+authorization server out of scope entirely. **Auth:** per-user Personal Access Tokens (opaque
+bearer, generated in Account, stored SHA-256-hashed, scoped read/write, revocable) — the
+session cookie genuinely does not extend to a non-browser client. **Surface:** four tools —
+`list_agents`, `get_agent`, `export_agent` (read) and `import_agent` (write) — plus agents as
+read-only resources. **Structured field-level editing is deliberately not exposed**: the only
+mutation is "import this markdown document," which reuses the existing import pipeline and
+inherits its whole safety story (owner-scoped name lookup that creates-or-updates,
+pre-import/post-import snapshots, `reimport`-tagged revisions, coverage warnings, truncation
+rejection, byte-identical short-circuit). **Guardrails:** no propose/review card — reproducing
+it would depend on a client the platform doesn't control cooperating; instead the consent gate
+is token-issue time, plus an admin `mcpWrites` kill switch defaulting to off, plus the existing
+per-user hourly LLM cap (shared, no MCP-specific limit). **Transport:** stateless Streamable
+HTTP at `/api/mcp` inside the existing Next.js app. Read-only ships first and is useful alone.
 
-**Effort:** Large, if built
-**Status:** Undecided if wanted
+**Effort:** **Medium** (revised down from Large on 2026-08-15). The original Large rating
+assumed a seven-tool surface including structured writes; trimming to four tools removed the
+shared write-contract extraction, any change to the apply-proposal route, the config-merge
+risk, and two schema enum additions, and resolving the client question removed OAuth. What
+remains: a token subsystem, a protocol endpoint, three thin repository reads, one tool wrapping
+the existing import pipeline, one nullable log column, one bool setting, tests and docs. The
+read-only slice alone is Small–Medium.
+**Status:** Planned and decided — `plans/13-mcp-server-exposing-agents.md`. Ready for `@dev`
+pending a final read-through
 
 ---
 
@@ -676,10 +699,12 @@ these are "yes, eventually" items with a revisit trigger, not actively scoped wo
 
 Needs a product/design debate before an item can move to FUTURE/NEXT with an understood
 scope, let alone TODO — a timing tier (like "NEXT") is not the same as a design decision.
-Two NEXT items (**Optional call-log persistence toggle**, **MCP server exposing MyAgent's
-agents**) are timed but still genuinely undecided-if — that's why they say "(see IDEA)": this
-paragraph is the note, not a separate per-item entry. This bucket is otherwise currently
-empty of *new*, untriaged ideas — log fresh ones here as they come up.
+One NEXT item (**Optional call-log persistence toggle**) is timed but still genuinely
+undecided-if — that's why it says "(see IDEA)": this paragraph is the note, not a separate
+per-item entry. **MCP server exposing MyAgent's agents** used to sit here too; it was decided
+**wanted** on 2026-08-15 and now has a full design in
+`plans/13-mcp-server-exposing-agents.md`, so it's an ordinary NEXT item. This bucket is
+otherwise currently empty of *new*, untriaged ideas — log fresh ones here as they come up.
 
 ---
 

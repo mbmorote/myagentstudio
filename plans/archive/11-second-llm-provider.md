@@ -23,8 +23,8 @@
 > **dev server off after any verification session**, and **ask before running any
 > test/build/tsc check** (`CLAUDE.md` standing rules 1, 2, 3, 5).
 >
-> Closes `plans/roadmap.md` TODO item **Second LLM provider**. `plans/12-ui-batch-launch-polish.md`
-> is deliberately independent of this file and can run in parallel.
+> Closes `plans/roadmap.md` TODO item **Second LLM provider**. `plans/archive/12-ui-batch-launch-polish.md`
+> was deliberately independent of this file and ran in parallel.
 
 ---
 

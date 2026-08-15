@@ -2328,7 +2328,7 @@ or any tool that modifies files — intentionally excluded.</pre>
   buildLibrary();
 
   // Auto-run once per browser, same "seen" flag the real app will persist to localStorage
-  // (plans/12-ui-batch-launch-polish.md). Two rAFs, not a timeout — waits for layout() and
+  // (plans/archive/12-ui-batch-launch-polish.md). Two rAFs, not a timeout — waits for layout() and
   // buildLibrary() above to actually paint before the first step measures anything.
   if(!localStorage.getItem(TOUR_SEEN_KEY)){
     requestAnimationFrame(()=>requestAnimationFrame(tourStart));
