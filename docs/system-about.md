@@ -392,30 +392,57 @@ no per-domain restriction or admin kill switch today.
 A login/signup rate limiter (in-process, per IP and route) and a per-user rolling-hourly
 LLM call cap round out the abuse controls — see §11.
 
-## 11. LLM gateway & cost controls
+## 11. LLM gateway, providers, and cost controls
 
 Every AI call in the app — import or chat, any provider — passes through one function,
-`lib/ai/gateway.ts`. This is enforced by a fitness-function test asserting
-`@anthropic-ai/sdk` is imported nowhere else. The gateway is where three cross-cutting
-concerns live, in a fixed order: dry-run check, then the per-user cap, then the actual
-provider call.
+`lib/ai/gateway.ts`. The gateway is where three cross-cutting concerns live, in a fixed
+order: dry-run check, then the per-user cap, then the actual provider call.
+
+**Provider architecture (Plan 11):** `lib/ai/gateway.ts` is the only file in the app
+permitted to import from `lib/db/`. It resolves which provider to use on each call by
+calling `resolveActiveProvider()` from `lib/ai/providerRegistry.ts`, which reads the
+`'llmProvider'` admin setting fresh on every invocation (same no-cache rule as
+`getLiveLlmCalls()` — a cached provider would appear not to change after a settings flip).
+`providerRegistry.ts` is the only file that knows both implementations exist; everything
+else in `lib/ai/` is provider-blind. Two implementations currently exist:
+
+- `lib/ai/anthropicProvider.ts` — the Anthropic SDK implementation. The sole importer of
+  `@anthropic-ai/sdk` in the entire codebase (enforced by a fitness-function test in
+  `lib/ai/__tests__/architecture.test.ts` that scans every source file and asserts the
+  import appears in exactly one place).
+- `lib/ai/openaiCompatibleProvider.ts` — a `fetch`-based implementation of the
+  `/v1/chat/completions` wire format, with no new npm dependency. Configured by three env
+  vars (`OPENAI_COMPATIBLE_API_KEY`, `OPENAI_COMPATIBLE_BASE_URL`,
+  `OPENAI_COMPATIBLE_MODEL`). Works with NVIDIA NIM, OpenAI, Groq, Together, Mistral,
+  vLLM, and any other OpenAI-compatible endpoint. The fitness function guards its endpoint
+  path literal (`/v1/chat/completions`) so this is also the sole file that constructs
+  those requests.
+
+**Provider selection:** the `'llmProvider'` setting is admin-only (like `'liveLlmCalls'`
+and `'chatMaxTokens'`). Default `'anthropic'`. Unknown or corrupt stored value → silent
+fall-back to `'anthropic'` with a `console.warn` (same asymmetric fail-safe used
+throughout — a money-spending default may only come from *absence* of configuration, never
+from configuration that failed to parse). A provider with no API key configured cannot be
+selected — `PATCH /api/settings` rejects it with `400 provider_not_configured`. Selecting
+a different provider takes effect on the very next AI call, no restart required.
 
 - **Dry-run mode** (the admin's "Live LLM calls" toggle) is a hard stop — when it's off,
   zero network bytes leave the process. The would-be request is still logged
-  (`dryRun: true`, full request payload, null response), so behavior stays inspectable
-  even though nothing was sent.
+  (`dryRun: true`, full request payload, null response, and the provider that *would*
+  have been used), so behavior stays inspectable even though nothing was sent.
 - **The per-user hourly cap** (default 15 calls/rolling-60-minutes, admin exempt) sits
   after the dry-run check and before the network call, so dry-run mode stays usable even
   once capped, and a capped call never spends money or writes a log row (the log table
   itself is the counter).
 - **The gateway writes every log row**, not the callers — it's the only place that sees
-  the dry-run branch, the real duration, and every failure mode. A log-write failure on a
-  live call is swallowed (the money was already spent; discarding the response would be
-  worse); on a dry-run call it still blocks the call outright.
-- Settings default open, fail closed on garbage: a missing "Live LLM calls" row means
-  "never configured," which defaults to on; an unparseable stored value defaults to off
-  with a warning — a money-spending default may only come from *absence* of
-  configuration, never from configuration that failed to parse.
+  the dry-run branch, the real duration, and every failure mode. Every row now records
+  `provider` explicitly (the column existed before Plan 11 but was never written — the fix
+  ships alongside the second provider so the audit log is accurate from the moment two
+  providers coexist). A log-write failure on a live call is swallowed (the money was
+  already spent; discarding the response would be worse); on a dry-run call it still
+  blocks the call outright.
+- **No automatic failover.** One provider is live at a time. A retry on another vendor
+  would double-spend and make the audit log unreliable — explicitly not in scope.
 
 ## 12. Known gaps
 

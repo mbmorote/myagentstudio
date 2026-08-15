@@ -1,17 +1,34 @@
 /**
  * lib/ai/provider.ts
  *
- * Provider-agnostic contract for LLM transport (§3.1).
+ * Provider-agnostic contract for LLM transport.
  *
  * Rules:
- *   - No implementation here — types and interface only.
- *   - No imports beyond types from this file.
+ *   - Types, interface, and the one shared error class only. No provider-specific
+ *     imports, no lib/db imports.
  *   - LlmRequest is the ONLY thing a provider ever receives — no domain metadata
- *     (kind, agentId) crosses into the provider (§2.1).
+ *     (kind, agentId) crosses into the provider.
  *   - `system` is a separate field (not messages[0]) so each provider can map it
  *     natively: Anthropic takes it as a top-level param; OpenAI-compatible APIs
  *     take it as role:'system'. Call sites are free of both shapes.
  */
+
+// ─────────────────────────────  Shared error  ────────────────────────────────
+
+/**
+ * Thrown by any provider when the upstream response is structurally unexpected
+ * (e.g. empty content, missing text block). Lives here rather than in an
+ * individual provider file so both providers share one type and callers that
+ * import from provider.ts never have to touch a vendor-specific module.
+ */
+export class LlmProviderResponseError extends Error {
+  constructor(reason: string) {
+    super(`LLM provider response error: ${reason}`);
+    this.name = 'LlmProviderResponseError';
+  }
+}
+
+// ─────────────────────────────  Core types  ──────────────────────────────────
 
 export type LlmRole = 'user' | 'assistant';
 export type LlmMessage = { role: LlmRole; content: string };

@@ -8,6 +8,28 @@ version of this file, kept locally as historical record — not tracked in git).
 
 ---
 
+## 2026-08-15 — Second LLM provider (Plan 11)
+
+Added an OpenAI-compatible provider (`lib/ai/openaiCompatibleProvider.ts`) behind the
+existing `LLMProvider` interface, with no new npm dependency. The implementation uses plain
+`fetch` against any `/v1/chat/completions` endpoint — NVIDIA NIM, OpenAI, Groq, Together,
+Mistral, vLLM, Ollama, and others all speak the same wire format. A new admin-only `'llmProvider'`
+setting (default `'anthropic'`) selects which vendor answers every AI call; switching takes
+effect on the next call with no restart. A provider with no key configured cannot be
+selected (`400 provider_not_configured`).
+
+Two latent bugs fixed in the same pass: the `llm_call_log.provider` column existed since
+Plan 04 but was never written (every row silently claimed `'anthropic'` regardless) — now
+written explicitly on every path including dry-run. The Settings UI's branch on
+`datatype === 'bool'` or `'int'` left a `'string'` setting with no control at all — a new
+`'enum'` datatype and `<select>` renderer complete the pattern for the provider selector.
+
+A new `providerRegistry.ts` is the only file that knows both providers exist; a table-driven
+architecture fitness function (`lib/ai/__tests__/architecture.test.ts`) now enforces the
+transport isolation rule for both providers (not just a hardcoded single-SDK check) and
+additionally test-enforces the rule that no `lib/ai/` file except `gateway.ts` may import
+from `lib/db/`. See `plans/11-second-llm-provider.md` for the full design.
+
 ## 2026-08-12 — Pre-launch review & docs restructure (Plan 10)
 
 Reviewed docs/code/test organization project-wide and fixed what it found: dead code

@@ -24,17 +24,12 @@ import 'server-only';
 
 import Anthropic from '@anthropic-ai/sdk';
 import { getAnthropicApiKey, getAnthropicModel } from '../env.js';
+import { LlmProviderResponseError } from './provider.js';
 import type { LLMProvider, LlmResponse, LlmStopReason, ResolvedLlmRequest } from './provider.js';
 
-// ─────────────────────────────  Error  ────────────────────────────────────────
-
-/** Thrown when the provider receives a structurally unexpected response. */
-export class LlmProviderResponseError extends Error {
-  constructor(reason: string) {
-    super(`LLM provider response error: ${reason}`);
-    this.name = 'LlmProviderResponseError';
-  }
-}
+// LlmProviderResponseError is defined in provider.ts (shared across all providers)
+// and re-exported here for any test mock factories that expect to find it on this module.
+export { LlmProviderResponseError };
 
 // ─────────────────────────────  Factory  ──────────────────────────────────────
 

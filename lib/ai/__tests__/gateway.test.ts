@@ -109,6 +109,8 @@ describe('LlmGateway', () => {
     expect(row?.responsePayload).not.toBeNull();
     expect(row?.durationMs).toBeGreaterThanOrEqual(0);
     expect(row?.usage).toBeTruthy();
+    // Provider column must reflect the active provider — new regression coverage
+    expect(row?.provider).toBe('fake');
   });
 
   // Case 2: liveLlmCalls = 'false' → dry-run blocked (THE assertion that matters)
@@ -133,6 +135,9 @@ describe('LlmGateway', () => {
     expect(row?.responsePayload).toBeNull();
     expect(row?.error).toBeNull();
     expect(row?.model).toBe(DEFAULT_MODEL);
+    // Provider column must be written on the dry-run path too (the column existed
+    // before Plan 11 but was never populated — this is the regression coverage)
+    expect(row?.provider).toBe('fake');
   });
 
   // Case 3: liveLlmCalls = 'true' → live path
@@ -286,6 +291,28 @@ describe('LlmGateway', () => {
     }
     const row = latestLogRow();
     expect(row?.model).toBe(DEFAULT_MODEL);
+  });
+
+  // Case 13: createGateway accepts a resolver function (Plan 11 signature extension)
+  it('13 — createGateway accepts a resolver () => LLMProvider; resolves per call', async () => {
+    setLiveLlmCalls('true');
+    const fakeA = makeFakeProvider({ id: 'providerA' } as Partial<LLMProvider>);
+    const fakeB = makeFakeProvider({ id: 'providerB' } as Partial<LLMProvider>);
+    let callCount = 0;
+
+    // Resolver alternates between two providers — proves resolution is per-call
+    const resolver = () => (callCount++ % 2 === 0 ? fakeA : fakeB);
+    const gw = createGateway(resolver);
+
+    const r1 = await gw.complete(REQ, CTX);
+    expect(r1.ok).toBe(true);
+    const row1 = latestLogRow();
+    expect(row1?.provider).toBe('providerA');
+
+    const r2 = await gw.complete(REQ, CTX);
+    expect(r2.ok).toBe(true);
+    const row2 = latestLogRow();
+    expect(row2?.provider).toBe('providerB');
   });
 
   // Case 12: signal passthrough → the exact AbortSignal reaches fake.complete

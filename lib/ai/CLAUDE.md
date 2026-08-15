@@ -2,7 +2,7 @@
 
 This folder contains the single gateway through which every AI call in the app passes, the three AI callers, the Anthropic provider implementation, and the build-time prompt compilation output.
 
-## Architecture (Plan 04)
+## Architecture (Plan 04, extended Plan 11)
 
 ```
 route (app/api/…)
@@ -10,23 +10,42 @@ route (app/api/…)
         ← knows the domain (prompts, JSON parsing, stop_reason rules, demotion)
         └─ gateway (gateway.ts)
               ← the single choke point. Gate check + audit log. The ONLY lib/ai file
-                 allowed to import from lib/db.
-              └─ provider (anthropicProvider.ts)
-                    ← transport only. Never sees `kind`, agentId, or lib/db.
-                    └─ @anthropic-ai/sdk
+                 allowed to import from lib/db. Resolves the active provider fresh on
+                 every call via resolveActiveProvider() from providerRegistry.ts.
+              └─ providerRegistry.ts
+                    ← the ONLY file that knows both providers exist. Lazy per-id
+                       instance cache. resolveActiveProvider() reads the 'llmProvider'
+                       setting fresh per call so a setting flip takes effect immediately
+                       without a restart (Plan 11 constraint 4).
+                    ├─ anthropicProvider.ts  ← @anthropic-ai/sdk (sole SDK importer)
+                    └─ openaiCompatibleProvider.ts  ← fetch + /v1/chat/completions
 ```
 
-**One-SDK-importer rule:** exactly one file in the entire codebase may import `@anthropic-ai/sdk` — `lib/ai/anthropicProvider.ts`. This is enforced by a fitness-function test (`lib/ai/__tests__/architecture.test.ts`) that scans every `.ts`/`.tsx` source file and asserts the import appears in exactly that one file. `client.ts` was deleted when Plan 04 landed.
+**Per-provider transport isolation:** each provider file is the only file permitted
+to import its own transport dependency. `@anthropic-ai/sdk` may only be imported by
+`lib/ai/anthropicProvider.ts`. The OpenAI-compatible endpoint path (`/v1/chat/completions`)
+may only appear in `lib/ai/openaiCompatibleProvider.ts`. Both rules are enforced by a
+table-driven fitness function (`lib/ai/__tests__/architecture.test.ts`) that fails if
+any other file contains the guarded string. Adding a third provider means adding one
+row to each applicable table, not special-casing any assertion.
+
+**DB-import boundary (test-enforced, Plan 11):** no file under `lib/ai/` except
+`gateway.ts` may import from `lib/db/`. Providers and callers are pure transport or
+domain logic — they must never reach the database directly. Enforced by the same
+architecture test.
+
+`client.ts` was deleted when Plan 04 landed.
 
 ## The gateway (`gateway.ts`)
 
 The gateway is the single point through which every AI call attempt flows, live or dry-run. It:
 
-1. Resolves the model (`req.model ?? provider.defaultModel()`).
-2. Reads `liveLlmCalls` from the DB **fresh on every call** (no cache — §6).
-3. **Dry-run path** (setting is off **or** `ctx.forceDryRun` is true): writes a log row (`dryRun: true`, `responsePayload: null`), returns `{ ok: false, reason: 'dry_run_blocked', model, logId }`. The provider is never touched.
-4. **Cap gate** (Plan 05 §3.9 — runs only on the live path, after step 3): if `ctx.userId` is non-null and that user is not an admin, counts their non-dry-run `llm_call_log` rows in the trailing 60 minutes. At or over `maxLlmCallsPerUserPerHour` → returns `{ ok: false, reason: 'llm_cap_reached', limit, windowSeconds, retryAfterSeconds }` **with no log row written**. Admin users and `ctx.userId: null` (scripts/tests) skip this gate entirely.
-5. **Live path**: calls the provider, writes a log row (including `userId` from ctx and `sharedWithAdmin` from `getUserPolicy(userId).shareLogsWithAdmin` — snapshotted at write time, never updated), returns `{ ok: true, response, logId }` on success or re-throws the original error unchanged on failure.
+0. **Resolves the active provider** by calling `resolve()` — a zero-argument function injected at construction time. In production `getGateway()` passes `resolveActiveProvider` (from `providerRegistry.ts`) so the provider is resolved fresh on every call from the current 'llmProvider' DB setting. In tests `createGateway(fakeProvider)` normalizes the plain object to `() => fakeProvider` internally — all existing test call sites keep compiling and working unchanged.
+1. Resolves the model (`req.model ?? provider.defaultModel()`) using the just-resolved provider (after step 0, not before, since `defaultModel()` is provider-specific).
+2. Reads `liveLlmCalls` from the DB **fresh on every call** (no cache). A cached toggle would appear unreliable — the same principle applies to provider selection.
+3. **Dry-run path** (setting is off **or** `ctx.forceDryRun` is true): writes a log row (`dryRun: true`, `responsePayload: null`, `provider: provider.id`), returns `{ ok: false, reason: 'dry_run_blocked', model, logId }`. The provider is never touched beyond step 0's resolution.
+4. **Cap gate** (runs only on the live path, after step 3): if `ctx.userId` is non-null and that user is not an admin, counts their non-dry-run `llm_call_log` rows in the trailing 60 minutes. At or over `maxLlmCallsPerUserPerHour` → returns `{ ok: false, reason: 'llm_cap_reached', limit, windowSeconds, retryAfterSeconds }` **with no log row written**. Admin users and `ctx.userId: null` (scripts/tests) skip this gate entirely.
+5. **Live path**: calls the provider, writes a log row (including `provider: provider.id`, `userId` from ctx, and `sharedWithAdmin` from `getUserPolicy(userId).shareLogsWithAdmin` — snapshotted at write time, never updated), returns `{ ok: true, response, logId }` on success or re-throws the original error unchanged on failure.
 
 **`LlmCallContext`** (Plan 05 additions, exact shape in `gateway.ts`) carries `kind`, `agentId`/`agentLabel`, `userId` (from the session — never the request body), and `forceDryRun`.
 
@@ -48,17 +67,41 @@ Key exports:
 
 **Consent snapshot** — the gateway reads `getUserPolicy(userId)` (a narrow `{ role, shareLogsWithAdmin }` read from `users.ts`) and writes `sharedWithAdmin` onto the log row at call time. This is the only moment the value is ever written. Pre-auth rows (`userId: null`) and cap-blocked calls both skip this; the column defaults to `false`, and the redaction rule keys off `userId IS NULL` specifically to avoid hiding the admin's own pre-auth history.
 
-## The provider (`provider.ts`, `anthropicProvider.ts`)
+## The providers (`provider.ts`, `anthropicProvider.ts`, `openaiCompatibleProvider.ts`)
 
-`provider.ts` defines the `LLMProvider` interface and provider-agnostic types (`LlmRequest`, `LlmResponse`, `LlmMessage`, etc.). No implementation, no imports beyond types.
+`provider.ts` defines the `LLMProvider` interface, provider-agnostic types (`LlmRequest`, `LlmResponse`, `LlmMessage`, etc.), and the shared `LlmProviderResponseError` class. The error class lives here (not in a specific provider file) so both implementations can import it without either one importing the other.
 
-`anthropicProvider.ts` is the only implementation. It:
+`anthropicProvider.ts` is the Anthropic implementation. It:
+- Is the **sole** `@anthropic-ai/sdk` importer in the entire codebase (enforced by the architecture fitness function — see "Per-provider transport isolation" above).
 - Holds a module-private lazy `Anthropic` singleton (moved verbatim from the deleted `client.ts`).
-- Reads `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` from `lib/env.ts` (unchanged).
+- Reads `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` from `lib/env.ts`.
 - Maps `stop_reason` → `LlmStopReason`; maps usage fields.
 - Exposes `complete()` (non-streaming) and `stream()` (awaits `finalMessage()`).
 
-`stream()` returns a fully-accumulated `LlmResponse` — the same shape as `complete()`. The streaming *transport* is preserved (the SDK still uses its streaming path for large responses), but no delta-by-delta consumer is exposed here yet (deferred — see `plans/roadmap.md` FUTURE, "Incremental streaming").
+`openaiCompatibleProvider.ts` is the second implementation (Plan 11). It:
+- Uses plain `fetch` with no new npm dependency — a vendor swap is three env vars, not a code change.
+- Is the **sole** file permitted to construct requests against `/v1/chat/completions` (enforced by the architecture fitness function).
+- Places `system` as `messages[0]` with `role:'system'` (the OpenAI wire format, as opposed to Anthropic's top-level param).
+- Maps stop reasons: `stop`→`end_turn`, `length`→`max_tokens` (the critical mapping — without it Daedalus's truncation guard stops firing), `tool_calls`→`tool_use`, anything else→`other`.
+- Clamps `maxTokens` to `MAX_OUTPUT_TOKENS` (4096) to avoid hard 400s when Daedalus requests 32k from a model with a lower ceiling. Truncation surfaces through the existing `stopReason:'max_tokens'` path rather than as an opaque HTTP error.
+- Implements `stream()` with real SSE accumulation (the streaming transport avoids proxy/idle timeouts on large responses).
+- Forwards the request's `signal` so a cancelled chat still cancels the upstream call.
+- Reads `OPENAI_COMPATIBLE_API_KEY` / `OPENAI_COMPATIBLE_BASE_URL` / `OPENAI_COMPATIBLE_MODEL` from `lib/env.ts`. Default model: `nvidia/llama-3.1-nemotron-70b-instruct`.
+- Never includes request headers in error messages (constraint 7 — credentials must never reach any log line).
+
+`stream()` on both providers returns a fully-accumulated `LlmResponse` — the same shape as `complete()`. The streaming *transport* is preserved, but no delta-by-delta consumer is exposed here yet (deferred — FUTURE, "Incremental streaming").
+
+## Provider selection (`providerRegistry.ts`)
+
+`providerRegistry.ts` is the only file that knows both providers exist. It exposes:
+- `isProviderConfigured(id)` — checks the required env vars without instantiating anything. Used by the PATCH `/api/settings` route to reject selecting an unconfigured provider (Plan 11 D3: an unconfigured provider must fail loudly, not silently auto-select a different vendor based on which env var happens to be set).
+- `getProviderById(id)` — lazy per-id instance cache. Two calls with the same id return the same object (connection pooling preserved).
+- `resolveActiveProvider()` — reads the `'llmProvider'` setting from the DB fresh on every call via `getActiveProviderId()` (from `lib/settings.ts`), then delegates to `getProviderById`. This is the resolver passed to `createGateway()` in `getGateway()`. Because `getGateway()` passes the function reference (not a call result), the gateway calls `resolveActiveProvider()` on every AI invocation — a setting change takes effect on the very next call with no restart.
+
+**Fail-safe chain (Plan 11 D3):**
+- An absent `llmProvider` DB row → `getActiveProviderId()` returns `'anthropic'` (fail-safe default).
+- An unknown/corrupt stored value → `getActiveProviderId()` returns `'anthropic'` + `console.warn`.
+- A configured but env-var-less provider cannot be stored in the first place — the PATCH route rejects it with `400 provider_not_configured`. If env vars are removed after the setting was stored, `getProviderById` throws at the next AI call with a clear error message.
 
 ## Callers — shape (§3.6, normative; updated Plan 05 §3.9)
 
@@ -143,14 +186,18 @@ Key behaviors: agent-wide or cited scope, no tools, split-level heading demotion
 
 | File | Role |
 |---|---|
-| `provider.ts` | `LLMProvider` interface + provider-agnostic types (`LlmRequest`, `LlmResponse`, etc.) |
+| `provider.ts` | `LLMProvider` interface + provider-agnostic types + shared `LlmProviderResponseError` |
 | `anthropicProvider.ts` | The ONLY `@anthropic-ai/sdk` importer. Lazy singleton, `complete()`, `stream()`. |
+| `openaiCompatibleProvider.ts` | OpenAI-compatible `fetch`-based provider (`/v1/chat/completions`). Zero new deps. |
+| `providerRegistry.ts` | The ONLY file that knows both providers. Lazy per-id cache, `resolveActiveProvider()`. |
 | `gateway.ts` | Gate check, audit log, `LlmDryRunBlockedError`. The choke point. |
 | `hermes.ts` | Strict Import Stage-2 caller (labels-only) |
 | `daedalus.ts` | Structural Import Stage-2b caller (full content, streaming transport) |
 | `prometheus.ts` | Chat caller (agent-wide or cited scope, proposes — never writes, signal forwarded) |
 | `prompts/generated/` | Auto-generated by `scripts/build-prompts.ts` — do not edit |
-| `__tests__/gateway.test.ts` | Existing gateway behaviour cases via fake provider (no SDK) |
+| `__tests__/gateway.test.ts` | Gateway behaviour cases via fake provider (no SDK); includes provider-column regression coverage |
 | `__tests__/gateway-cap.test.ts` | Per-user LLM cap cases: under/at cap, admin exempt, `userId: null` skips, dry-run rows don't count, rolling-window boundary cases, `retryAfterSeconds` derivation, `forceDryRun` with live calls on |
-| `__tests__/architecture.test.ts` | Fitness function: one SDK importer only |
+| `__tests__/architecture.test.ts` | Fitness function: per-provider transport isolation (table-driven); DB-import boundary |
+| `__tests__/openaiCompatibleProvider.test.ts` | OpenAI-compatible provider unit tests against mocked `fetch` |
+| `__tests__/providerRegistry.test.ts` | Registry: selection, fail-safe, instance caching, live setting change |
 | `__tests__/prometheus.test.ts` | Chat caller: proposal parsing (incl. non-JSON fallback, truncation), scope, null-to-delete for sections/config |

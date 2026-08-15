@@ -32,6 +32,9 @@ export type LlmCallKind = 'import-strict' | 'import-structural' | 'chat';
 
 export type WriteCallLogInput = {
   kind: LlmCallKind;
+  /** The LLMProvider.id that answered (or would have answered) this call. Written
+   *  explicitly so the audit log stays accurate when multiple providers exist. */
+  provider: string;
   agentId?: string | null;
   agentLabel?: string | null;
   dryRun: boolean;
@@ -100,6 +103,7 @@ export function writeCallLog(input: WriteCallLogInput): string {
   db.insert(schema.llmCallLog).values({
     id,
     kind: input.kind,
+    provider: input.provider,
     agentId: input.agentId ?? null,
     agentLabel: input.agentLabel ?? null,
     dryRun: input.dryRun,
@@ -119,6 +123,9 @@ export function writeCallLog(input: WriteCallLogInput): string {
 
 export type ReserveCallSlotInput = {
   kind: LlmCallKind;
+  /** The LLMProvider.id that will answer this call. Written at reservation time
+   *  so the row is accurate even before finalization. */
+  provider: string;
   agentId?: string | null;
   agentLabel?: string | null;
   model: string;
@@ -146,6 +153,7 @@ export function reserveCallSlot(input: ReserveCallSlotInput): string {
   db.insert(schema.llmCallLog).values({
     id,
     kind: input.kind,
+    provider: input.provider,
     agentId: input.agentId ?? null,
     agentLabel: input.agentLabel ?? null,
     dryRun: false,

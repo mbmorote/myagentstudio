@@ -25,7 +25,7 @@ import { getLiveLlmCalls, parseSettingValue } from '../settings.js';
 import { writeCallLog, countLlmCallsInWindow, reserveCallSlot, finalizeCallLog } from '../db/repository/llmCallLog.js';
 import { getUserPolicy } from '../db/repository/users.js';
 import { getSetting } from '../db/repository/settings.js';
-import { createAnthropicProvider } from './anthropicProvider.js';
+import { resolveActiveProvider } from './providerRegistry.js';
 import type { LLMProvider, LlmRequest, LlmResponse } from './provider.js';
 import type { LlmCallKind, WriteCallLogInput } from '../db/repository/llmCallLog.js';
 
@@ -136,25 +136,44 @@ function getMaxLlmCallsPerUserPerHour(): number {
 // ─────────────────────────────  Implementation  ───────────────────────────────
 
 /**
- * Execution order inside complete() / stream() — normative (§3.3, extended at §3.9):
- * 1. Resolve model (before the gate, so dry-run rows record the model that WOULD have been used)
- * 2. Read liveLlmCalls (fresh, no cache)
+ * Execution order inside complete() / stream() — normative:
+ * 0. Resolve provider (fresh per call via the resolver — enables per-call provider
+ *    selection from the 'llmProvider' setting without a restart, Plan 11 constraint 4).
+ * 1. Resolve model (after provider, because defaultModel() is provider-specific; before
+ *    the gate, so dry-run rows record the model that WOULD have been used).
+ * 2. Read liveLlmCalls (fresh, no cache).
  * 3. If !live OR ctx.forceDryRun → write dry-run log row → return { ok:false, 'dry_run_blocked' }.
  *    Provider never invoked.
- * 4. NEW — cap gate, only on the path that would spend money:
+ * 4. Cap gate, only on the live path:
  *      ctx.userId == null                      → skip (pre-auth rows, scripts, tests)
- *      getUserPolicy(userId)?.role === 'admin'  → skip (admin exempt, §3.9)
+ *      getUserPolicy(userId)?.role === 'admin'  → skip (admin exempt)
  *      countLlmCallsInWindow(...) >= limit      → { ok:false, 'llm_cap_reached', … } (NO log row)
  * 5. Live path → call provider → write log row (with userId + sharedWithAdmin snapshot) →
  *    return { ok:true } or re-throw on error.
+ *
+ * @param providerOrResolver - A fixed LLMProvider object OR a zero-argument function that
+ *   returns one. Passing a function (e.g. resolveActiveProvider) is the production path —
+ *   the gateway calls it on every run() invocation so the active provider can change between
+ *   calls (setting flip) without any restart. Passing a plain object is the test path;
+ *   every createGateway(fakeProvider) call site in the test suites keeps compiling and
+ *   passing untouched because a plain object is normalized to () => object internally.
  */
-export function createGateway(provider: LLMProvider): LlmGateway {
+export function createGateway(providerOrResolver: LLMProvider | (() => LLMProvider)): LlmGateway {
+  // Normalize: a plain provider object becomes a resolver that always returns it.
+  // A function is used as-is so getGateway() can pass resolveActiveProvider directly.
+  const resolve: () => LLMProvider = typeof providerOrResolver === 'function'
+    ? providerOrResolver
+    : () => providerOrResolver;
+
   async function run(
     req: LlmRequest,
     ctx: LlmCallContext,
     method: 'complete' | 'stream',
   ): Promise<LlmGatewayResult> {
-    // Step 1: Resolve model before the gate (§3.3 step 1)
+    // Step 0: Resolve provider fresh on each call (constraint 4 — no stale singleton)
+    const provider = resolve();
+
+    // Step 1: Resolve model after resolving the provider (provider-specific defaultModel)
     const model = req.model ?? provider.defaultModel();
     const resolvedReq = { ...req, model };
 
@@ -182,6 +201,7 @@ export function createGateway(provider: LLMProvider): LlmGateway {
       try {
         logId = writeCallLog({
           kind: ctx.kind,
+          provider: provider.id,
           agentId: ctx.agentId ?? null,
           agentLabel: ctx.agentLabel ?? null,
           dryRun: true,
@@ -254,6 +274,7 @@ export function createGateway(provider: LLMProvider): LlmGateway {
     try {
       logId = reserveCallSlot({
         kind: ctx.kind,
+        provider: provider.id,
         agentId: ctx.agentId ?? null,
         agentLabel: ctx.agentLabel ?? null,
         model,
@@ -322,12 +343,17 @@ let _gateway: LlmGateway | null = null;
 
 /**
  * Returns the process-wide gateway singleton.
- * Constructed lazily — the provider (and therefore the SDK singleton) is only
- * instantiated on the first AI call, not at module load time.
+ * Constructed lazily — the gateway object itself is created once, but its internal
+ * resolver (resolveActiveProvider) is called fresh on every AI call so the active
+ * provider reflects the current 'llmProvider' setting without any restart.
+ * Provider instances are cached per-id in providerRegistry.ts.
  */
 export function getGateway(): LlmGateway {
   if (!_gateway) {
-    _gateway = createGateway(createAnthropicProvider());
+    // Pass resolveActiveProvider as a function reference — the gateway calls it
+    // on every run() invocation, not at construction time. This is the seam that
+    // makes provider selection a live setting rather than a boot-time decision.
+    _gateway = createGateway(resolveActiveProvider);
   }
   return _gateway;
 }

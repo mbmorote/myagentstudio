@@ -46,6 +46,14 @@ export type SettingEntry = {
   min?: number;
   /** Maximum value — only applicable to int settings. */
   max?: number;
+  /** Allowed values — only applicable to enum settings (Plan 11). */
+  options?: readonly string[];
+  /**
+   * Subset of options that are currently configured (env vars present on the server).
+   * Unconfigured options are rendered disabled/annotated in the <select> so the
+   * admin can see which providers are available without having to try selecting them.
+   */
+  configuredOptions?: readonly string[];
 };
 
 // createdAt is serialized to ISO string for JSON transport; use Omit to replace the Date type.
@@ -312,6 +320,43 @@ export function SettingsView({
     }
   }
 
+  // ── Enum setting save (Plan 11) ──────────────────────────────────────────────
+
+  async function handleEnumSave(key: string, newValue: string) {
+    const current = localSettings.find((s) => s.key === key)?.value;
+    if (newValue === current) return; // no change
+
+    // Optimistic update
+    setLocalSettings((prev) =>
+      prev.map((s) => (s.key === key ? { ...s, value: newValue, isDefault: false } : s)),
+    );
+
+    try {
+      const res = await apiFetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value: newValue }),
+      });
+      if (!res.ok) {
+        // Revert on failure (e.g. provider_not_configured 400)
+        setLocalSettings((prev) =>
+          prev.map((s) => (s.key === key ? { ...s, value: current ?? '' } : s)),
+        );
+        console.error('[settings] enum PATCH failed:', await res.text());
+      } else {
+        const body = (await res.json()) as { updatedAt: string };
+        setLocalSettings((prev) =>
+          prev.map((s) => (s.key === key ? { ...s, updatedAt: body.updatedAt } : s)),
+        );
+      }
+    } catch (err) {
+      setLocalSettings((prev) =>
+        prev.map((s) => (s.key === key ? { ...s, value: current ?? '' } : s)),
+      );
+      console.error('[settings] enum PATCH error:', err);
+    }
+  }
+
   // ── Row expand ───────────────────────────────────────────────────────────────
 
   async function handleRowExpand(id: string) {
@@ -508,6 +553,10 @@ export function SettingsView({
               {/* Int input */}
               {s.datatype === 'int' && (
                 <IntSettingInput setting={s} onSave={handleIntSave} />
+              )}
+              {/* Enum select (Plan 11) */}
+              {s.datatype === 'enum' && s.options && (
+                <EnumSettingSelect setting={s} onSave={handleEnumSave} />
               )}
             </div>
           ))}
@@ -893,6 +942,40 @@ export function SettingsView({
         </p>
       </section>
     </div>
+  );
+}
+
+// ── Enum setting sub-component (Plan 11) ─────────────────────────────────────
+
+/**
+ * Renders a <select> for enum settings. Options that are not in configuredOptions
+ * (server-side env vars absent) are disabled and annotated "(not configured)" so
+ * the admin sees what's available without being able to accidentally select an
+ * unconfigured provider. The PATCH route also rejects unconfigured selections as
+ * a belt-and-braces guard — disabling here is UX, the route rejection is the gate.
+ */
+function EnumSettingSelect({
+  setting,
+  onSave,
+}: {
+  setting: SettingEntry;
+  onSave: (key: string, value: string) => Promise<void>;
+}) {
+  return (
+    <select
+      value={setting.value as string}
+      onChange={(e) => void onSave(setting.key, e.target.value)}
+      className="flex-none border border-[var(--border)] rounded-[6px] px-2 py-1 text-[12px] bg-[var(--bg)] text-[var(--text)] outline-none focus:border-[var(--accent)] cursor-pointer"
+    >
+      {setting.options?.map((opt) => {
+        const configured = setting.configuredOptions?.includes(opt) ?? true;
+        return (
+          <option key={opt} value={opt} disabled={!configured}>
+            {opt}{!configured ? ' (not configured)' : ''}
+          </option>
+        );
+      })}
+    </select>
   );
 }
 

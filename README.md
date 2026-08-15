@@ -38,6 +38,16 @@ Optionally override the default model (defaults to `claude-opus-4-8`):
 ANTHROPIC_MODEL=claude-sonnet-4-6
 ```
 
+To enable a second LLM provider (OpenAI-compatible, e.g. NVIDIA NIM, OpenAI, Groq):
+
+```
+OPENAI_COMPATIBLE_API_KEY=<your-key>
+OPENAI_COMPATIBLE_BASE_URL=https://integrate.api.nvidia.com/v1
+OPENAI_COMPATIBLE_MODEL=nvidia/llama-3.1-nemotron-70b-instruct
+```
+
+All three vars must be set together to enable the provider. Switch between providers from **System Settings** (admin only) — no restart needed. See `.env.example` for more vendor examples.
+
 Start the dev server:
 
 ```bash
@@ -85,12 +95,16 @@ Google is told nothing beyond the standard OpenID Connect `openid email profile`
 
 ## Settings
 
-Two settings are configurable from **System Settings** (`/settings`, admin only):
+Configurable from **System Settings** (`/settings`, admin only):
 
 | Setting | Default | Notes |
 |---|---|---|
+| `liveLlmCalls` | `true` | When off, every AI call is blocked and logged with no network traffic. |
+| `llmProvider` | `anthropic` | Which vendor answers every AI call. `anthropic` uses `ANTHROPIC_API_KEY`; `openaiCompatible` uses `OPENAI_COMPATIBLE_API_KEY` + `OPENAI_COMPATIBLE_BASE_URL`. A provider with no key configured cannot be selected. Switching takes effect on the next call — no restart. |
 | `maxUsers` | `5` | Maximum number of accounts (including the admin). Lowering it below the current count blocks new signups but does not remove anyone. |
-| `maxLlmCallsPerUserPerHour` | `15` | Per-user hourly LLM call cap (rolling 60-minute window). The admin is always exempt. When a user hits the cap they are offered a dry-run preview instead of a hard block. |
+| `maxLlmCallsPerUserPerHour` | `15` | Per-user hourly LLM call cap (rolling 60-minute window). The admin is always exempt. |
+| `chatMaxTokens` | `8192` | Max tokens Prometheus may generate per chat reply. |
+| `chatHistoryTurns` | `10` | How many prior chat messages Prometheus sees for context. |
 
 ## The workbench layout
 

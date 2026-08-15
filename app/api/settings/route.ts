@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SETTING_DEFS, parseSettingValue } from '@/lib/settings';
 import { getAllSettings, setSetting } from '@/lib/db/repository';
 import { authenticateAdmin } from '@/lib/auth/guard';
+import { isProviderConfigured } from '@/lib/ai/providerRegistry';
 
 // ── GET /api/settings ──────────────────────────────────────────────────────────
 
@@ -28,6 +29,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const rowMap = new Map(rows.map((r) => [r.key, r]));
 
     const settings = SETTING_DEFS.map((def) => {
+      // For enum settings, include the allowed options and which are currently
+      // configured (env vars present). The UI uses configuredOptions to show
+      // disabled/annotated items in the <select>.
+      const enumMeta = def.options
+        ? {
+            options: def.options,
+            configuredOptions: def.options.filter((o) => isProviderConfigured(o)),
+          }
+        : {};
+
       const row = rowMap.get(def.key);
       if (row) {
         const parsed = parseSettingValue(row.value, def.datatype);
@@ -36,6 +47,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           label: def.label,
           hint: def.hint,
           datatype: def.datatype,
+          ...enumMeta,
+          ...(def.min !== undefined ? { min: def.min } : {}),
+          ...(def.max !== undefined ? { max: def.max } : {}),
           value: parsed ?? def.default,
           isDefault: false,
           updatedAt: row.updatedAt.toISOString(),
@@ -46,6 +60,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         label: def.label,
         hint: def.hint,
         datatype: def.datatype,
+        ...enumMeta,
+        ...(def.min !== undefined ? { min: def.min } : {}),
+        ...(def.max !== undefined ? { max: def.max } : {}),
         value: def.default,
         isDefault: true,
         updatedAt: null,
@@ -118,6 +135,30 @@ export async function PATCH(request: NextRequest): Promise<NextResponse> {
       );
     }
     rawValue = String(value);
+  } else if (def.datatype === 'enum') {
+    if (typeof value !== 'string') {
+      return NextResponse.json(
+        { error: 'invalid_setting_value', key, datatype: def.datatype },
+        { status: 400 },
+      );
+    }
+    // Value must be a member of the allowed options list
+    if (!def.options?.includes(value)) {
+      return NextResponse.json(
+        { error: 'invalid_setting_value', key, datatype: def.datatype, options: def.options },
+        { status: 400 },
+      );
+    }
+    // D3: reject selecting a provider whose env vars are not configured.
+    // A silent vendor switch based on which env var happens to be present is
+    // explicitly rejected — an unconfigured provider must fail loudly (Plan 11 §8 D3).
+    if (key === 'llmProvider' && !isProviderConfigured(value)) {
+      return NextResponse.json(
+        { error: 'provider_not_configured', key, value },
+        { status: 400 },
+      );
+    }
+    rawValue = value;
   } else {
     // string
     if (typeof value !== 'string') {

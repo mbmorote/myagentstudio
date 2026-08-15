@@ -50,6 +50,18 @@ export function getOAuthConfig(): OAuthConfig {
 }
 
 /**
+ * Returns true when ANTHROPIC_API_KEY is set in the environment.
+ *
+ * Use this to check whether the Anthropic provider is configured before
+ * calling getAnthropicApiKey(), which throws if the key is absent.
+ * assertServerEnv() deliberately does NOT require this at boot — a
+ * deployment in dry-run mode has no key by design (Plan 04).
+ */
+export function isAnthropicConfigured(): boolean {
+  return Boolean(process.env.ANTHROPIC_API_KEY);
+}
+
+/**
  * Returns the Anthropic API key from environment.
  * Throws at call-time if the variable is unset.
  *
@@ -72,6 +84,61 @@ export function getAnthropicApiKey(): string {
  */
 export function getAnthropicModel(): string {
   return process.env.ANTHROPIC_MODEL ?? 'claude-opus-4-8';
+}
+
+// ── OpenAI-compatible provider (Plan 11) ──────────────────────────────────────
+
+/**
+ * Returns true when both OPENAI_COMPATIBLE_API_KEY and OPENAI_COMPATIBLE_BASE_URL
+ * are set — the minimum required to construct a request.
+ *
+ * The model is optional (getOpenAICompatibleModel() has a hard-coded default) so
+ * only key + URL are checked. Pattern mirrors isOAuthConfigured().
+ */
+export function isOpenAICompatibleConfigured(): boolean {
+  return Boolean(
+    process.env.OPENAI_COMPATIBLE_API_KEY &&
+    process.env.OPENAI_COMPATIBLE_BASE_URL,
+  );
+}
+
+/**
+ * Returns the OpenAI-compatible provider API key.
+ * Throws at call-time if the variable is unset. Never logs the key value.
+ */
+export function getOpenAICompatibleApiKey(): string {
+  const key = process.env.OPENAI_COMPATIBLE_API_KEY;
+  if (!key) {
+    throw new Error(
+      'OPENAI_COMPATIBLE_API_KEY is not set. Add it to .env.local and restart the dev server.',
+    );
+  }
+  return key;
+}
+
+/**
+ * Returns the base URL for the OpenAI-compatible endpoint (e.g.
+ * https://integrate.api.nvidia.com/v1 for NVIDIA NIM).
+ * Trailing slash is stripped by the provider at call time, not here.
+ * Throws at call-time if the variable is unset.
+ */
+export function getOpenAICompatibleBaseUrl(): string {
+  const url = process.env.OPENAI_COMPATIBLE_BASE_URL;
+  if (!url) {
+    throw new Error(
+      'OPENAI_COMPATIBLE_BASE_URL is not set. Add it to .env.local and restart the dev server.',
+    );
+  }
+  return url;
+}
+
+/**
+ * Returns the configured model ID for the OpenAI-compatible provider.
+ * Defaults to nvidia/llama-3.1-nemotron-70b-instruct, a widely available
+ * NVIDIA NIM model. Override with OPENAI_COMPATIBLE_MODEL.
+ */
+export function getOpenAICompatibleModel(): string {
+  return process.env.OPENAI_COMPATIBLE_MODEL ?? 'nvidia/llama-3.1-nemotron-70b-instruct';
 }
 
 /**

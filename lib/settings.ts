@@ -19,7 +19,7 @@ import { getSetting } from './db/repository/settings.js';
 
 // ─────────────────────────────  Catalog  ──────────────────────────────────────
 
-export type SettingDatatype = 'bool' | 'int' | 'string';
+export type SettingDatatype = 'bool' | 'int' | 'string' | 'enum';
 
 export type SettingDef = {
   key: string;
@@ -27,10 +27,16 @@ export type SettingDef = {
   default: boolean | number | string;
   label: string;
   hint: string;
-  /** Minimum value (inclusive) — only meaningful for 'int' settings (§15.5). */
+  /** Minimum value (inclusive) — only meaningful for 'int' settings. */
   min?: number;
   /** Maximum value (inclusive) — only meaningful for 'int' settings. */
   max?: number;
+  /**
+   * Allowed values — only meaningful for 'enum' settings.
+   * The PATCH route rejects any value not in this list. getActiveProviderId()
+   * falls back to the default on an out-of-list stored value + console.warn.
+   */
+  options?: readonly string[];
 };
 
 /**
@@ -89,6 +95,14 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     label: 'Access-request code expiry (hours)',
     hint: 'How long an invite code generated from an access request ("Request access" on the signup form) stays valid before it expires. Only applies to those codes — one you create yourself via "+ Generate code" never expires.',
   },
+  {
+    key: 'llmProvider',
+    datatype: 'enum',
+    default: 'anthropic',
+    options: ['anthropic', 'openaiCompatible'] as const,
+    label: 'LLM provider',
+    hint: 'Which vendor answers every AI call (import and chat). Changing this takes effect on the next call — no restart needed. Each provider reads its own API key and model from the server environment. A provider with no key configured cannot be selected.',
+  },
 ] as const;
 
 // ─────────────────────────────  Parsing  ──────────────────────────────────────
@@ -110,7 +124,11 @@ export function parseSettingValue(
       const n = Number(raw);
       return Number.isFinite(n) ? n : null;
     }
+    case 'enum':
     case 'string':
+      // Membership validation for 'enum' is done in the PATCH route and in the
+      // typed accessor (getActiveProviderId), not here — this layer just returns
+      // the raw string so callers can apply their own fail-safe logic.
       return raw;
   }
 }
@@ -254,4 +272,36 @@ export function getAccessRequestCodeExpiryHours(): number {
     return def.min as number;
   }
   return parsed as number;
+}
+
+/**
+ * Returns the current effective value of `llmProvider`.
+ *
+ * Semantics (D3, Plan 11):
+ *   - Row absent (fresh install, no row written) → 'anthropic' (fail-safe default, D3 §1).
+ *   - Known value → returned as-is.
+ *   - Unknown / corrupt value → 'anthropic' + console.warn (same asymmetric fail-safe
+ *     as getLiveLlmCalls: a money-spending choice is never derived from a garbage value).
+ *
+ * Reads fresh on every call (no cache) — same rule as getLiveLlmCalls (the toggle that
+ * blocks live calls would appear unreliable if its value were cached, and provider
+ * selection must follow the same rule so a setting change takes effect on the next call
+ * without a restart).
+ */
+export function getActiveProviderId(): string {
+  const def = SETTING_DEFS.find((d) => d.key === 'llmProvider')!;
+  const raw = getSetting('llmProvider');
+
+  // Row absent → fail-safe default 'anthropic'
+  if (raw === null) return 'anthropic';
+
+  // Validate against the known options list
+  if (!def.options?.includes(raw)) {
+    console.warn(
+      `[settings] llmProvider has unknown value "${raw}" — using default 'anthropic'`,
+    );
+    return 'anthropic';
+  }
+
+  return raw;
 }

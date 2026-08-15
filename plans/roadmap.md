@@ -30,7 +30,7 @@ aren't detailed further, the description here is all there is.
 
 | Item | Kind | Bucket | Status / description |
 |---|---|---|---|
-| **Second LLM provider** | Infra | TODO | Not started |
+| **Second LLM provider** | Infra | TODO | Shipped 2026-08-15 (Plan 11) |
 | **Big flow test** |  | TODO | Ready to run — needs your OK to spend real Anthropic money |
 | **Company branding on the platform** | UX | TODO | Mostly shipped — Workbench footer done, `/welcome` footer identity still placeholder |
 | **First-login guided tour (mini-tour)** | UX | TODO | Prototyped, copy drafted not signed off |
@@ -118,7 +118,7 @@ goes before it.
 
 | Item | Kind | Status |
 |---|---|---|
-| **Second LLM provider** | Infra | Not started |
+| **Second LLM provider** | Infra | Shipped 2026-08-15 (Plan 11) |
 | **Big flow test** | — | Ready to run — needs your OK to spend real Anthropic money |
 | **Company branding on the platform** | UX | Mostly shipped — `/welcome` footer identity still placeholder |
 | **First-login guided tour (mini-tour)** | UX | Prototyped, copy drafted not signed off |
@@ -128,20 +128,14 @@ goes before it.
 
 ---
 
-### **Second LLM provider**
+### **Second LLM provider** ✅ Shipped 2026-08-15
 
-**Current state:** `LLMProvider` interface exists; only `AnthropicProvider` implemented.
-
-**Scope:**
-- A non-Anthropic provider behind the existing interface — no user-visible change, same chat/import behavior through a different vendor
-- Specific vendor (OpenAI-compatible API, NVIDIA, etc.) and whether it's admin-only or user-selectable are **not locked in this file** — say the word if you want a specific choice confirmed here
-
-**Why:** wanted landed before going online, while switching vendors is still cheap.
-
-**Effort:** Medium
-**Depends on:** None
-**Blocker:** None
-**Status:** Not started
+Closed by Plan 11. An OpenAI-compatible `fetch`-based provider
+(`lib/ai/openaiCompatibleProvider.ts`) sits behind the existing `LLMProvider`
+interface alongside Anthropic. No new npm dependency. The active provider is an
+admin-only setting (`'llmProvider'`, default `'anthropic'`), switching takes effect
+on the next call without a restart, and a provider with no key configured cannot be
+selected. See `CHANGELOG.md` for details.
 
 ---
 
