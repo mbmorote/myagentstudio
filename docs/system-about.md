@@ -461,3 +461,82 @@ curated public-facing version is `roadmap.md` in this folder.
   current tab only; a reload or an agent switch clears it.
 - **A single deployment runs one process.** The login rate limiter and the LLM cap's
   in-memory pieces are per-process; there's no distributed/shared state across instances.
+  The MCP per-token rate limiter (§13) shares this same limitation.
+- **MCP writes carry no per-revision attribution.** An MCP-initiated import's
+  `SectionRevision` rows are tagged `reimport`, indistinguishable from a browser-initiated
+  reimport — only `llm_call_log.origin` and the token's `lastUsedAt` record the MCP origin
+  (§13). Accepted, additive-later if it ever matters.
+
+## 13. MCP server (Plan 13)
+
+A second front door onto a user's own agents, for console/CLI MCP clients (Claude Code and
+equivalents) — **not** Claude Desktop's GUI connector, which needs OAuth 2.1 and is
+explicitly out of scope. Served by the same Next.js process at `POST /api/mcp`
+(`export const runtime = 'nodejs'` — `better-sqlite3` is a native module and cannot run on
+the Edge runtime), using **stateless Streamable HTTP**: no `Mcp-Session-Id`, no long-lived
+SSE stream, every request self-contained (`enableJsonResponse: true`). A fresh `McpServer` +
+transport pair is built and bound to one resolved principal per HTTP request, then closed —
+there is no persistent connection or cross-request state, which is also what lets this
+survive a future multi-instance deploy with no shared session store.
+
+**Auth is a second credential type, deliberately separate from the session cookie.**
+Per-user **Personal Access Tokens** (`mya_` + 43 base64url chars from 32 random bytes),
+generated in `/account`, shown once, stored as a SHA-256 hex hash (not bcrypt — a 256-bit
+random token needs no key-stretching, and a hash enables an indexed lookup a bcrypt compare
+cannot), scoped `read` or `write`, revocable (soft delete), with a per-user cap of 10 active
+tokens. `lib/auth/mcpGuard.ts`'s `authenticateMcpToken()` is a third sibling to
+`authenticate()`/`authenticateAdmin()` in the same discriminated-union shape, and — deliberate
+constraint — never returns a `role`: an admin's token grants exactly a normal user's powers,
+there is no admin API over MCP. `middleware.ts` bypasses `/api/mcp` by exact path (never a
+wide prefix) with a comment explaining why that's safe: middleware was never the
+authorization boundary here either, and the route independently re-authenticates every
+request. `Origin` validation rejects any request carrying one at all — legitimate console
+clients send none, so a present `Origin` is the DNS-rebinding signature the spec warns about.
+
+**The tool layer is a consumer of the repository, not a new trust boundary.** Four tools,
+all resolving to the same repository functions the web routes already use, scoped by the
+token's `userId` exactly like a route scopes by session `userId`:
+
+| Tool | Scope | Backed by | Calls a model? |
+|---|---|---|---|
+| `list_agents` | read | `listAgents(ownerId)` | no |
+| `get_agent` | read | `getAgentFull(id, ownerId)` — same `AgentDTO` the UI uses | no |
+| `export_agent` | read | `exportAgentMarkdown(id, ownerId)` — deterministic, no AI | no |
+| `import_agent` | **write** | the *existing* import pipeline (`parse` → `callDaedalus`/`callHermes` → `assembleStructural`/`assemble` → `checkCoverage` → `upsertAgentFromImport`) | yes |
+
+Plus each agent as a read-only resource at `myagent://agent/{id}` (same two repository
+calls `list_agents`/`export_agent` use — a resource read and `export_agent` are guaranteed
+byte-identical for the same agent). `tools/list` always returns all four names regardless of
+a token's scope — a `read` token calling `import_agent` gets a clear refusal, not a hidden
+tool. Content returned by `get_agent`/`export_agent` is wrapped in a labeled block noting
+it's user-authored data, not instructions — the cheapest available prompt-injection
+mitigation, not a claim of full protection.
+
+**`import_agent` is the whole write surface, on purpose.** No tool mutates a section or
+config value directly — structured field-level editing was deliberately dropped from this
+plan's scope (it would have meant extracting a shared write contract out of the propose/apply
+route and replicating its config-merge invariant, the plan's single highest-risk piece). The
+natural workflow is round-trip through a file: `export_agent` → the external client edits the
+markdown → `import_agent` puts it back, reusing `upsertAgentFromImport`'s owner-scoped
+name-match-or-create semantics and its entire existing safety story for free: a `pre-import`
+snapshot before an update, a `post-import` snapshot after, `reimport`-tagged
+`SectionRevision` rows, retained history on removed sections, `rawSourceSnapshot` holding the
+submitted bytes, and a byte-identical-bytes short-circuit that skips the AI call (and any
+spend) entirely on a no-op re-import.
+
+**Three independent gates stand between an external model and a write**, all checked before
+any model call: the token must carry `write` scope; the admin's `mcpWrites` setting
+(`lib/settings.ts`, default **off**) must be on; and the *same* per-user hourly LLM cap
+every browser-initiated call already obeys (§11) — no MCP-specific limit. Each gate can be
+closed independently (revoke the token; flip `mcpWrites`; flip "Live LLM calls" off) with no
+deploy. `llm_call_log` gained a nullable `origin: 'web' | 'mcp'` column so the audit log can
+tell the two calling surfaces apart — the same fidelity fix Plan 11 made for `provider`.
+
+**`@modelcontextprotocol/sdk`** is imported by exactly one file, `lib/mcp/server.ts`,
+enforced by a fitness test (`lib/mcp/__tests__/architecture.test.ts`) alongside two more
+constraints from the same suite: no file under `lib/mcp/` may reference a mutating
+repository function other than `upsertAgentFromImport`, and none may import a provider file
+or read the session cookie — the two auth models (browser session, MCP bearer token) must
+never cross-contaminate.
+
+See `lib/mcp/CLAUDE.md` for the file-by-file layout.

@@ -1,9 +1,24 @@
 # Plan 13 — MCP Server Exposing MyAgent's Agents
 
-> **Status: 🟢 Scoped and decided 2026-08-15 — all seven decisions resolved.** The roadmap's
-> "undecided if wanted" framing is resolved as **wanted**; the tool surface was then trimmed
-> and the two open business questions answered by the user in the same session. D1/D2/D4/D5
-> remain recommendations pending a final read-through, but nothing in them is open.
+> **Status: 🟡 Built and test-verified 2026-08-15, not yet live-verified.** All four
+> implementation phases (§6 steps 2–4: token subsystem, read-only server + fitness
+> functions, `import_agent`) are implemented, along with the full test suite (§5.1–§5.6)
+> and the docs pass (§6 step 7). **`npm test`: 66/66 files, 841/841 tests pass** (run with
+> an explicit go-ahead, standing rule 5) — this run found and fixed a hand-written migration
+> missing its journal entry, a latent `listAgents()` bug (`updatedAt` never set), a
+> self-defeating fitness-test-matching comment, and a missing `Accept` header in the new
+> route tests; none were design flaws, all are now fixed. **`npx tsc --noEmit`** is clean on
+> Plan 13's own code; it separately surfaced 8 pre-existing Plan 11 errors (tracked under
+> the roadmap's own "Check: full test suite + `tsc` after Plan 11" item, not fixed here —
+> out of this plan's scope). **Not yet live-verified** — §6 steps 5–6 (a free real-client
+> handshake, then one billed `import_agent` call) still need an explicit ask first (standing
+> rule 2). This plan moves to `plans/archive/` once live verification is done.
+>
+> All seven design decisions below (D1–D7) were resolved 2026-08-15 before implementation
+> began. The roadmap's "undecided if wanted" framing was resolved as **wanted**; the tool
+> surface was then trimmed and the two open business questions answered by the user in the
+> same session. D1/D2/D4/D5 were recommendations with no open sub-questions; all seven are
+> now reflected as-built, not just as-planned.
 >
 > - **D1 (auth):** **Per-user Personal Access Tokens** — opaque bearer, generated in Account,
 >   stored SHA-256-hashed, scoped `read`/`write`, revocable. Given D6 (console clients only),

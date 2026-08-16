@@ -48,6 +48,12 @@ export type WriteCallLogInput = {
   userId?: string | null;
   /** Snapshot of the user's shareLogsWithAdmin at write time (§5.6, constraint 11). */
   sharedWithAdmin: boolean;
+  /**
+   * Plan 13 (2026-08-15) — 'web' (browser session, default) or 'mcp' (MCP bearer
+   * token, import_agent tool). Defaults to 'web' when omitted so every pre-existing
+   * caller keeps writing exactly what it always wrote.
+   */
+  origin?: 'web' | 'mcp';
 };
 
 /** Shape returned from listCallLogs — no payloads (§4.2 Plan B readiness). */
@@ -65,6 +71,8 @@ export type CallLogListItem = {
   createdAt: Date;
   /** The user who triggered this call; null for pre-auth rows (§4.3). */
   userId: string | null;
+  /** 'web' (browser session) or 'mcp' (MCP bearer token). Plan 13. */
+  origin: 'web' | 'mcp';
   /**
    * Whether the requestPayload/responsePayload would be redacted for the viewer.
    * Based on the §5.6 rule: userId !== null && userId !== viewerUserId && sharedWithAdmin === false.
@@ -115,6 +123,7 @@ export function writeCallLog(input: WriteCallLogInput): string {
     usage: input.usage ?? null,
     userId: input.userId ?? null,
     sharedWithAdmin: input.sharedWithAdmin,
+    origin: input.origin ?? 'web',
   }).run();
   return id;
 }
@@ -132,6 +141,8 @@ export type ReserveCallSlotInput = {
   requestPayload: LoggedRequest;
   userId?: string | null;
   sharedWithAdmin: boolean;
+  /** Plan 13 — 'web' (default) or 'mcp'. See WriteCallLogInput.origin. */
+  origin?: 'web' | 'mcp';
 };
 
 /**
@@ -165,6 +176,7 @@ export function reserveCallSlot(input: ReserveCallSlotInput): string {
     usage: null,
     userId: input.userId ?? null,
     sharedWithAdmin: input.sharedWithAdmin,
+    origin: input.origin ?? 'web',
   }).run();
   return id;
 }
@@ -240,6 +252,7 @@ export function listCallLogs(opts: ListCallLogsOptions = {}): CallLogListItem[] 
       createdAt: schema.llmCallLog.createdAt,
       userId: schema.llmCallLog.userId,
       sharedWithAdmin: schema.llmCallLog.sharedWithAdmin,
+      origin: schema.llmCallLog.origin,
     })
     .from(schema.llmCallLog)
     .orderBy(desc(schema.llmCallLog.createdAt), desc(schema.llmCallLog.id))
@@ -265,6 +278,7 @@ export function listCallLogs(opts: ListCallLogsOptions = {}): CallLogListItem[] 
       usage: r.usage as { inputTokens: number; outputTokens: number } | null,
       createdAt: r.createdAt,
       userId,
+      origin: (r.origin as 'web' | 'mcp' | null) ?? 'web',
       redacted,
     };
   });
@@ -310,6 +324,7 @@ export function getCallLog(id: string, viewerUserId: string): CallLogFull | null
     usage: row.usage as { inputTokens: number; outputTokens: number } | null,
     createdAt: row.createdAt,
     userId,
+    origin: (row.origin as 'web' | 'mcp' | null) ?? 'web',
     redacted,
     requestPayload: redacted ? null : (row.requestPayload as LoggedRequest),
     responsePayload: redacted ? null : ((row.responsePayload ?? null) as LoggedResponse | null),

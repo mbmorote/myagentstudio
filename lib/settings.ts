@@ -103,6 +103,13 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     label: 'LLM provider',
     hint: 'Which vendor answers every AI call (import and chat). Changing this takes effect on the next call — no restart needed. Each provider reads its own API key and model from the server environment. A provider with no key configured cannot be selected.',
   },
+  {
+    key: 'mcpWrites',
+    datatype: 'bool',
+    default: false,
+    label: 'MCP writes',
+    hint: 'When on, write-scoped MCP tokens can call import_agent, which runs the import pipeline and may spend LLM budget. When off, all MCP import attempts are refused with a clear error — read tools are unaffected. Defaults to off: a deployment that never configures this behaves exactly as before MCP existed. Note: import_agent is the first path where an automated client in a loop can trigger billed AI calls unattended — the shared per-user hourly cap (Max LLM calls per user per hour) is the metering layer, but this toggle is the primary on/off switch.',
+  },
 ] as const;
 
 // ─────────────────────────────  Parsing  ──────────────────────────────────────
@@ -272,6 +279,38 @@ export function getAccessRequestCodeExpiryHours(): number {
     return def.min as number;
   }
   return parsed as number;
+}
+
+/**
+ * Returns the current effective value of `mcpWrites` (Plan 13).
+ *
+ * Semantics:
+ *   - Row absent → FALSE (fail-closed — MCP writes off by default, same asymmetric
+ *     fail-safe as getLiveLlmCalls: money-spending capabilities may only come from the
+ *     ABSENCE of configuration in the fail-open direction, never from the fail-closed
+ *     direction, and here the safe direction is off).
+ *   - `'true'`  → true
+ *   - `'false'` → false
+ *   - Anything else → FALSE (fail-closed) + console.warn
+ *
+ * A deployment that never configures this setting behaves exactly as before MCP existed —
+ * import_agent calls are refused with a clear, named error.
+ */
+export function getMcpWrites(): boolean {
+  const raw = getSetting('mcpWrites');
+
+  // Row absent → fail-closed (default off)
+  if (raw === null) return false;
+
+  const parsed = parseSettingValue(raw, 'bool');
+  if (parsed === null) {
+    console.warn(
+      `[settings] mcpWrites has unparseable value "${raw}" — treating as false (fail-closed)`,
+    );
+    return false;
+  }
+
+  return parsed as boolean;
 }
 
 /**

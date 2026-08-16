@@ -8,6 +8,36 @@ version of this file, kept locally as historical record — not tracked in git).
 
 ---
 
+## 2026-08-15 — MCP server exposing MyAgent's agents (Plan 13)
+
+Built (not yet run or live-verified) an MCP server at `POST /api/mcp` so a console/CLI MCP
+client (Claude Code and equivalents — Claude Desktop's GUI connector is explicitly not a
+target) can list, read, export, and import a user's own agents outside the browser. A new
+credential type, per-user Personal Access Tokens (`mya_` + 43 random chars, SHA-256-hashed
+at rest, scoped `read`/`write`, revocable, generated in a new Account panel), authenticates
+requests via `lib/auth/mcpGuard.ts`'s `authenticateMcpToken()` — a third sibling to
+`authenticate()`/`authenticateAdmin()` that deliberately never returns a role, since an
+admin's MCP token grants exactly a normal user's powers.
+
+Four tools: `list_agents`, `get_agent`, `export_agent` (all read-only, zero LLM calls) and
+`import_agent` (the only write, gated by token scope + a new `mcpWrites` admin setting,
+default off + the existing per-user hourly LLM cap — no MCP-specific limit). Deliberately
+**no** structured field-level write tool — `import_agent` composes the same pipeline the web
+UI's import route uses (`parse` → `callDaedalus`/`callHermes` → `assembleStructural`/
+`assemble` → `checkCoverage` → `upsertAgentFromImport`), inheriting its whole safety story
+(pre/post-import snapshots, `reimport`-tagged revisions, the byte-identical short-circuit,
+truncation rejection) for free instead of forking a second, thinner write path.
+`llm_call_log` gained a nullable `origin: 'web' | 'mcp'` column so the audit trail can tell
+the two calling surfaces apart — the same fidelity fix Plan 11 made for `provider`.
+
+Stateless Streamable HTTP transport (`@modelcontextprotocol/sdk`, confined to exactly one
+file — `lib/mcp/server.ts` — enforced by a fitness test alongside three more constraints:
+no mutating repository function besides `upsertAgentFromImport`, no direct provider/SDK
+import, no session-cookie read anywhere under `lib/mcp/`). `middleware.ts` bypasses
+`/api/mcp` by exact path — the route re-authenticates independently, same as every other
+route. See `plans/13-mcp-server-exposing-agents.md` for the full design and the seven
+resolved decisions, and `lib/mcp/CLAUDE.md` for the folder map.
+
 ## 2026-08-15 — Second LLM provider (Plan 11)
 
 Added an OpenAI-compatible provider (`lib/ai/openaiCompatibleProvider.ts`) behind the

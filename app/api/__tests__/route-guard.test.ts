@@ -1,15 +1,29 @@
 /**
  * app/api/__tests__/route-guard.test.ts
  *
- * Fitness function (§10.4): reads every route.ts under app/api/ and asserts:
+ * Fitness function (§10.4, extended Plan 13 §4.8): reads every route.ts under app/api/
+ * and asserts, via a path-prefix → required-guard table:
  *
- *   1. Every file outside app/api/auth/ contains authenticate( or authenticateAdmin(.
- *   2. Files under app/api/settings/** and app/api/llm-call-log/** contain authenticateAdmin(.
- *   3. Files under app/api/account/** contain authenticate( and do NOT contain
- *      authenticateAdmin( — the user settings surface must never acquire an admin gate
- *      by copy-paste from its neighbour (§5.7).
- *   4. No 'use client' file under app/ calls a bare fetch('/api/ — they must use apiFetch
- *      (apiFetch migration is complete; this assertion runs unconditionally).
+ *   1. app/api/auth/**              — no guard required (public by design).
+ *   2. app/api/settings/**,
+ *      app/api/llm-call-log/**      — must contain authenticateAdmin(.
+ *   3. app/api/account/**           — must contain authenticate( and must NOT contain
+ *                                      authenticateAdmin( — the user settings surface must
+ *                                      never acquire an admin gate by copy-paste (§5.7).
+ *   4. app/api/mcp/**               — must contain authenticateMcpToken( and must NOT
+ *                                      contain authenticate( (Plan 13 §4.8) — the MCP
+ *                                      endpoint is bearer-token authenticated, never by the
+ *                                      browser session cookie a copy-pasted authenticate(
+ *                                      call would silently accept. The regex is
+ *                                      deliberately NOT widened to also match
+ *                                      authenticateMcpToken( under the generic
+ *                                      authenticate( check — a rule that passes by
+ *                                      coincidence is a rule that has stopped testing
+ *                                      anything.
+ *   5. everything else              — must contain authenticate( or authenticateAdmin(.
+ *
+ * Also: no 'use client' file under app/ calls a bare fetch('/api/ — they must use
+ * apiFetch (assertion 4 below, apiFetch migration is complete).
  *
  * No mocks — pure file I/O. Kept short so it is easy to understand and maintain.
  */
@@ -60,13 +74,22 @@ function inAccountDir(absPath: string): boolean {
   return rel.startsWith('account' + sep);
 }
 
+function inMcpDir(absPath: string): boolean {
+  const rel = relative(API_DIR, absPath);
+  return rel.startsWith('mcp' + sep) || rel === 'mcp';
+}
+
 // ── Fitness assertions ─────────────────────────────────────────────────────────
 
 describe('Route-guard fitness — every non-auth route is guarded', () => {
   const nonAuthRoutes = allRouteFiles.filter((f) => !inAuthDir(f));
+  // mcp/** is guarded by a different function entirely (authenticateMcpToken() —
+  // Plan 13 §4.8) — excluded from the generic authenticate(/authenticateAdmin( check
+  // below and asserted separately instead.
+  const nonAuthNonMcpRoutes = nonAuthRoutes.filter((f) => !inMcpDir(f));
 
-  it('every non-auth route.ts contains authenticate( or authenticateAdmin(', () => {
-    const unguarded = nonAuthRoutes.filter((f) => {
+  it('every non-auth, non-mcp route.ts contains authenticate( or authenticateAdmin(', () => {
+    const unguarded = nonAuthNonMcpRoutes.filter((f) => {
       const src = readFileSync(f, 'utf8');
       return !src.includes('authenticate(') && !src.includes('authenticateAdmin(');
     });
@@ -97,6 +120,24 @@ describe('Route-guard fitness — every non-auth route is guarded', () => {
 
     expect(missingPaths).toEqual([]);
     expect(adminPaths).toEqual([]);
+  });
+
+  it('mcp/** uses authenticateMcpToken( and does NOT use authenticate( (Plan 13 §4.8)', () => {
+    const mcpRoutes = allRouteFiles.filter((f) => inMcpDir(f));
+    // At least one mcp route must exist (fail loudly if the whole surface is missing)
+    expect(mcpRoutes.length).toBeGreaterThan(0);
+
+    const missingMcpGuard = mcpRoutes.filter((f) => !readFileSync(f, 'utf8').includes('authenticateMcpToken('));
+    // Deliberately NOT a substring check that could accidentally match
+    // authenticateMcpToken( — this asserts the literal session-cookie guard call
+    // authenticate( is absent, not merely that some prefix overlaps.
+    const hasSessionGuard = mcpRoutes.filter((f) => readFileSync(f, 'utf8').includes('authenticate('));
+
+    const missingPaths = missingMcpGuard.map((f) => relative(ROOT, f).replaceAll('\\', '/'));
+    const sessionGuardPaths = hasSessionGuard.map((f) => relative(ROOT, f).replaceAll('\\', '/'));
+
+    expect(missingPaths).toEqual([]);
+    expect(sessionGuardPaths).toEqual([]);
   });
 });
 

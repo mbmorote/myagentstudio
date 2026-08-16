@@ -46,6 +46,16 @@ export type LlmCallContext = {
    * Sourced from a request body `{ dryRun: true }`; the client can't turn dry-run off.
    */
   forceDryRun?: boolean;
+  /**
+   * Plan 13 (2026-08-15) — MCP server origin tracking.
+   * 'web' = browser-session call (default when absent).
+   * 'mcp' = call via an MCP bearer token (import_agent tool).
+   * Written to llm_call_log.origin so the audit log can distinguish MCP-initiated
+   * calls from browser-initiated ones — without this, an audit log that can't tell
+   * them apart is actively wrong once two sources exist.
+   * Defaults to 'web' when absent to preserve pre-Plan-13 behavior.
+   */
+  origin?: 'web' | 'mcp';
 };
 
 // ─────────────────────────────  Result  ───────────────────────────────────────
@@ -213,6 +223,7 @@ export function createGateway(providerOrResolver: LLMProvider | (() => LLMProvid
           usage: null,
           userId,
           sharedWithAdmin,
+          origin: ctx.origin ?? 'web',
         });
       } catch (logErr) {
         // Log write failed — dry-run still blocks (§5.5), never becomes a live call
@@ -281,6 +292,7 @@ export function createGateway(providerOrResolver: LLMProvider | (() => LLMProvid
         requestPayload,
         userId,
         sharedWithAdmin,
+        origin: ctx.origin ?? 'web',
       });
     } catch (reserveErr) {
       console.error('[llm-log] Failed to reserve call slot:', String(reserveErr));

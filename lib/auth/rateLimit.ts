@@ -1,23 +1,27 @@
 /**
  * lib/auth/rateLimit.ts
  *
- * In-process fixed-window rate limiter for the two public auth routes (§3.8).
+ * In-process fixed-window rate limiter (Plan 13: generalized key — was (route, IP) only).
  *
- * Scope: POST /api/auth/login, POST /api/auth/signup, and POST /api/auth/request-access
- * (Plan 12, 2026-08-14) — the public, session-free endpoints reachable from the
- * internet. The `route` string param keys the limiter per-route, so adding a new caller
- * is just a new `checkRateLimit(request, 'some-route-name')` call site, no change here.
+ * Two call signatures:
+ *   checkRateLimit(request, route)
+ *     — the original form: keys by (route, client IP). Used by login/signup/request-access
+ *       (the public, session-free endpoints reachable from the internet).
  *
- * Limit: 10 attempts per 15-minute window per (route, client IP).
- * IP source: first entry of x-forwarded-for, falling back to 'unknown'.
+ *   checkRateLimitByKey(key)
+ *     — a direct string key. Used by the MCP guard to key by ('mcp', tokenId), so each
+ *       token has its own independent rate window rather than sharing one per IP.
  *
- * Stated limitations, accepted deliberately (§3.8):
+ * Limit: 10 attempts per 15-minute window per key.
+ *
+ * Stated limitations, accepted deliberately (same as before this generalization):
  *   - Per-process: a multi-instance deploy multiplies the effective limit.
  *   - Resets on restart.
- *   - x-forwarded-for is spoofable unless TLS termination rewrites it.
+ *   - x-forwarded-for is spoofable unless TLS termination rewrites it
+ *     (applies to checkRateLimit's IP derivation, not to checkRateLimitByKey).
  *
- * The keep-or-drop question is open (§14, §16.7); this module is ~30 lines,
- * has no dependency, and removing it is deleting one file and two call sites.
+ * These limitations are documented here rather than elsewhere so they're visible
+ * at the definition site, not just in the consuming code.
  */
 
 import type { NextRequest } from 'next/server';
@@ -33,16 +37,10 @@ type WindowEntry = {
 const store = new Map<string, WindowEntry>();
 
 /**
- * Returns null if the request is within the rate limit, or
- * { retryAfterSeconds: number } if the limit has been exceeded.
+ * Core limiter logic — takes an arbitrary string key.
+ * Returns null if within the limit, or { retryAfterSeconds } if exceeded.
  */
-export function checkRateLimit(
-  request: NextRequest,
-  route: string,
-): null | { retryAfterSeconds: number } {
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-  const key = `${route}:${ip}`;
+export function checkRateLimitByKey(key: string): null | { retryAfterSeconds: number } {
   const now = Date.now();
 
   let entry = store.get(key);
@@ -60,4 +58,21 @@ export function checkRateLimit(
   }
 
   return null;
+}
+
+/**
+ * Returns null if the request is within the rate limit, or
+ * { retryAfterSeconds: number } if the limit has been exceeded.
+ *
+ * Keys by (route, client IP).
+ * IP source: first entry of x-forwarded-for, falling back to 'unknown'.
+ */
+export function checkRateLimit(
+  request: NextRequest,
+  route: string,
+): null | { retryAfterSeconds: number } {
+  const ip =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  const key = `${route}:${ip}`;
+  return checkRateLimitByKey(key);
 }

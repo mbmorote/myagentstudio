@@ -107,6 +107,16 @@ The Raw panel is always a live, accurate preview of what exporting would produce
 separate "generate export" step. One click downloads the current state as a real
 `.md` file, ready to drop into a `.claude/agents/` directory.
 
+### Beyond the browser: console access
+
+The same library is reachable from a terminal, not just the workbench. A user generates a
+personal access token in their Account page and points a console AI tool — Claude Code, or
+anything that speaks MCP over HTTP — at the workbench's own agent data: list what's there,
+pull one agent's full content, or push an edited file back in. It's the same import
+pipeline the browser's Import dialog uses under the hood, so the same safety net (a
+snapshot before and after, nothing silently lost) applies whether the edit came from a
+click or a terminal command.
+
 ## The technology
 
 A single Next.js application — the whole workbench, frontend and backend, is one deploy

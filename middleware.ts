@@ -44,6 +44,14 @@ const PUBLIC_PATHS = new Set([
   '/api/auth/signup',
   '/api/auth/logout',
   '/api/auth/request-access',
+  // Plan 13 (2026-08-15) — MCP server. A console MCP client authenticates with a
+  // per-user bearer token (Authorization header), never the session cookie this
+  // middleware checks, so the cookie gate here would reject every legitimate MCP
+  // request. Bypassing it is safe by this file's own stated design: middleware is
+  // NOT the authorization boundary — app/api/mcp/route.ts independently calls
+  // authenticateMcpToken() on every request and rejects with 401 on its own if the
+  // bearer token is missing, unknown, revoked, or expired.
+  '/api/mcp',
 ]);
 
 // OAuth callback and start routes live under a dynamic segment, so they cannot

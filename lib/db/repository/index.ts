@@ -81,3 +81,13 @@ export {
   hasActiveInviteCodeForEmail,
 } from './accessRequests.js';
 export type { AccessRequestRow, CreateAccessRequestInput } from './accessRequests.js';
+
+export {
+  createApiToken,
+  listApiTokensForUser,
+  findApiTokenByHash,
+  touchApiTokenLastUsed,
+  revokeApiToken,
+  TooManyTokensError,
+} from './apiTokens.js';
+export type { ApiTokenRow, CreateApiTokenInput } from './apiTokens.js';

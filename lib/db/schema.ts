@@ -226,12 +226,39 @@ export const llmCallLog = sqliteTable('llm_call_log', {
   userId: text('user_id'),                      // SOFT ref → user.id; NULL = pre-auth row (§4.3)
   sharedWithAdmin: integer('shared_with_admin', { mode: 'boolean' })
     .notNull().default(false),                  // consent snapshot at write time — never updated (§5.6)
+  // Plan 13 (2026-08-15) — MCP server. 'web' = browser-initiated call; 'mcp' = MCP-token call.
+  // Nullable for existing rows (which predate MCP and are all browser-initiated). NOT NULL DEFAULT 'web'
+  // would require a table rebuild to add to an existing deployment, so nullable is more migration-friendly;
+  // all new rows written by the gateway carry an explicit 'web' or 'mcp' value.
+  origin: text('origin'),                       // 'web' | 'mcp' | null (null = pre-Plan-13 rows)
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull().default(sql`(unixepoch())`),
 }, (t) => ({
   byCreated:    index('llm_call_log_created_idx').on(t.createdAt),
   byKind:       index('llm_call_log_kind_idx').on(t.kind),
   byUserCreated: index('llm_call_log_user_created_idx').on(t.userId, t.createdAt), // §3.9 cap count
+}));
+
+// ─────────────────────────────  API tokens (Plan 13, MCP access)  ─────────────
+// Per-user Personal Access Tokens for console MCP clients (Claude Code and
+// equivalents). The plaintext is returned exactly once on creation — only the
+// SHA-256 hex hash is ever stored. Soft-reference to user.id, matching the
+// schema convention (no FK cascade). `revokedAt` is a soft delete — the row
+// is never deleted so lastUsedAt stays available as an audit trail after revocation.
+export const apiToken = sqliteTable('api_token', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  ownerId: text('owner_id').notNull(),          // soft ref → user.id
+  name: text('name').notNull(),                 // user's own label, e.g. "laptop Claude Code"
+  tokenHash: text('token_hash').notNull(),      // sha256 hex — UNIQUE index (the lookup key)
+  prefix: text('prefix').notNull(),             // first 12 chars of plaintext — display only, never replayable
+  scope: text('scope', { enum: ['read', 'write'] }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  lastUsedAt: integer('last_used_at', { mode: 'timestamp' }), // nullable — null = never used
+  expiresAt: integer('expires_at', { mode: 'timestamp' }),    // nullable — null = never expires
+  revokedAt: integer('revoked_at', { mode: 'timestamp' }),    // nullable — null = active
+}, (t) => ({
+  byHash:  uniqueIndex('api_token_hash_unique').on(t.tokenHash),
+  byOwner: index('api_token_owner_idx').on(t.ownerId),
 }));
 
 // ─────────────────────  OAuth accounts  ─────────────────────────────────────────────

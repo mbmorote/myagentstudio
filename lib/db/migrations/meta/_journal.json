@@ -57,6 +57,13 @@
       "when": 1786759343329,
       "tag": "0007_dazzling_slayback",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1786847629644,
+      "tag": "0008_mcp_tokens",
+      "breakpoints": true
     }
   ]
 }

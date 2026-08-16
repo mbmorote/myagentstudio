@@ -10,7 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { checkRateLimit } from '../rateLimit.js';
+import { checkRateLimit, checkRateLimitByKey } from '../rateLimit.js';
 
 function makeRequest(ip: string | null): NextRequest {
   const headers: Record<string, string> = {};
@@ -114,5 +114,48 @@ describe('checkRateLimit', () => {
     const route = uniqueRoute();
     const req = makeRequest(null);
     expect(checkRateLimit(req, route)).toBeNull();
+  });
+});
+
+// ── checkRateLimitByKey (Plan 13 — generalized key, used by the MCP guard) ──────
+
+describe('checkRateLimitByKey', () => {
+  it('allows requests under the limit (10 per window) for a direct string key', () => {
+    const key = `mcp:${uniqueRoute()}`;
+    for (let i = 0; i < 10; i++) {
+      expect(checkRateLimitByKey(key)).toBeNull();
+    }
+  });
+
+  it('blocks the 11th request within the same window', () => {
+    const key = `mcp:${uniqueRoute()}`;
+    for (let i = 0; i < 10; i++) {
+      checkRateLimitByKey(key);
+    }
+    const result = checkRateLimitByKey(key);
+    expect(result).not.toBeNull();
+    expect(result?.retryAfterSeconds).toBeGreaterThan(0);
+  });
+
+  it('tracks different keys independently — one token id does not affect another', () => {
+    const keyA = `mcp:${uniqueRoute()}`;
+    const keyB = `mcp:${uniqueRoute()}`;
+    for (let i = 0; i < 10; i++) {
+      checkRateLimitByKey(keyA);
+    }
+    expect(checkRateLimitByKey(keyA)).not.toBeNull();
+    expect(checkRateLimitByKey(keyB)).toBeNull();
+  });
+
+  it('checkRateLimit(request, route) and checkRateLimitByKey share the same underlying store — a colliding key is shared', () => {
+    // checkRateLimit builds the key as `${route}:${ip}`. Constructing the identical
+    // string via checkRateLimitByKey must hit the same window.
+    const route = uniqueRoute();
+    const req = makeRequest('10.9.9.9');
+    const equivalentKey = `${route}:10.9.9.9`;
+    for (let i = 0; i < 10; i++) {
+      checkRateLimit(req, route);
+    }
+    expect(checkRateLimitByKey(equivalentKey)).not.toBeNull();
   });
 });

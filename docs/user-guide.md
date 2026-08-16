@@ -210,6 +210,45 @@ Click **Account** in the Topbar (always visible, for both admins and users) to o
 
 Your signed-in email, role, and how you sign in (password, or Google with the linked email) are shown as read-only. There is currently no self-service way to link or unlink a Google account from this page.
 
+**API tokens (MCP access).** The same Account page has a panel for generating Personal Access Tokens — the credential a console MCP client (Claude Code and similar tools) uses to read and import your agents from outside the browser. See the next section for how to use one.
+
+---
+
+## Connecting a console MCP client
+
+MyAgent runs an MCP (Model Context Protocol) server so a **console/CLI client** — Claude Code, or an equivalent tool that accepts a custom HTTP header — can list, read, export, and import your own agents from your terminal. **This is for console clients only.** Claude Desktop's GUI connector is not supported (it requires a different authentication flow this server doesn't implement).
+
+**1. Generate a token.** Go to **Account** → **API tokens (MCP access)** → **New token**. Give it a name (e.g. "laptop Claude Code") and pick a scope:
+
+- **read** — list, read, and export your agents. Cannot write anything. This is the safer default.
+- **write** — everything read can, plus `import_agent` (see below).
+
+The token's full value is shown **exactly once**, right after you create it. Copy it immediately — MyAgent never stores it in a form that can be shown to you again, not even to an admin. If you lose it, revoke it and generate a new one.
+
+**2. Add the server to your client.** For Claude Code:
+
+```
+claude mcp add --transport http myagent https://<your-myagent-host>/api/mcp \
+  --header "Authorization: Bearer <the token you copied>"
+```
+
+**3. Use it.** Once connected, four tools are available:
+
+| Tool | What it does |
+|---|---|
+| `list_agents` | Lists your agents (id, name, description). |
+| `get_agent` | Returns one agent's full structured content — sections, config, and any validation flags. |
+| `export_agent` | Returns the same deterministic markdown the web UI's Export button produces. |
+| `import_agent` | Imports a markdown document — creates a new agent, or updates an existing one if the name matches. **Requires a write-scoped token.** |
+
+A natural round trip: `export_agent` an agent → edit the markdown in your terminal (by hand, or by asking the console client's own model to revise it) → `import_agent` it back. That reuses the exact same import pipeline the web UI's Import dialog uses, including the same safety net — a snapshot is taken before and after an update, so a bad import is recoverable the same way a bad web import is.
+
+**What `import_agent` cannot do:** there is no tool for editing a single section or config value directly — the only write is "import this whole document." A submitted document **replaces** the agent's sections to match what's in the file; a section that existed before but is missing from your document gets removed (its history is kept, but it's gone from the live agent). If you only want to tweak one section, export first, edit that one section in the file, and import the whole file back — don't hand-write a partial document.
+
+**Why writes might be refused.** Three independent switches all have to be "on" for `import_agent` to work: your token needs `write` scope, the server admin needs to have turned on MCP writes in Settings (off by default), and you need to be under your hourly AI-call limit (the same limit that applies to everything you do in the browser). If any of these is off, you get a clear, named error explaining which one — never a silent failure.
+
+**If your token leaks:** revoke it immediately from the Account page (one click, takes effect instantly). Treat an MCP token like a password to your agent library — anyone holding it can do whatever that token's scope allows, with no browser session or second factor in the way.
+
 ---
 
 ## Manual admin operations

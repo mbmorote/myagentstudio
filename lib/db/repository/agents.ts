@@ -338,6 +338,7 @@ export function listAgents(ownerId: string): AgentLiteDTO[] {
     source: r.source,
     platform: r.platform,
     splitLevel: r.splitLevel,
+    updatedAt: r.updatedAt.toISOString(),
     groupIds: groupIdsByAgent.get(r.id) ?? [],
   }));
 }

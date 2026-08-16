@@ -32,7 +32,8 @@ aren't detailed further, the description here is all there is.
 |---|---|---|---|
 | **Big flow test** |  | TODO | Ready to run — needs your OK to spend real Anthropic money |
 | **Check: NVIDIA live-call verification (second LLM provider)** | Infra | TODO | Needs API key + spend go-ahead |
-| **Check: full test suite + `tsc` after Plan 11** | Infra | TODO | Not run yet |
+| **Check: full test suite + `tsc` after Plan 11** | Infra | TODO | Suite green (841/841); `tsc` found 8 pre-existing errors, not yet fixed |
+| **Check: docs review for Plan 11/12/13 topics** | Infra | TODO | Not started |
 | **Check: guided tour copy sign-off** | UX | TODO | User review pending |
 | **Check: Workbench branding + disclaimer render correctly** | UX | TODO | Visual QA, not run yet |
 | **Production DB backup/restore** | Infra | TODO | Not started |
@@ -54,7 +55,7 @@ aren't detailed further, the description here is all there is.
 | **Automated invite-code email delivery** | Infra | NEXT | Not started — provider undecided |
 | **Improve the guided tour** | UX | NEXT | Not started |
 | **Optional call-log persistence toggle** | Infra | NEXT | Undecided if wanted |
-| **MCP server exposing MyAgent's agents** | Infra | NEXT | Planned and decided — `plans/13-mcp-server-exposing-agents.md`; Medium (rescoped down from Large) |
+| **MCP server exposing MyAgent's agents** | Infra | NEXT | Built + test suite green (Phases 1–4, 2026-08-15) — pending live-client verification, see card below |
 | **Re-enable group behavior** | UX | NEXT | Ready — three flag flips |
 | **Surface `applied`/`skipped` from apply-proposal in the UI** | UX | NEXT | Not started |
 | **`AgentView.tsx` save-name bypasses `apiFetch`** | Behavior | NEXT | Ready — trivial fix |
@@ -121,9 +122,12 @@ goes before it.
 |---|---|---|
 | **Big flow test** | — | Ready to run — needs your OK to spend real Anthropic money |
 | **Check: NVIDIA live-call verification (second LLM provider)** | Infra | Needs API key + spend go-ahead |
-| **Check: full test suite + `tsc` after Plan 11** | Infra | Not run yet |
+| **Check: full test suite + `tsc` after Plan 11** | Infra | Suite green (841/841); `tsc` found 8 pre-existing errors, not yet fixed |
+| **Check: docs review for Plan 11/12/13 topics** | Infra | Not started |
 | **Check: guided tour copy sign-off** | UX | User review pending |
 | **Check: Workbench branding + disclaimer render correctly** | UX | Visual QA, not run yet |
+| **Check: MCP server live verification (Plan 13)** | Infra | Free part not run; billed part needs your OK to spend |
+| **Check: Account "API tokens (MCP access)" panel renders correctly** | UX | Visual QA, not run yet |
 | **Production DB backup/restore** | Infra | Not started |
 | **Deploy online** | — | Not started — always last |
 
@@ -170,14 +174,57 @@ log row appears with the right provider/model/usage.
 
 ### **Check: full test suite + `tsc` after Plan 11**
 
-**Current state:** The four test files Plan 11 touched directly (`gateway.test.ts`,
-`architecture.test.ts`, `openaiCompatibleProvider.test.ts`, `providerRegistry.test.ts`) all
-pass (53/53, verified 2026-08-15 — two bugs found and fixed were in the tests themselves, not
-the implementation). The full suite and a `tsc --noEmit` pass haven't been run since.
+**Current state:** Run 2026-08-15 while verifying Plan 13. `npm test`: 66/66 files, 841/841
+tests pass (one run needed a real migration journal entry for Plan 13's `0008` migration,
+which had been hand-written without one — fixed via `npx drizzle-kit generate`; a handful
+of Plan 13 test bugs found and fixed in the same pass — see Plan 13's card). `npx tsc
+--noEmit`: **not clean** — 8 pre-existing errors, all predating Plan 13:
+
+- `lib/__tests__/env.test.ts` (3×): `Cannot assign to 'NODE_ENV' because it is a read-only
+  property` — likely a `@types/node` version drift making `NODE_ENV` readonly.
+- `lib/db/repository/__tests__/llmCallLog.test.ts` (4×) and
+  `llmCallLog-redaction.test.ts` (1×): test fixture objects (`makeInput()` and two inline
+  `reserveCallSlot()` calls) never set `provider`, which Plan 11 made a required field on
+  `WriteCallLogInput`/`ReserveCallSlotInput` — the tests run fine at runtime (vitest
+  transpiles without type-checking) but fail strict `tsc`. One-line fixes each
+  (add `provider: 'anthropic'` to the fixture), not attempted here — out of scope for
+  Plan 13, left for whoever picks this item up next.
 
 **Scope:** `npm test` and `npx tsc --noEmit`, confirm nothing outside `lib/ai/` regressed.
+Remaining: fix the 8 `tsc` errors above (all pre-existing, all one-line).
 
 **Effort:** Trivial
+**Status:** Test suite run and green. `tsc` run and its findings documented above; the fixes
+themselves are not yet applied.
+
+---
+
+### **Check: docs review for Plan 11/12/13 topics**
+
+**Current state:** Not started. Plans 11 (second LLM provider), 12 (pre-login landing page +
+access-request signup), and 13 (MCP server) all shipped in quick succession on the same day
+(2026-08-15), each doing its own docs pass over largely the same set of files —
+`docs/system-about.md`, `docs/user-guide.md`, `docs/project-explanation.md`,
+`docs/roadmap.md`, `README.md`, `CHANGELOG.md`, and several `CLAUDE.md` files
+(`lib/ai/`, `lib/auth/`, `lib/db/`, plus the new `lib/mcp/`). Each pass checked its own
+addition was accurate at the time, but none of the three checked the *others'* additions for
+staleness, redundancy, or drift once the later plans landed on top.
+
+**Scope:** A single read-through pass across the doc set above with all three plans' topics
+in mind at once (not three separate passes) — check for:
+- Facts that were true when written but are now stale (e.g. a "not yet built" note for
+  something a later plan actually built).
+- Redundant or near-duplicate explanations of the same fact across two files, drifting out
+  of sync with each other (violates the project's own one-fact-one-home principle,
+  `CLAUDE.md` standing rule 6).
+- Anything a later plan's docs pass should have touched but didn't (e.g. a "known gaps"
+  bullet Plan 13 made obsolete, or a settings table Plan 11 or 12 should have extended).
+- Overall narrative coherence — do `docs/system-about.md` and `docs/project-explanation.md`
+  in particular still read as one coherent system description, not three bolted-on sections.
+
+**Effort:** Small–Medium (a focused read, not a rewrite — fix what's actually wrong or stale,
+don't restructure what already reads fine)
+**Depends on:** None
 **Status:** Not started
 
 ---
@@ -207,6 +254,46 @@ shipping.
 
 **Scope:** Log in, trigger `ConsentPopup`, confirm the disclaimer line and the Workbench
 footer both render as expected, both themes.
+
+**Effort:** Trivial
+**Status:** Not started
+
+---
+
+### **Check: MCP server live verification (Plan 13)**
+
+**Current state:** Code + full automated test suite done and green (2026-08-15). Live
+verification per plan §5.7/§6 steps 5–6 has not been run.
+
+**Scope — two parts:**
+- **Free:** connect a real console MCP client (Claude Code) to `/api/mcp` with a
+  generated token, complete the handshake, run `tools/list`, all three read tools
+  (`list_agents`, `get_agent`, `export_agent`), the `myagent://agent/{id}` resource
+  list/read, and `import_agent` with `dryRun:true`. No spend — confirms the protocol
+  implementation actually works against a real client, not just the hand-built test
+  requests in `app/api/__tests__/mcp.test.ts`.
+- **Billed — needs an explicit go-ahead first (standing rule 2):** one real `import_agent`
+  call (no `dryRun`), confirming the resulting `llm_call_log` row carries the right
+  `userId`, `origin: 'mcp'`, `provider`, `model`, and usage.
+
+Per standing rule 3, shut the dev server down afterward.
+
+**Effort:** Small
+**Depends on:** None
+**Status:** Not started
+
+---
+
+### **Check: Account "API tokens (MCP access)" panel renders correctly**
+
+**Current state:** The token-generation panel in `AccountView.tsx` (list, create with
+name + scope, one-time plaintext reveal + copy, revoke) is built and covered by API-level
+tests, but has never been opened in a running browser.
+
+**Scope:** Log in, open `/account`, generate a token (confirm the one-time reveal + copy
+button work and the plaintext is never shown again after leaving the page), confirm the
+list/prefix/scope/dates render correctly, revoke a token and confirm it disappears from
+the active list. Both themes.
 
 **Effort:** Trivial
 **Status:** Not started
@@ -269,7 +356,7 @@ this bucket is free to reorder.
 | **Automated invite-code email delivery** | Not started — provider undecided |
 | **Improve the guided tour** | Not started — depends on the MVP tour shipping first |
 | **Optional call-log persistence toggle** | Undecided if wanted |
-| **MCP server exposing MyAgent's agents** | Planned and decided — `plans/13-mcp-server-exposing-agents.md`; Medium (rescoped down from Large) |
+| **MCP server exposing MyAgent's agents** | Built + test suite green (Phases 1–4) 2026-08-15 — pending live-client verification |
 | **Re-enable group behavior** | Ready — three flag flips |
 | **Surface `applied`/`skipped` from apply-proposal in the UI** | Not started |
 | **`AgentView.tsx` save-name bypasses `apiFetch`** | Ready — trivial fix |
@@ -507,9 +594,37 @@ shown only transiently. Timing-wise: revisit soon after launch rather than let i
 
 ### **MCP server exposing MyAgent's agents**
 
-**Current state:** **Wanted — confirmed 2026-08-15**, fully designed and scoped in
-`plans/13-mcp-server-exposing-agents.md` with all seven design decisions resolved. Nothing
-built yet.
+**Current state:** **Built and test-verified 2026-08-15** — all four phases (token subsystem,
+read-only server, fitness functions, `import_agent`) implemented per
+`plans/13-mcp-server-exposing-agents.md`, plus the full test suite (`lib/mcp/__tests__/`,
+`lib/auth/__tests__/apiToken.test.ts` + `mcpGuard.test.ts`,
+`lib/db/repository/__tests__/apiTokens.test.ts`, `app/api/__tests__/account-tokens.test.ts` +
+`mcp.test.ts`) and docs (`lib/mcp/CLAUDE.md`, `docs/system-about.md` §13, `lib/auth/CLAUDE.md`,
+`lib/db/CLAUDE.md`, `docs/user-guide.md`, `docs/project-explanation.md`, `README.md`).
+`npm test` run with your go-ahead: **66/66 files, 841/841 tests pass** — this surfaced and
+fixed three real bugs along the way (below). `npx tsc --noEmit` on Plan 13's own code is
+clean; it separately surfaced 8 pre-existing Plan 11 errors, left unfixed and tracked under
+the "Check: full test suite + `tsc` after Plan 11" TODO item instead.
+
+**Bugs found and fixed during verification, not present before this pass:**
+- `lib/db/migrations/0008_mcp_tokens.sql` had been hand-written without a matching
+  `meta/_journal.json` entry, so the in-memory test DB's migrator silently never applied
+  it — every test touching `api_token` or `llm_call_log.origin` failed. Fixed by
+  regenerating properly via `npx drizzle-kit generate --name=mcp_tokens` (identical SQL,
+  now with a real journal entry + snapshot).
+- `listAgents()` in `lib/db/repository/agents.ts` declared `updatedAt` on its
+  `AgentLiteDTO` return type but never actually set it on the returned object — a
+  pre-existing latent bug, surfaced because `list_agents`'s documented shape depends on it.
+  Fixed.
+- `app/components/Account/AccountView.tsx`'s file-header comment literally quoted the
+  string `fetch('/api/` inside a sentence explaining the apiFetch rule — tripping the very
+  fitness test it was describing (a false positive, not a real bare-fetch call). Reworded.
+- The MCP route/protocol tests didn't send `Accept: application/json, text/event-stream`,
+  which the SDK's transport requires on every POST (a real client sends this
+  automatically) — test-only fix, now documented in `lib/mcp/CLAUDE.md`.
+
+**Not yet live-verified** — plan §5.7/§6 steps 5–6 (a real console client handshake, free;
+one real billed `import_agent` call) still need an explicit ask per standing rule 2.
 
 **Scope:** An MCP server so a **console MCP client** (Claude Code and equivalents) can
 read/import a user's agents outside the web UI. **Clients:** console/CLI only — Claude
@@ -535,8 +650,9 @@ risk, and two schema enum additions, and resolving the client question removed O
 remains: a token subsystem, a protocol endpoint, three thin repository reads, one tool wrapping
 the existing import pipeline, one nullable log column, one bool setting, tests and docs. The
 read-only slice alone is Small–Medium.
-**Status:** Planned and decided — `plans/13-mcp-server-exposing-agents.md`. Ready for `@dev`
-pending a final read-through
+**Status:** Built + test suite green 2026-08-15 — `plans/13-mcp-server-exposing-agents.md`.
+Awaiting live verification (needs an explicit ask per standing rule 2) before this item
+can close
 
 ---
 

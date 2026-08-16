@@ -14,7 +14,7 @@ lib/db/repository/index.ts        ← the ONLY DB import surface outside lib/db
    (barrel re-export)
         │
         ▼
-repository/{agents,groups,users,oauthAccounts,settings,catalog,llmCallLog}.ts
+repository/{agents,groups,users,oauthAccounts,settings,catalog,llmCallLog,apiTokens}.ts
         │
         ▼
 lib/db/client.ts  ──►  better-sqlite3  ──►  myagent.db
@@ -47,12 +47,15 @@ EAV zones, `SectionRevision`, `AgentSnapshot`, `Group`/`Membership`, `User`, `In
 
 ## Migrations (`migrations/`)
 
-Seven migrations to date, applied in order by `drizzle-kit`. `0000`–`0004` built the
-original single-tenant schema, groups, and the LLM gateway/settings/log tables; `0005`
-added `(platform, key)` scoping to the `configDef`/`sectionDef` catalogs; `0006` dropped
-`sectionDef.label` once `defaultHeading` became the single name for a section (display text
-included). Migration filenames are `drizzle-kit`-generated (random two-word suffixes) —
-the leading number is the only part that matters for ordering.
+Nine migrations to date (`0000`–`0008`), applied in order by `drizzle-kit`. `0000`–`0004`
+built the original single-tenant schema, groups, and the LLM gateway/settings/log tables;
+`0005` added `(platform, key)` scoping to the `configDef`/`sectionDef` catalogs; `0006`
+dropped `sectionDef.label` once `defaultHeading` became the single name for a section
+(display text included); `0007` (Plan 12) added `access_request` plus
+`invite_code.bound_email`/`expires_at` for the signup-request flow; `0008` (Plan 13) added
+the `api_token` table and `llm_call_log.origin`. Migration filenames are
+`drizzle-kit`-generated (random two-word suffixes) — the leading number is the only part
+that matters for ordering.
 
 ## Seed (`seed.ts`, `sectionDefsSeed.ts`)
 
@@ -101,8 +104,16 @@ its tables directly:
   attach the real outcome — documented as the sanctioned exception, not a precedent for
   more. `sharedWithAdmin` is written once by the gateway at call time and never touched
   again; pre-auth rows (`userId IS NULL`) are never redacted regardless of that flag, since
-  they predate multi-tenancy and belong to the admin by definition.
-- **`index.ts`** — the barrel. Re-exports every function and DTO type the six files above
+  they predate multi-tenancy and belong to the admin by definition. Gained a nullable
+  `origin: 'web' | 'mcp'` column in Plan 13 so the audit log can distinguish MCP-initiated
+  calls from browser-initiated ones — written by `lib/ai/gateway.ts` from `LlmCallContext.origin`
+  (default `'web'` when absent), the same fidelity fix Plan 11 made for the `provider` column.
+- **`apiTokens.ts`** — `api_token` rows (Plan 13, MCP access). The only file that touches
+  this table. `tokenHash` is never returned by `listApiTokensForUser()` — only `prefix`/
+  `name`/`scope`/dates. `revokeApiToken()` is a soft delete (`revokedAt` set, row never
+  deleted, so `lastUsedAt` survives as an audit trail) and requires both `id` and `ownerId`
+  to match. `createApiToken()` enforces a per-user cap of 10 active tokens.
+- **`index.ts`** — the barrel. Re-exports every function and DTO type the files above
   expose; this is the only import path anything outside `lib/db/` is allowed to use.
 
 ## Files in this folder
@@ -113,7 +124,7 @@ its tables directly:
 | `schema.ts` | Every Drizzle table definition |
 | `seed.ts` | Runs migrations + bootstrap-only catalog seed (`npm run db:seed`) |
 | `sectionDefsSeed.ts` | Bootstrap-only default `SectionDef` rows, consumed only by `seed.ts` |
-| `migrations/*.sql` | Seven migrations, `drizzle-kit`-generated, applied in numeric order |
+| `migrations/*.sql` | Nine migrations (`0000`–`0008`), `drizzle-kit`-generated, applied in numeric order |
 | `repository/agents.ts` | Agent/section/revision/snapshot CRUD |
 | `repository/groups.ts` | Group/membership CRUD |
 | `repository/catalog.ts` | Read-only `ConfigDef`/`SectionDef` access |
@@ -121,6 +132,7 @@ its tables directly:
 | `repository/oauthAccounts.ts` | `oauth_account` rows |
 | `repository/settings.ts` | Raw `setting` table get/set |
 | `repository/llmCallLog.ts` | Append-only AI call audit log |
+| `repository/apiTokens.ts` | `api_token` rows — Personal Access Tokens for MCP access (Plan 13) |
 | `repository/index.ts` | The barrel — sole import surface for everything above |
 | `__tests__/test-db.ts`, `__tests__/test-users.ts` | In-memory (`:memory:`) DB + fixture-user helpers shared across the repository test suite |
 | `__tests__/migration.test.ts` | Migrations apply cleanly to a fresh database |

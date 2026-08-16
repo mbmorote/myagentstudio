@@ -65,13 +65,41 @@ usable directly in tests.
 
 ## Rate limiting (`rateLimit.ts`)
 
-An in-process, fixed-window limiter (10 attempts / 15 minutes / `(route, client IP)`)
-guarding the two endpoints reachable without a session: login and signup. IP comes from the
-first entry of `x-forwarded-for`, falling back to `'unknown'`. Its limitations — per-process
-(a multi-instance deploy multiplies the effective limit), resets on restart, and a spoofable
-IP header absent TLS-terminator rewriting — are accepted for the current single-instance,
+An in-process, fixed-window limiter (10 attempts / 15 minutes) guarding endpoints reachable
+without a session cookie: login, signup, and — since Plan 13 — the MCP endpoint's bearer-token
+guard. `checkRateLimit(request, route)` keys by `(route, client IP)` for the browser-facing
+endpoints; IP comes from the first entry of `x-forwarded-for`, falling back to `'unknown'`.
+`checkRateLimitByKey(key)` is the underlying primitive both build on — an arbitrary string
+key, used directly by `mcpGuard.ts` as `('mcp', tokenId)` so each token gets its own
+independent window rather than sharing one keyed by IP (an MCP client has no meaningful
+per-request IP identity the way a login attempt does). Its limitations — per-process (a
+multi-instance deploy multiplies the effective limit), resets on restart, and a spoofable IP
+header absent TLS-terminator rewriting — are accepted for the current single-instance,
 small-user-base deployment, not overlooked; see `plans/roadmap.md` FUTURE for the
 distributed version.
+
+## API tokens & the MCP guard (`apiToken.ts`, `mcpGuard.ts`) — Plan 13
+
+A **second credential type**, deliberately separate from the session cookie, for console/CLI
+MCP clients that have no cookie jar for this origin. `apiToken.ts` generates a Personal
+Access Token (`mya_` + 43 base64url chars from 32 random bytes) and hashes it (SHA-256 hex,
+not bcrypt — a 256-bit random token needs no key-stretching, and a hash enables an indexed
+lookup a bcrypt compare cannot). Deliberately not built on `inviteCode.ts` despite being the
+closest existing generated-credential precedent: an invite code is human-typed and stored
+plaintext on purpose so the admin can resend it; an API token is machine-copied and must
+never be re-readable by anyone, including the admin — opposite requirements, separate
+generator. The plaintext exists exactly once, in the `201` response that creates it
+(`POST /api/account/tokens`); only the hash and a 12-character display prefix are stored
+(`lib/db/repository/apiTokens.ts`).
+
+`mcpGuard.ts`'s `authenticateMcpToken(request)` is a **third sibling** to
+`authenticate()`/`authenticateAdmin()` in the identical discriminated-union shape
+(`{ok:true, principal}` / `{ok:false, response}`). It reads `Authorization: Bearer …`,
+hashes it, looks up the row, and — deliberately — collapses "no such token", "revoked", and
+"expired" into the exact same `401` body (the same non-disclosure posture as the repository's
+cross-owner `404`s elsewhere). The returned `McpPrincipal { userId, tokenId, scope }`
+**never carries a `role`** — an admin's token grants exactly a normal user's powers; there is
+no admin API over MCP. See `lib/mcp/CLAUDE.md` for how this principal is used.
 
 ## OAuth — Google sign-in (`oauth/`)
 
@@ -121,12 +149,14 @@ the password-signup (client redirect) and Google-signup (server redirect) paths.
 | `guard.ts` | `authenticate()` / admin guard — the route-handler entry point |
 | `password.ts` | bcrypt hash/verify + the no-password sentinel |
 | `inviteCode.ts` | Invite-code generation and normalization |
-| `rateLimit.ts` | Login/signup fixed-window rate limiter |
+| `rateLimit.ts` | Fixed-window rate limiter — `checkRateLimit` (route+IP) and `checkRateLimitByKey` (arbitrary key, used by `mcpGuard.ts`) |
+| `apiToken.ts` | Personal Access Token generation + SHA-256 hashing (Plan 13, MCP access) |
+| `mcpGuard.ts` | `authenticateMcpToken()` — the third sibling to `authenticate()`/`authenticateAdmin()`, bearer-token authenticated, never returns a role (Plan 13) |
 | `consentPopupFlag.ts` | Shared constants for the post-signup consent-popup handoff |
 | `oauth/types.ts` | `OAuthProfile`/`OAuthProvider` — the provider-agnostic seam |
 | `oauth/providers.ts` | The provider registry — what route tests mock |
 | `oauth/google.ts` | Google provider implementation. The only `arctic`/JWKS importer |
 | `oauth/tx.ts` | The OAuth transaction cookie (set/read/clear) |
-| `__tests__/*.test.ts` | Unit tests mirroring each file above (password, session, guard, invite codes, rate limit, JWT, session TTL, consent-popup flags) |
+| `__tests__/*.test.ts` | Unit tests mirroring each file above (password, session, guard, invite codes, rate limit, JWT, session TTL, consent-popup flags, API tokens, MCP guard) |
 | `oauth/__tests__/tx.test.ts` | Transaction cookie set/read/clear cases |
 | `oauth/__tests__/google-idtoken.test.ts` | `id_token` verification against a locally generated JWKS — never a real Google call |

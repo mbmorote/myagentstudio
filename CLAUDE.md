@@ -115,8 +115,8 @@ follow these even though you have no memory of when they were agreed:
   source code, not documentation** — `scripts/build-prompts.ts` compiles it into
   `lib/ai/prompts/generated/*.ts` at build time; it lives next to that generated output
   rather than in a folder meant for passive reference material. See `lib/ai/CLAUDE.md`.
-- **`lib/ai/`, `lib/import/`, `lib/serialize/`, `lib/auth/`, `lib/db/`** — each has its own
-  `CLAUDE.md`; see Files below.
+- **`lib/ai/`, `lib/import/`, `lib/serialize/`, `lib/auth/`, `lib/db/`, `lib/mcp/`** — each has
+  its own `CLAUDE.md`; see Files below.
 - **`lib/blueprint/`** — the Agent Blueprint (`ConfigDef`/`SectionDef` catalogs + rule
   functions), derived data driving the UI, AI import, and validation from one definition.
   Small enough (4 files) to fold in here rather than carry its own `CLAUDE.md`. One gotcha
@@ -157,6 +157,9 @@ follow these even though you have no memory of when they were agreed:
 - **`lib/auth/CLAUDE.md`** — session/JWT, password hashing, invite codes, rate limiting,
   Google OAuth.
 - **`lib/db/CLAUDE.md`** — schema, migrations, seed scripts, and the repository layer.
+- **`lib/mcp/CLAUDE.md`** — the MCP server exposing a user's agents to console/CLI clients
+  (Plan 13): tool/resource layer, the SDK-isolation and write-surface-containment fitness
+  functions, and the `import_agent` write path.
 
 ## Notes
 
