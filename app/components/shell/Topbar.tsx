@@ -56,7 +56,7 @@ export function Topbar({ session, onReplayTour }: TopbarProps) {
     } catch {
       // Continue with navigation regardless of network errors
     }
-    window.location.href = '/login';
+    window.location.href = '/welcome';
   }
 
   return (

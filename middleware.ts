@@ -11,13 +11,20 @@
  * in the path.
  *
  * Behaviour:
- *   PUBLIC paths: /login, /signup, /welcome, /terms, /privacy, /api/auth/login,
+ *   PUBLIC paths: /, /login, /signup, /welcome, /terms, /privacy, /api/auth/login,
  *   /api/auth/signup, /api/auth/logout, /api/auth/request-access
  *     - Allowed through without a token.
  *     - If the user already has a valid token and hits /login or /signup, redirect to /.
  *       /welcome (Plan 12's pre-login landing page, 2026-08-14) is NOT in that redirect
  *       check — it's an ordinary public page, not an auth-only one, so an already-signed-in
  *       visitor can still view it instead of being bounced to /.
+ *     - / (the site root) is public too, for the same reason as /welcome: an
+ *       unauthenticated visitor should see the landing page there instead of being
+ *       redirected to /login. app/page.tsx itself branches on session presence — no
+ *       session renders the same landing content as /welcome; a valid session falls
+ *       through to the existing authenticated behaviour (redirect to the user's first
+ *       agent, or the empty-library WorkbenchShell). / is NOT in the /login-or-/signup
+ *       bounce check above for the same reason /welcome isn't.
  *
  *   Protected paths (everything else after the static-asset exclusions):
  *     - Token absent or invalid:
@@ -35,6 +42,7 @@ import { verifySessionToken } from '@/lib/auth/jwt';
 import { SESSION_COOKIE } from '@/lib/auth/constants';
 
 const PUBLIC_PATHS = new Set([
+  '/',
   '/login',
   '/signup',
   '/welcome',

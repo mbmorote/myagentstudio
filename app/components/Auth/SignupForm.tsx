@@ -61,9 +61,21 @@ interface SignupFormProps {
   /** When set (embedded mode only), "Sign in" switches to the login modal instead of
    *  navigating to /login — same reasoning as LoginForm.tsx's onSwitchToSignup. */
   onSwitchToLogin?: () => void;
+  /** Which of the two sub-forms (invite-code signup vs. no-code request-access) opens
+   *  first. Defaults to 'signup' — right for the standalone /signup page (a visitor who
+   *  typed the URL directly usually already has a code) and for LoginForm's "Sign up"
+   *  switch-over (same assumption). WelcomePage.tsx's "Get started — ask for an invite"
+   *  CTA overrides this to 'request', since that button's own label promises the
+   *  no-code flow — opening the code-required form first there is the wrong default. */
+  initialMode?: 'signup' | 'request';
 }
 
-export function SignupForm({ oauthConfigured, embedded = false, onSwitchToLogin }: SignupFormProps) {
+export function SignupForm({
+  oauthConfigured,
+  embedded = false,
+  onSwitchToLogin,
+  initialMode = 'signup',
+}: SignupFormProps) {
   // Read ?error= from the OAuth callback redirect (§7.3).
   // Match against the closed vocabulary — never render the raw value.
   const searchParams = useSearchParams();
@@ -81,7 +93,7 @@ export function SignupForm({ oauthConfigured, embedded = false, onSwitchToLogin 
   // ── "Request access" — for visitors without an invite code (Plan 12, 2026-08-14) ──
   // A toggle inside this same component, not a separate route/page, so it works both
   // standalone (/signup) and inside WelcomePage's modal for free.
-  const [mode, setMode] = useState<'signup' | 'request'>('signup');
+  const [mode, setMode] = useState<'signup' | 'request'>(initialMode);
   const [requestName, setRequestName] = useState('');
   const [requestEmail, setRequestEmail] = useState('');
   const [requestSource, setRequestSource] = useState<ReferralSource | ''>('');

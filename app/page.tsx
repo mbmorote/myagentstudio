@@ -8,21 +8,28 @@
  * WorkbenchShell and LibraryPanel already had null-agent fallbacks built in (Viz/Chat/
  * Raw panels' "No agent loaded" states, LibraryPanel's now-optional currentAgentId) —
  * this was previously unreachable dead code, not a new UI.
+ * Revised 2026-08-17 — / is now the default landing page for signed-out visitors
+ * instead of bouncing to /login (middleware.ts's PUBLIC_PATHS now includes /). No
+ * session → render the same landing content as /welcome. A valid session falls through
+ * to the pre-existing behaviour below unchanged.
  *
  * Zero agents → render WorkbenchShell in its null-agent state.
  * One or more agents → redirect to /agents/{first.id}.
- *
- * Requires an authenticated session — unauthenticated visitors are redirected to
- * /login?next=/ by middleware, and requirePageSession() is a second guarantee.
  */
 
 import { redirect } from 'next/navigation';
 import { listAgents, listGroups, getConfigCatalog, getSectionCatalog } from '@/lib/db/repository';
-import { requirePageSession } from '@/lib/auth/session';
+import { getSession } from '@/lib/auth/session';
+import { isOAuthConfigured } from '@/lib/env';
 import { WorkbenchShell } from '@/app/components/WorkbenchShell';
+import { WelcomePage } from '@/app/components/Welcome/WelcomePage';
 
 export default async function Home() {
-  const session = await requirePageSession('/');
+  const session = await getSession();
+  if (!session) {
+    return <WelcomePage oauthConfigured={isOAuthConfigured()} />;
+  }
+
   const agents = listAgents(session.userId);
 
   if (agents.length === 0) {
