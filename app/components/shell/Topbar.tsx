@@ -71,14 +71,17 @@ export function Topbar({ session, onReplayTour }: TopbarProps) {
 
       {/* Right side controls */}
       <div className="ml-auto flex items-center gap-2">
-        {/* Guided tour replay (Plan 12, 2026-08-14) */}
+        {/* Guided tour replay (Plan 12, 2026-08-14). Icon-only (2026-08-18) — the
+            label moved to title/aria-label as a hover hint instead of visible text,
+            "?" reads as "help/tour" more directly than the previous ⓘ. */}
         {onReplayTour && (
           <button
             onClick={onReplayTour}
-            title="Replay the guided tour"
-            className="text-[12px] text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] rounded-[7px] px-[11px] py-[5px] cursor-pointer hover:text-[var(--text)]"
+            title="Guided tour"
+            aria-label="Guided tour"
+            className="w-[30px] h-[30px] flex-none flex items-center justify-center text-[13px] font-semibold text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] rounded-[7px] cursor-pointer hover:text-[var(--text)] hover:border-[var(--accent)]"
           >
-            ⓘ Guided tour
+            ?
           </button>
         )}
 

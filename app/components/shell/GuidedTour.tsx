@@ -151,18 +151,33 @@ export const GuidedTour = forwardRef<GuidedTourHandle, GuidedTourProps>(function
 
     setSpotRect(rect ? { top: rect.top - pad, left: rect.left - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 } : null);
 
-    const pw = popRef.current?.offsetWidth ?? 300;
-    const ph = popRef.current?.offsetHeight ?? 140;
+    const pw = popRef.current?.offsetWidth ?? 380;
+    const ph = popRef.current?.offsetHeight ?? 170;
     let top: number, left: number;
     if (!rect) {
       top = (window.innerHeight - ph) / 2;
       left = (window.innerWidth - pw) / 2;
     } else {
-      if (rect.top + rect.height + margin + ph <= window.innerHeight) top = rect.top + rect.height + margin;
-      else if (rect.top - margin - ph >= 0) top = rect.top - margin - ph;
-      else top = Math.max(margin, (window.innerHeight - ph) / 2);
-      left = rect.left + rect.width / 2 - pw / 2;
-      left = Math.max(margin, Math.min(left, window.innerWidth - pw - margin));
+      // A tall, narrow target (a sidebar panel like Library) gets covered almost
+      // entirely if the popover just stacks below/above it, since a panel that
+      // narrow is thinner than the popover itself — prefer placing it BESIDE the
+      // panel instead, top-aligned to it (found in browser review, 2026-08-18,
+      // step 2/Library). Wider/shorter targets (a row, a button) keep the
+      // original below → above → vertically-centered fallback chain.
+      const isTallNarrow = rect.height > rect.width * 1.3 && rect.width < pw * 1.2;
+      const fitsRight = rect.left + rect.width + margin + pw <= window.innerWidth;
+      const fitsLeft = rect.left - margin - pw >= 0;
+
+      if (isTallNarrow && (fitsRight || fitsLeft)) {
+        left = fitsRight ? rect.left + rect.width + margin : rect.left - margin - pw;
+        top = Math.max(margin, Math.min(rect.top, window.innerHeight - ph - margin));
+      } else {
+        if (rect.top + rect.height + margin + ph <= window.innerHeight) top = rect.top + rect.height + margin;
+        else if (rect.top - margin - ph >= 0) top = rect.top - margin - ph;
+        else top = Math.max(margin, (window.innerHeight - ph) / 2);
+        left = rect.left + rect.width / 2 - pw / 2;
+        left = Math.max(margin, Math.min(left, window.innerWidth - pw - margin));
+      }
     }
     setPopStyle({ top, left });
   }, [index]);
@@ -229,21 +244,21 @@ export const GuidedTour = forwardRef<GuidedTourHandle, GuidedTourProps>(function
       )}
       <div
         ref={popRef}
-        className="fixed z-[202] w-[300px] bg-[var(--panel)] text-[var(--text)] border border-[var(--border)] rounded-[10px] shadow-[0_12px_40px_rgba(0,0,0,.32)] py-[14px] px-[16px]"
+        className="fixed z-[202] w-[380px] bg-[var(--panel)] text-[var(--text)] border border-[var(--border)] rounded-[10px] shadow-[0_12px_40px_rgba(0,0,0,.32)] py-[18px] px-[20px]"
         style={{ top: popStyle.top, left: popStyle.left }}
         role="dialog"
         aria-modal="true"
       >
-        <div className="text-[10px] font-bold tracking-[.06em] uppercase text-[var(--faint)] mb-[6px]">
+        <div className="text-[11px] font-bold tracking-[.06em] uppercase text-[var(--faint)] mb-[8px]">
           {index + 1} / {TOUR_STEPS.length}
         </div>
-        <div className="text-[14px] font-bold mb-[6px]">{step.title}</div>
-        <div className="text-[12px] text-[var(--muted)] leading-[1.5]">{step.body}</div>
-        <div className="flex items-center justify-between gap-[10px] mt-[14px]">
+        <div className="text-[17px] font-bold mb-[8px]">{step.title}</div>
+        <div className="text-[14px] text-[var(--muted)] leading-[1.6]">{step.body}</div>
+        <div className="flex items-center justify-between gap-[10px] mt-[18px]">
           <button
             type="button"
             onClick={end}
-            className="text-[12px] rounded-[7px] px-[4px] py-[6px] border-none bg-transparent text-[var(--muted)] cursor-pointer hover:text-[var(--text)]"
+            className="text-[13px] rounded-[7px] px-[4px] py-[6px] border-none bg-transparent text-[var(--muted)] cursor-pointer hover:text-[var(--text)]"
           >
             Exit
           </button>
@@ -252,14 +267,14 @@ export const GuidedTour = forwardRef<GuidedTourHandle, GuidedTourProps>(function
               type="button"
               disabled={index === 0}
               onClick={() => setIndex((i) => Math.max(0, i - 1))}
-              className="text-[12px] rounded-[7px] px-[12px] py-[6px] border border-[var(--border)] bg-[var(--elev)] text-[var(--muted)] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed enabled:hover:text-[var(--text)] enabled:hover:border-[var(--text)]"
+              className="text-[13px] rounded-[7px] px-[14px] py-[7px] border border-[var(--border)] bg-[var(--elev)] text-[var(--muted)] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed enabled:hover:text-[var(--text)] enabled:hover:border-[var(--text)]"
             >
               ‹ Prev
             </button>
             <button
               type="button"
               onClick={() => (isLast ? end() : setIndex((i) => i + 1))}
-              className="text-[12px] rounded-[7px] px-[12px] py-[6px] border-none bg-[var(--accent)] text-white font-semibold cursor-pointer hover:brightness-110"
+              className="text-[13px] rounded-[7px] px-[14px] py-[7px] border-none bg-[var(--accent)] text-white font-semibold cursor-pointer hover:brightness-110"
             >
               {isLast ? 'Finish ✓' : 'Next ›'}
             </button>
