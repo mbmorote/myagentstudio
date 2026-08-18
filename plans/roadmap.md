@@ -50,7 +50,6 @@ aren't detailed further, the description here is all there is.
 | **Log retention / pruning / pagination** | Infra | NEXT | Not started |
 | **Cost estimation in currency on log rows** | Behavior | NEXT | Not started |
 | **Compliance-grade (non-droppable) logging** | Infra | NEXT | Undecided if wanted |
-| **Check: `/welcome`, `/terms`, `/privacy` render correctly in browser** | UX | NEXT | Visual QA, not run yet |
 | **Landing page mobile/responsive support** | UX | NEXT | Not started — flagged as a real conversion-risk gap, not cosmetic |
 | **Automated invite-code email delivery** | Infra | NEXT | Not started — provider undecided |
 | **Improve the guided tour** | UX | NEXT | Not started |
@@ -362,7 +361,6 @@ this bucket is free to reorder.
 | **Log retention / pruning / pagination** | Not started |
 | **Cost estimation in currency on log rows** | Not started |
 | **Compliance-grade (non-droppable) logging** | Undecided if wanted |
-| **Check: `/welcome`, `/terms`, `/privacy` render correctly in browser** | Visual QA, not run yet |
 | **Landing page mobile/responsive support** | Not started — real conversion-risk gap, not cosmetic |
 | **Automated invite-code email delivery** | Not started — provider undecided |
 | **Improve the guided tour** | Not started — depends on the MVP tour shipping first |
@@ -513,20 +511,6 @@ deciding whether this is worth building at all.
 
 **Effort:** Medium–Large, if built
 **Status:** Undecided if wanted
-
----
-
-### **Check: `/welcome`, `/terms`, `/privacy` render correctly in browser**
-
-**Current state:** All three pages are built, including the real author-identity and
-contact-email env values (set 2026-08-15), but none has been opened in a running app since.
-
-**Scope:** Load `/welcome`, `/terms`, `/privacy` in both themes; confirm the real
-name/LinkedIn/GitHub/email render and link correctly, the walkthrough/modals still work, and
-the footer Terms/Privacy links navigate correctly.
-
-**Effort:** Trivial
-**Status:** Not started
 
 ---
 

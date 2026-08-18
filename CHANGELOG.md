@@ -8,6 +8,15 @@ version of this file, kept locally as historical record — not tracked in git).
 
 ---
 
+## 2026-08-18 — `/welcome`, `/terms`, `/privacy` browser-verified
+
+Closes the roadmap's "Check: `/welcome`, `/terms`, `/privacy` render correctly in
+browser" NEXT item. Verified live and incrementally throughout the session as each
+page's content changed: the landing page's hero/walkthrough/feature grid/roadmap wave in
+both themes, the footer author identity resolving to real values (not the placeholder
+fallback), and the fully-rewritten Terms/Privacy pages after their content overhaul. No
+code changes from this pass — pure verification.
+
 ## 2026-08-18 — Renamed MyAgent to MyAgentStudio
 
 Cosmetic/branding rename only, no functional change. Updated everywhere a human sees the
