@@ -8,6 +8,30 @@ version of this file, kept locally as historical record — not tracked in git).
 
 ---
 
+## 2026-08-18 — Terms of Service and Privacy Policy rewritten, grounded in real practice
+
+Both `/terms` and `/privacy` shipped 2026-08-15 as generic SaaS boilerplate. Rewrote both
+to actually describe what the system does — verified against `lib/db/schema.ts` and
+`docs/system-about.md`, not assumed. Privacy Policy gained sections on who can see chat
+content (the admin, only if the user has opted in via the Activity Log Sharing consent
+toggle — a real, distinctive control worth naming explicitly rather than folding into
+generic "data sharing" language), which AI providers process content, and data retention
+(honest: the activity log has no purge policy yet, stated as such rather than implied
+otherwise). "Your Rights" names GDPR and CCPA explicitly rather than staying vague — CCPA's
+revenue/volume thresholds aren't met at this beta's scale, but GDPR applies per
+data-subject location regardless of company size, and the intended audience (~10-15
+invited IT/professional users, not personal friends) is realistic enough about privacy
+rights to ask.
+
+Both pages gained a new "Who We Are" section naming the real legal entity behind
+ProcessMind Solutions (a Brazilian Empresário Individual under Simples Nacional, CNPJ
+[REDACTED]) at the operator's explicit request — deliberately excludes CPF, home
+address, and phone number even though those exist in the underlying registration record,
+since a public legal page has no legitimate need for that level of detail. Closes the
+roadmap's "`/terms` jurisdiction placeholder" TODO item — Governing Law now names Brazil,
+matching where the entity is actually registered, instead of the literal `[jurisdiction]`
+placeholder that had been sitting there since Plan 12.
+
 ## 2026-08-18 — Preferences modal: Account + Settings merged, per-user activity log, gateway bug fix
 
 Retired the two separate topbar entry points ("⚙ System Settings", admin-only, and

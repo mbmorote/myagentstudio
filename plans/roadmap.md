@@ -50,7 +50,6 @@ aren't detailed further, the description here is all there is.
 | **Log retention / pruning / pagination** | Infra | NEXT | Not started |
 | **Cost estimation in currency on log rows** | Behavior | NEXT | Not started |
 | **Compliance-grade (non-droppable) logging** | Infra | NEXT | Undecided if wanted |
-| **Check: `/terms` jurisdiction placeholder** | UX | NEXT | Needs a real jurisdiction |
 | **Check: `/welcome`, `/terms`, `/privacy` render correctly in browser** | UX | NEXT | Visual QA, not run yet |
 | **Landing page mobile/responsive support** | UX | NEXT | Not started — flagged as a real conversion-risk gap, not cosmetic |
 | **Automated invite-code email delivery** | Infra | NEXT | Not started — provider undecided |
@@ -363,7 +362,6 @@ this bucket is free to reorder.
 | **Log retention / pruning / pagination** | Not started |
 | **Cost estimation in currency on log rows** | Not started |
 | **Compliance-grade (non-droppable) logging** | Undecided if wanted |
-| **Check: `/terms` jurisdiction placeholder** | Needs a real jurisdiction |
 | **Check: `/welcome`, `/terms`, `/privacy` render correctly in browser** | Visual QA, not run yet |
 | **Landing page mobile/responsive support** | Not started — real conversion-risk gap, not cosmetic |
 | **Automated invite-code email delivery** | Not started — provider undecided |
@@ -515,20 +513,6 @@ deciding whether this is worth building at all.
 
 **Effort:** Medium–Large, if built
 **Status:** Undecided if wanted
-
----
-
-### **Check: `/terms` jurisdiction placeholder**
-
-**Current state:** The pre-login landing page (`plans/archive/12-ui-batch-launch-polish.md`)
-shipped 2026-08-15 — live at `/welcome`, with `/terms` and `/privacy` built and linked.
-`app/terms/page.tsx`'s Governing Law section still has a literal `[jurisdiction]` placeholder
-(appears twice) — no real value supplied yet.
-
-**Scope:** Fill in a real jurisdiction (state/country).
-
-**Effort:** Trivial
-**Status:** Not started
 
 ---
 
