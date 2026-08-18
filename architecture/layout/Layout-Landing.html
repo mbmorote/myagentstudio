@@ -60,6 +60,11 @@
     color:var(--faint); font-size:12px; font-style:italic; text-align:center}
   .shot .shotbody.has-img{padding:0}
   .shot .shotbody img{width:100%; height:100%; object-fit:cover; display:block}
+  .shot-expand{position:relative; cursor:pointer}
+  .shot-expand-hint{position:absolute; inset:0; z-index:10; display:flex; align-items:center;
+    justify-content:center; background:rgba(20,24,30,.35); color:#fff; font-size:14px;
+    font-weight:600; letter-spacing:-.01em; opacity:0; transition:opacity .15s; pointer-events:none}
+  .shot-expand:hover .shot-expand-hint{opacity:1}
 
   .foot{position:sticky; bottom:0; z-index:5; background:var(--panel); border-top:1px solid var(--border); font-size:11.5px; color:var(--faint)}
   .footrow{display:flex; align-items:center; gap:18px; max-width:980px; margin:0 auto; padding:10px 28px}
@@ -96,8 +101,12 @@
   .wcard{text-align:left; background:var(--elev); border:1px solid var(--border); border-radius:10px;
     box-shadow:0 12px 28px -18px rgba(0,0,0,.35); padding:22px; min-height:350px;
     display:flex; flex-direction:column}
-  .wcard .counter{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); margin-bottom:8px}
+  /* text-align:center (ux-agent finding #3, 2026-08-17) — .wcard is text-left, and this
+     counter never overrode it, so it floated top-left, disconnected from the
+     kicker/title/desc below it (.wtext, which does center). */
+  .wcard .counter{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); margin-bottom:8px; text-align:center}
   .wgrid{display:grid; grid-template-columns:1.1fr 1fr; column-gap:26px; row-gap:25px; align-items:start; flex:1; min-height:170px}
+  .wtext{min-height:145px}
   /* Top-aligned vertically (matches the counter/kicker staying pinned across steps of
      varying description length), centered horizontally — the step text column only,
      not the screenshot frame beside it. */
@@ -231,12 +240,22 @@
     <div class="wcard">
       <div class="counter step-counter"></div>
       <div class="wgrid">
-        <div>
+        <!-- .wtext reserves worst-case space across all 4 steps (ux-agent finding #1,
+             2026-08-17) — without it, step 3's longer title wraps to an extra line and the
+             whole card (and the screenshot below it) visibly grows/shrinks as you click
+             through steps. Same fix already applied to the modal's .mtext. -->
+        <div class="wtext">
           <div class="wkicker step-kicker"></div>
           <h3 class="step-title"></h3>
           <p class="step-desc"></p>
         </div>
-        <div class="shot"><div class="shotbar"><span></span><span></span><span></span></div>
+        <!-- shot-expand: whole frame opens the "Full view" modal, with a hover overlay
+             hint (ux-agent review finding #6, 2026-08-17) — previously the only way to
+             open the modal was the small "Full view" text button below; clicking the
+             screenshot itself, the most natural gesture, did nothing. -->
+        <div class="shot shot-expand" id="btnOpenModalShot">
+          <div class="shot-expand-hint">⤢ Full view</div>
+          <div class="shotbar"><span></span><span></span><span></span></div>
           <div class="shotbody step-shot"></div></div>
         <div class="wctrls wctrls-3">
           <div class="wctrls-col"><button class="wbtn" id="btnPrev">← Previous</button><button class="wbtn" id="btnNext">Next →</button></div>
@@ -349,7 +368,7 @@
       { kicker: 'STEP 1 — IMPORT', title: 'Bring in any agent', desc: 'Drop in a .md agent file — Structural mode reorganizes it into a clean, canonical layout; Strict mode keeps your structure and just labels it. Nothing gets silently dropped.', shot: '[ screenshot — import dialog ]', img: '../../public/welcome/step-1-import.jpg', fullImg: '../../public/welcome/step-1-import-full.jpg', fullImgFit: 'contain' },
       { kicker: 'STEP 2 — SEE', title: 'See the whole agent at once', desc: 'Every section — Role, Behavior, Guardrails, Output — sits on screen together, always. No more losing track of an agent inside a chat transcript or a wall of YAML.', shot: '[ screenshot — structured view, all sections expanded ]', img: '../../public/welcome/step-2-see.jpg', fullImg: '../../public/welcome/step-2-see-full.jpg', fullImgFit: 'cover', fullImgPos: 'left top', fullImgZoom: 1.3 },
       { kicker: 'STEP 3 — EDIT', title: 'Edit it directly, or just describe the change', desc: 'Change a field by hand, or tell the built-in chat what you want — it already knows the agent\'s full current state, so it proposes a precise edit instead of guessing.', shot: '[ screenshot — structured view + chat, mid-edit ]', img: '../../public/welcome/step-3-edit.jpg', imgPos: 'left center', fullImg: '../../public/welcome/step-3-edit-full.jpg', fullImgPos: 'center' },
-      { kicker: 'STEP 4 — REVIEW & EXPORT', title: 'Approve the diff, take it with you', desc: 'Every proposed change shows as a diff before it applies — nothing writes itself. When you\'re done, export the result as a plain agent file, ready for your own tools.', shot: '[ screenshot — proposal diff / export ]', img: '../../public/welcome/step-4-review.jpg', fullImg: '../../public/welcome/step-4-review-full.jpg' }
+      { kicker: 'STEP 4 — SHIP IT', title: 'Approve it, then ship it', desc: 'Every proposed change shows as a diff before it applies — nothing writes itself. When you\'re done, export the result as a plain agent file, ready for your own tools.', shot: '[ screenshot — proposal diff / export ]', img: '../../public/welcome/step-4-review.jpg', fullImg: '../../public/welcome/step-4-review-full.jpg', fullImgFit: 'cover', fullImgPos: 'center' }
     ];
 
     var state = { step: 0 };
@@ -415,14 +434,30 @@
     ['btnNext', 'btnNext2'].forEach(function (id) { document.getElementById(id).addEventListener('click', next); });
 
     var modalOverlay = document.getElementById('modalOverlay');
-    document.getElementById('btnOpenModal').addEventListener('click', function () {
+    function openModal() {
       state.step = 0; render();
       modalOverlay.hidden = false;
+    }
+    // Both the "Full view" button and the screenshot frame itself open the modal
+    // (ux-agent review finding #6, 2026-08-17) — clicking the screenshot is the most
+    // natural gesture, and previously did nothing.
+    ['btnOpenModal', 'btnOpenModalShot'].forEach(function (id) {
+      document.getElementById(id).addEventListener('click', openModal);
     });
     function closeModal() { modalOverlay.hidden = true; }
     document.getElementById('btnCloseModal').addEventListener('click', closeModal);
     modalOverlay.addEventListener('click', function (e) { if (e.target === modalOverlay) closeModal(); });
     document.getElementById('modalPanel').addEventListener('click', function (e) { e.stopPropagation(); });
+
+    // Escape-to-close + arrow-key step navigation (ux-agent finding #8, 2026-08-17) — a
+    // fullscreen modal with neither was a papercut for anyone used to normal web behavior.
+    // Only reacts while the modal is actually open.
+    document.addEventListener('keydown', function (e) {
+      if (modalOverlay.hidden) return;
+      if (e.key === 'Escape') closeModal();
+      else if (e.key === 'ArrowRight') next();
+      else if (e.key === 'ArrowLeft') prev();
+    });
 
     render();
   })();

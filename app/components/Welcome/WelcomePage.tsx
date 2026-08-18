@@ -40,7 +40,7 @@
  * page while open, so the two aren't seen side-by-side.
  */
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { LoginForm } from '@/app/components/Auth/LoginForm';
 import { SignupForm } from '@/app/components/Auth/SignupForm';
 
@@ -116,12 +116,22 @@ const WALK_STEPS: WalkStep[] = [
     fullImagePosition: 'center',
   },
   {
-    kicker: 'STEP 4 — REVIEW & EXPORT',
-    title: 'Approve the diff, take it with you',
+    // Kicker/title reworked (ux-agent finding #5, 2026-08-17) — "REVIEW & EXPORT" read
+    // as two ideas bolted into one slot next to steps 1-3's single clean verbs. One
+    // cohesive phrase now, still honest that both a review gate and an export happen.
+    kicker: 'STEP 4 — SHIP IT',
+    title: 'Approve it, then ship it',
     desc: "Every proposed change shows as a diff before it applies — nothing writes itself. When you're done, export the result as a plain agent file, ready for your own tools.",
     shot: '[ screenshot — proposal diff / export ]',
     image: '/welcome/step-4-review.jpg',
     fullImage: '/welcome/step-4-review-full.jpg',
+    // Explicit, not just relying on WalkShot's default (ux-agent finding #4,
+    // 2026-08-17) — step-4-review-full.jpg (969×516, ratio 1.88) is already close
+    // enough to 9:5 that cover/center barely crops anything, so no zoom/reposition is
+    // actually needed here unlike steps 1-2 — but leaving it implicit read as "this one
+    // got skipped" rather than "this one was checked and is fine as-is".
+    fullImageFit: 'cover',
+    fullImagePosition: 'center',
   },
 ];
 
@@ -160,6 +170,20 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
   const s = WALK_STEPS[step];
   const next = () => setStep((i) => (i + 1) % WALK_STEPS.length);
   const prev = () => setStep((i) => (i - 1 + WALK_STEPS.length) % WALK_STEPS.length);
+
+  // Escape-to-close + arrow-key step navigation (ux-agent finding #8, 2026-08-17) — a
+  // fullscreen modal with neither was a papercut for anyone used to normal web behavior.
+  // Only attached while the modal is actually open.
+  useEffect(() => {
+    if (!modalOpen) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setModalOpen(false);
+      else if (e.key === 'ArrowRight') next();
+      else if (e.key === 'ArrowLeft') prev();
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [modalOpen, next, prev]);
 
   return (
     // h-screen + overflow-y-auto (not min-h-screen): app/globals.css sets body{overflow:hidden}
@@ -204,16 +228,28 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
         <h2 className="font-bold text-[22px] mb-[6.6px]">How it works</h2>
         <p className="text-[14.3px] text-[var(--muted)] mb-[19.8px]">The same real workbench, step by step</p>
         <div className="text-left bg-[var(--elev)] border border-[var(--border)] rounded-[11px] shadow-[0_13.2px_30.8px_-19.8px_rgba(0,0,0,.35)] p-[24.2px] min-h-[385px] flex flex-col">
-          <div className="text-[11px] tracking-[.08em] uppercase text-[var(--accent-ink)] mb-[8.8px]">
+          {/* text-center (ux-agent finding #3, 2026-08-17) — the card wrapper is
+              text-left, and this counter never overrode it, so it floated top-left,
+              disconnected from the kicker/title/desc below it (which do center). */}
+          <div className="text-center text-[11px] tracking-[.08em] uppercase text-[var(--accent-ink)] mb-[8.8px]">
             {String(step + 1).padStart(2, '0')} / {String(WALK_STEPS.length).padStart(2, '0')}
           </div>
           <div className="grid grid-cols-[1.1fr_1fr] gap-x-[28.6px] gap-y-[27.5px] items-start flex-1 min-h-[187px]">
-            <div className="text-center">
+            {/* min-h reserves worst-case space across all 4 steps (ux-agent finding #1,
+                2026-08-17) — without it, step 3's longer title wraps to an extra line and
+                the whole card (and the screenshot below it) visibly grows/shrinks as you
+                click through steps. Same fix already applied to the modal's text block. */}
+            <div className="text-center min-h-[160px]">
               <div className="text-[11px] tracking-[.1em] uppercase text-[var(--accent)] mb-[8.8px]">{s.kicker}</div>
               <h3 className="font-bold text-[24.2px] mb-[8.8px] tracking-[-0.01em]">{s.title}</h3>
               <p className="text-[14.85px] text-[var(--muted)]">{s.desc}</p>
             </div>
-            <WalkShot text={s.shot} image={s.image} imagePosition={s.imagePosition} />
+            <WalkShot
+              text={s.shot}
+              image={s.image}
+              imagePosition={s.imagePosition}
+              onExpand={() => setModalOpen(true)}
+            />
             {/* grid-cols-[1.1fr_auto_1fr], not the mock's [1.1fr_0_1fr] — the mock relied on
                 white-space:nowrap forcing a nominally-zero column open via CSS Grid's
                 min-content override, which measured fine visually but left the real button
@@ -501,6 +537,7 @@ function WalkShot({
   imageFit = 'cover',
   imageZoom = 1,
   minHeight = 132,
+  onExpand,
 }: {
   text: string;
   image?: string;
@@ -517,9 +554,26 @@ function WalkShot({
    *  effect with imageFit="contain" (nothing to crop further into). */
   imageZoom?: number;
   minHeight?: number;
+  /** When set, the whole frame becomes clickable (opens the "Full view" modal) with a
+   *  hover affordance — the ux-agent review's finding #6 (2026-08-17): the only way to
+   *  open the modal was a small text button below the frame; clicking the screenshot
+   *  itself, the most natural gesture, did nothing. Only passed by the inline card —
+   *  the modal's own WalkShot has nowhere further to expand to. */
+  onExpand?: () => void;
 }) {
   return (
-    <div className="border border-[var(--border)] rounded-[11px] bg-[var(--elev)] overflow-hidden shadow-[0_13.2px_30.8px_-19.8px_rgba(0,0,0,.35)] flex flex-col" style={{ aspectRatio: '9/5' }}>
+    <div
+      className={`group relative border border-[var(--border)] rounded-[11px] bg-[var(--elev)] overflow-hidden shadow-[0_13.2px_30.8px_-19.8px_rgba(0,0,0,.35)] flex flex-col ${onExpand ? 'cursor-pointer' : ''}`}
+      style={{ aspectRatio: '9/5' }}
+      onClick={onExpand}
+      role={onExpand ? 'button' : undefined}
+      aria-label={onExpand ? 'Open full view' : undefined}
+    >
+      {onExpand && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[rgba(20,24,30,.35)] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <span className="text-white text-[15.4px] font-semibold tracking-[-0.01em]">⤢ Full view</span>
+        </div>
+      )}
       <div className="flex gap-[5.5px] px-[11px] py-[8.8px] border-b border-[var(--border)] bg-[var(--panel)] flex-none">
         <span className="w-[8.8px] h-[8.8px] rounded-full bg-[var(--border)]" />
         <span className="w-[8.8px] h-[8.8px] rounded-full bg-[var(--border)]" />

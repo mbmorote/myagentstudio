@@ -31,7 +31,7 @@ aren't detailed further, the description here is all there is.
 | Item | Kind | Bucket | Status / description |
 |---|---|---|---|
 | **Check: guided tour copy sign-off** | UX | TODO | User review pending |
-| **Check: landing page walkthrough UX (ux agent review)** | UX | TODO | 10 findings from a ux-agent review, not yet actioned |
+| **Check: landing page walkthrough UX (ux agent review)** | UX | TODO | 6 of 10 findings fixed 2026-08-17; 1 open (annotations), 1 kept as-is, 1 split out |
 | **Check: Workbench branding + disclaimer render correctly** | UX | TODO | Visual QA, not run yet |
 | **Check: NVIDIA live-call verification (second LLM provider)** | Infra | TODO | Needs API key + spend go-ahead |
 | **Check: MCP server live verification (Plan 13)** | Infra | TODO | Free part not run; billed part needs your OK to spend |
@@ -55,6 +55,7 @@ aren't detailed further, the description here is all there is.
 | **Compliance-grade (non-droppable) logging** | Infra | NEXT | Undecided if wanted |
 | **Check: `/terms` jurisdiction placeholder** | UX | NEXT | Needs a real jurisdiction |
 | **Check: `/welcome`, `/terms`, `/privacy` render correctly in browser** | UX | NEXT | Visual QA, not run yet |
+| **Landing page mobile/responsive support** | UX | NEXT | Not started — flagged as a real conversion-risk gap, not cosmetic |
 | **Automated invite-code email delivery** | Infra | NEXT | Not started — provider undecided |
 | **Improve the guided tour** | UX | NEXT | Not started |
 | **Optional call-log persistence toggle** | Infra | NEXT | Undecided if wanted |
@@ -155,58 +156,56 @@ review finds something.
 ### **Check: landing page walkthrough UX (ux agent review)**
 
 **Current state:** The `/welcome` landing page's "How it works" walkthrough (4-step
-carousel — Import/See/Edit/Review & Export, both the inline card and the "Full view"
-modal) went through real screenshot integration and layout tuning
+carousel — Import/See/Edit/Ship it, both the inline card and the "Full view" modal) went
+through real screenshot integration and layout tuning
 (`app/components/Welcome/WelcomePage.tsx` + the kept-in-sync mock
 `architecture/layout/Layout-Landing.html`) on 2026-08-17. The `ux` agent then reviewed
-both files end-to-end (non-technical/client lens) and returned 10 concrete findings, none
-yet actioned:
+both files end-to-end (non-technical/client lens) and returned 10 concrete findings.
+6 of 10 fixed same-day; the mobile/responsive one was split out to its own item (see
+"Landing page mobile/responsive support" below) since it's a genuinely bigger, separately
+schedulable piece of work, not a quick pass alongside the others:
 
-- [ ] **Inline card height jumps between steps** — the modal got a fixed `min-height` on
-  its text block specifically because Step 3's longer title was pushing the screenshot
-  around; the inline card has the same shape of problem (`.wgrid > div:first-child` /
-  the equivalent React block) and never got the same fix — only the outer shell has
-  `min-height:350px`, which doesn't stop it growing taller.
-- [ ] **Control grouping differs between the two views** — modal has Previous/dots/Next
-  as one row; inline card splits Previous+Next from the dots, with "Full view" parked
-  between them.
-- [ ] **"01 / 04" counter misaligned in the inline card** — inherits `text-align:left`
-  while the kicker/title/desc below it are explicitly centered, so it floats
-  top-left, disconnected from its own label. Not an issue in the modal (centered there).
-- [ ] **Step 4's modal image has no custom crop** — steps 1–3 each got a tuned
-  `fullImage`/position/zoom/fit for the modal; Step 4 falls back to plain `cover`, so
-  "Full view" isn't actually more detailed there.
-- [ ] **Step 4 bundles two actions** ("Review & Export") while steps 1–3 are each one
-  clean verb — reads slightly rushed by comparison.
-- [ ] **No click-to-enlarge on the screenshot itself** — only the small "Full view" text
-  button opens the modal; clicking the image does nothing.
-- [ ] **No responsive/mobile handling at all** in either file (only
-  `prefers-color-scheme` exists as a media query) — the two-column inline grid and the
-  modal's `min(1200-1320px, 92vw)` width have no narrower-viewport fallback. Flagged as
-  a real conversion risk for an invite-request page, not just cosmetic.
-- [ ] **No keyboard support in the modal** — no Escape-to-close, no arrow-key step
-  navigation.
-- [ ] **No annotation tying copy to screenshot content** — the screenshots are dense
-  real UI captures (chat log, diff view, config panel); a callout/arrow/highlight
-  pointing at the specific part each step's copy describes would help a cold visitor.
-- [ ] **Orphaned file:** `public/welcome/step-2-see-full3.jpg` isn't referenced by
-  either file — leftover from iterating on the Step 2 crop, safe to delete.
+- [x] **Inline card height jumps between steps** — fixed: the inline card's text column
+  now has the same fixed `min-height` reservation the modal's already had, so a longer
+  step title/desc no longer pushes the card (and the screenshot inside it) taller.
+- **Control grouping differs between the two views** — reviewed, kept as-is
+  deliberately: the inline card's Previous+Next / Full view / dots split is the intended
+  design, not an oversight.
+- [x] **"01 / 04" counter misaligned in the inline card** — fixed: now centered to match
+  the kicker/title/desc below it, in both files.
+- [x] **Step 4's modal image has no custom crop** — fixed: `fullImageFit`/`fullImagePosition`
+  now set explicitly (still `cover`/`center` — the image was already close enough to 9:5
+  that no zoom was actually needed — but it's now a documented decision, not a silent gap).
+- [x] **Step 4 bundles two actions** ("Review & Export") — fixed: kicker/title reworked
+  to "SHIP IT" / "Approve it, then ship it," one cohesive phrase instead of two nouns
+  bolted together, in both files.
+- [x] **No click-to-enlarge on the screenshot itself** — fixed: the inline card's
+  screenshot frame is now clickable (opens "Full view") with a hover overlay hint, in
+  both files. The existing "Full view" button is unchanged, kept per the control-grouping
+  decision above.
+- [x] **No keyboard support in the modal** — fixed: Escape closes the modal, ←/→ move
+  between steps, in both files.
+- [ ] **No annotation tying copy to screenshot content** — still open. The screenshots
+  are dense real UI captures (chat log, diff view, config panel); a callout/arrow/highlight
+  pointing at the specific part each step's copy describes would help a cold visitor. Bigger
+  than the items above (needs actual design work on the images themselves, not just
+  layout/code) — deferred, not started.
+- [x] **Orphaned file:** `public/welcome/step-2-see-full3.jpg` — deleted, along with the
+  `public/welcome/old/` experimentation folder.
 
-Creative suggestions from the same review (not findings, optional to act on): unify the
-control-row shape across both views; make the modal image-first (shrink/move the
-repeated text block so the screenshot is the payoff, not buried under copy); split Step
-4 into its own step or rename it to own the double-duty honestly; consider
-auto-advancing the inline carousel on a slow timer on first visit (pausing on
-interaction) since it's fully passive today; trim the Structural/Strict mode jargon in
-Step 1's description for a cold landing-page audience.
+Creative suggestions from the same review (not findings, still optional): make the modal
+image-first (shrink/move the repeated text block so the screenshot is the payoff, not
+buried under copy); consider auto-advancing the inline carousel on a slow timer on first
+visit (pausing on interaction) since it's fully passive today; trim the Structural/Strict
+mode jargon in Step 1's description for a cold landing-page audience.
 
-**Scope:** Work through the checklist above — each item is independently actionable, no
-required order except the mock-first pattern (standing rule 4) for anything layout-shaped.
+**Scope:** One item left open (annotations) — pick up whenever, no dependency on
+anything else here.
 
-**Effort:** Small–Medium (mostly CSS/layout fixes; the responsive-handling item is the
-one genuinely bigger piece)
+**Effort:** Trivial remaining (everything Small–Medium already done)
 **Depends on:** None
-**Status:** Not started
+**Status:** 6 of 10 findings fixed 2026-08-17; 1 kept as-is by decision; 1 split out to
+its own item; 1 (annotations) still open
 
 ---
 
@@ -415,6 +414,7 @@ this bucket is free to reorder.
 | **Compliance-grade (non-droppable) logging** | Undecided if wanted |
 | **Check: `/terms` jurisdiction placeholder** | Needs a real jurisdiction |
 | **Check: `/welcome`, `/terms`, `/privacy` render correctly in browser** | Visual QA, not run yet |
+| **Landing page mobile/responsive support** | Not started — real conversion-risk gap, not cosmetic |
 | **Automated invite-code email delivery** | Not started — provider undecided |
 | **Improve the guided tour** | Not started — depends on the MVP tour shipping first |
 | **Optional call-log persistence toggle** | Undecided if wanted |
@@ -605,6 +605,35 @@ name/LinkedIn/GitHub/email render and link correctly, the walkthrough/modals sti
 the footer Terms/Privacy links navigate correctly.
 
 **Effort:** Trivial
+**Status:** Not started
+
+---
+
+### **Landing page mobile/responsive support**
+
+**Current state:** Split out from the "Check: landing page walkthrough UX (ux agent
+review)" TODO item (2026-08-17) — the `ux` agent's review of the "How it works"
+walkthrough flagged that neither `app/components/Welcome/WelcomePage.tsx` nor the mock
+`architecture/layout/Layout-Landing.html` have any responsive/mobile handling at all
+(only `prefers-color-scheme` exists as a media query anywhere in either file). The
+walkthrough's two-column inline grid and the "Full view" modal's fixed
+`min(1200–1320px, 92vw)` width have no narrower-viewport fallback — on a phone this
+would render as two cramped, largely illegible columns squeezed side by side. Given this
+is the single best piece of proof-of-product on the whole `/welcome` page, the review
+called this a real conversion-risk gap for an invite-request landing page, not a
+cosmetic one — which is why it's tracked separately from the smaller same-day fixes
+rather than folded into "eventually get to responsive design" generally.
+
+**Scope:** Needs its own design pass before implementation — at minimum: how the
+walkthrough's text/screenshot pair stacks on narrow viewports, whether the "Full view"
+modal makes sense on mobile at all (vs. e.g. just showing the inline card's own image
+larger), and whether this should be scoped to just this one section or triggers a wider
+"does the whole landing page need a mobile pass" question (hero, trust strip, feature
+grid, roadmap teaser wave line all share the same no-breakpoints gap, just less
+severely). Mock-first per standing rule 4.
+
+**Effort:** Medium — the real work is a design decision, not the CSS itself
+**Depends on:** None
 **Status:** Not started
 
 ---
