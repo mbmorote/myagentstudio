@@ -1,12 +1,12 @@
-# MyAgent User Guide
+# MyAgentStudio User Guide
 
-MyAgent is a local workbench for building Claude Code subagents. You import existing `.md` agent files, edit them with AI assistance or directly, organize them into groups, and export them back to `.md` when you are done.
+MyAgentStudio is a local workbench for building Claude Code subagents. You import existing `.md` agent files, edit them with AI assistance or directly, organize them into groups, and export them back to `.md` when you are done.
 
 ---
 
 ## Signing in
 
-MyAgent requires an account. Go to `/login` and enter your email and password.
+MyAgentStudio requires an account. Go to `/login` and enter your email and password.
 
 If you do not have an account yet, ask the admin (the person who runs this deployment) for an invite code. With that code in hand, go to `/signup` and create your account. Every new account starts private by default — the first time you land on the workbench after signing up, a one-time popup offers to also share your activity-log content with the admin; dismissing it (or choosing "Keep private") leaves the private default in place, and you can change your mind anytime from your Account page. See the **Activity log** section below for what this choice means.
 
@@ -16,13 +16,13 @@ When your session expires (default 7 days, may be shorter or longer on this depl
 
 If this deployment has Google sign-in enabled, a **Continue with Google** button appears on `/login` and `/signup`. It is a second way to prove who you are, not a second way to get in — **an invite code is still required** the first time you sign in with Google, exactly as with a password account. On `/signup`, the button stays disabled until you've entered a code; the activity-log privacy choice happens later, in the one-time popup described above, not on the signup page itself.
 
-If you already have a password account and later sign in with Google using the same, Google-verified email address, MyAgent links the two automatically — you land in your existing account, no second account is created, and no invite code is spent. Your original password keeps working afterward.
+If you already have a password account and later sign in with Google using the same, Google-verified email address, MyAgentStudio links the two automatically — you land in your existing account, no second account is created, and no invite code is spent. Your original password keeps working afterward.
 
 A few things worth knowing:
 
-- Google is told nothing about MyAgent beyond the standard sign-in request — no access to your contacts, Drive, or profile picture, and no ongoing access after you sign in.
-- MyAgent is told your Google account's email address and nothing else.
-- **Revoking MyAgent's access from your Google account settings does not end an active MyAgent session.** The two are independent — if you want to sign out of MyAgent, use the sign-out button here.
+- Google is told nothing about MyAgentStudio beyond the standard sign-in request — no access to your contacts, Drive, or profile picture, and no ongoing access after you sign in.
+- MyAgentStudio is told your Google account's email address and nothing else.
+- **Revoking MyAgentStudio's access from your Google account settings does not end an active MyAgentStudio session.** The two are independent — if you want to sign out of MyAgentStudio, use the sign-out button here.
 - An account created via Google has no password. If you'd rather sign in with a password later, that isn't available yet — see the admin if you need this.
 
 ### Admin vs. user
@@ -216,19 +216,19 @@ Your signed-in email, role, and how you sign in (password, or Google with the li
 
 ## Connecting a console MCP client
 
-MyAgent runs an MCP (Model Context Protocol) server so a **console/CLI client** — Claude Code, or an equivalent tool that accepts a custom HTTP header — can list, read, export, and import your own agents from your terminal. **This is for console clients only.** Claude Desktop's GUI connector is not supported (it requires a different authentication flow this server doesn't implement).
+MyAgentStudio runs an MCP (Model Context Protocol) server so a **console/CLI client** — Claude Code, or an equivalent tool that accepts a custom HTTP header — can list, read, export, and import your own agents from your terminal. **This is for console clients only.** Claude Desktop's GUI connector is not supported (it requires a different authentication flow this server doesn't implement).
 
 **1. Generate a token.** Go to **Account** → **API tokens (MCP access)** → **New token**. Give it a name (e.g. "laptop Claude Code") and pick a scope:
 
 - **read** — list, read, and export your agents. Cannot write anything. This is the safer default.
 - **write** — everything read can, plus `import_agent` (see below).
 
-The token's full value is shown **exactly once**, right after you create it. Copy it immediately — MyAgent never stores it in a form that can be shown to you again, not even to an admin. If you lose it, revoke it and generate a new one.
+The token's full value is shown **exactly once**, right after you create it. Copy it immediately — MyAgentStudio never stores it in a form that can be shown to you again, not even to an admin. If you lose it, revoke it and generate a new one.
 
 **2. Add the server to your client.** For Claude Code:
 
 ```
-claude mcp add --transport http myagent https://<your-myagent-host>/api/mcp \
+claude mcp add --transport http myagentstudio https://<your-myagentstudio-host>/api/mcp \
   --header "Authorization: Bearer <the token you copied>"
 ```
 

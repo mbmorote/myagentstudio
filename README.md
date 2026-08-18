@@ -1,4 +1,4 @@
-# MyAgent — Agent Workbench
+# MyAgentStudio — Agent Workbench
 
 A local-first workbench for building and managing AI agents. An **agent-aware AI chat** sits next to an **always-visible structured view** of the agent it is editing, so you never edit blind. The platform targets Claude Code's `.claude/agents/*.md` subagent format and runs entirely on your machine using your own Anthropic API key.
 
@@ -78,7 +78,7 @@ After that, go to [http://localhost:3000/login](http://localhost:3000/login), si
 
 ### Google OAuth setup (optional)
 
-MyAgent can offer "Continue with Google" alongside password sign-in. It is entirely optional — leave the three `GOOGLE_*`/`OAUTH_REDIRECT_BASE_URL` variables unset and the button never renders. Signing in with Google still requires a valid invite code on first use; it is a second way to prove who you are, not a second way to get admitted.
+MyAgentStudio can offer "Continue with Google" alongside password sign-in. It is entirely optional — leave the three `GOOGLE_*`/`OAUTH_REDIRECT_BASE_URL` variables unset and the button never renders. Signing in with Google still requires a valid invite code on first use; it is a second way to prove who you are, not a second way to get admitted.
 
 To enable it:
 
@@ -89,7 +89,7 @@ To enable it:
    ```
 3. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `OAUTH_REDIRECT_BASE_URL` in `.env.local`. All three are required together — setting only some of them refuses to start the process rather than half-working.
 4. In production, `OAUTH_REDIRECT_BASE_URL` must be `https://` (Google rejects non-HTTPS redirect URIs except for `localhost`).
-5. For a closed beta, keep the Google Cloud consent screen in **Testing** mode and list your invite-gated users as test users — this restricts who can even reach the consent screen, on top of the invite-code gate on the MyAgent side.
+5. For a closed beta, keep the Google Cloud consent screen in **Testing** mode and list your invite-gated users as test users — this restricts who can even reach the consent screen, on top of the invite-code gate on the MyAgentStudio side.
 
 Google is told nothing beyond the standard OpenID Connect `openid email profile` scopes — no ongoing access, no refresh token is requested, and nothing Google issues is ever stored.
 

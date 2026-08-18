@@ -46,7 +46,7 @@ export default function PrivacyPage() {
               className="w-[9px] h-[9px] rounded-[2px] bg-[var(--accent)]"
               style={{ boxShadow: '0 0 0 3px var(--accent-wash)' }}
             />
-            MyAgent
+            MyAgentStudio
           </a>
           <div className="flex-1" />
           <a

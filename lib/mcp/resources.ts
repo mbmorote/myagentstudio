@@ -4,7 +4,7 @@ import 'server-only';
  * lib/mcp/resources.ts
  *
  * MCP resources (Plan 13 §4.5): exposes each of the caller's agents as a
- * myagent://agent/{id} resource, addressable content a client can attach without
+ * myagentstudio://agent/{id} resource, addressable content a client can attach without
  * a tool call or a model decision. Read scope only.
  *
  * Backed by the exact same two repository calls list_agents and export_agent use
@@ -16,8 +16,8 @@ import 'server-only';
 import { listAgents as listAgentsRepo, exportAgentMarkdown } from '../db/repository/index.js';
 import type { McpPrincipal } from '../auth/mcpGuard.js';
 
-export const RESOURCE_URI_SCHEME = 'myagent';
-export const RESOURCE_URI_TEMPLATE = 'myagent://agent/{id}';
+export const RESOURCE_URI_SCHEME = 'myagentstudio';
+export const RESOURCE_URI_TEMPLATE = 'myagentstudio://agent/{id}';
 
 export type ResourceListEntry = {
   uri: string;
@@ -30,7 +30,7 @@ export type ResourceListEntry = {
 export function listResourcesForPrincipal(principal: McpPrincipal): ResourceListEntry[] {
   const rows = listAgentsRepo(principal.userId);
   return rows.map((r) => ({
-    uri: `myagent://agent/${r.id}`,
+    uri: `myagentstudio://agent/${r.id}`,
     name: r.name,
     description: r.description,
     mimeType: 'text/markdown' as const,
@@ -38,7 +38,7 @@ export function listResourcesForPrincipal(principal: McpPrincipal): ResourceList
 }
 
 /**
- * resources/read for a myagent://agent/{id} URI. Returns null for an agentId that
+ * resources/read for a myagentstudio://agent/{id} URI. Returns null for an agentId that
  * does not exist or does not belong to this principal — same non-disclosure posture
  * as export_agent.
  */

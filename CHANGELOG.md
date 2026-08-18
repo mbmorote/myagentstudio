@@ -8,6 +8,23 @@ version of this file, kept locally as historical record — not tracked in git).
 
 ---
 
+## 2026-08-18 — Renamed MyAgent to MyAgentStudio
+
+Cosmetic/branding rename only, no functional change. Updated everywhere a human sees the
+product's name: page titles and metadata, the topbar/landing/terms/privacy brand text,
+every live doc (`README.md`, `CLAUDE.md` and its nested folder copies, `docs/*.md`,
+`plans/roadmap.md`), the `package.json` name field, and the MCP server's own registered
+name and resource URI scheme (`myagent://agent/{id}` → `myagentstudio://agent/{id}` in
+`lib/mcp/resources.ts`/`server.ts`, since that's genuinely visible to real MCP clients).
+
+Left three things as internal/technical identifiers, deliberately not touched: the SQLite
+database filename `myagent.db` (renaming it would orphan the real local dev database file
+on disk with no benefit), the guided tour's `myagent_tour_seen` localStorage key (renaming
+it would just reset that flag for existing users), and the project's own folder path on
+disk. Past-dated `CHANGELOG.md` entries below are left exactly as originally written —
+the product really was called MyAgent when those things happened, rewriting history to
+match the new name would be inaccurate, not helpful.
+
 ## 2026-08-18 — Terms of Service and Privacy Policy rewritten, grounded in real practice
 
 Both `/terms` and `/privacy` shipped 2026-08-15 as generic SaaS boilerplate. Rewrote both

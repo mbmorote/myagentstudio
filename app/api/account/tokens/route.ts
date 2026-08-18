@@ -11,7 +11,7 @@
  * session.userId, never from the request body (same pattern as every route using
  * the repository's ownerId parameter).
  *
- * Plan 13 (2026-08-15) — MCP server exposing MyAgent's agents.
+ * Plan 13 (2026-08-15) — MCP server exposing MyAgentStudio's agents.
  */
 
 import { NextRequest, NextResponse } from 'next/server';

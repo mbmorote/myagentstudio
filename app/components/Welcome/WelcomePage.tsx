@@ -217,7 +217,7 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
               className="w-[9.9px] h-[9.9px] rounded-[2.2px] bg-[var(--accent)]"
               style={{ boxShadow: '0 0 0 3.3px var(--accent-wash)' }}
             />
-            MyAgent
+            MyAgentStudio
           </div>
           <div className="flex-1" />
           <button

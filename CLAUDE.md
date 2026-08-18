@@ -1,4 +1,4 @@
-# MyAgent — Agent Workbench (folder map)
+# MyAgentStudio — Agent Workbench (folder map)
 
 A workbench for building and managing AI agents: an **agent-aware AI chat** next to an
 **always-visible structured view** of the agent it's editing. This file is the map only —

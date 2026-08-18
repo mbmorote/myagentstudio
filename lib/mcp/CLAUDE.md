@@ -1,4 +1,4 @@
-# lib/mcp — MCP Server Exposing MyAgent's Agents (Plan 13)
+# lib/mcp — MCP Server Exposing MyAgentStudio's Agents (Plan 13)
 
 The tool/resource layer behind `POST /api/mcp` — a second front door onto a user's own
 agents for console/CLI MCP clients (Claude Code and equivalents). See
@@ -40,7 +40,7 @@ lib/mcp/server.ts                        ← the ONLY @modelcontextprotocol/sdk 
       ├─ lib/mcp/tools/exportAgent.ts    ← read. exportAgentMarkdown(id, ownerId)
       ├─ lib/mcp/tools/importAgent.ts    ← WRITE. composes the same pipeline
       │                                     app/api/agents/import/route.ts uses
-      └─ lib/mcp/resources.ts            ← myagent://agent/{id}, same 2 repo calls as above
+      └─ lib/mcp/resources.ts            ← myagentstudio://agent/{id}, same 2 repo calls as above
 ```
 
 Each `tools/*.ts` file exports a `TOOL_NAME`, a `TOOL_DESCRIPTION`, an optional
@@ -96,7 +96,7 @@ specifically rather than trusting they carried over.
 | File | Role |
 |---|---|
 | `server.ts` | The ONLY `@modelcontextprotocol/sdk` importer. Builds/closes a stateless server+transport pair per request; wraps each tool handler's plain result into a `CallToolResult`. |
-| `resources.ts` | `myagent://agent/{id}` list/read — same two repository calls `list_agents`/`export_agent` use. |
+| `resources.ts` | `myagentstudio://agent/{id}` list/read — same two repository calls `list_agents`/`export_agent` use. |
 | `tools/listAgents.ts` | Read. `list_agents` — `listAgents(ownerId)`. |
 | `tools/getAgent.ts` | Read. `get_agent` — `getAgentFull(id, ownerId)`, the same `AgentDTO` the web UI gets. |
 | `tools/exportAgent.ts` | Read. `export_agent` — `exportAgentMarkdown(id, ownerId)`, deterministic. |

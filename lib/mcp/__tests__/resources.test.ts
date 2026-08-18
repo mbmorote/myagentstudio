@@ -5,7 +5,7 @@
  *
  * Cases:
  *   - listResourcesForPrincipal covers the same agent set list_agents does, in the
- *     myagent://agent/{id} shape
+ *     myagentstudio://agent/{id} shape
  *   - readAgentResource returns byte-identical text to export_agent for the same
  *     agent (they must share one code path — divergence here means someone added a
  *     second export)
@@ -61,22 +61,22 @@ beforeAll(() => {
 });
 
 describe('listResourcesForPrincipal', () => {
-  it('covers the same agent set as list_agents, in the myagent://agent/{id} shape', () => {
+  it('covers the same agent set as list_agents, in the myagentstudio://agent/{id} shape', () => {
     const resources = listResourcesForPrincipal(principalFor(userA.id));
     const toolResult = handleListAgents(principalFor(userA.id));
 
     expect(resources.map((r) => r.uri).sort()).toEqual(
-      toolResult.agents.map((a) => `myagent://agent/${a.id}`).sort(),
+      toolResult.agents.map((a) => `myagentstudio://agent/${a.id}`).sort(),
     );
 
-    const entry = resources.find((r) => r.uri === `myagent://agent/${agentA.id}`)!;
+    const entry = resources.find((r) => r.uri === `myagentstudio://agent/${agentA.id}`)!;
     expect(entry.name).toBe('resource-agent-a');
     expect(entry.mimeType).toBe('text/markdown');
   });
 
   it("does not include another owner's agents", () => {
     const resources = listResourcesForPrincipal(principalFor(userB.id));
-    expect(resources.some((r) => r.uri === `myagent://agent/${agentA.id}`)).toBe(false);
+    expect(resources.some((r) => r.uri === `myagentstudio://agent/${agentA.id}`)).toBe(false);
   });
 });
 

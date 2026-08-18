@@ -353,7 +353,7 @@ export function AccountView({
             </div>
             <p className="text-[11px] text-[var(--muted)]">
               Use with:{' '}
-              <code className="font-mono">claude mcp add --transport http myagent &lt;url&gt; --header &quot;Authorization: Bearer &lt;token&gt;&quot;</code>
+              <code className="font-mono">claude mcp add --transport http myagentstudio &lt;url&gt; --header &quot;Authorization: Bearer &lt;token&gt;&quot;</code>
             </p>
             <button
               onClick={() => setRevealedPlaintext(null)}

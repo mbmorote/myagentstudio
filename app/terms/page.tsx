@@ -36,7 +36,7 @@ export default function TermsPage() {
               className="w-[9px] h-[9px] rounded-[2px] bg-[var(--accent)]"
               style={{ boxShadow: '0 0 0 3px var(--accent-wash)' }}
             />
-            MyAgent
+            MyAgentStudio
           </a>
           <div className="flex-1" />
           <a
@@ -53,7 +53,7 @@ export default function TermsPage() {
         <h1 className="text-[28px] tracking-[-0.02em] mb-2">Terms of Service</h1>
         <p className="text-[12px] text-[var(--faint)] mb-6">Last updated: August 18, 2026</p>
         <p className="text-[14px] text-[var(--muted)] leading-[1.65] mb-10">
-          These Terms of Service govern your access to and use of MyAgent (the &quot;Service&quot;),
+          These Terms of Service govern your access to and use of MyAgentStudio (the &quot;Service&quot;),
           operated by ProcessMind Solutions (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;).
         </p>
 
@@ -71,7 +71,7 @@ export default function TermsPage() {
           <section className="mb-8">
             <h2 className="text-[17px] font-semibold mb-2 tracking-[-0.01em]">2. Acceptance of Terms</h2>
             <p className="text-[var(--muted)]">
-              By accessing or using MyAgent (the &quot;Service&quot;), you agree to be bound by these Terms of
+              By accessing or using MyAgentStudio (the &quot;Service&quot;), you agree to be bound by these Terms of
               Service and all applicable laws and regulations. If you do not agree with any of these
               terms, do not access or use the Service.
             </p>
@@ -80,7 +80,7 @@ export default function TermsPage() {
           <section className="mb-8">
             <h2 className="text-[17px] font-semibold mb-2 tracking-[-0.01em]">3. Description of Service</h2>
             <p className="text-[var(--muted)]">
-              MyAgent is a web-based workbench for creating, editing, and managing AI agent
+              MyAgentStudio is a web-based workbench for creating, editing, and managing AI agent
               configuration files. It is provided as a portfolio and demonstration project by
               ProcessMind Solutions. The Service integrates with external AI providers to offer
               chat-guided editing and structured import capabilities.

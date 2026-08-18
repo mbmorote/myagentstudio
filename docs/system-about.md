@@ -1,4 +1,4 @@
-# MyAgent — System About
+# MyAgentStudio — System About
 
 The engineering reference for the workbench: what it's built on, how the pieces fit
 together, and why the design is shaped the way it is. Written for a developer or tech
@@ -388,7 +388,7 @@ mechanism — creating an account from an OAuth callback redeems an invite code 
 exact same transaction password signup uses. A profile is only trusted once its
 `id_token`'s signature, issuer, audience, expiry, and nonce all validate and the provider
 asserts the email is verified. If a Google sign-in's verified email matches an existing
-password account, MyAgent links them automatically, for any email domain — this is a
+password account, MyAgentStudio links them automatically, for any email domain — this is a
 reviewed and deliberately accepted tradeoff (a Google Workspace admin can, in principle,
 mint a verified identity for any address on their own domain), not an oversight; there is
 no per-domain restriction or admin kill switch today.

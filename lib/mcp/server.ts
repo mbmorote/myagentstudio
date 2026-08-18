@@ -54,7 +54,7 @@ import {
   RESOURCE_URI_TEMPLATE,
 } from './resources.js';
 
-const SERVER_NAME = 'myagent';
+const SERVER_NAME = 'myagentstudio';
 const SERVER_VERSION = '1.0.0';
 
 // ─────────────────────────────  Content wrapping  ──────────────────────────────
@@ -115,7 +115,7 @@ function describeImportFailure(result: Extract<ImportAgentToolResult, { ok: fals
 /**
  * Builds a server bound to one principal. Registers all four tools (list_agents,
  * get_agent, export_agent — read scope; import_agent — write scope, scope-checked
- * inside its own handler) and the myagent://agent/{id} resource. tools/list always
+ * inside its own handler) and the myagentstudio://agent/{id} resource. tools/list always
  * returns all four names regardless of the token's scope — scope is enforced at
  * call time inside import_agent's handler, not by hiding the tool (§5.6).
  */

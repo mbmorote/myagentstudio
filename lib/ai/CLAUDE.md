@@ -127,7 +127,7 @@ The `llm_cap_reached` branch is checked first because it is a different refusal 
 
 ## System agents: the source of truth
 
-MyAgent uses three platform agents — Hermes (Strict Import), Daedalus (Structural Import),
+MyAgentStudio uses three platform agents — Hermes (Strict Import), Daedalus (Structural Import),
 and Prometheus (chat). Their actual rule-sets live in `lib/ai/prompts/system-agents/` —
 source `.md` files, not documentation (moved out of `architecture/` 2026-07-29 for exactly
 this reason: this content is compiled into the running app, so it sits next to the generated

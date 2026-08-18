@@ -1,4 +1,4 @@
-# MyAgent — Roadmap
+# MyAgentStudio — Roadmap
 
 Living index of open work. Four buckets, in priority order: **TODO** (must ship before v1
 goes online — "Deploy online" is always the last item), **NEXT** (decided and scoped, but
@@ -55,7 +55,7 @@ aren't detailed further, the description here is all there is.
 | **Automated invite-code email delivery** | Infra | NEXT | Not started — provider undecided |
 | **Improve the guided tour** | UX | NEXT | Not started |
 | **Optional call-log persistence toggle** | Infra | NEXT | Undecided if wanted |
-| **MCP server exposing MyAgent's agents** | Infra | NEXT | Built + test suite green (Phases 1–4, 2026-08-15) — pending live-client verification, see card below |
+| **MCP server exposing MyAgentStudio's agents** | Infra | NEXT | Built + test suite green (Phases 1–4, 2026-08-15) — pending live-client verification, see card below |
 | **Re-enable group behavior** | UX | NEXT | Ready — three flag flips |
 | **Surface `applied`/`skipped` from apply-proposal in the UI** | UX | NEXT | Not started |
 | **`AgentView.tsx` save-name bypasses `apiFetch`** | Behavior | NEXT | Ready — trivial fix |
@@ -367,7 +367,7 @@ this bucket is free to reorder.
 | **Automated invite-code email delivery** | Not started — provider undecided |
 | **Improve the guided tour** | Not started — depends on the MVP tour shipping first |
 | **Optional call-log persistence toggle** | Undecided if wanted |
-| **MCP server exposing MyAgent's agents** | Built + test suite green (Phases 1–4) 2026-08-15 — pending live-client verification |
+| **MCP server exposing MyAgentStudio's agents** | Built + test suite green (Phases 1–4) 2026-08-15 — pending live-client verification |
 | **Re-enable group behavior** | Ready — three flag flips |
 | **Surface `applied`/`skipped` from apply-proposal in the UI** | Not started |
 | **`AgentView.tsx` save-name bypasses `apiFetch`** | Ready — trivial fix |
@@ -604,7 +604,7 @@ shown only transiently. Timing-wise: revisit soon after launch rather than let i
 
 ---
 
-### **MCP server exposing MyAgent's agents**
+### **MCP server exposing MyAgentStudio's agents**
 
 **Current state:** **Built and test-verified 2026-08-15** — all four phases (token subsystem,
 read-only server, fitness functions, `import_agent`) implemented per
@@ -830,7 +830,7 @@ Needs a product/design debate before an item can move to FUTURE/NEXT with an und
 scope, let alone TODO — a timing tier (like "NEXT") is not the same as a design decision.
 One NEXT item (**Optional call-log persistence toggle**) is timed but still genuinely
 undecided-if — that's why it says "(see IDEA)": this paragraph is the note, not a separate
-per-item entry. **MCP server exposing MyAgent's agents** used to sit here too; it was decided
+per-item entry. **MCP server exposing MyAgentStudio's agents** used to sit here too; it was decided
 **wanted** on 2026-08-15 and now has a full design in
 `plans/13-mcp-server-exposing-agents.md`, so it's an ordinary NEXT item.
 

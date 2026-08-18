@@ -1,4 +1,4 @@
-# MyAgent — Roadmap
+# MyAgentStudio — Roadmap
 
 A plain-language view of where the workbench stands. This page is a curated summary of **capabilities** — things you can use or that materially change what the platform offers.
 

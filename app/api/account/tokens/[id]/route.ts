@@ -9,7 +9,7 @@
  * user's token produces a 404 (same non-disclosure posture: confirming that a
  * token id exists but belongs to a different user leaks information).
  *
- * Plan 13 (2026-08-15) — MCP server exposing MyAgent's agents.
+ * Plan 13 (2026-08-15) — MCP server exposing MyAgentStudio's agents.
  */
 
 import { NextResponse } from 'next/server';

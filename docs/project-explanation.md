@@ -1,4 +1,4 @@
-# MyAgent — Project Explanation
+# MyAgentStudio — Project Explanation
 
 The product story: what problem this solves, who it's for, how it actually works, and how
 it came together. For the engineering internals (data model, stack detail, architecture),
@@ -18,7 +18,7 @@ track of a growing pile of loose `.md` files by hand stops being pleasant.
 
 ## What it is
 
-MyAgent is a **guided agent workbench**, not a Markdown editor. Every section of the
+MyAgentStudio is a **guided agent workbench**, not a Markdown editor. Every section of the
 currently selected agent is laid out clearly on screen, at all times, and an AI chat panel
 sits right next to that view — it edits those specific sections in place, and the result
 appears in the structured view instantly. The point isn't chat *or* structure; it's chat
