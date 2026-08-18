@@ -15,10 +15,15 @@
  * nothing).
  *
  * Same click-to-expand-for-payload behavior as the pre-redesign SettingsView.tsx
- * grid this replaces, including the §5.6 redacted-content case. One deliberate
- * difference: the "Permalink" link is admin-only — it points at `/settings?log=id`,
- * which is still an admin-gated full page, so surfacing it to a non-admin would
- * be a dead link, not a smaller feature.
+ * grid this replaces, including the §5.6 redacted-content case. Two deliberate
+ * differences from the admin view: the "Permalink" link is admin-only — it points
+ * at `/settings?log=id`, which is still an admin-gated full page, so surfacing it
+ * to a non-admin would be a dead link, not a smaller feature. And the raw "Request
+ * payload" block is admin-only too (2026-08-18) — it's the literal API request
+ * body, which embeds the full agent definition text (system prompt) sent to the
+ * provider; not something to expose to the owning user yet. Response payload
+ * (the AI's reply) stays visible to everyone — it's just what they already got
+ * back in the chat.
  */
 
 import { Fragment, useEffect, useState } from 'react';
@@ -230,7 +235,7 @@ export function ActivityLogPane({ isAdmin }: { isAdmin: boolean }) {
                                   </pre>
                                 </div>
                               )}
-                              {!expandedPayload.redacted && (
+                              {isAdmin && !expandedPayload.redacted && (
                                 <div>
                                   <div className="flex items-center justify-between mb-1">
                                     <p className="text-[11px] font-medium text-[var(--muted)]">Request payload</p>
