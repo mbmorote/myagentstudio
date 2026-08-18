@@ -52,6 +52,7 @@ export {
   getUserByEmail,
   getUserCount,
   getUserPolicy,
+  listUsers,
   setUserPassword,
   setUserLogSharing,
   createUserWithInvite,
@@ -63,6 +64,7 @@ export {
 export type {
   UserRow,
   UserPolicy,
+  UserListItem,
   InviteCodeRow,
   CreateInviteCodeInput,
   CreateUserWithInviteInput,

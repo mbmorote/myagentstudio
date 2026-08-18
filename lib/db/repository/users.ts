@@ -14,7 +14,7 @@ import 'server-only';
  *   - §4.4: createUserWithInvite() re-checks all preconditions inside one transaction.
  */
 
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import { db } from '../client.js';
 import * as schema from '../schema.js';
 
@@ -33,6 +33,15 @@ export type UserRow = {
 export type UserPolicy = {
   role: 'admin' | 'user';
   shareLogsWithAdmin: boolean;
+};
+
+/** Narrow read used by the Settings "Users" panel — never exposes passwordHash. */
+export type UserListItem = {
+  id: string;
+  email: string;
+  role: 'admin' | 'user';
+  shareLogsWithAdmin: boolean;
+  createdAt: Date;
 };
 
 export type InviteCodeRow = {
@@ -65,6 +74,23 @@ export function getUserByEmail(email: string): UserRow | null {
 export function getUserCount(): number {
   const result = db.select({ count: sql<number>`COUNT(*)` }).from(schema.user).get();
   return result?.count ?? 0;
+}
+
+/**
+ * Lists every user account, newest first. Admin-only surface (Settings → Users) —
+ * a simple grid so the admin isn't reaching for direct SQL just to see who has an
+ * account. Deliberately returns UserListItem, not UserRow — passwordHash never
+ * leaves the repository layer for this read.
+ */
+export function listUsers(): UserListItem[] {
+  const rows = db.select().from(schema.user).orderBy(desc(schema.user.createdAt)).all();
+  return rows.map((row) => ({
+    id: row.id,
+    email: row.email,
+    role: row.role as 'admin' | 'user',
+    shareLogsWithAdmin: Boolean(row.shareLogsWithAdmin),
+    createdAt: row.createdAt instanceof Date ? row.createdAt : new Date((row.createdAt as number) * 1000),
+  }));
 }
 
 /**

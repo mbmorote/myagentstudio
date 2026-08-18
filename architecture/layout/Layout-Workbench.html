@@ -620,6 +620,56 @@
   .set-table td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--text)}
   .settings-trigger{margin-left:auto}
 
+  /* ── Preferences modal (2026-08-18) — Account + Settings merged into one modal
+     with a left sidebar of categories, superseding the flat Settings-only modal
+     above. Three categories: Account (everyone), LLM (admin), Admin (admin) — a
+     regular user's nav only ever lists Account (not a greyed-out lock on the
+     other two). The "Preview as" select below the nav is MOCKUP-ONLY so this one
+     file can show both audiences without duplicating the markup. ── */
+  .prefs-modal .modal{width:860px}
+  .prefs-modal .modal-body{padding:0;gap:0}
+  .prefs-body{display:flex;height:560px;max-height:70vh}
+  .prefs-nav{flex:none;width:190px;border-right:1px solid var(--border);
+    padding:14px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+  .prefs-nav-item{font:inherit;font-size:12.5px;text-align:left;padding:8px 10px;
+    border-radius:7px;border:none;background:transparent;color:var(--muted);
+    cursor:pointer;display:flex;align-items:center;gap:8px}
+  .prefs-nav-item:hover{background:var(--bg);color:var(--text)}
+  .prefs-nav-item.active{background:var(--accent-wash);color:var(--accent-ink);font-weight:600}
+  .prefs-nav-item[hidden]{display:none}
+  .prefs-content{flex:1;overflow-y:auto}
+  .prefs-content .set-section{padding:18px 22px}
+  .prefs-pane[hidden]{display:none}
+  .prefs-preview-toggle{margin-top:10px;padding:10px 10px 0;border-top:1px solid var(--border);
+    font-size:10px;color:var(--faint)}
+  .prefs-preview-toggle select{width:100%;margin-top:4px;font:inherit;font-size:11px;
+    padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text)}
+  .pager-mock{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:6px;
+    font-size:10.5px;color:var(--faint)}
+  .pager-mock button{font:inherit;font-size:10.5px;padding:3px 8px;border-radius:6px;
+    border:1px solid var(--border);background:var(--bg);color:var(--muted);cursor:pointer}
+
+  /* ── Activity log row expand (2026-08-18) — same click-to-expand behavior as the
+     real SettingsView.tsx grid: click a row to reveal Request/Response payload,
+     token counts, and the permalink; a row from a user who hasn't consented to
+     sharing (sharedWithAdmin=false) shows the redacted notice instead (§5.6). ── */
+  .log-row{cursor:pointer}
+  .log-row:hover{background:var(--bg)}
+  .log-detail[hidden]{display:none}
+  .log-detail-body{padding:12px 16px;background:var(--bg)}
+  .log-detail-block{margin-bottom:10px}
+  .log-detail-label{display:flex;align-items:center;justify-content:space-between;
+    font-size:11px;font-weight:600;color:var(--muted);margin-bottom:4px}
+  .log-detail-copy{font:inherit;font-size:11px;color:var(--accent-ink);background:none;
+    border:none;cursor:pointer;padding:0}
+  .log-pre{font-family:var(--mono);font-size:11px;color:var(--text);background:var(--panel);
+    border:1px solid var(--border);border-radius:6px;padding:8px;max-height:160px;
+    overflow:auto;white-space:pre-wrap;margin:0}
+  .log-detail-meta{font-size:11px;color:var(--faint);margin:2px 0}
+  .log-redacted{background:var(--elev);border:1px solid var(--border);border-radius:6px;padding:8px 10px}
+  .log-redacted-title{font-size:12px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .log-redacted-sub{font-size:11px;color:var(--faint);margin-top:4px;line-height:1.5}
+
   /* ── Guided tour (Plan 12 mini-tour prototype) — spotlight + popover, six steps over
      the core loop (import → edit custom → edit chat → compare → apply → export), plus a
      welcome step. The "zoom" the user asked for is a pulsing accent ring + padding around
@@ -664,10 +714,10 @@
 -->
 <div class="topbar">
   <div class="brand"><span class="dot"></span> Agent Workbench</div>
-  <!-- Settings modal trigger (roadmap TODO item 6, 2026-08-06) — was a <Link href="/settings">
-       full-page nav in the real app; now opens an overlay so the workbench (and ChatPanel's
-       message history) never unmounts. -->
-  <button class="theme settings-trigger" id="settingsTrigger" title="System Settings">⚙ System Settings</button>
+  <!-- Preferences modal trigger (2026-08-18) — ONE combined button replaces the old
+       separate "⚙ System Settings" (admin-only) and "Account" (everyone) topbar buttons;
+       both are now categories inside the same modal (see .prefs-modal below). -->
+  <button class="theme settings-trigger" id="prefsTrigger" title="Settings">⚙ Settings</button>
   <button class="theme" id="tourReplayBtn" title="Replay the guided tour">ⓘ Guided tour</button>
   <button class="theme" id="themeBtn">◐ Theme</button>
 </div>
@@ -1020,55 +1070,281 @@ or any tool that modifies files — intentionally excluded.</pre>
   </div>
 </div>
 
-<!-- ── Settings modal ── mockup-only static content; same three sections
-     SettingsView.tsx already renders (General / Invite codes / Activity log),
-     just moved into an overlay instead of the /settings full-page route. -->
-<div class="modal-overlay settings-modal" id="settingsModal" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+<!-- ── Preferences modal (2026-08-18) ── merged Account + Settings, sidebar-categorized.
+     Replaces the old flat Settings-only modal. Content is representative, not a byte-
+     for-byte copy of AccountView.tsx/SettingsView.tsx — enough per category to judge the
+     navigation concept, matching how this file's other mocks (e.g. the pre-redesign
+     settings modal this replaces) never fully mirrored every real field either. The
+     "Preview as" select is MOCKUP-ONLY (not a real control) so one markup can show both
+     the admin nav (all 3 categories) and the regular-user nav (Account only, 2026-08-18
+     decision — no greyed-out lock on LLM/Admin, they're simply absent). -->
+<div class="modal-overlay settings-modal prefs-modal" id="prefsModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="prefsModalTitle">
     <div class="modal-head">
       <div class="modal-head-row">
         <div>
-          <div class="modal-title" id="settingsModalTitle">System Settings</div>
-          <div class="modal-desc">Admin-only. Closing this returns to the workbench exactly as you left it.</div>
+          <div class="modal-title" id="prefsModalTitle">Settings</div>
+          <div class="modal-desc">Closing this returns to the workbench exactly as you left it.</div>
         </div>
-        <button class="modal-close" id="settingsModalClose" title="Close" aria-label="Close">✕</button>
+        <button class="modal-close" id="prefsModalClose" title="Close" aria-label="Close">✕</button>
       </div>
     </div>
     <div class="modal-body">
-      <div class="set-section">
-        <h2>Settings</h2>
-        <div class="set-row">
-          <span class="set-label">Live LLM calls
-            <span class="set-hint">When off, import and chat return mocked responses instead of calling the real API.</span>
-          </span>
-          <span class="set-toggle on"></span>
+      <div class="prefs-body">
+        <nav class="prefs-nav" id="prefsNav">
+          <button class="prefs-nav-item active" data-cat="account">👤 Account</button>
+          <button class="prefs-nav-item" data-cat="llm">⚡ LLM</button>
+          <button class="prefs-nav-item" data-cat="admin">🛠 Admin</button>
+          <button class="prefs-nav-item" data-cat="activity">📜 Activity log</button>
+          <div class="prefs-preview-toggle">
+            Mockup only — preview as
+            <select id="prefsPreviewAs">
+              <option value="admin">Admin</option>
+              <option value="user">Regular user</option>
+            </select>
+          </div>
+        </nav>
+        <div class="prefs-content">
+
+          <!-- Account pane — everyone. Stands in for AccountView.tsx's three sections. -->
+          <div class="prefs-pane" data-pane="account">
+            <div class="set-section">
+              <h2>Your account</h2>
+              <div class="set-row"><span class="set-label">Email</span><span style="color:var(--text)">you@example.com</span></div>
+              <div class="set-row">
+                <span class="set-label">Password
+                  <span class="set-hint">Set a password, or sign in with Google only.</span>
+                </span>
+                <span style="color:var(--accent-ink);cursor:pointer">Change</span>
+              </div>
+              <div class="set-row"><span class="set-label">Signed in with</span><span style="color:var(--muted)">Google (linked)</span></div>
+            </div>
+            <div class="set-section">
+              <h2>Activity log sharing</h2>
+              <div class="set-row">
+                <span class="set-label">Share my prompts with the admin
+                  <span class="set-hint">Off by default — your instructions and the AI's replies stay private to you.</span>
+                </span>
+                <span class="set-toggle"></span>
+              </div>
+            </div>
+            <div class="set-section">
+              <h2>API tokens (MCP access)</h2>
+              <table class="set-table">
+                <thead><tr><th>Name</th><th>Scope</th><th>Created</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td>Claude Code (laptop)</td><td>read</td><td>2026-08-15</td><td style="color:var(--faint)">Revoke</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- LLM pane — admin only -->
+          <div class="prefs-pane" data-pane="llm" hidden>
+            <div class="set-section">
+              <h2>LLM</h2>
+              <div class="set-row">
+                <span class="set-label">Live LLM calls
+                  <span class="set-hint">When off, calls are blocked before any network request.</span>
+                </span>
+                <span class="set-toggle on"></span>
+              </div>
+              <div class="set-row">
+                <span class="set-label">LLM provider
+                  <span class="set-hint">Which vendor answers every AI call (import and chat).</span>
+                </span>
+                <span style="color:var(--text)">anthropic</span>
+              </div>
+              <div class="set-row"><span class="set-label">Chat max output tokens</span><span style="color:var(--text)">30000</span></div>
+              <div class="set-row"><span class="set-label">Chat history turns</span><span style="color:var(--text)">10</span></div>
+              <div class="set-row"><span class="set-label">Max LLM calls per user per hour</span><span style="color:var(--text)">15</span></div>
+            </div>
+          </div>
+
+          <!-- Admin pane — everything else (2026-08-18: "Admin" category) -->
+          <div class="prefs-pane" data-pane="admin" hidden>
+            <div class="set-section">
+              <h2>Platform</h2>
+              <div class="set-row"><span class="set-label">Max users</span><span style="color:var(--text)">5</span></div>
+              <div class="set-row"><span class="set-label">Access-request code expiry (hours)</span><span style="color:var(--text)">5</span></div>
+              <div class="set-row">
+                <span class="set-label">MCP writes
+                  <span class="set-hint">Off by default — import_agent is refused until enabled.</span>
+                </span>
+                <span class="set-toggle"></span>
+              </div>
+            </div>
+            <div class="set-section">
+              <h2>Access requests</h2>
+              <table class="set-table">
+                <thead><tr><th>Name</th><th>Email</th><th>Requested</th></tr></thead>
+                <tbody><tr><td>Alex Doe</td><td>alex@example.com</td><td>2h ago</td></tr></tbody>
+              </table>
+            </div>
+            <div class="set-section">
+              <h2>Invite codes</h2>
+              <table class="set-table">
+                <thead><tr><th>Code</th><th>Status</th><th>Created</th></tr></thead>
+                <tbody>
+                  <tr><td>7F3K-9QRT</td><td style="color:var(--ok)">unredeemed</td><td>2026-08-02</td></tr>
+                  <tr><td>M1PZ-2LXA</td><td style="color:var(--faint)">redeemed</td><td>2026-07-30</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="set-section">
+              <h2>Users</h2>
+              <table class="set-table">
+                <thead><tr><th>Email</th><th>Role</th><th>Shares logs</th><th>Created</th></tr></thead>
+                <tbody>
+                  <tr><td>you@example.com</td><td>admin</td><td>—</td><td>2026-07-20</td></tr>
+                  <tr><td>alex@example.com</td><td>user</td><td>Yes</td><td>2026-08-01</td></tr>
+                </tbody>
+              </table>
+              <div class="pager-mock"><span>Page 1 of 1</span></div>
+            </div>
+          </div>
+
+          <!-- Activity log pane — everyone, but SCOPED by role (2026-08-18 decision):
+               admin sees every user's calls (adds a User column, cross-account); a
+               regular user sees only their own (no User column — every row already is
+               them). Columns otherwise match SettingsView.tsx's real grid exactly
+               (Timestamp/Kind/Agent/Status/Model/Duration) — the admin's User column is
+               the one addition, same as the roadmap's existing "Activity log User
+               column" NEXT item. The "Preview as" select swaps which table is shown. -->
+          <div class="prefs-pane" data-pane="activity">
+            <div class="set-section" data-audience="admin">
+              <h2>Activity log <span style="font-weight:400;color:var(--faint);font-size:11px">— all users</span></h2>
+              <table class="set-table">
+                <thead>
+                  <tr>
+                    <th>User</th><th>Timestamp</th><th>Kind</th><th>Agent</th>
+                    <th>Status</th><th>Model</th><th style="text-align:right">Duration</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="log-row" data-log-row="admin1">
+                    <td>you@example.com</td><td>Aug 18, 10:42:03</td><td>Chat</td><td>api-docs-writer</td>
+                    <td style="color:var(--ok)">OK</td><td style="font-family:var(--mono)">claude-sonnet-5</td>
+                    <td style="text-align:right">1,204ms</td>
+                  </tr>
+                  <tr class="log-detail" data-log-detail="admin1" hidden>
+                    <td colspan="7">
+                      <div class="log-detail-body">
+                        <div class="log-detail-block">
+                          <div class="log-detail-label"><span>Request payload</span><button class="log-detail-copy">Copy</button></div>
+                          <pre class="log-pre">{
+  "system": "# ROLE\n\nYou are Prometheus, the agent inside this workbench…",
+  "messages": [{ "role": "user", "content": "review my agent" }],
+  "maxTokens": 8192,
+  "model": "claude-sonnet-5"
+}</pre>
+                        </div>
+                        <div class="log-detail-block">
+                          <div class="log-detail-label"><span>Response payload</span><button class="log-detail-copy">Copy</button></div>
+                          <pre class="log-pre">{
+  "text": "{\n  \"message\": \"Tightened the tools list.\",\n  \"modifications\": {}\n}",
+  "stopReason": "end_turn"
+}</pre>
+                        </div>
+                        <p class="log-detail-meta">Tokens: 5593 in / 130 out</p>
+                        <p class="log-detail-meta">ID: <span style="font-family:var(--mono)">0f12d8d7-4351-4a75-81e5-27af2c0de826</span> · <span style="color:var(--accent-ink);cursor:pointer">Permalink</span></p>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr class="log-row" data-log-row="admin2">
+                    <td>alex@example.com</td><td>Aug 18, 09:58:41</td><td>Import (structural)</td><td>anthropic-test-agent</td>
+                    <td style="color:var(--ok)">OK <span title="This user has not consented to sharing their prompt content.">🔒</span></td>
+                    <td style="font-family:var(--mono)">claude-opus-4-8</td>
+                    <td style="text-align:right">892ms</td>
+                  </tr>
+                  <tr class="log-detail" data-log-detail="admin2" hidden>
+                    <td colspan="7">
+                      <div class="log-detail-body">
+                        <div class="log-redacted">
+                          <div class="log-redacted-title">🔒 Content hidden</div>
+                          <div class="log-redacted-sub">This user has not consented to sharing their prompt and response
+                            content with the admin. You can see metadata (agent, model, tokens, duration) but not the
+                            text of their instructions or the AI's replies.</div>
+                        </div>
+                        <p class="log-detail-meta" style="margin-top:8px">Tokens: 12044 in / 861 out</p>
+                        <p class="log-detail-meta">ID: <span style="font-family:var(--mono)">a2b91c4e-6f08-4d31-9c72-1e4bde5a90f3</span> · <span style="color:var(--accent-ink);cursor:pointer">Permalink</span></p>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="pager-mock">
+                <span>Page 1 of 3</span>
+                <button>← Prev</button><button>Next →</button>
+              </div>
+            </div>
+            <div class="set-section" data-audience="user" hidden>
+              <h2>Activity log <span style="font-weight:400;color:var(--faint);font-size:11px">— your calls</span></h2>
+              <table class="set-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th><th>Kind</th><th>Agent</th>
+                    <th>Status</th><th>Model</th><th style="text-align:right">Duration</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="log-row" data-log-row="user1">
+                    <td>Aug 18, 10:42:03</td><td>Chat</td><td>api-docs-writer</td>
+                    <td style="color:var(--ok)">OK</td><td style="font-family:var(--mono)">claude-sonnet-5</td>
+                    <td style="text-align:right">1,204ms</td>
+                  </tr>
+                  <tr class="log-detail" data-log-detail="user1" hidden>
+                    <td colspan="6">
+                      <div class="log-detail-body">
+                        <div class="log-detail-block">
+                          <div class="log-detail-label"><span>Request payload</span><button class="log-detail-copy">Copy</button></div>
+                          <pre class="log-pre">{
+  "system": "# ROLE\n\nYou are Prometheus, the agent inside this workbench…",
+  "messages": [{ "role": "user", "content": "review my agent" }],
+  "maxTokens": 8192,
+  "model": "claude-sonnet-5"
+}</pre>
+                        </div>
+                        <div class="log-detail-block">
+                          <div class="log-detail-label"><span>Response payload</span><button class="log-detail-copy">Copy</button></div>
+                          <pre class="log-pre">{
+  "text": "{\n  \"message\": \"Tightened the tools list.\",\n  \"modifications\": {}\n}",
+  "stopReason": "end_turn"
+}</pre>
+                        </div>
+                        <p class="log-detail-meta">Tokens: 5593 in / 130 out</p>
+                        <p class="log-detail-meta">ID: <span style="font-family:var(--mono)">0f12d8d7-4351-4a75-81e5-27af2c0de826</span> · <span style="color:var(--accent-ink);cursor:pointer">Permalink</span></p>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr class="log-row" data-log-row="user2">
+                    <td>Aug 18, 09:58:41</td><td>Import (structural)</td><td>anthropic-test-agent</td>
+                    <td style="color:var(--warn)">Dry-run</td><td style="font-family:var(--mono)">claude-opus-4-8</td>
+                    <td style="text-align:right">3ms</td>
+                  </tr>
+                  <tr class="log-detail" data-log-detail="user2" hidden>
+                    <td colspan="6">
+                      <div class="log-detail-body">
+                        <div class="log-detail-block">
+                          <div class="log-detail-label"><span>Request payload</span><button class="log-detail-copy">Copy</button></div>
+                          <pre class="log-pre">{
+  "agentText": "---\nname: anthropic-test-agent\n---\n…",
+  "maxTokens": 32000,
+  "model": "claude-opus-4-8"
+}</pre>
+                        </div>
+                        <p class="log-detail-meta">No response — call was blocked (dry-run).</p>
+                        <p class="log-detail-meta">ID: <span style="font-family:var(--mono)">7c31e9aa-2b04-4e12-9f0a-3d8c61b7e204</span> · <span style="color:var(--accent-ink);cursor:pointer">Permalink</span></p>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="pager-mock"><span>Page 1 of 1</span></div>
+            </div>
+          </div>
+
         </div>
-        <div class="set-row">
-          <span class="set-label">Max users
-            <span class="set-hint">Invite-code signups are refused once this many accounts exist.</span>
-          </span>
-          <span style="color:var(--text)">5</span>
-        </div>
-      </div>
-      <div class="set-section">
-        <h2>Invite codes</h2>
-        <table class="set-table">
-          <thead><tr><th>Code</th><th>Status</th><th>Created</th></tr></thead>
-          <tbody>
-            <tr><td>7F3K-9QRT</td><td style="color:var(--ok)">unredeemed</td><td>2026-08-02</td></tr>
-            <tr><td>M1PZ-2LXA</td><td style="color:var(--faint)">redeemed</td><td>2026-07-30</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="set-section">
-        <h2>Activity log</h2>
-        <table class="set-table">
-          <thead><tr><th>User</th><th>Caller</th><th>Time</th></tr></thead>
-          <tbody>
-            <tr><td>you@example.com</td><td>chat</td><td>10:42</td></tr>
-            <tr><td>you@example.com</td><td>import-structural</td><td>09:58</td></tr>
-          </tbody>
-        </table>
       </div>
     </div>
   </div>
@@ -2179,18 +2455,56 @@ or any tool that modifies files — intentionally excluded.</pre>
   function openImportModal(){ importModal.hidden = false; }
   function closeImportModal(){ importModal.hidden = true; }
 
-  // ---------- Settings modal (roadmap TODO item 6, 2026-08-06) ----------
-  const settingsModal = document.getElementById('settingsModal');
-  function openSettingsModal(){ settingsModal.hidden = false; }
-  function closeSettingsModal(){ settingsModal.hidden = true; }
+  // ---------- Preferences modal (2026-08-18 — Account + Settings merged) ----------
+  const prefsModal = document.getElementById('prefsModal');
+  function openPrefsModal(){ prefsModal.hidden = false; }
+  function closePrefsModal(){ prefsModal.hidden = true; }
+
+  function setPrefsCategory(cat) {
+    document.querySelectorAll('.prefs-nav-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.cat === cat);
+    });
+    document.querySelectorAll('.prefs-pane').forEach(el => {
+      el.hidden = el.dataset.pane !== cat;
+    });
+  }
+
+  // MOCKUP-ONLY: not a real permission check, just previews both nav shapes
+  // (2026-08-18 decision: a regular user's sidebar lists Account + Activity log only
+  // — LLM/Admin are absent, not greyed-out) without duplicating the modal markup.
+  // Activity log itself stays visible to both audiences but is SCOPED differently
+  // (admin: every user's calls; regular user: only their own — see the two
+  // [data-audience] sections inside the activity pane) rather than hidden outright,
+  // since a regular user seeing their own log is the whole point of the split.
+  function setPrefsAudience(audience) {
+    const adminOnly = document.querySelectorAll('.prefs-nav-item[data-cat="llm"], .prefs-nav-item[data-cat="admin"]');
+    const isAdmin = audience === 'admin';
+    adminOnly.forEach(el => { el.hidden = !isAdmin; });
+    document.querySelectorAll('[data-audience="admin"]').forEach(el => { el.hidden = !isAdmin; });
+    document.querySelectorAll('[data-audience="user"]').forEach(el => { el.hidden = isAdmin; });
+    if (!isAdmin) setPrefsCategory('account');
+  }
+  document.getElementById('prefsPreviewAs').addEventListener('change', (e) => setPrefsAudience(e.target.value));
 
   document.addEventListener('click', function (e) {
     if (e.target.closest('#importAgentTrigger')) { openImportModal(); return; }
     if (e.target.closest('#importModalCancel')) { closeImportModal(); return; }
     if (e.target === importModal) { closeImportModal(); return; } // click on overlay backdrop
-    if (e.target.closest('#settingsTrigger')) { openSettingsModal(); return; }
-    if (e.target.closest('#settingsModalClose')) { closeSettingsModal(); return; }
-    if (e.target === settingsModal) { closeSettingsModal(); return; } // click on overlay backdrop
+    if (e.target.closest('#prefsTrigger')) { openPrefsModal(); return; }
+    if (e.target.closest('#prefsModalClose')) { closePrefsModal(); return; }
+    if (e.target === prefsModal) { closePrefsModal(); return; } // click on overlay backdrop
+    const prefsNavItem = e.target.closest('.prefs-nav-item');
+    if (prefsNavItem && prefsNavItem.dataset.cat) { setPrefsCategory(prefsNavItem.dataset.cat); return; }
+    // Activity log row expand (2026-08-18) — same click-to-expand behavior as the
+    // real grid: toggle the matching .log-detail row. Ignore clicks on the Copy
+    // buttons inside an already-open row (mockup-only, no real clipboard wiring).
+    if (e.target.closest('.log-detail-copy')) { return; }
+    const logRow = e.target.closest('.log-row');
+    if (logRow && logRow.dataset.logRow) {
+      const detail = document.querySelector('.log-detail[data-log-detail="' + logRow.dataset.logRow + '"]');
+      if (detail) { detail.hidden = !detail.hidden; }
+      return;
+    }
     if (e.target === document.getElementById('rawZoomModal')) { window.__closeRawZoom(); return; } // overlay backdrop
     const modeOpt = e.target.closest('.mode-opt');
     if (modeOpt) {

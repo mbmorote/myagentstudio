@@ -30,9 +30,13 @@ import type { CallLogListItem, CallLogFull } from '@/lib/db/repository';
 import { apiFetch } from '@/lib/apiFetch';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-// Exported (2026-08-06, TODO item 6) so SettingsModal.tsx can type its own
-// client-side fetch of the same shapes GET /api/settings and GET /api/llm-call-log
-// return — this component no longer assumes it's only ever fed by /settings/page.tsx.
+// Exported 2026-08-06 so a client-side fetch could type the same GET /api/settings
+// and GET /api/llm-call-log shapes /settings/page.tsx's server component reads
+// directly from the DB. That caller was SettingsModal.tsx (retired 2026-08-18 when
+// Settings merged into PreferencesModal.tsx's LLM/Admin/Activity-log categories —
+// see prefsShared.tsx for their own, separately-typed equivalents). SettingsView.tsx
+// itself is untouched by that merge and today is fed only by /settings/page.tsx —
+// kept alive as the admin-only full page the Activity log's Permalink deep-links to.
 
 export type SettingEntry = {
   key: string;
@@ -83,6 +87,20 @@ type AccessRequestRow = {
   createdAt: string;
 };
 
+// Users grid (admin-only, GET /api/settings/users) — mirrors UserListItem, minus
+// the Date→string swap every fetch response in this file already goes through.
+type UserListRow = {
+  id: string;
+  email: string;
+  role: 'admin' | 'user';
+  shareLogsWithAdmin: boolean;
+  createdAt: string;
+};
+
+// Rows per page for the Access requests / Users / Activity log grids. Same
+// constant everywhere so pagination behaves consistently across the page.
+const PAGE_SIZE = 10;
+
 const REFERRAL_SOURCE_LABELS: Record<string, string> = {
   linkedin: 'LinkedIn',
   thread: 'A thread/post online',
@@ -96,10 +114,11 @@ interface SettingsViewProps {
   entries: LogListItem[];
   highlightId: string | null;
   highlightEntry: LogFull | null;
-  /** Set when rendered inside SettingsModal (2026-08-06, TODO item 6) — replaces the
-   *  "← Back to Workbench" link with a "Close" button, since there's no page to
-   *  navigate back from and the Dialog's own ✕ already sits top-right. Omitted
-   *  (undefined) on the full-page /settings route, which keeps the Link as before. */
+  /** Historical: set when rendered inside SettingsModal (2026-08-06, retired
+   *  2026-08-18) to replace the "← Back to Workbench" link with a "Close" button.
+   *  SettingsView.tsx now only ever renders on the full-page /settings route,
+   *  which never passes this — kept on the type/JSX for zero behavior change
+   *  rather than stripped out for a route not otherwise being touched. */
   onClose?: () => void;
 }
 
@@ -215,6 +234,7 @@ export function SettingsView({
   const [accessRequestsError, setAccessRequestsError] = useState<string | null>(null);
   // Per-row id currently mid-action, so only that row's buttons show a busy state.
   const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
+  const [accessRequestsPage, setAccessRequestsPage] = useState(1);
 
   useEffect(() => {
     setAccessRequestsLoading(true);
@@ -230,6 +250,35 @@ export function SettingsView({
       .catch(() => setAccessRequestsError('Network error loading access requests.'))
       .finally(() => setAccessRequestsLoading(false));
   }, []);
+
+  // ── Users state (admin-only grid, GET /api/settings/users) ─────────────────
+  const [users, setUsers] = useState<UserListRow[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [usersPage, setUsersPage] = useState(1);
+
+  useEffect(() => {
+    setUsersLoading(true);
+    apiFetch('/api/settings/users')
+      .then(async (res) => {
+        if (res.ok) {
+          const body = await res.json() as { users: UserListRow[] };
+          setUsers(body.users);
+        } else {
+          setUsersError('Failed to load users.');
+        }
+      })
+      .catch(() => setUsersError('Network error loading users.'))
+      .finally(() => setUsersLoading(false));
+  }, []);
+
+  // ── Activity log pagination ─────────────────────────────────────────────────
+  const [logPage, setLogPage] = useState(1);
+  // Changing the filter changes how many rows exist — stay on page 1 rather than
+  // landing on a now-out-of-range page.
+  useEffect(() => {
+    setLogPage(1);
+  }, [filter]);
 
   // Scroll to highlighted row on first paint
   useEffect(() => {
@@ -263,8 +312,10 @@ export function SettingsView({
       } else {
         // Apply the stored updatedAt from the response directly (2026-08-06 — was
         // router.refresh(), which re-fetches whatever page currently hosts this
-        // component; harmless on /settings but wasteful/wrong once this also renders
-        // inside SettingsModal over an unrelated page).
+        // component; harmless on /settings but would have been wasteful/wrong back
+        // when this also rendered inside SettingsModal over an unrelated page —
+        // that modal is retired 2026-08-18, but the direct-apply fix stays correct
+        // regardless of caller).
         const body = (await res.json()) as { updatedAt: string };
         setLocalSettings((prev) =>
           prev.map((s) => (s.key === key ? { ...s, updatedAt: body.updatedAt } : s)),
@@ -482,6 +533,14 @@ export function SettingsView({
     return true;
   });
 
+  // ── Paginated slices (10/page, matching PAGE_SIZE) ──────────────────────────
+  const pagedAccessRequests = accessRequests.slice(
+    (accessRequestsPage - 1) * PAGE_SIZE,
+    accessRequestsPage * PAGE_SIZE,
+  );
+  const pagedUsers = users.slice((usersPage - 1) * PAGE_SIZE, usersPage * PAGE_SIZE);
+  const pagedLog = filtered.slice((logPage - 1) * PAGE_SIZE, logPage * PAGE_SIZE);
+
   const unredeemedCodes = codes.filter((c) => !c.redeemedBy);
   const redeemedCodes = codes.filter((c) => c.redeemedBy);
 
@@ -489,9 +548,9 @@ export function SettingsView({
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-8">
-      {/* Back link (full-page /settings route) or Close button (SettingsModal, 2026-08-06) —
-          the modal's Dialog already has its own ✕ top-right, but a labeled Close reads
-          clearer than relying on that alone for a page-sized amount of content. */}
+      {/* Back link — this component is only ever reached via the full-page /settings
+          route now (SettingsModal, which used to pass onClose for a "Close" button
+          instead, was retired 2026-08-18 when Settings merged into PreferencesModal). */}
       <div>
         {onClose ? (
           <button
@@ -582,50 +641,108 @@ export function SettingsView({
         ) : accessRequests.length === 0 ? (
           <p className="text-[12px] text-[var(--faint)]">No open requests.</p>
         ) : (
-          <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[9px] overflow-hidden mb-4">
-            <table className="w-full text-[12px]">
-              <thead>
-                <tr className="border-b border-[var(--border)] text-left">
-                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Name</th>
-                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Email</th>
-                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Found us via</th>
-                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Requested</th>
-                  <th className="px-3 py-2 text-[var(--muted)] font-medium w-40"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {accessRequests.map((r) => {
-                  const busy = busyRequestId === r.id;
-                  return (
-                    <tr key={r.id} className="border-b border-[var(--border)] hover:bg-[var(--bg)]">
-                      <td className="px-3 py-2 text-[var(--text)]">{r.name}</td>
-                      <td className="px-3 py-2 text-[var(--muted)]">{r.email}</td>
-                      <td className="px-3 py-2 text-[var(--muted)]">
-                        {r.referralSource ? (REFERRAL_SOURCE_LABELS[r.referralSource] ?? r.referralSource) : '—'}
-                      </td>
-                      <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatTs(r.createdAt)}</td>
-                      <td className="px-3 py-2 text-right whitespace-nowrap">
-                        <button
-                          onClick={() => handleGenerateCodeFromRequest(r.id)}
-                          disabled={busy}
-                          className="text-[11px] text-[var(--accent-ink)] hover:underline disabled:opacity-50 disabled:cursor-not-allowed mr-3"
-                        >
-                          {busy ? 'Working…' : 'Generate code'}
-                        </button>
-                        <button
-                          onClick={() => handleDismissRequest(r.id)}
-                          disabled={busy}
-                          className="text-[11px] text-[var(--faint)] hover:text-[var(--err)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Dismiss
-                        </button>
-                      </td>
+          <>
+            <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[9px] overflow-hidden mb-4">
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="border-b border-[var(--border)] text-left">
+                    <th className="px-3 py-2 text-[var(--muted)] font-medium">Name</th>
+                    <th className="px-3 py-2 text-[var(--muted)] font-medium">Email</th>
+                    <th className="px-3 py-2 text-[var(--muted)] font-medium">Found us via</th>
+                    <th className="px-3 py-2 text-[var(--muted)] font-medium">Requested</th>
+                    <th className="px-3 py-2 text-[var(--muted)] font-medium w-40"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedAccessRequests.map((r) => {
+                    const busy = busyRequestId === r.id;
+                    return (
+                      <tr key={r.id} className="border-b border-[var(--border)] hover:bg-[var(--bg)]">
+                        <td className="px-3 py-2 text-[var(--text)]">{r.name}</td>
+                        <td className="px-3 py-2 text-[var(--muted)]">{r.email}</td>
+                        <td className="px-3 py-2 text-[var(--muted)]">
+                          {r.referralSource ? (REFERRAL_SOURCE_LABELS[r.referralSource] ?? r.referralSource) : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatTs(r.createdAt)}</td>
+                        <td className="px-3 py-2 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => handleGenerateCodeFromRequest(r.id)}
+                            disabled={busy}
+                            className="text-[11px] text-[var(--accent-ink)] hover:underline disabled:opacity-50 disabled:cursor-not-allowed mr-3"
+                          >
+                            {busy ? 'Working…' : 'Generate code'}
+                          </button>
+                          <button
+                            onClick={() => handleDismissRequest(r.id)}
+                            disabled={busy}
+                            className="text-[11px] text-[var(--faint)] hover:text-[var(--err)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Dismiss
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <Pager
+              page={accessRequestsPage}
+              totalItems={accessRequests.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setAccessRequestsPage}
+            />
+          </>
+        )}
+      </section>
+
+      {/* ── Users panel ──────────────────────────────────────────────────── */}
+      <section>
+        <h2 className="text-[15px] font-semibold text-[var(--text)] mb-4">Users</h2>
+        <p className="text-[12px] text-[var(--muted)] mb-3">
+          Every account on this deployment. Read-only here — role and log-sharing changes
+          aren't editable from this grid yet.
+        </p>
+
+        {usersError && (
+          <p className="text-[12px] text-[var(--err)] mb-3">{usersError}</p>
+        )}
+
+        {usersLoading ? (
+          <p className="text-[12px] text-[var(--faint)]">Loading users…</p>
+        ) : users.length === 0 ? (
+          <p className="text-[12px] text-[var(--faint)]">No users.</p>
+        ) : (
+          <>
+            <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[9px] overflow-hidden">
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="border-b border-[var(--border)] text-left">
+                    <th className="px-3 py-2 text-[var(--muted)] font-medium">Email</th>
+                    <th className="px-3 py-2 text-[var(--muted)] font-medium w-24">Role</th>
+                    <th className="px-3 py-2 text-[var(--muted)] font-medium w-32">Shares logs</th>
+                    <th className="px-3 py-2 text-[var(--muted)] font-medium w-40">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedUsers.map((u) => (
+                    <tr key={u.id} className="border-b border-[var(--border)] hover:bg-[var(--bg)]">
+                      <td className="px-3 py-2 text-[var(--text)]">{u.email}</td>
+                      <td className="px-3 py-2 text-[var(--muted)]">{u.role}</td>
+                      <td className="px-3 py-2 text-[var(--muted)]">{u.shareLogsWithAdmin ? 'Yes' : 'No'}</td>
+                      <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatTs(u.createdAt)}</td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pager
+              page={usersPage}
+              totalItems={users.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setUsersPage}
+            />
+          </>
         )}
       </section>
 
@@ -778,7 +895,7 @@ export function SettingsView({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((entry) => {
+                {pagedLog.map((entry) => {
                   const status = deriveStatus(entry);
                   const isHighlight = entry.id === highlightId;
                   const isExpanded = entry.id === expandedId;
@@ -937,8 +1054,14 @@ export function SettingsView({
             </table>
           </div>
         )}
+        <Pager
+          page={logPage}
+          totalItems={filtered.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setLogPage}
+        />
         <p className="text-[11px] text-[var(--faint)] mt-2 text-right">
-          Showing {filtered.length} of {entries.length} entries (limit 200).
+          Showing {filtered.length} of {entries.length} fetched entries (limit 200).
         </p>
       </section>
     </div>
@@ -1014,5 +1137,52 @@ function IntSettingInput({
       onKeyDown={handleKeyDown}
       className="flex-none w-20 border border-[var(--border)] rounded-[6px] px-2 py-1 text-[12px] text-right bg-[var(--bg)] text-[var(--text)] outline-none focus:border-[var(--accent)]"
     />
+  );
+}
+
+// ── Pagination sub-component ────────────────────────────────────────────────
+
+/**
+ * Prev/Next pager shared by the Access requests, Users, and Activity log grids
+ * (all client-side pagination over an already-fetched array — none of these
+ * lists are large enough yet to need a server-side offset). Renders nothing
+ * when everything fits on one page.
+ */
+function Pager({
+  page,
+  totalItems,
+  pageSize,
+  onPageChange,
+}: {
+  page: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+}) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="flex items-center justify-end gap-3 mt-2">
+      <span className="text-[11px] text-[var(--faint)]">
+        Page {page} of {totalPages}
+      </span>
+      <div className="flex gap-1">
+        <button
+          onClick={() => onPageChange(page - 1)}
+          disabled={page <= 1}
+          className="text-[11px] px-2 py-1 rounded-[6px] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+        >
+          ← Prev
+        </button>
+        <button
+          onClick={() => onPageChange(page + 1)}
+          disabled={page >= totalPages}
+          className="text-[11px] px-2 py-1 rounded-[6px] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+        >
+          Next →
+        </button>
+      </div>
+    </div>
   );
 }

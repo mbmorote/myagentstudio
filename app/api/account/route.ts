@@ -9,9 +9,11 @@
  * No user id is accepted from the body, URL, or query string — only session.userId
  * is ever operated on (§8 invariant 17).
  *
- * hasPassword/linkedAccounts added 2026-08-12 so AccountModal (client-side fetch,
- * no server-component DB read available) can render the same "Signed in with" line
+ * hasPassword/linkedAccounts added 2026-08-12 so a client-side fetch (no
+ * server-component DB read available) can render the same "Signed in with" line
  * app/account/page.tsx's server component already computes directly from the DB.
+ * That client-side caller was AccountModal.tsx, retired 2026-08-18 when Account
+ * merged into PreferencesModal.tsx — PreferencesModal is this route's caller now.
  */
 
 import { NextRequest, NextResponse } from 'next/server';

@@ -54,10 +54,20 @@ interface AccountViewProps {
   hasPassword: boolean;
   /** OAuth provider links for this user — [] for password-only accounts. */
   linkedAccounts: LinkedAccount[];
-  /** When set, renders a "← Close" button calling this instead of a "Back to
-   *  Workbench" link — passed by AccountModal (2026-08-12), same pattern as
-   *  SettingsView's onClose. Omitted by the full-page /account route. */
+  /** Historical: used to render a "← Close" button when this component was
+   *  reached via AccountModal.tsx (2026-08-12, retired 2026-08-18). No current
+   *  caller passes this — PreferencesModal.tsx's Account category passes
+   *  hideBackLink instead (its Dialog already has its own ✕), and the full-page
+   *  /account route never passed it. Kept on the type for now rather than
+   *  removed, since a bare unused prop costs nothing and stripping it isn't
+   *  otherwise part of this pass. */
   onClose?: () => void;
+  /** When true, hides the whole back/close navigation row — used by
+   *  PreferencesModal.tsx's Account category (2026-08-18), whose Dialog already
+   *  renders its own ✕ close button; a second "← Close" text link right below
+   *  it was redundant (found in browser review). Omitted (false) by the
+   *  full-page /account route, which still needs its "← Back to Workbench" link. */
+  hideBackLink?: boolean;
 }
 
 export function AccountView({
@@ -67,6 +77,7 @@ export function AccountView({
   hasPassword,
   linkedAccounts,
   onClose,
+  hideBackLink,
 }: AccountViewProps) {
   const [sharing, setSharing] = useState(initialShare);
   const [saving, setSaving] = useState(false);
@@ -206,25 +217,28 @@ export function AccountView({
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-8 max-w-lg">
-      {/* Back link (full-page /account route) or Close button (AccountModal, 2026-08-12) —
-          mirrors SettingsView's identical onClose pattern. */}
-      <div>
-        {onClose ? (
-          <button
-            onClick={onClose}
-            className="text-[13px] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
-          >
-            ← Close
-          </button>
-        ) : (
-          <Link
-            href="/"
-            className="text-[13px] text-[var(--muted)] hover:text-[var(--text)] transition-colors"
-          >
-            ← Back to Workbench
-          </Link>
-        )}
-      </div>
+      {/* Back link (full-page /account route only) — hidden inside
+          PreferencesModal.tsx (hideBackLink, 2026-08-18), whose Dialog already
+          has its own ✕ close button; a second text link was redundant. */}
+      {!hideBackLink && (
+        <div>
+          {onClose ? (
+            <button
+              onClick={onClose}
+              className="text-[13px] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
+            >
+              ← Close
+            </button>
+          ) : (
+            <Link
+              href="/"
+              className="text-[13px] text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+            >
+              ← Back to Workbench
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Account info */}
       <section>

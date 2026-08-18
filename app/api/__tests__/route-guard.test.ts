@@ -5,8 +5,10 @@
  * and asserts, via a path-prefix → required-guard table:
  *
  *   1. app/api/auth/**              — no guard required (public by design).
- *   2. app/api/settings/**,
- *      app/api/llm-call-log/**      — must contain authenticateAdmin(.
+ *   2. app/api/settings/**          — must contain authenticateAdmin(. (llm-call-log/**
+ *      moved OUT of this admin-only bucket 2026-08-18 — a non-admin may now call it,
+ *      scoped to their own rows inside the handler; it still needs SOME guard, which
+ *      the generic assertion 5 below already covers via authenticate(.)
  *   3. app/api/account/**           — must contain authenticate( and must NOT contain
  *                                      authenticateAdmin( — the user settings surface must
  *                                      never acquire an admin gate by copy-paste (§5.7).
@@ -65,8 +67,9 @@ function inAuthDir(absPath: string): boolean {
 
 function inAdminOnlyDir(absPath: string): boolean {
   const rel = relative(API_DIR, absPath);
-  return rel.startsWith('settings' + sep) ||
-         rel.startsWith('llm-call-log' + sep);
+  // llm-call-log/** deliberately excluded (2026-08-18) — it's authenticate(-guarded
+  // and scopes non-admins to their own rows internally, not admin-only anymore.
+  return rel.startsWith('settings' + sep);
 }
 
 function inAccountDir(absPath: string): boolean {
@@ -97,7 +100,7 @@ describe('Route-guard fitness — every non-auth route is guarded', () => {
     expect(relPaths).toEqual([]);
   });
 
-  it('settings/** and llm-call-log/** use authenticateAdmin( (not just authenticate()', () => {
+  it('settings/** uses authenticateAdmin( (not just authenticate()', () => {
     const adminRoutes = nonAuthRoutes.filter((f) => inAdminOnlyDir(f));
     const missingAdminGuard = adminRoutes.filter((f) => {
       const src = readFileSync(f, 'utf8');

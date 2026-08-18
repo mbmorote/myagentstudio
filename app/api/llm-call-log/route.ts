@@ -1,7 +1,7 @@
 /**
  * app/api/llm-call-log/route.ts
  *
- * GET /api/llm-call-log (admin only)
+ * GET /api/llm-call-log (any authenticated user — scoped by role, 2026-08-18)
  *
  * Returns a capped, ordered list of log entries without payloads.
  *
@@ -12,22 +12,31 @@
  *
  * Response: { entries: CallLogListItem[] }
  *
- * The `redacted` flag on each entry is computed against the admin's userId:
- * rows where userId !== admin && sharedWithAdmin === false have redacted:true.
- * Payloads are NOT included — see GET /api/llm-call-log/[id] for the full row.
+ * Scoping (2026-08-18, "Per-user view of the activity log" — Settings/Account
+ * merge): a non-admin is FORCED to userId: session.userId regardless of any
+ * query override, so they can only ever see their own calls — there is no way
+ * to request another user's rows. Admin keeps the original unrestricted view
+ * (every user's calls).
+ *
+ * The `redacted` flag on each entry is computed against the viewer's userId:
+ * rows where userId !== viewer && sharedWithAdmin === false have redacted:true.
+ * A non-admin's own rows are never redacted (userId === viewerUserId short-
+ * circuits the rule) — payloads are NOT included in this list view regardless;
+ * see GET /api/llm-call-log/[id] for the full row.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { listCallLogs } from '@/lib/db/repository';
 import type { LlmCallKind } from '@/lib/db/repository';
-import { authenticateAdmin } from '@/lib/auth/guard';
+import { authenticate } from '@/lib/auth/guard';
 
 const VALID_KINDS = new Set<string>(['import-strict', 'import-structural', 'chat']);
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const auth = await authenticateAdmin(request.nextUrl.pathname);
+  const auth = await authenticate();
   if (!auth.ok) return auth.response;
   const { session } = auth;
+  const isAdmin = session.role === 'admin';
 
   try {
     const url = new URL(request.url);
@@ -72,8 +81,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       kind = kindParam as LlmCallKind;
     }
 
-    // Pass the admin's userId as viewerUserId so redaction is computed correctly (§5.6)
-    const entries = listCallLogs({ limit, dryRun, kind, viewerUserId: session.userId });
+    // Non-admin: force userId so only their own rows are ever returned (2026-08-18).
+    // viewerUserId is always the caller — for a non-admin that's the same id as the
+    // forced userId filter, so their own rows are never redacted (§5.6).
+    const entries = listCallLogs({
+      limit,
+      dryRun,
+      kind,
+      userId: isAdmin ? undefined : session.userId,
+      viewerUserId: session.userId,
+    });
 
     // Serialize Date fields for JSON transport
     const serialized = entries.map((e) => ({

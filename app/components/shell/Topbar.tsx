@@ -7,19 +7,20 @@
  * Plan 04 Phase 4.5 — ⚙ Settings link (§5.4, §11 step 4.5).
  * Plan 05 Phase 4.4 — session prop, email display, Logout, Account link,
  *   admin-only System Settings link (§5.7). The old plain "⚙ Settings" link
- *   is replaced by two distinctly labelled entry points so neither reads as
- *   "the settings page" (the ambiguity this split exists to remove).
+ *   was replaced by two distinctly labelled entry points so neither read as
+ *   "the settings page" (the ambiguity that split existed to remove).
  * Roadmap TODO item 6 (2026-08-06) — "⚙ System Settings" changed from a
- *   <Link href="/settings"> full-page nav to a button opening SettingsModal,
- *   so opening Settings no longer unmounts the workbench (and loses ChatPanel's
- *   in-memory message history). See SettingsModal.tsx for the data/scope notes.
- * 2026-08-12 — "Account" changed the same way, to AccountModal. See
- *   AccountModal.tsx for the data/scope notes (one real difference from
- *   Settings: GET /api/account needed extending to also return hasPassword
- *   and linkedAccounts' providerEmail).
+ *   <Link href="/settings"> full-page nav to a button opening a modal, so
+ *   opening it no longer unmounts the workbench (and loses ChatPanel's
+ *   in-memory message history). 2026-08-12 — "Account" changed the same way.
+ * 2026-08-18 — the two separate modals (and their two topbar buttons) merged
+ *   into ONE "⚙ Settings" button opening PreferencesModal, a single modal with
+ *   a left sidebar of categories (Account/LLM/Admin/Activity log) — see
+ *   PreferencesModal.tsx for the data/scope notes and category-visibility
+ *   rules. The two-button split above is now historical context, not current
+ *   behavior.
  *
- * Right-to-left order: theme toggle · ⚙ System Settings (admin only) ·
- * Account (always) · signed-in email · Logout.
+ * Right-to-left order: theme toggle · ⚙ Settings · signed-in email · Logout.
  *
  * Matches the mockup's .topbar. No layout switcher — Example A is the only
  * layout (R10).
@@ -28,8 +29,7 @@
 import { useState } from 'react';
 import type { Session } from '@/lib/auth/session';
 import { apiFetch } from '@/lib/apiFetch';
-import { SettingsModal } from '@/app/components/Settings/SettingsModal';
-import { AccountModal } from '@/app/components/Account/AccountModal';
+import { PreferencesModal } from '@/app/components/Settings/PreferencesModal';
 
 interface TopbarProps {
   session: Session;
@@ -39,8 +39,7 @@ interface TopbarProps {
 }
 
 export function Topbar({ session, onReplayTour }: TopbarProps) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
 
   function toggleTheme() {
     const root = document.documentElement;
@@ -91,29 +90,16 @@ export function Topbar({ session, onReplayTour }: TopbarProps) {
           ◐ Theme
         </button>
 
-        {/* System Settings — admin only (§5.7). Opens SettingsModal (2026-08-06,
-            roadmap TODO item 6) instead of navigating to /settings. */}
-        {session.role === 'admin' && (
-          <>
-            <button
-              onClick={() => setSettingsOpen(true)}
-              className="text-[12px] text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] rounded-[7px] px-[11px] py-[5px] hover:text-[var(--text)] transition-colors cursor-pointer"
-            >
-              ⚙ System Settings
-            </button>
-            <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
-          </>
-        )}
-
-        {/* Account — always visible (§5.7). Opens AccountModal (2026-08-12) instead
-            of navigating to /account. */}
+        {/* Settings — always visible (2026-08-18). Opens PreferencesModal, whose
+            sidebar itself gates LLM/Admin to admin sessions (§5.7); Account and
+            Activity log are visible to everyone. */}
         <button
-          onClick={() => setAccountOpen(true)}
+          onClick={() => setPrefsOpen(true)}
           className="text-[12px] text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] rounded-[7px] px-[11px] py-[5px] hover:text-[var(--text)] transition-colors cursor-pointer"
         >
-          Account
+          ⚙ Settings
         </button>
-        <AccountModal open={accountOpen} onOpenChange={setAccountOpen} />
+        <PreferencesModal open={prefsOpen} onOpenChange={setPrefsOpen} session={session} />
 
         {/* Signed-in email */}
         <span className="text-[12px] text-[var(--faint)] hidden sm:block">

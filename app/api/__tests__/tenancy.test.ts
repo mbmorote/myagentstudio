@@ -113,6 +113,7 @@ let adminAgentId: string;
 
 let aLogRowRedacted: string; // A's log row, sharedWithAdmin=false
 let aLogRowShared: string;   // A's log row, sharedWithAdmin=true
+let bLogRow: string;         // B's own log row (2026-08-18, per-user activity log)
 
 const SHARED_AGENT_NAME = 'tenancy-shared-agent-name';
 
@@ -154,7 +155,14 @@ function setSetting(key: string, value: string): void {
 }
 
 // ── Direct log-row insertion ───────────────────────────────────────────────────
-function insertLogRow(userId: string | null, sharedWithAdmin: boolean): string {
+// dryRun defaults to false (existing aLogRowRedacted/aLogRowShared behavior,
+// unchanged). bLogRow (2026-08-18) passes true deliberately — B is also used by
+// the per-user-cap tests below, which set maxLlmCallsPerUserPerHour to 1 for the
+// whole file; a second NON-dry-run row for B would leave B already at cap before
+// any test runs. A dry-run row still satisfies everything the activity-log tests
+// check (requestPayload present, redacted:false, correct userId) without
+// counting toward countLlmCallsInWindow().
+function insertLogRow(userId: string | null, sharedWithAdmin: boolean, dryRun = false): string {
   const id = crypto.randomUUID();
   testDb.insert(schema.llmCallLog).values({
     id,
@@ -162,7 +170,7 @@ function insertLogRow(userId: string | null, sharedWithAdmin: boolean): string {
     provider: 'anthropic',
     agentId: null,
     agentLabel: 'test',
-    dryRun: false,
+    dryRun,
     model: 'claude-opus-4-8',
     requestPayload: {
       system: 'test',
@@ -239,6 +247,14 @@ beforeAll(() => {
   // 8. Create log rows for A (for redaction tests)
   aLogRowRedacted = insertLogRow(aId, false); // A not consenting → redacted for admin
   aLogRowShared   = insertLogRow(aId, true);  // A consenting → visible to admin
+
+  // 9. Create B's own log row (2026-08-18 — per-user activity log). sharedWithAdmin
+  // doesn't matter for B viewing their own row (never redacted regardless), but false
+  // matches the realistic default. dryRun:true so this doesn't consume B's
+  // per-user-cap slot (see insertLogRow's own comment) — B is also used by the
+  // owner-scoped-uniqueness and per-user-cap tests elsewhere in this file, both
+  // running under this file's maxLlmCallsPerUserPerHour:1 setting.
+  bLogRow = insertLogRow(bId, false, true);
 });
 
 // ── §6.3: owner-scoped uniqueness ─────────────────────────────────────────────
@@ -457,17 +473,45 @@ describe('admin-only resources — B gets 403 (not 401)', () => {
     expect(res.status).toBe(403);
   });
 
-  it('GET /api/llm-call-log → 403', async () => {
-    const res = await logListGET(nextReq('http://localhost/api/llm-call-log'));
-    expect(res.status).toBe(403);
+});
+
+// ── GET /api/llm-call-log — B (regular user) scoped to own calls (2026-08-18) ──
+// Moved out of the admin-only 403 block above: llm-call-log is no longer
+// admin-gated — a non-admin gets 200, forced to only their own rows.
+
+describe('GET /api/llm-call-log — B (regular user), scoped to own calls', () => {
+  beforeAll(() => {
+    currentSession = { userId: bId, email: bEmail, role: 'user' };
   });
 
-  it('GET /api/llm-call-log/[id] → 403', async () => {
+  it("GET /api/llm-call-log → 200, contains B's row, never A's", async () => {
+    const res = await logListGET(nextReq('http://localhost/api/llm-call-log'));
+    expect(res.status).toBe(200);
+    const body = await res.json() as { entries: { id: string }[] };
+    const ids = body.entries.map((e) => e.id);
+    expect(ids).toContain(bLogRow);
+    expect(ids).not.toContain(aLogRowRedacted);
+    expect(ids).not.toContain(aLogRowShared);
+  });
+
+  it("GET /api/llm-call-log/[id] with A's row id → 404 (not 403 — existence hidden)", async () => {
     const res = await logDetailGET(
       nextReq(`http://localhost/api/llm-call-log/${aLogRowRedacted}`),
       ctx({ id: aLogRowRedacted }),
     );
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(404);
+  });
+
+  it("GET /api/llm-call-log/[id] with B's own row id → 200, redacted:false, payloads present", async () => {
+    const res = await logDetailGET(
+      nextReq(`http://localhost/api/llm-call-log/${bLogRow}`),
+      ctx({ id: bLogRow }),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json() as Record<string, unknown>;
+    expect(body.redacted).toBe(false);
+    expect(body.requestPayload).not.toBeNull();
+    expect(body.userId).toBe(bId);
   });
 });
 

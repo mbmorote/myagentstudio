@@ -38,8 +38,12 @@ app/
 │   ├── Chat/                    ChatPanel — the Prometheus chat + proposal card
 │   ├── Raw/                     RawAgentView — read-only export preview
 │   ├── Auth/                    Login/Signup forms, GoogleButton, ConsentPopup
-│   ├── Settings/                SettingsView, SettingsModal
-│   └── Account/                 AccountView, AccountModal
+│   ├── Settings/                PreferencesModal (merged Account+Settings, 2026-08-18) +
+│   │                             its panes (LlmSettingsPane, AdminSettingsPane,
+│   │                             ActivityLogPane); SettingsView still backs the
+│   │                             admin-only full-page /settings route only
+│   └── Account/                 AccountView (rendered inside PreferencesModal's
+│                                 Account category, and still backs /account directly)
 └── api/
     ├── agents/                  CRUD, import, export, sections, apply-proposal, groups
     ├── groups/                  group CRUD

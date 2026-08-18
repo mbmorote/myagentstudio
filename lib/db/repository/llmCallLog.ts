@@ -71,6 +71,13 @@ export type CallLogListItem = {
   createdAt: Date;
   /** The user who triggered this call; null for pre-auth rows (§4.3). */
   userId: string | null;
+  /**
+   * The triggering user's current email, resolved via a LEFT JOIN against `user`
+   * in both listCallLogs() and getCallLog() (2026-08-18, closes the roadmap's
+   * "Activity log User column" item). Null for pre-auth rows and for a
+   * since-deleted user — same nullability as userId itself.
+   */
+  userEmail: string | null;
   /** 'web' (browser session) or 'mcp' (MCP bearer token). Plan 13. */
   origin: 'web' | 'mcp';
   /**
@@ -251,10 +258,15 @@ export function listCallLogs(opts: ListCallLogsOptions = {}): CallLogListItem[] 
       usage: schema.llmCallLog.usage,
       createdAt: schema.llmCallLog.createdAt,
       userId: schema.llmCallLog.userId,
+      // Resolved via LEFT JOIN below (2026-08-18, closes the roadmap's "Activity
+      // log User column" item) — null for pre-auth rows (userId IS NULL) or a
+      // since-deleted user, same as userId itself being null-able.
+      userEmail: schema.user.email,
       sharedWithAdmin: schema.llmCallLog.sharedWithAdmin,
       origin: schema.llmCallLog.origin,
     })
     .from(schema.llmCallLog)
+    .leftJoin(schema.user, eq(schema.llmCallLog.userId, schema.user.id))
     .orderBy(desc(schema.llmCallLog.createdAt), desc(schema.llmCallLog.id))
     .limit(limit);
 
@@ -278,6 +290,7 @@ export function listCallLogs(opts: ListCallLogsOptions = {}): CallLogListItem[] 
       usage: r.usage as { inputTokens: number; outputTokens: number } | null,
       createdAt: r.createdAt,
       userId,
+      userEmail: r.userEmail ?? null,
       origin: (r.origin as 'web' | 'mcp' | null) ?? 'web',
       redacted,
     };
@@ -300,34 +313,41 @@ export function listCallLogs(opts: ListCallLogsOptions = {}): CallLogListItem[] 
  */
 export function getCallLog(id: string, viewerUserId: string): CallLogFull | null {
   const row = db
-    .select()
+    .select({
+      row: schema.llmCallLog,
+      // Same LEFT JOIN as listCallLogs() (2026-08-18) — CallLogFull extends
+      // CallLogListItem, so userEmail must resolve here too, not just in the list.
+      userEmail: schema.user.email,
+    })
     .from(schema.llmCallLog)
+    .leftJoin(schema.user, eq(schema.llmCallLog.userId, schema.user.id))
     .where(eq(schema.llmCallLog.id, id))
     .get();
 
   if (!row) return null;
 
-  const userId = row.userId ?? null;
-  const shared = Boolean(row.sharedWithAdmin);
+  const userId = row.row.userId ?? null;
+  const shared = Boolean(row.row.sharedWithAdmin);
   const redacted = computeRedacted(userId, viewerUserId, shared);
 
   return {
-    id: row.id,
-    kind: row.kind as LlmCallKind,
-    provider: row.provider,
-    agentId: row.agentId ?? null,
-    agentLabel: row.agentLabel ?? null,
-    dryRun: Boolean(row.dryRun),
-    model: row.model,
-    error: row.error ?? null,
-    durationMs: row.durationMs,
-    usage: row.usage as { inputTokens: number; outputTokens: number } | null,
-    createdAt: row.createdAt,
+    id: row.row.id,
+    kind: row.row.kind as LlmCallKind,
+    provider: row.row.provider,
+    agentId: row.row.agentId ?? null,
+    agentLabel: row.row.agentLabel ?? null,
+    dryRun: Boolean(row.row.dryRun),
+    model: row.row.model,
+    error: row.row.error ?? null,
+    durationMs: row.row.durationMs,
+    usage: row.row.usage as { inputTokens: number; outputTokens: number } | null,
+    userEmail: row.userEmail,
+    createdAt: row.row.createdAt,
     userId,
-    origin: (row.origin as 'web' | 'mcp' | null) ?? 'web',
+    origin: (row.row.origin as 'web' | 'mcp' | null) ?? 'web',
     redacted,
-    requestPayload: redacted ? null : (row.requestPayload as LoggedRequest),
-    responsePayload: redacted ? null : ((row.responsePayload ?? null) as LoggedResponse | null),
+    requestPayload: redacted ? null : (row.row.requestPayload as LoggedRequest),
+    responsePayload: redacted ? null : ((row.row.responsePayload ?? null) as LoggedResponse | null),
   };
 }
 
