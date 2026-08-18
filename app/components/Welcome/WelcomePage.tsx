@@ -184,6 +184,11 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
   // with an invite code" inside one form switch straight to the other without navigating
   // away from /welcome.
   const [authModal, setAuthModal] = useState<'login' | 'signup' | null>(null);
+  // Which SignupForm sub-form the signup modal opens into — the "Get started" CTA below
+  // and the login modal's two account-creation links (2026-08-18 fix) each set this
+  // explicitly before opening the modal, since the same modal JSX block is shared
+  // between all three triggers.
+  const [signupMode, setSignupMode] = useState<'signup' | 'request'>('request');
 
   const s = WALK_STEPS[step];
   const next = () => setStep((i) => (i + 1) % WALK_STEPS.length);
@@ -301,7 +306,7 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
         {/* TODO: copy could still use a pass */}
         <button
           type="button"
-          onClick={() => setAuthModal('signup')}
+          onClick={() => { setSignupMode('request'); setAuthModal('signup'); }}
           className="text-[17px] bg-[var(--accent)] text-white px-[27px] py-[15px] rounded-[12px] font-bold cursor-pointer hover:bg-[var(--accent-ink)]"
         >
           Get started — ask for an invite
@@ -485,7 +490,7 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
               <LoginForm
                 oauthConfigured={oauthConfigured}
                 embedded
-                onSwitchToSignup={() => setAuthModal('signup')}
+                onSwitchToSignup={(mode) => { setSignupMode(mode); setAuthModal('signup'); }}
               />
             </Suspense>
           </div>
@@ -493,12 +498,14 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
       )}
 
       {/* ── Signup modal ── same reasoning as the login modal above; triggered by the
-          "Get started — ask for an invite" CTA (2026-08-14). Reuses the real SignupForm
-          (invite code + Google/password, OAuth-callback error handling) via `embedded`.
-          initialMode="request" opens straight into the no-code request-access sub-form
-          (2026-08-17 fix) — the CTA's own label promises that flow, so landing on the
-          invite-code-required form first was the wrong default; SignupForm's own "Have
-          an invite code? Sign up" link still switches into the other sub-form in place.
+          "Get started — ask for an invite" CTA (2026-08-14) and, as of 2026-08-18, by
+          either of the login modal's two account-creation links. Reuses the real
+          SignupForm (invite code + Google/password, OAuth-callback error handling) via
+          `embedded`. `initialMode={signupMode}` opens straight into whichever sub-form
+          the trigger promised (2026-08-17 fix, generalized 2026-08-18 — previously
+          hardcoded to "request", which meant the login modal's invite-code link opened
+          the wrong sub-form) — SignupForm's own in-form links still switch between the
+          two sub-forms in place regardless of which one it opened into.
           Not scaled with the rest of this page's ×1.1 sizing pass — see the login modal's
           note above and the file header note. */}
       {authModal === 'signup' && (
@@ -521,7 +528,7 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
               <SignupForm
                 oauthConfigured={oauthConfigured}
                 embedded
-                initialMode="request"
+                initialMode={signupMode}
                 onSwitchToLogin={() => setAuthModal('login')}
               />
             </Suspense>

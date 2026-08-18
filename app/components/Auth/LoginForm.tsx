@@ -53,11 +53,12 @@ interface LoginFormProps {
    *  inside a modal that already provides its own backdrop/centering (Plan 12,
    *  WelcomePage.tsx's login modal, 2026-08-14). The standalone /login page omits this. */
   embedded?: boolean;
-  /** When set (embedded mode only), "Sign up with an invite code" switches to the signup
-   *  modal instead of navigating to /signup — keeps the modal flow from breaking out to a
-   *  full-page nav mid-flow. Standalone /login has no modal to switch to, so it keeps the
-   *  plain Link. */
-  onSwitchToSignup?: () => void;
+  /** When set (embedded mode only), the two account-creation links below switch to the
+   *  signup modal (in the given sub-mode) instead of navigating to /signup — keeps the
+   *  modal flow from breaking out to a full-page nav mid-flow. Standalone /login has no
+   *  modal to switch to, so it keeps plain Links (`/signup` and `/signup?mode=request`,
+   *  the latter read by SignupForm itself — see its file header). */
+  onSwitchToSignup?: (mode: 'signup' | 'request') => void;
 }
 
 export function LoginForm({ oauthConfigured, embedded = false, onSwitchToSignup }: LoginFormProps) {
@@ -209,18 +210,34 @@ export function LoginForm({ oauthConfigured, embedded = false, onSwitchToSignup 
         )}
 
         <p className="mt-4 text-[12px] text-[var(--muted)] text-center">
-          Need an account?{' '}
+          Have an invite code?{' '}
           {onSwitchToSignup ? (
             <button
               type="button"
-              onClick={onSwitchToSignup}
+              onClick={() => onSwitchToSignup('signup')}
               className="text-[var(--accent)] hover:underline bg-transparent border-none p-0 font-[inherit] cursor-pointer"
             >
-              Sign up with an invite code
+              Sign up
             </button>
           ) : (
             <Link href="/signup" className="text-[var(--accent)] hover:underline">
-              Sign up with an invite code
+              Sign up
+            </Link>
+          )}
+        </p>
+        <p className="mt-1 text-[12px] text-[var(--muted)] text-center">
+          Don&apos;t have one?{' '}
+          {onSwitchToSignup ? (
+            <button
+              type="button"
+              onClick={() => onSwitchToSignup('request')}
+              className="text-[var(--accent)] hover:underline bg-transparent border-none p-0 font-[inherit] cursor-pointer"
+            >
+              Request access
+            </button>
+          ) : (
+            <Link href="/signup?mode=request" className="text-[var(--accent)] hover:underline">
+              Request access
             </Link>
           )}
         </p>

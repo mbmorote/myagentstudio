@@ -8,6 +8,31 @@ version of this file, kept locally as historical record — not tracked in git).
 
 ---
 
+## 2026-08-18 — Fixed login modal's account-creation link; added Request-access test coverage
+
+Live review of Plan 12's "Request access" flow found a real bug: the login modal's one
+"Sign up with an invite code" link actually opened the *Request access* sub-form instead,
+because the shared signup modal hardcoded its opening sub-form regardless of which of the
+page's three triggers opened it. Fixed by tracking which sub-form each trigger wants
+(`WelcomePage.tsx`'s `signupMode` state, `LoginForm.tsx`'s `onSwitchToSignup(mode)`) and
+showing two explicit links — "Have an invite code? Sign up" / "Don't have one? Request
+access" — instead of one. `SignupForm.tsx` also now honors a `?mode=request` query param
+so the standalone `/signup` page's equivalent link works the same way.
+
+This flow (`POST /api/auth/request-access` and the admin-side Settings → Access requests
+grid) had zero automated test coverage before today, unlike login/signup which were both
+already covered. Added `app/api/auth/__tests__/request-access.test.ts` (16 tests) and
+`app/api/settings/__tests__/access-requests.test.ts` (13 tests), including an end-to-end
+case proving a generated code is genuinely bound to the requester's email. `npm test`:
+68/68 files, 873/873 pass; `tsc`: clean.
+
+Also extended `scripts/cleanup-test-users.ts` with an opt-in `--full` flag (wipes all
+invite codes and access requests, not just ones tied to deleted users) — used to reset the
+dev DB to a clean slate for this live test.
+
+Closes Plan 12's "Request access" review item; live end-to-end verified by hand (request →
+admin generates code → signup) and confirmed working.
+
 ## 2026-08-18 — `/welcome`, `/terms`, `/privacy` browser-verified
 
 Closes the roadmap's "Check: `/welcome`, `/terms`, `/privacy` render correctly in

@@ -67,8 +67,12 @@ interface SignupFormProps {
    *  first. Defaults to 'signup' — right for the standalone /signup page (a visitor who
    *  typed the URL directly usually already has a code) and for LoginForm's "Sign up"
    *  switch-over (same assumption). WelcomePage.tsx's "Get started — ask for an invite"
-   *  CTA overrides this to 'request', since that button's own label promises the
-   *  no-code flow — opening the code-required form first there is the wrong default. */
+   *  CTA and LoginForm's "Request access" link both override this to 'request', since
+   *  those trigger a no-code flow — opening the code-required form first there would be
+   *  the wrong default. A `?mode=request` URL query param (read below) does the same for
+   *  the standalone /signup page's "Request access" link, added 2026-08-18 to fix the
+   *  login modal always forcing 'request' regardless of which of its two links was
+   *  clicked. */
   initialMode?: 'signup' | 'request';
 }
 
@@ -94,8 +98,12 @@ export function SignupForm({
 
   // ── "Request access" — for visitors without an invite code (Plan 12, 2026-08-14) ──
   // A toggle inside this same component, not a separate route/page, so it works both
-  // standalone (/signup) and inside WelcomePage's modal for free.
-  const [mode, setMode] = useState<'signup' | 'request'>(initialMode);
+  // standalone (/signup) and inside WelcomePage's modal for free. ?mode=request (read
+  // here) lets a plain Link force this open the same way the `initialMode` prop does
+  // for embedded callers — see the prop's doc comment above.
+  const [mode, setMode] = useState<'signup' | 'request'>(
+    searchParams.get('mode') === 'request' ? 'request' : initialMode
+  );
   const [requestName, setRequestName] = useState('');
   const [requestEmail, setRequestEmail] = useState('');
   const [requestSource, setRequestSource] = useState<ReferralSource | ''>('');

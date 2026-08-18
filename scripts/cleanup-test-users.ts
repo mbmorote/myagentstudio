@@ -7,9 +7,16 @@
  * so signup / Google-OAuth testing can be re-run from a clean slate without
  * hand-editing the real DB each time.
  *
+ * --full (added 2026-08-18, at the user's request, for the "Request access"
+ * end-to-end signup-flow test): also wipes every row from invite_code and
+ * access_request entirely — not just resetting codes redeemed by deleted
+ * users. Opt-in and separate from the base --yes behavior so a plain
+ * `cleanup:test-users -- --yes` run stays backward compatible for anyone who
+ * wants user cleanup without losing unredeemed invite codes.
+ *
  * Deliberately conservative:
  *   - Dry-run by default — prints what WOULD be deleted, changes nothing.
- *   - Requires --yes to actually execute.
+ *   - Requires --yes to actually execute; --full requires --yes too.
  *   - Backs up myagent.db to myagent.db.bak-<timestamp> before any write,
  *     matching this project's standing practice for real-DB mutations
  *     (Plan 06 Phase 5's "file backup first" pass).
@@ -22,8 +29,9 @@
  *     they reference.
  *
  * USAGE:
- *   npm run cleanup:test-users            # dry run — lists what would happen
- *   npm run cleanup:test-users -- --yes   # actually deletes
+ *   npm run cleanup:test-users                    # dry run — lists what would happen
+ *   npm run cleanup:test-users -- --yes            # deletes non-kept users
+ *   npm run cleanup:test-users -- --yes --full     # also wipes ALL invite codes + access requests
  *
  * Builds its own DB connection rather than importing lib/db/client.ts — see
  * scripts/bootstrap-user.ts's header for why (server-only guard).
@@ -40,6 +48,7 @@ const KEEP_EMAIL = 'you@example.com';
 
 function main() {
   const execute = process.argv.includes('--yes');
+  const full = process.argv.includes('--full');
 
   const DB_PATH = path.join(process.cwd(), 'myagent.db');
   const sqlite = new Database(DB_PATH);
@@ -52,41 +61,41 @@ function main() {
     .where(ne(schema.user.email, KEEP_EMAIL))
     .all();
 
-  if (toDelete.length === 0) {
+  if (toDelete.length === 0 && !full) {
     console.log(`No users to clean up — only ${KEEP_EMAIL} exists.`);
     sqlite.close();
     return;
   }
 
   const userIds = toDelete.map((u) => u.id);
+  const hasUsersToDelete = userIds.length > 0;
 
-  const agents = db
-    .select({ id: schema.agent.id })
-    .from(schema.agent)
-    .where(inArray(schema.agent.ownerId, userIds))
-    .all();
-  const groups = db
-    .select({ id: schema.group.id })
-    .from(schema.group)
-    .where(inArray(schema.group.ownerId, userIds))
-    .all();
-  const oauthLinks = db
-    .select({ provider: schema.oauthAccount.provider })
-    .from(schema.oauthAccount)
-    .where(inArray(schema.oauthAccount.userId, userIds))
-    .all();
-  const redeemedCodes = db
-    .select({ code: schema.inviteCode.code })
-    .from(schema.inviteCode)
-    .where(inArray(schema.inviteCode.redeemedBy, userIds))
-    .all();
+  const agents = hasUsersToDelete
+    ? db.select({ id: schema.agent.id }).from(schema.agent).where(inArray(schema.agent.ownerId, userIds)).all()
+    : [];
+  const groups = hasUsersToDelete
+    ? db.select({ id: schema.group.id }).from(schema.group).where(inArray(schema.group.ownerId, userIds)).all()
+    : [];
+  const oauthLinks = hasUsersToDelete
+    ? db.select({ provider: schema.oauthAccount.provider }).from(schema.oauthAccount).where(inArray(schema.oauthAccount.userId, userIds)).all()
+    : [];
+  const redeemedCodes = hasUsersToDelete
+    ? db.select({ code: schema.inviteCode.code }).from(schema.inviteCode).where(inArray(schema.inviteCode.redeemedBy, userIds)).all()
+    : [];
+  const allInviteCodes = full ? db.select({ code: schema.inviteCode.code }).from(schema.inviteCode).all() : [];
+  const allAccessRequests = full ? db.select({ id: schema.accessRequest.id }).from(schema.accessRequest).all() : [];
 
   console.log(`${execute ? 'DELETING' : 'DRY RUN — would delete'}:`);
   for (const u of toDelete) console.log(`  user ${u.email} (${u.id})`);
   console.log(
     `  ${agents.length} agent(s), ${groups.length} group(s), ${oauthLinks.length} oauth link(s)`,
   );
-  console.log(`  ${redeemedCodes.length} invite code(s) reset to unredeemed`);
+  if (full) {
+    console.log(`  ALL ${allInviteCodes.length} invite code(s) — full wipe (--full)`);
+    console.log(`  ALL ${allAccessRequests.length} access request(s) — full wipe (--full)`);
+  } else {
+    console.log(`  ${redeemedCodes.length} invite code(s) reset to unredeemed`);
+  }
   console.log('  (llm_call_log / section_revision / agent_snapshot rows are never touched)');
 
   if (!execute) {
@@ -114,19 +123,32 @@ function main() {
       tx.delete(schema.group).where(inArray(schema.group.id, groupIds)).run();
     }
 
-    tx.delete(schema.oauthAccount).where(inArray(schema.oauthAccount.userId, userIds)).run();
-
-    for (const codeRow of redeemedCodes) {
-      tx.update(schema.inviteCode)
-        .set({ redeemedBy: null, redeemedAt: null })
-        .where(eq(schema.inviteCode.code, codeRow.code))
-        .run();
+    if (hasUsersToDelete) {
+      tx.delete(schema.oauthAccount).where(inArray(schema.oauthAccount.userId, userIds)).run();
     }
 
-    tx.delete(schema.user).where(inArray(schema.user.id, userIds)).run();
+    if (full) {
+      // Full wipe supersedes the redeemed-code reset below — every invite code is gone either way.
+      tx.delete(schema.inviteCode).run();
+      tx.delete(schema.accessRequest).run();
+    } else {
+      for (const codeRow of redeemedCodes) {
+        tx.update(schema.inviteCode)
+          .set({ redeemedBy: null, redeemedAt: null })
+          .where(eq(schema.inviteCode.code, codeRow.code))
+          .run();
+      }
+    }
+
+    if (hasUsersToDelete) {
+      tx.delete(schema.user).where(inArray(schema.user.id, userIds)).run();
+    }
   });
 
-  console.log(`Done — ${toDelete.length} user(s) removed, kept: ${KEEP_EMAIL}`);
+  console.log(
+    `Done — ${toDelete.length} user(s) removed, kept: ${KEEP_EMAIL}` +
+      (full ? `; invite codes + access requests fully wiped` : ''),
+  );
   sqlite.close();
 }
 
