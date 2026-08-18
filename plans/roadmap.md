@@ -30,20 +30,17 @@ aren't detailed further, the description here is all there is.
 
 | Item | Kind | Bucket | Status / description |
 |---|---|---|---|
-| **Check: guided tour copy sign-off** | UX | TODO | User review pending |
 | **Check: landing page walkthrough UX (ux agent review)** | UX | TODO | 6 of 10 findings fixed 2026-08-17; 1 open (annotations), 1 kept as-is, 1 split out |
 | **Check: Workbench branding + disclaimer render correctly** | UX | TODO | Visual QA, not run yet |
 | **Check: NVIDIA live-call verification (second LLM provider)** | Infra | TODO | Needs API key + spend go-ahead |
 | **Check: MCP server live verification (Plan 13)** | Infra | TODO | Free part not run; billed part needs your OK to spend |
 | **Check: Account "API tokens (MCP access)" panel renders correctly** | UX | TODO | Visual QA, not run yet |
-| **Check: full test suite + `tsc` after Plan 11** | Infra | TODO | Suite green (841/841); `tsc` found 8 pre-existing errors, not yet fixed |
 | **Check: docs review for Plan 11/12/13 topics** | Infra | TODO | Not started |
 | **Big flow test** |  | TODO | Ready to run — needs your OK to spend real Anthropic money |
 | **Production DB backup/restore** | Infra | TODO | Not started |
 | **Deploy online** |  | TODO | Not started — always last |
 | **Component/UI test coverage** | Infra | NEXT | Not started — first thing once v1 is live |
 | **AI chat persistence** | Behavior | NEXT | Not started — approach undecided |
-| **Settings page — sidebar layout + Activity log User column** | UX | NEXT | Not started |
 | **Validate `SESSION_TTL_SECONDS` live behavior** | Infra | NEXT | Not started |
 | **Strict-mode merged-heading re-audit** | Infra | NEXT | Not started |
 | **Export translation to other platforms** | Behavior | NEXT | Not started |
@@ -93,7 +90,6 @@ aren't detailed further, the description here is all there is.
 | **Sliding session refresh / "remember me"** | Infra | FUTURE (auth hardening) | A rolling session window instead of today's fixed TTL |
 | **Password reset / forgot-password** | Infra | FUTURE (auth hardening) | Self-service password reset — needs an email transport first, not built yet |
 | **User self-service** (email/password/delete) | UX | FUTURE (auth hardening) | Change email, change password, delete account — at `/account` |
-| **Per-user view of the activity log** | UX | FUTURE (auth hardening) | A user's own calls, filtered to just them |
 | **Retention / purge policy for `llm_call_log`** | Infra | FUTURE (auth hardening) | The table is append-only and unbounded today |
 | **Constant-time login** | Infra | FUTURE (auth hardening) | A dummy bcrypt compare for unknown emails, to prevent timing-based user enumeration |
 | **Distributed / persistent rate limiting** | Infra | FUTURE (auth hardening) | Today's login limiter is in-process and resets on restart |
@@ -124,32 +120,15 @@ goes before it.
 
 | Item | Kind | Status |
 |---|---|---|
-| **Check: guided tour copy sign-off** | UX | User review pending |
-| **Check: landing page walkthrough UX (ux agent review)** | UX | 10 findings from a ux-agent review, not yet actioned |
+| **Check: landing page walkthrough UX (ux agent review)** | UX | 6 of 10 findings fixed 2026-08-17; 1 open (annotations), 1 kept as-is, 1 split out |
 | **Check: Workbench branding + disclaimer render correctly** | UX | Visual QA, not run yet |
 | **Check: NVIDIA live-call verification (second LLM provider)** | Infra | Needs API key + spend go-ahead |
 | **Check: MCP server live verification (Plan 13)** | Infra | Free part not run; billed part needs your OK to spend |
 | **Check: Account "API tokens (MCP access)" panel renders correctly** | UX | Visual QA, not run yet |
-| **Check: full test suite + `tsc` after Plan 11** | Infra | Suite green (841/841); `tsc` found 8 pre-existing errors, not yet fixed |
 | **Check: docs review for Plan 11/12/13 topics** | Infra | Not started |
 | **Big flow test** | — | Ready to run — needs your OK to spend real Anthropic money |
 | **Production DB backup/restore** | Infra | Not started |
 | **Deploy online** | — | Not started — always last |
-
----
-
-### **Check: guided tour copy sign-off**
-
-**Current state:** All seven steps of the guided tour (`app/components/shell/GuidedTour.tsx`)
-have real drafted body text, shipped and working in the real app (ported from
-`Layout-Workbench.html`, verified in-browser). The user wants to do the tone/wording review
-directly rather than delegate it.
-
-**Scope:** Read through the seven steps, tighten wording if wanted. No code change unless the
-review finds something.
-
-**Effort:** Trivial
-**Status:** Not started — pending user review
 
 ---
 
@@ -282,33 +261,6 @@ the active list. Both themes.
 
 ---
 
-### **Check: full test suite + `tsc` after Plan 11**
-
-**Current state:** Run 2026-08-15 while verifying Plan 13. `npm test`: 66/66 files, 841/841
-tests pass (one run needed a real migration journal entry for Plan 13's `0008` migration,
-which had been hand-written without one — fixed via `npx drizzle-kit generate`; a handful
-of Plan 13 test bugs found and fixed in the same pass — see Plan 13's card). `npx tsc
---noEmit`: **not clean** — 8 pre-existing errors, all predating Plan 13:
-
-- `lib/__tests__/env.test.ts` (3×): `Cannot assign to 'NODE_ENV' because it is a read-only
-  property` — likely a `@types/node` version drift making `NODE_ENV` readonly.
-- `lib/db/repository/__tests__/llmCallLog.test.ts` (4×) and
-  `llmCallLog-redaction.test.ts` (1×): test fixture objects (`makeInput()` and two inline
-  `reserveCallSlot()` calls) never set `provider`, which Plan 11 made a required field on
-  `WriteCallLogInput`/`ReserveCallSlotInput` — the tests run fine at runtime (vitest
-  transpiles without type-checking) but fail strict `tsc`. One-line fixes each
-  (add `provider: 'anthropic'` to the fixture), not attempted here — out of scope for
-  Plan 13, left for whoever picks this item up next.
-
-**Scope:** `npm test` and `npx tsc --noEmit`, confirm nothing outside `lib/ai/` regressed.
-Remaining: fix the 8 `tsc` errors above (all pre-existing, all one-line).
-
-**Effort:** Trivial
-**Status:** Test suite run and green. `tsc` run and its findings documented above; the fixes
-themselves are not yet applied.
-
----
-
 ### **Check: docs review for Plan 11/12/13 topics**
 
 **Current state:** Not started. Plans 11 (second LLM provider), 12 (pre-login landing page +
@@ -402,7 +354,6 @@ this bucket is free to reorder.
 |---|---|
 | **Component/UI test coverage** | Not started — first thing once v1 is live |
 | **AI chat persistence** | Not started — needs an approach decision |
-| **Settings page — sidebar layout + Activity log User column** | Not started |
 | **Validate `SESSION_TTL_SECONDS` live behavior** | Not started — just needs to be run |
 | **Strict-mode merged-heading re-audit** | Not started — low risk |
 | **Export translation to other platforms** | Not started |
@@ -457,20 +408,6 @@ item is about the session surviving a reload/device switch at all.)
 
 **Effort:** Medium
 **Status:** Not started, approach undecided
-
----
-
-### **Settings page — sidebar layout + Activity log User column**
-
-**Current state:** `/settings` is one long stacked page (Settings/General, Invite codes,
-Activity log), no navigation chrome.
-
-**Scope — two parts:**
-- Activity log table needs a **User** column — resolve `userId` → email in `listCallLogs` / `GET /api/llm-call-log`, render it. Minimum scope: just the column, no filters yet.
-- Restructure `/settings` into a sidebar-navigated layout (same three sections, each its own pane) — Claude.ai's own Settings modal is the visual reference
-
-**Effort:** Medium — the layout half needs a `Layout-Workbench.html` prototype first (standing rule 4)
-**Status:** Not started
 
 ---
 
@@ -694,8 +631,10 @@ read-only server, fitness functions, `import_agent`) implemented per
 `lib/db/CLAUDE.md`, `docs/user-guide.md`, `docs/project-explanation.md`, `README.md`).
 `npm test` run with your go-ahead: **66/66 files, 841/841 tests pass** — this surfaced and
 fixed three real bugs along the way (below). `npx tsc --noEmit` on Plan 13's own code is
-clean; it separately surfaced 8 pre-existing Plan 11 errors, left unfixed and tracked under
-the "Check: full test suite + `tsc` after Plan 11" TODO item instead.
+clean; it separately surfaced 8 pre-existing Plan 11 errors (3× `NODE_ENV` read-only in
+`lib/__tests__/env.test.ts`, 5× a missing `provider` field in `llmCallLog`/
+`llmCallLog-redaction` test fixtures) — fixed 2026-08-18 during the Preferences-modal work,
+`tsc --noEmit` and `npm test` (66/66, 842/842) both clean as of that session.
 
 **Bugs found and fixed during verification, not present before this pass:**
 - `lib/db/migrations/0008_mcp_tokens.sql` had been hand-written without a matching
@@ -872,7 +811,6 @@ these are "yes, eventually" items with a revisit trigger, not actively scoped wo
 | **Sliding session refresh / "remember me"** | If users complain about re-logging-in |
 | **Password reset / forgot-password** | Needs an email transport, not built yet |
 | **User self-service** (email/password/delete) | Deferred on content, not placement |
-| **Per-user view of the activity log** | When a user asks about their own costs |
 | **Retention / purge policy for `llm_call_log`** | Once size/consent makes it a real question |
 | **Constant-time login** | Only if self-service signup opens without invite codes |
 | **Distributed / persistent rate limiting** | If the deploy ever runs more than one instance |
@@ -910,8 +848,26 @@ One NEXT item (**Optional call-log persistence toggle**) is timed but still genu
 undecided-if — that's why it says "(see IDEA)": this paragraph is the note, not a separate
 per-item entry. **MCP server exposing MyAgent's agents** used to sit here too; it was decided
 **wanted** on 2026-08-15 and now has a full design in
-`plans/13-mcp-server-exposing-agents.md`, so it's an ordinary NEXT item. This bucket is
-otherwise currently empty of *new*, untriaged ideas — log fresh ones here as they come up.
+`plans/13-mcp-server-exposing-agents.md`, so it's an ordinary NEXT item.
+
+### **Mobile access to the workbench**
+
+**Current state:** Not decided-if, and not decided-how. Surfaced 2026-08-18 while drafting
+`/welcome`'s roadmap-teaser content — distinct from the already-tracked "Landing page
+mobile/responsive support" NEXT item, which is only about the marketing page's own CSS
+rendering on a phone browser, not about reaching the actual product (Library, structured
+view, chat, export) from a mobile device at all.
+
+**Open questions, not yet debated:** A responsive web version of the workbench itself (the
+existing 4-pane layout doesn't obviously collapse to a phone screen)? A native/PWA app? Full
+parity with the desktop feature set, or a deliberately reduced mobile surface (e.g.
+read/review only, no editing)? None of this has a real answer yet — this entry exists so the
+idea has a home before it's referenced anywhere public, not because a direction has been
+chosen.
+
+**Effort:** Unknown until scoped
+**Status:** Idea only — needs its own product/design debate before it can become a real
+FUTURE/NEXT item
 
 ---
 

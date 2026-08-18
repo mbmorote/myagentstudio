@@ -8,6 +8,63 @@ version of this file, kept locally as historical record — not tracked in git).
 
 ---
 
+## 2026-08-18 — Preferences modal: Account + Settings merged, per-user activity log, gateway bug fix
+
+Retired the two separate topbar entry points ("⚙ System Settings", admin-only, and
+"Account", everyone) and their modals (`SettingsModal.tsx`, `AccountModal.tsx`) in favor of
+one `PreferencesModal.tsx` opened from a single "⚙ Settings" button — a left sidebar of
+categories: **Account** (everyone, reuses `AccountView.tsx` unchanged), **LLM** and
+**Admin** (admin only — `LlmSettingsPane.tsx`/`AdminSettingsPane.tsx`, platform settings,
+Access requests, Invite codes, and a new Users grid that didn't exist before), and
+**Activity log** (everyone — `ActivityLogPane.tsx`). Prototyped first in
+`architecture/layout/Layout-Workbench.html` per standing rule 4. `SettingsView.tsx`/
+`app/settings/page.tsx` deliberately untouched — still the admin-only full page the
+Activity log's "Permalink" link deep-links to.
+
+The Activity log split closes the roadmap's "Per-user view of the activity log" item for
+real: `GET /api/llm-call-log` and `GET /api/llm-call-log/[id]` are no longer admin-gated
+(`authenticateAdmin` → `authenticate`) — a non-admin is forced server-side to their own
+`userId`, and fetching someone else's row now 404s (existence hidden) instead of 403ing.
+Needed a `userId → email` resolution that didn't exist yet — added via a `LEFT JOIN` in
+`listCallLogs()`/`getCallLog()` (`lib/db/repository/llmCallLog.ts`, new
+`CallLogListItem.userEmail`). Pagination (10/page, shared `Pager` component) added to
+Access requests, Users, and Activity log.
+
+**Real bug found and fixed along the way, not present before this pass:** running the full
+test suite after this work failed 17 tests with `502`/`ai_upstream` instead of expected
+dry-run responses — `providerRegistry.ts`'s `getProviderById()` (Plan 11) eagerly checked
+`isProviderConfigured()` and threw whenever `ANTHROPIC_API_KEY` was unset, and since
+`gateway.ts` resolves the provider before its dry-run gate (to log the model that would
+have been used), this fired on *every* call including dry-run — breaking the Plan
+04-documented no-API-key dry-run deployment mode. Fixed: `getProviderById()` no longer
+checks configuration at all — constructing a provider needs no credential, only an actual
+network call does, and each provider's own `complete()`/`stream()` already throws clearly
+when that happens, now properly caught and logged by `gateway.ts`'s existing live-path
+try/catch instead of firing unhandled before any log row exists. Also fixed the 8
+pre-existing `tsc` errors flagged after Plan 11 (`NODE_ENV` read-only in `@types/node`,
+missing `provider` field in three log-repository test fixtures). `npm test`: 66/66 files,
+842/842 pass. `npx tsc --noEmit`: clean.
+
+## 2026-08-18 — Guided tour copy signed off
+
+User read all seven steps of `GuidedTour.tsx` and signed off on the wording as-is — no
+changes needed. Closes the roadmap's "Check: guided tour copy sign-off" TODO item, the
+last open piece of Plan 12's guided-tour work.
+
+## 2026-08-18 — Guided tour polish: icon-only trigger, bigger popover, smarter positioning
+
+Found and fixed live while reviewing the tour, not from a written checklist. The topbar
+trigger was "ⓘ Guided tour" (icon + visible text label); now icon-only — a small "?"
+badge, with the label moved to `title`/`aria-label` as a hover hint instead. The step
+popover was hard to read at `300px` wide with `12px` body text — widened to `380px`,
+title `14px → 17px`, body `12px → 14px` with looser line-height, padding scaled to
+match. Found a real positioning bug along the way: the popover only ever stacked
+below/above its target, so a tall narrow sidebar panel (step 2, Library) got covered
+almost entirely once the popover itself grew wider than the panel. Fixed generally — a
+tall/narrow target now prefers placing the popover *beside* it, top-aligned, before
+falling back to the original below → above → vertically-centered chain — which should
+also help the later Chat/Raw-panel steps that likely hit the same narrow-panel case.
+
 ## 2026-08-15 — MCP server exposing MyAgent's agents (Plan 13)
 
 Built (not yet run or live-verified) an MCP server at `POST /api/mcp` so a console/CLI MCP
