@@ -14,10 +14,13 @@
  * On any error, displays an inline message below the button.
  *
  * The `disabled` prop is the external precondition gate: the parent form is
- * responsible for enforcing invite-code-filled AND consent-answered before
- * enabling this button on the signup page (§7.2 — a UI mistake here cannot
- * bypass the server's tx.consent === true enforcement, but the user must be
- * *asked*, not just silently defaulted).
+ * responsible for enforcing invite-code-filled before enabling this button on
+ * the signup page. Historical note: §7.2 originally required consent to be
+ * *asked* before enabling this button too, but that was superseded — signup no
+ * longer asks for consent at all (see SignupForm.tsx's header comment); sharing
+ * is the default (2026-08-18) and the choice is offered afterward via the
+ * post-signup popup. A UI mistake here cannot bypass the server's own
+ * tx.consent !== false enforcement in the OAuth callback route either way.
  */
 
 import { useState } from 'react';

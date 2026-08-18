@@ -14,11 +14,13 @@
  * <Suspense> so Next 15 static rendering does not throw on useSearchParams().
  *
  * Activity-log-sharing consent (§5.6) is deliberately NOT asked here. Every new
- * account is created with shareLogsWithAdmin: false ("keep private"); the choice
- * is offered afterward as a dismissible popup on first load of the main app
- * (WorkbenchShell), so it never blocks or gates account creation. This is a
- * conscious supersession of §5.6/§7.2's original "must answer before submit"
- * design — see plans/archive/06-auth-review-google-oauth.md's Phase 5 note for context.
+ * account is created with shareLogsWithAdmin: true ("share by default", flipped
+ * 2026-08-18 — was false/"keep private" before); the choice to opt out is offered
+ * afterward as a dismissible popup on first load of the main app (WorkbenchShell),
+ * so it never blocks or gates account creation. This is a conscious supersession
+ * of §5.6/§7.2's original "must answer before submit" design — see
+ * plans/archive/06-auth-review-google-oauth.md's Phase 5 note for the original
+ * context (that note predates the 2026-08-18 default flip).
  * SIGNUP_CONSENT_FLAG_KEY is the handoff: set here right before navigating to
  * '/', read once by WorkbenchShell, then cleared.
  *
@@ -159,7 +161,9 @@ export function SignupForm({
           inviteCode: inviteCode.trim(),
           email: email.trim(),
           password,
-          shareLogsWithAdmin: false,
+          // Sharing is the default (flipped 2026-08-18, see file header) — the
+          // post-signup popup is where a user opts out, not this form.
+          shareLogsWithAdmin: true,
         }),
       });
 
@@ -382,8 +386,8 @@ export function SignupForm({
 
           {/*
             No consent block here — every account is created with
-            shareLogsWithAdmin: false (see file header). The choice is offered
-            afterward as a dismissible popup on first load of the main app.
+            shareLogsWithAdmin: true (see file header). The choice to opt out is
+            offered afterward as a dismissible popup on first load of the main app.
           */}
 
           {error && (

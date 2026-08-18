@@ -28,11 +28,14 @@
  *         passwordHash==='' (sentinel), role==='user', session set
  *   15. Same, code already redeemed → 303 /signup?error=invalid_invite_code; zero rows
  *   16. Same, maxUsers reached   → 303 /signup?error=signups_closed; zero rows, code unredeemed
- *   17. consent absent           → user.shareLogsWithAdmin === false
- *   18. consent: null            → user.shareLogsWithAdmin === false
- *   19. consent: "true" (string) → user.shareLogsWithAdmin === false
- *   20. consent: 1 (number)      → user.shareLogsWithAdmin === false
- *   21. consent: true (boolean)  → user.shareLogsWithAdmin === true
+ *   Consent default flipped 2026-08-18 — sharing is now the default; only a
+ *   literal `false` opts out (mirrors the old shape, guarding the opposite way):
+ *   17. consent absent            → user.shareLogsWithAdmin === true
+ *   18. consent: null             → user.shareLogsWithAdmin === true
+ *   19. consent: "false" (string) → user.shareLogsWithAdmin === true
+ *   20. consent: 0 (number)       → user.shareLogsWithAdmin === true
+ *   21. consent: false (boolean)  → user.shareLogsWithAdmin === false
+ *   21b. consent: true (boolean)  → user.shareLogsWithAdmin === true
  *   22. tx.next='/agents/abc'    → redirect to /agents/abc
  *   23. tx.next='https://evil.example' → redirect to /
  *   24. tx.next='//evil.example' → redirect to /
@@ -634,13 +637,15 @@ describe('GET /api/auth/oauth/[provider]/callback — individual scenarios', () 
       .run();
   });
 
-  // 17-21. consent coercion (Plan 05 invariant 15 on the new path)
+  // 17-21b. consent coercion (Plan 05 invariant 15 shape on the new path, direction
+  // flipped 2026-08-18 — sharing is now the default; only a literal `false` opts out)
   const consentCases: Array<{ label: string; consent: unknown; expectedConsent: boolean }> = [
-    { label: '17. consent absent (undefined)',   consent: undefined,   expectedConsent: false },
-    { label: '18. consent: null',                consent: null,        expectedConsent: false },
-    { label: '19. consent: "true" (string)',      consent: 'true',      expectedConsent: false },
-    { label: '20. consent: 1 (number)',           consent: 1,           expectedConsent: false },
-    { label: '21. consent: true (literal bool)',  consent: true,        expectedConsent: true  },
+    { label: '17. consent absent (undefined)',    consent: undefined,   expectedConsent: true  },
+    { label: '18. consent: null',                 consent: null,        expectedConsent: true  },
+    { label: '19. consent: "false" (string)',     consent: 'false',     expectedConsent: true  },
+    { label: '20. consent: 0 (number)',           consent: 0,           expectedConsent: true  },
+    { label: '21. consent: false (literal bool)', consent: false,       expectedConsent: false },
+    { label: '21b. consent: true (literal bool)', consent: true,        expectedConsent: true  },
   ];
 
   for (const { label, consent, expectedConsent } of consentCases) {

@@ -17,7 +17,9 @@
  *     - duplicate email → 409 email_exists
  *     - weak password (< 12 chars) → 400 weak_password
  *     - over-long password (> 72 bytes) → 400 password_too_long
- *     - shareLogsWithAdmin: absent / null / "true" / 1 → user.shareLogsWithAdmin === false
+ *     - shareLogsWithAdmin: absent / null / "false" / 0 → user.shareLogsWithAdmin === true
+ *       (sharing is the default since 2026-08-18; only a literal `false` opts out)
+ *     - shareLogsWithAdmin: false → user.shareLogsWithAdmin === false
  *     - shareLogsWithAdmin: true → user.shareLogsWithAdmin === true
  *
  *   logout:
@@ -343,9 +345,11 @@ describe('POST /api/auth/signup', () => {
     expect(body.error).toBe('password_too_long');
   });
 
-  // §8 invariant 15: only literal `true` grants consent.
-  // Each case gets its own IP to avoid rate-limit accumulation.
-  it('shareLogsWithAdmin absent → stored as false', async () => {
+  // Consent default flipped 2026-08-18 — sharing is now the default; only
+  // literal `false` opts out (mirrors the old §8 invariant 15 shape, guarding
+  // the opposite direction). Each case gets its own IP to avoid rate-limit
+  // accumulation.
+  it('shareLogsWithAdmin absent → stored as true', async () => {
     const admin = createTestUser('admin');
     const code = makeInviteCode(admin.id);
     const email = `consent-absent-${crypto.randomUUID()}@example.com`;
@@ -358,10 +362,10 @@ describe('POST /api/auth/signup', () => {
     };
     const res = await signupPOST(makeSignupRequest(body, nextSignupIp()));
     expect(res.status).toBe(201);
-    expect(getUserByEmail(email)?.shareLogsWithAdmin).toBe(false);
+    expect(getUserByEmail(email)?.shareLogsWithAdmin).toBe(true);
   });
 
-  it('shareLogsWithAdmin: null → stored as false', async () => {
+  it('shareLogsWithAdmin: null → stored as true', async () => {
     const admin = createTestUser('admin');
     const code = makeInviteCode(admin.id);
     const email = `consent-null-${crypto.randomUUID()}@example.com`;
@@ -370,28 +374,40 @@ describe('POST /api/auth/signup', () => {
       inviteCode: code, email, password: 'correct-horse-battery-staple', shareLogsWithAdmin: null,
     }, nextSignupIp()));
     expect(res.status).toBe(201);
-    expect(getUserByEmail(email)?.shareLogsWithAdmin).toBe(false);
+    expect(getUserByEmail(email)?.shareLogsWithAdmin).toBe(true);
   });
 
-  it('shareLogsWithAdmin: "true" (string) → stored as false', async () => {
+  it('shareLogsWithAdmin: "false" (string) → stored as true', async () => {
     const admin = createTestUser('admin');
     const code = makeInviteCode(admin.id);
     const email = `consent-str-${crypto.randomUUID()}@example.com`;
 
     const res = await signupPOST(makeSignupRequest({
-      inviteCode: code, email, password: 'correct-horse-battery-staple', shareLogsWithAdmin: 'true',
+      inviteCode: code, email, password: 'correct-horse-battery-staple', shareLogsWithAdmin: 'false',
     }, nextSignupIp()));
     expect(res.status).toBe(201);
-    expect(getUserByEmail(email)?.shareLogsWithAdmin).toBe(false);
+    expect(getUserByEmail(email)?.shareLogsWithAdmin).toBe(true);
   });
 
-  it('shareLogsWithAdmin: 1 (number) → stored as false', async () => {
+  it('shareLogsWithAdmin: 0 (number) → stored as true', async () => {
     const admin = createTestUser('admin');
     const code = makeInviteCode(admin.id);
     const email = `consent-num-${crypto.randomUUID()}@example.com`;
 
     const res = await signupPOST(makeSignupRequest({
-      inviteCode: code, email, password: 'correct-horse-battery-staple', shareLogsWithAdmin: 1,
+      inviteCode: code, email, password: 'correct-horse-battery-staple', shareLogsWithAdmin: 0,
+    }, nextSignupIp()));
+    expect(res.status).toBe(201);
+    expect(getUserByEmail(email)?.shareLogsWithAdmin).toBe(true);
+  });
+
+  it('shareLogsWithAdmin: false (literal boolean) → stored as false', async () => {
+    const admin = createTestUser('admin');
+    const code = makeInviteCode(admin.id);
+    const email = `consent-false-${crypto.randomUUID()}@example.com`;
+
+    const res = await signupPOST(makeSignupRequest({
+      inviteCode: code, email, password: 'correct-horse-battery-staple', shareLogsWithAdmin: false,
     }, nextSignupIp()));
     expect(res.status).toBe(201);
     expect(getUserByEmail(email)?.shareLogsWithAdmin).toBe(false);

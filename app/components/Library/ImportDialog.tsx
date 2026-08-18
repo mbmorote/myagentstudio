@@ -259,6 +259,12 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
               placeholder="---&#10;name: my-agent&#10;description: ...&#10;---&#10;&#10;# ROLE&#10;..."
               className="w-full border border-[var(--border)] rounded-[7px] px-3 py-2 font-mono text-[12px] bg-[var(--bg)] text-[var(--text)] outline-none focus:border-[var(--accent)] resize-y"
             />
+            {/* Persistent, non-modal reminder (2026-08-18) — same one near the
+                chat input; import content can go to an AI provider too
+                (Structural mode). See ChatPanel.tsx for the fuller rationale. */}
+            <p className="mt-[4px] text-[10px] text-[var(--faint)]">
+              Sent to an external AI provider — avoid pasting passwords, API keys, or other sensitive data.
+            </p>
           </div>
 
           {/* Mode picker (R7: Structural default) */}

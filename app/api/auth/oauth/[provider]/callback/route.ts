@@ -246,14 +246,16 @@ export async function GET(
       // Step 10: Create via the one transactional signup primitive (§4.2).
       //   - Redeems the invite code and re-checks maxUsers inside one transaction.
       //   - passwordHash is the sentinel — this is an OAuth-only account (§3.8).
-      //   - shareLogsWithAdmin: tx.consent === true  (invariant 14 — only literal true)
+      //   - shareLogsWithAdmin: tx.consent !== false — flipped 2026-08-18, sharing
+      //     is now the default; only a literal false opts out (mirrors the old
+      //     invariant 14 shape, guarding the opposite direction).
       //   - role: 'user' unconditionally — createUserWithInvite never mints an admin.
       const result = createUserWithInvite({
         email,
         passwordHash: NO_PASSWORD_SENTINEL,
         code: tx.inviteCode,
         maxUsers: getMaxUsers(),
-        shareLogsWithAdmin: tx.consent === true,
+        shareLogsWithAdmin: tx.consent !== false,
         oauth: {
           provider,
           providerAccountId: profile.providerAccountId,

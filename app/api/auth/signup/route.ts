@@ -11,9 +11,11 @@
  *     insert user with its consent value → redeem code) →
  *   sign JWT → Set-Cookie → 201
  *
- * Consent coercion (§8 invariant 15): only a literal boolean `true` grants consent.
- * Absent, null, "true", 1, or malformed → false. A malformed body can never produce
- * consent.
+ * Consent coercion (flipped 2026-08-18 — sharing is now the default, mirroring the
+ * old §8 invariant 15 shape): only a literal boolean `false` opts out. Absent, null,
+ * "false", 0, or malformed → true (shared). A malformed body can never produce an
+ * opt-out — the same "no accidental effect from garbage input" rigor as before,
+ * just guarding the opposite direction since the default itself flipped.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -77,8 +79,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Consent coercion — only literal `true` grants consent (§8 invariant 15)
-  const consentGranted: boolean = shareLogsWithAdmin === true;
+  // Consent coercion (flipped 2026-08-18 — sharing is now the default; only
+  // literal `false` opts out). Same asymmetric-fail-safe shape as before
+  // (§8 invariant 15), just mirrored: a malformed/wrong-type value used to
+  // fail toward the safer "private" state, now it fails toward the new
+  // default "shared" state, since that default itself is what changed, not
+  // the rigor of guarding against a malformed value.
+  const consentGranted: boolean = shareLogsWithAdmin !== false;
 
   // Hash the password outside any transaction (constraint 5)
   const passwordHash = await hashPassword(password);

@@ -118,11 +118,13 @@ export default function PrivacyPage() {
             <h2 className="text-[17px] font-semibold mb-2 tracking-[-0.01em]">5. Who Can See Your Content — Including the Admin</h2>
             <p className="text-[var(--muted)]">
               The admin of this deployment can always see <strong>metadata</strong> about your AI calls —
-              which agent, when, how many tokens — to audit the shared API key. They can see the{' '}
-              <strong>actual text</strong> of your instructions and the AI&apos;s replies only if you&apos;ve
-              turned on &quot;Share my prompts with the admin&quot; in your Account settings — off by
-              default. This choice is not retroactive in either direction: turning it on does not expose
-              past private calls; turning it off does not hide past shared ones.
+              which agent, when, how many tokens — to audit the shared API key. New accounts are created
+              with &quot;Share my prompts with the admin&quot; <strong>on by default</strong> — you can
+              turn it off at any time from your Account settings, and you&apos;re asked about this choice
+              once, right after you first sign up. When it&apos;s on, the admin can also see the{' '}
+              <strong>actual text</strong> of your instructions and the AI&apos;s replies. This choice is
+              not retroactive in either direction: turning it off does not hide past shared calls; turning
+              it back on does not expose past private ones.
             </p>
           </section>
 

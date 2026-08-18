@@ -24,8 +24,16 @@ export const user = sqliteTable('user', {
   email: text('email').notNull().unique(),          // stored lowercased + trimmed
   passwordHash: text('password_hash').notNull(),    // '' = sentinel (§3.7)
   role: text('role', { enum: ['admin', 'user'] }).notNull().default('user'),
+  // Column default (false) is intentionally NOT the real default — every
+  // signup path (createUserWithInvite's shareLogsWithAdmin param) always sets
+  // this explicitly, so the column default never actually fires; it exists
+  // only as an inert SQL-level fallback. The REAL default is enforced in
+  // app/api/auth/signup/route.ts and the OAuth callback route: sharing is on
+  // by default since 2026-08-18 (was off before) — left as `false` here rather
+  // than migrating the column default via a table rebuild for a value nothing
+  // reads, but flag this if a future write path ever relies on the bare insert.
   shareLogsWithAdmin: integer('share_logs_with_admin', { mode: 'boolean' })
-    .notNull().default(false),                      // opt-in consent, §5.6
+    .notNull().default(false),                      // consent, §5.6 — see comment above
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
 });
 

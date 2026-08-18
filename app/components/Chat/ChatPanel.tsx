@@ -941,6 +941,13 @@ export function ChatPanel({
         <div className="mt-[6px] text-[var(--faint)] text-[10px] pl-[2px]">
           Targets the selected agent · proposes changes · Apply or Discard to apply
         </div>
+        {/* Persistent, non-modal reminder (2026-08-18) — the signup-time
+            ConsentPopup mentions this once and is easy to forget by the time it
+            actually matters; this sits right where the risk actually is, with no
+            dismissal needed. */}
+        <div className="mt-[2px] text-[var(--faint)] text-[10px] pl-[2px]">
+          Sent to an external AI provider — avoid pasting passwords, API keys, or other sensitive data.
+        </div>
       </div>
     </div>
   );
