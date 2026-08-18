@@ -8,6 +8,19 @@ version of this file, kept locally as historical record — not tracked in git).
 
 ---
 
+## 2026-08-18 — Synced public docs with Plan 12's shipped changes
+
+`docs/user-guide.md` and `docs/system-about.md` still described the pre-Plan-12 world in
+several places: the activity-log-sharing default as private/opt-in (flipped to
+shared/opt-out earlier today), the activity log as admin-only (it's been per-user since
+the Preferences-modal merge), the separate "⚙ System Settings"/"Account" Topbar buttons
+(merged into one "⚙ Settings" button days ago), and "a single shared API key" (there can
+be two providers now). Also added a mention of "Request access" as an alternative to
+an admin generating a code unprompted, and noted the request payload's now-admin-only
+visibility in a regular user's own activity log. `docs/roadmap.md`'s capability matrix
+moved the guided tour and the beta/sensitive-data notice from "Coming Next" to "Available
+Today" — both shipped and were live-verified this session.
+
 ## 2026-08-18 — Fixed login modal's account-creation link; added Request-access test coverage
 
 Live review of Plan 12's "Request access" flow found a real bug: the login modal's one

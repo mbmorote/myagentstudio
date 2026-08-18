@@ -8,7 +8,7 @@ MyAgentStudio is a local workbench for building Claude Code subagents. You impor
 
 MyAgentStudio requires an account. Go to `/login` and enter your email and password.
 
-If you do not have an account yet, ask the admin (the person who runs this deployment) for an invite code. With that code in hand, go to `/signup` and create your account. Every new account starts private by default — the first time you land on the workbench after signing up, a one-time popup offers to also share your activity-log content with the admin; dismissing it (or choosing "Keep private") leaves the private default in place, and you can change your mind anytime from your Account page. See the **Activity log** section below for what this choice means.
+If you do not have an account yet, ask the admin (the person who runs this deployment) for an invite code — or, from `/login` or `/welcome`, use the "Request access" link if you don't have one yet; the admin reviews your request and sends you a code. With a code in hand, go to `/signup` and create your account. Every new account shares its activity-log content with the admin by default — the first time you land on the workbench after signing up, a one-time popup lets you make it private instead; dismissing it leaves the shared default in place, and you can change your mind anytime from your Account page. See the **Activity log** section below for what this choice means.
 
 When your session expires (default 7 days, may be shorter or longer on this deployment), you will be redirected to `/login` with your intended destination preserved — signing back in returns you to the page you were on.
 
@@ -29,18 +29,20 @@ A few things worth knowing:
 
 There are two roles:
 
-- **Admin** — the account created during initial setup. Has access to **System Settings** (`/settings`): the Live LLM calls toggle, the activity log, invite-code generation, and usage limits. The admin is exempt from the per-user hourly LLM call cap.
-- **User** — any account created via invite code. Has access to all workbench features and to their own **Account** page (`/account`). Cannot see System Settings.
+- **Admin** — the account created during initial setup. Additionally has access to the Live LLM calls toggle, invite-code generation, usage limits, and everyone's rows in the activity log. The admin is exempt from the per-user hourly LLM call cap.
+- **User** — any account created via invite code. Has access to all workbench features, their own personal settings, and their own rows in the activity log.
 
-Both roles have a **Topbar** link to **Account** (your personal settings) and, for admins only, **⚙ System Settings**.
+Both roles have a single **⚙ Settings** button in the Topbar, opening the Preferences modal — its sidebar shows **Account** and **Activity log** for everyone, plus **LLM** and **Admin** categories that only appear for an admin session.
 
 ---
 
 ## Inviting someone
 
-Only the admin can generate invite codes. Open **⚙ System Settings** in the Topbar and scroll to the **Invite codes** section. Click **Generate** to create a new code (you can add an optional label like "for Alice"). Copy the code and send it to the person directly — codes are displayed plaintext so you can re-read them if needed.
+Only the admin can generate invite codes. Open **⚙ Settings** in the Topbar, pick **Admin** in the sidebar, and scroll to the **Invite codes** section. Click **Generate** to create a new code (you can add an optional label like "for Alice"). Copy the code and send it to the person directly — codes are displayed plaintext so you can re-read them if needed.
 
 A code can only be redeemed once. Once redeemed or once the `maxUsers` cap is reached, the code is inert. You can revoke an unredeemed code from the same panel.
+
+**Or let them ask first.** A visitor without a code can use "Request access" on `/login`, `/signup`, or `/welcome` instead of you generating one unprompted — they submit their name, email, and (optionally) how they heard about the platform. Their request shows up in the same **Admin** sidebar category's **Access requests** grid; **Generate code** there creates a code scoped to that email (it expires after the configured window, default 5 hours, and only that email can redeem it) and clears the request, or **Dismiss** just clears it without creating a code. Nothing is emailed automatically yet — copy the code and send it yourself, same as above.
 
 ---
 
@@ -145,7 +147,10 @@ The export format is deterministic and semantically faithful: frontmatter keys a
 
 ## System Settings: dry-run mode and the activity log
 
-System Settings is accessible only to the admin. Click **⚙ System Settings** in the Topbar to open it.
+Click **⚙ Settings** in the Topbar to open the Preferences modal. Its sidebar has
+**Account** and **Activity log** for everyone, plus **LLM** and **Admin** categories
+visible only to the admin — that's where the settings below live. (There used to be two
+separate buttons, one admin-only; they were merged into this one modal.)
 
 ### Live LLM calls toggle
 
@@ -175,22 +180,28 @@ Controls how much of the recent chat conversation (configurable as `chatHistoryT
 
 ### Activity log
 
-The activity log (admin only) lists every AI call attempt, whether live or dry-run. Each row shows the timestamp, kind (Import/Chat), agent name, status (OK / Dry-run / Error), model, and duration.
+The activity log lists every AI call attempt, whether live or dry-run — visible to
+**everyone**, not just the admin: you see your own calls; the admin sees every user's
+(with an extra User column). Each row shows the timestamp, kind (Import/Chat), agent
+name, status (OK / Dry-run / Error), model, and duration.
 
 **Status meanings:**
 - **OK** — the call succeeded and the response was applied.
 - **Dry-run** — the call was blocked because "Live LLM calls" was off. No response was produced.
 - **Error** — the call reached the provider but failed (e.g. network error, auth failure, truncation).
 
-Click any row to expand it and see the full request payload (system prompt + messages) and, for live successful calls, the response payload. Dry-run rows always show a null response payload — that is correct by design.
+Click any row to expand it. Everyone sees the response payload for live successful calls
+(dry-run rows always show a null response payload — that is correct by design), the
+error text, token counts, and status. The raw **request payload** (system prompt +
+messages — it embeds the full agent definition sent to the provider) is admin-only.
 
 #### What the admin can and cannot see
 
-This deployment uses a single shared API key paid for by the admin. To audit that key's usage, the admin can always see every call's **metadata** — who made it, which agent, when, how many tokens, whether it succeeded — for all users. This is the minimum needed to answer "who is spending what."
+This deployment can use shared API keys paid for by the admin (Anthropic, and/or a second, OpenAI-compatible provider). To audit that spend, the admin can always see every call's **metadata** — who made it, which agent, when, how many tokens, whether it succeeded — for all users. This is the minimum needed to answer "who is spending what."
 
-What the admin **cannot** see by default is the **content** of your instructions and the AI's replies. That is private unless you actively choose to share it.
+What the admin sees **by default** is also the **content** of your instructions and the AI's replies — new accounts share this with the admin unless you actively choose to keep it private.
 
-**Sharing is opt-in and chosen by you.** During signup you are asked to make an explicit choice: share your prompt and response content with the admin, or keep it private. There is no pre-selected answer and no way to submit the form without choosing. The default is **private**.
+**Sharing is on by default; opting out is your choice.** Signup itself asks nothing — the first time you land on the workbench after signing up, a one-time popup tells you sharing is on and lets you turn it off, or dismiss the popup and stay shared. The default is **shared**; only choosing "private" (there or later, at `/account`) turns it off.
 
 **This choice is not retroactive in either direction.** If you start private and later turn sharing on (at `/account`), the admin sees your prompt text from that point forward — not from before. If you turn sharing back off, the admin loses access to future calls — not to the ones you already shared. Each log row permanently records the consent you had at the moment the call was made, so neither direction can surprise you.
 
@@ -204,9 +215,9 @@ You can filter the log by **All / Dry-run / Live** using the buttons above the t
 
 ## Your Account page
 
-Click **Account** in the Topbar (always visible, for both admins and users) to open your personal settings at `/account`.
+Click **⚙ Settings** in the Topbar and pick **Account** in the sidebar (always visible, for both admins and users) to see your personal settings.
 
-**Log sharing with the admin.** The consent toggle mirrors the choice you made at signup: on = share your prompt and response content; off = private. You can flip it at any time. **The change is not retroactive in either direction** — past rows keep the consent value they were written with, and changing your preference only affects future calls.
+**Log sharing with the admin.** The consent toggle mirrors your current sharing status (on by default — see **Activity log** above): on = share your prompt and response content; off = private. You can flip it at any time. **The change is not retroactive in either direction** — past rows keep the consent value they were written with, and changing your preference only affects future calls.
 
 Your signed-in email, role, and how you sign in (password, or Google with the linked email) are shown as read-only. There is currently no self-service way to link or unlink a Google account from this page.
 

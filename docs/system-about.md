@@ -227,8 +227,13 @@ flipped back on. See `roadmap.md`'s "Coming next."
   (`admin` / `user`, read fresh from the database on every request rather than trusted
   from the JWT), and `shareLogsWithAdmin` — the user's standing consent for the admin to
   read their prompt/response content in the activity log. New accounts are created with
-  `shareLogsWithAdmin: false`; consent is always an explicit action, never inferred from
-  silence or a default.
+  `shareLogsWithAdmin: true` (flipped 2026-08-18 — was `false` before) — sharing is the
+  default, and a one-time popup on first login after signup offers to make it private
+  instead; only a literal `false` in the signup/OAuth request body opts out, so a
+  malformed or absent value still resolves to the shared default rather than silently
+  granting or denying anything by accident. The `user` table's own column default stays
+  `false` — every write path sets the value explicitly, so it's an inert SQL-level
+  fallback, not the real default (see `lib/db/schema.ts`'s comment on the column).
 - **InviteCode** — single-use, stored in plaintext (so the admin can re-read and resend
   one), redeemed inside the same transaction that checks the `maxUsers` cap, so two people
   racing to redeem the same code can't both get in.

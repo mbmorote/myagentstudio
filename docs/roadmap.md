@@ -32,6 +32,8 @@ Live and ready to use.
 | **Settings & cost controls** | Resource | Major | An admin activity log of every AI call, a dry-run mode that blocks real API spend, and a per-user hourly call cap. |
 | **Pre-login landing page** | Feature | Major | A public explainer page (`/welcome`) for visitors without an account — how it works, feature highlights, and a "Request access" form for anyone without an invite code. |
 | **Company branding on the platform** | Feature | Minor | The workbench's own visual identity, in the footer of the main app and the landing page. |
+| **First-login guided tour** | Feature | Minor | A short, skippable in-app walkthrough of the four panels for anyone signing in for the first time. |
+| **Beta & sensitive-data notice** | Fix | Minor | A one-time popup after signup, plus a persistent reminder near the chat and import inputs, that this is an early, unencrypted-at-rest beta — don't paste passwords, API keys, or other sensitive data. |
 
 ## Coming Next
 
@@ -39,9 +41,7 @@ Starting in the next release — decided and ready to build.
 
 | Item | Category | Importance | What it is |
 |---|---|---|---|
-| **A second AI provider** | Resource | Major | An additional, non-Anthropic model option behind the same interface — so the platform isn't locked to one vendor. |
-| **First-login guided tour** | Feature | Minor | A short, skippable in-app walkthrough of the four panels for anyone signing in for the first time. |
-| **"Experimental — don't paste sensitive data" notice** | Fix | Minor | A visible reminder on sign-up/login that this is an early, unencrypted-at-rest beta. |
+| **A second AI provider** | Resource | Major | An additional, non-Anthropic model option behind the same interface — so the platform isn't locked to one vendor. Built; pending final live-call verification. |
 | **Automated invite-code email delivery** | Resource | Minor | When an admin approves an access request or generates a code, email it automatically instead of sending it by hand. |
 
 ## Planned
