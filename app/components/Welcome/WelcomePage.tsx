@@ -8,9 +8,13 @@
  * first thing a prospective, non-signed-up visitor sees; distinct audience from the
  * first-login guided tour (GuidedTour.tsx), which only signed-up users ever see.
  *
- * Known placeholder ported as a literal TODO below, tracked in
- * plans/archive/12-ui-batch-launch-polish.md's "Known placeholders" list — replace before ship:
- *   - Walkthrough step "screenshots" (bracketed placeholder text — format undecided)
+ * Walkthrough step screenshots (2026-08-17): real PNGs in public/welcome/, referenced by
+ * WalkStep.image and rendered by WalkShot via a plain <img object-cover>. A step without
+ * an `image` set falls back to its italic `shot` placeholder text — screenshots get
+ * added one step at a time, not all-or-nothing. Source screenshots are full-browser
+ * captures of the real running app (not pre-cropped) — object-cover centers and crops
+ * to the 9:5 frame, which works because the captured dialog/panel is itself
+ * horizontally centered in the source screenshot.
  * The feature grid and roadmap teaser use real content (not the mock's Lorem-Ipsum filler
  * cards / generic "Feature N" teaser items) — see docs/roadmap.md for the roadmap source.
  *
@@ -50,32 +54,74 @@ interface WalkStep {
   title: string;
   desc: string;
   shot: string;
+  /** Real product screenshot, served from public/welcome/. Falls back to the italic
+   *  `shot` placeholder text in WalkShot when unset — steps get real images one at a
+   *  time as they're captured, not all-or-nothing. */
+  image?: string;
+  /** CSS object-position for `image` (e.g. '80% center') — shifts which part of the
+   *  source screenshot stays visible under object-cover's crop. Defaults to 'center'.
+   *  Needed per-step since each screenshot's own aspect ratio/content varies. */
+  imagePosition?: string;
+  /** Separate, usually higher-detail screenshot for the "Full view" modal (file name
+   *  convention: step-N-name-full.jpg in public/welcome/). Falls back to `image` when a
+   *  step doesn't have one yet — steps get their -full version one at a time, same
+   *  incremental pattern as `image` itself. */
+  fullImage?: string;
+  /** object-fit for `fullImage` in the modal (see WalkShot.imageFit) — 'contain' for a
+   *  source far from the 9:5 frame ratio (e.g. step-1-import-full.jpg is portrait,
+   *  567×798; cover would crop it down to ~39% of its own height). Only applies to the
+   *  modal; the inline card always uses `image`, which stays on 'cover'. */
+  fullImageFit?: 'cover' | 'contain';
+  /** object-position for `fullImage` specifically — separate from `imagePosition` so
+   *  repositioning the modal's (usually differently-cropped) screenshot never affects
+   *  the inline card's. Falls back to `imagePosition` when unset. */
+  fullImagePosition?: string;
+  /** Extra zoom for `fullImage` on top of object-fit:cover (see WalkShot.imageZoom) —
+   *  e.g. 1.3 for 30% more than cover's own (often near-1x) scale. */
+  fullImageZoom?: number;
 }
 
 const WALK_STEPS: WalkStep[] = [
   {
     kicker: 'STEP 1 — IMPORT',
-    title: 'Bring in any agent file',
-    desc: 'Drop in a .md agent — Structural mode reorganizes it into a canonical layout, Strict mode keeps your structure and just labels it.',
+    title: 'Bring in any agent',
+    desc: 'Drop in a .md agent file — Structural mode reorganizes it into a clean, canonical layout; Strict mode keeps your structure and just labels it. Nothing gets silently dropped.',
     shot: '[ screenshot — import dialog ]',
+    image: '/welcome/step-1-import.jpg',
+    fullImage: '/welcome/step-1-import-full.jpg',
+    fullImageFit: 'contain',
   },
   {
-    kicker: 'STEP 2 — EDIT',
-    title: 'Change it directly, or describe the change',
-    desc: 'Edit fields in the structured view, or tell the built-in chat what you want changed — it proposes the edit for review.',
-    shot: '[ screenshot — structured view + chat ]',
+    kicker: 'STEP 2 — SEE',
+    title: 'See the whole agent at once',
+    desc: 'Every section — Role, Behavior, Guardrails, Output — sits on screen together, always. No more losing track of an agent inside a chat transcript or a wall of YAML.',
+    shot: '[ screenshot — structured view, all sections expanded ]',
+    image: '/welcome/step-2-see.jpg',
+    fullImage: '/welcome/step-2-see-full.jpg',
+    fullImageFit: 'cover',
+    fullImagePosition: 'left top',
+    fullImageZoom: 1.3,
   },
   {
-    kicker: 'STEP 3 — REVIEW',
-    title: 'See exactly what changed',
-    desc: 'Every proposed edit shows as a diff against the raw file before it applies. Nothing changes silently.',
-    shot: '[ screenshot — raw view / diff ]',
+    kicker: 'STEP 3 — EDIT',
+    title: 'Edit it directly, or just describe the change',
+    desc: "Change a field by hand, or tell the built-in chat what you want — it already knows the agent's full current state, so it proposes a precise edit instead of guessing.",
+    shot: '[ screenshot — structured view + chat, mid-edit ]',
+    image: '/welcome/step-3-edit.jpg',
+    imagePosition: 'left center',
+    fullImage: '/welcome/step-3-edit-full.jpg',
+    // Reset to center for the full image (not 'left center') — that position was tuned
+    // for the regular image's own crop need; the full image is different dimensions
+    // (991×545, close to the 9:5 target) and needs no special positioning.
+    fullImagePosition: 'center',
   },
   {
-    kicker: 'STEP 4 — EXPORT',
-    title: 'Take it back out clean',
-    desc: 'Download the result as a plain agent file, ready to drop back into your own tools.',
-    shot: '[ screenshot — export ]',
+    kicker: 'STEP 4 — REVIEW & EXPORT',
+    title: 'Approve the diff, take it with you',
+    desc: "Every proposed change shows as a diff before it applies — nothing writes itself. When you're done, export the result as a plain agent file, ready for your own tools.",
+    shot: '[ screenshot — proposal diff / export ]',
+    image: '/welcome/step-4-review.jpg',
+    fullImage: '/welcome/step-4-review-full.jpg',
   },
 ];
 
@@ -145,11 +191,11 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
       {/* ── Hero ────────────────────────────────────────────────────────── */}
       <div className="px-[30.8px] pt-[39.6px] pb-[8.8px] max-w-[1078px] mx-auto text-center">
         <h1 className="font-bold text-[37.4px] leading-[1.2] mx-auto mb-[11px] tracking-[-0.02em] max-w-[792px]">
-          Build and edit AI agents without fighting YAML frontmatter
+          Your agent library, now visual
         </h1>
         <p className="text-[17.05px] text-[var(--muted)] mx-auto mb-[8.8px] max-w-[704px]">
-          Import an agent, edit it in a structured view or by chatting with it, export it
-          back out — one workbench, no hand-editing markdown.
+          One workbench to see, edit, and organize every agent you maintain — by hand or by
+          chat, with nothing hidden and nothing written until you approve it.
         </p>
       </div>
 
@@ -162,12 +208,12 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
             {String(step + 1).padStart(2, '0')} / {String(WALK_STEPS.length).padStart(2, '0')}
           </div>
           <div className="grid grid-cols-[1.1fr_1fr] gap-x-[28.6px] gap-y-[27.5px] items-start flex-1 min-h-[187px]">
-            <div>
+            <div className="text-center">
               <div className="text-[11px] tracking-[.1em] uppercase text-[var(--accent)] mb-[8.8px]">{s.kicker}</div>
               <h3 className="font-bold text-[24.2px] mb-[8.8px] tracking-[-0.01em]">{s.title}</h3>
               <p className="text-[14.85px] text-[var(--muted)]">{s.desc}</p>
             </div>
-            <WalkShot text={s.shot} />
+            <WalkShot text={s.shot} image={s.image} imagePosition={s.imagePosition} />
             {/* grid-cols-[1.1fr_auto_1fr], not the mock's [1.1fr_0_1fr] — the mock relied on
                 white-space:nowrap forcing a nominally-zero column open via CSS Grid's
                 min-content override, which measured fine visually but left the real button
@@ -294,7 +340,13 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
           onClick={() => setModalOpen(false)}
         >
           <div
-            className="relative w-[min(946px,94vw)] bg-[var(--elev)] border border-[var(--border)] rounded-[13.2px] shadow-[0_26.4px_66px_-22px_rgba(0,0,0,.4)] p-[35.2px]"
+            // 946px→1320px (2026-08-17 fix): the old width was actually NARROWER than the
+            // inline card's own container (~1078px minus padding), so "Full view" opened a
+            // same-size (or smaller) modal — no zoom at all, just a re-centered popup.
+            // WalkShot's aspect-ratio:9/5 is locked, so widening the modal alone makes the
+            // screenshot column genuinely bigger (width grows, height follows), no separate
+            // image-size hack needed. Text sizes below are bumped proportionally.
+            className="relative w-[min(1320px,92vw)] bg-[var(--elev)] border border-[var(--border)] rounded-[13.2px] shadow-[0_26.4px_66px_-22px_rgba(0,0,0,.4)] p-[39.6px]"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -303,33 +355,48 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
             >
               ✕
             </button>
-            <div className="text-[11px] tracking-[.08em] uppercase text-[var(--accent-ink)] mb-[8.8px]">
-              {String(step + 1).padStart(2, '0')} / {String(WALK_STEPS.length).padStart(2, '0')}
-            </div>
-            <div className="grid grid-cols-[1.1fr_1fr] gap-x-[28.6px] gap-y-[27.5px] items-start" style={{ minHeight: 264 }}>
-              <div>
-                <div className="text-[11px] tracking-[.1em] uppercase text-[var(--accent)] mb-[8.8px]">{s.kicker}</div>
-                <h3 className="font-bold text-[26.4px] mb-[8.8px] tracking-[-0.01em]">{s.title}</h3>
-                <p className="text-[14.85px] text-[var(--muted)]">{s.desc}</p>
+            {/* Stacked layout (2026-08-17 test) — replaces the side-by-side grid the inline
+                card uses: counter/kicker/title/desc centered on top, screenshot centered in
+                the middle, Previous/dots/Next centered in one row underneath. A deliberately
+                different shape from the inline card, not just a bigger version of it. */}
+            <div className="flex flex-col items-center text-center">
+              {/* Fixed min-height (2026-08-17 fix) — without it, the block's real height
+                  depends on how many lines each step's title/desc wraps to (step 3's title
+                  is longer than the others, e.g.), which made the whole modal — and the
+                  screenshot frame below it — visibly grow/shrink as you clicked through
+                  steps. This reserves worst-case space so only the text changes, not the
+                  modal's size. */}
+              <div className="flex flex-col items-center min-h-[233px]">
+                <div className="text-[11px] tracking-[.08em] uppercase text-[var(--accent-ink)] mb-[8.8px]">
+                  {String(step + 1).padStart(2, '0')} / {String(WALK_STEPS.length).padStart(2, '0')}
+                </div>
+                <div className="text-[12.1px] tracking-[.1em] uppercase text-[var(--accent)] mb-[8.8px]">{s.kicker}</div>
+                <h3 className="font-bold text-[35.2px] mb-[13.2px] tracking-[-0.01em]">{s.title}</h3>
+                <p className="text-[17.6px] text-[var(--muted)] max-w-[660px] mb-[30.8px]">{s.desc}</p>
               </div>
-              <WalkShot text={s.shot} minHeight={176} />
-              <div className="grid grid-cols-2 col-span-2">
-                <div className="flex items-center justify-center">
-                  <WalkBtn onClick={prev}>← Previous</WalkBtn>
+              <div className="w-full max-w-[902px] mb-[30.8px]">
+                <WalkShot
+                  text={s.shot}
+                  image={s.fullImage || s.image}
+                  imagePosition={s.fullImagePosition || s.imagePosition}
+                  imageFit={s.fullImageFit}
+                  imageZoom={s.fullImageZoom}
+                  minHeight={242}
+                />
+              </div>
+              <div className="flex items-center justify-center gap-[17.6px]">
+                <WalkBtn onClick={prev}>← Previous</WalkBtn>
+                <div className="flex items-center gap-[8.8px]">
+                  {WALK_STEPS.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setStep(i)}
+                      aria-label={`Go to step ${i + 1}`}
+                      className={`w-[8.8px] h-[8.8px] rounded-full cursor-pointer ${i === step ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
+                    />
+                  ))}
                 </div>
-                <div className="flex items-center justify-center gap-[11px]">
-                  <WalkBtn onClick={next}>Next →</WalkBtn>
-                  <div className="flex items-center gap-[8.8px]">
-                    {WALK_STEPS.map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setStep(i)}
-                        aria-label={`Go to step ${i + 1}`}
-                        className={`w-[8.8px] h-[8.8px] rounded-full cursor-pointer ${i === step ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
-                      />
-                    ))}
-                  </div>
-                </div>
+                <WalkBtn onClick={next}>Next →</WalkBtn>
               </div>
             </div>
           </div>
@@ -423,9 +490,34 @@ function WalkBtn({ onClick, children }: { onClick: () => void; children: React.R
   );
 }
 
-/** Placeholder screenshot frame — TODO: real product screenshots, format undecided
+/** Screenshot frame — renders a real product screenshot when `image` is set (see
+ *  WalkStep.image), otherwise falls back to the italic placeholder text (`text`), so
+ *  steps can get real images one at a time as they're captured
  *  (plans/archive/12-ui-batch-launch-polish.md / docs/roadmap.md "Improve the guided tour"). */
-function WalkShot({ text, minHeight = 132 }: { text: string; minHeight?: number }) {
+function WalkShot({
+  text,
+  image,
+  imagePosition = 'center',
+  imageFit = 'cover',
+  imageZoom = 1,
+  minHeight = 132,
+}: {
+  text: string;
+  image?: string;
+  imagePosition?: string;
+  /** 'cover' (default) crops to fill the 9:5 frame — fine when the source is close to
+   *  that ratio. 'contain' shows the whole image letterboxed instead — needed for
+   *  sources far from 9:5 (e.g. a portrait screenshot), where cover would crop away
+   *  most of the content no matter how imagePosition is set. */
+  imageFit?: 'cover' | 'contain';
+  /** Extra zoom on top of object-fit:cover's own (often near-1x, e.g. a 1092×514
+   *  source into a 1.8-ratio box barely scales at all) — e.g. 1.3 for 30% more. Scales
+   *  from the same corner/edge as `imagePosition` (transform-origin mirrors it), so
+   *  zooming in crops further from the opposite side rather than re-centering. No
+   *  effect with imageFit="contain" (nothing to crop further into). */
+  imageZoom?: number;
+  minHeight?: number;
+}) {
   return (
     <div className="border border-[var(--border)] rounded-[11px] bg-[var(--elev)] overflow-hidden shadow-[0_13.2px_30.8px_-19.8px_rgba(0,0,0,.35)] flex flex-col" style={{ aspectRatio: '9/5' }}>
       <div className="flex gap-[5.5px] px-[11px] py-[8.8px] border-b border-[var(--border)] bg-[var(--panel)] flex-none">
@@ -433,12 +525,26 @@ function WalkShot({ text, minHeight = 132 }: { text: string; minHeight?: number 
         <span className="w-[8.8px] h-[8.8px] rounded-full bg-[var(--border)]" />
         <span className="w-[8.8px] h-[8.8px] rounded-full bg-[var(--border)]" />
       </div>
-      <div
-        className="px-[19.8px] py-[28.6px] flex items-center justify-center flex-1 text-[var(--faint)] text-[13.2px] italic text-center"
-        style={{ minHeight }}
-      >
-        {text}
-      </div>
+      {image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={image}
+          alt={text}
+          className={`flex-1 w-full min-h-0 ${imageFit === 'contain' ? 'object-contain' : 'object-cover'}`}
+          style={{
+            objectPosition: imagePosition,
+            transform: imageZoom !== 1 ? `scale(${imageZoom})` : undefined,
+            transformOrigin: imagePosition,
+          }}
+        />
+      ) : (
+        <div
+          className="px-[19.8px] py-[28.6px] flex items-center justify-center flex-1 text-[var(--faint)] text-[13.2px] italic text-center"
+          style={{ minHeight }}
+        >
+          {text}
+        </div>
+      )}
     </div>
   );
 }

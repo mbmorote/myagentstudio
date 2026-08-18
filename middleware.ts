@@ -66,7 +66,17 @@ const PUBLIC_PATHS = new Set([
 // be in the exact-match set above. This prefix is intentionally narrow
 // (/api/auth/oauth/, not /api/auth/) so it does not widen to cover a future
 // authenticated route (§3.1).
-const PUBLIC_PATH_PREFIXES = ['/api/auth/oauth/'];
+//
+// /welcome/ (2026-08-17) — static screenshot assets in public/welcome/ (the "How it
+// works" walkthrough's real step images, WelcomePage.tsx's WALK_STEPS.image) need to
+// load for a signed-out visitor, same as the /welcome page itself. Without this, an
+// <img> request for e.g. /welcome/step-1-import.png hit this middleware's matcher
+// (which covers every path, per the `config.matcher` below), found no exact match in
+// PUBLIC_PATHS, and got 307-redirected to /login — a redirect response instead of PNG
+// bytes, which renders as a broken image. Safe to widen to a prefix here (unlike
+// /api/auth/oauth/'s narrower reasoning): there is no nested dynamic route under
+// app/welcome/ that this could accidentally expose, only the static asset folder.
+const PUBLIC_PATH_PREFIXES = ['/api/auth/oauth/', '/welcome/'];
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;

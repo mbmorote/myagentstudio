@@ -30,12 +30,15 @@ aren't detailed further, the description here is all there is.
 
 | Item | Kind | Bucket | Status / description |
 |---|---|---|---|
-| **Big flow test** |  | TODO | Ready to run — needs your OK to spend real Anthropic money |
+| **Check: guided tour copy sign-off** | UX | TODO | User review pending |
+| **Check: landing page walkthrough UX (ux agent review)** | UX | TODO | 10 findings from a ux-agent review, not yet actioned |
+| **Check: Workbench branding + disclaimer render correctly** | UX | TODO | Visual QA, not run yet |
 | **Check: NVIDIA live-call verification (second LLM provider)** | Infra | TODO | Needs API key + spend go-ahead |
+| **Check: MCP server live verification (Plan 13)** | Infra | TODO | Free part not run; billed part needs your OK to spend |
+| **Check: Account "API tokens (MCP access)" panel renders correctly** | UX | TODO | Visual QA, not run yet |
 | **Check: full test suite + `tsc` after Plan 11** | Infra | TODO | Suite green (841/841); `tsc` found 8 pre-existing errors, not yet fixed |
 | **Check: docs review for Plan 11/12/13 topics** | Infra | TODO | Not started |
-| **Check: guided tour copy sign-off** | UX | TODO | User review pending |
-| **Check: Workbench branding + disclaimer render correctly** | UX | TODO | Visual QA, not run yet |
+| **Big flow test** |  | TODO | Ready to run — needs your OK to spend real Anthropic money |
 | **Production DB backup/restore** | Infra | TODO | Not started |
 | **Deploy online** |  | TODO | Not started — always last |
 | **Component/UI test coverage** | Infra | NEXT | Not started — first thing once v1 is live |
@@ -120,38 +123,106 @@ goes before it.
 
 | Item | Kind | Status |
 |---|---|---|
-| **Big flow test** | — | Ready to run — needs your OK to spend real Anthropic money |
-| **Check: NVIDIA live-call verification (second LLM provider)** | Infra | Needs API key + spend go-ahead |
-| **Check: full test suite + `tsc` after Plan 11** | Infra | Suite green (841/841); `tsc` found 8 pre-existing errors, not yet fixed |
-| **Check: docs review for Plan 11/12/13 topics** | Infra | Not started |
 | **Check: guided tour copy sign-off** | UX | User review pending |
+| **Check: landing page walkthrough UX (ux agent review)** | UX | 10 findings from a ux-agent review, not yet actioned |
 | **Check: Workbench branding + disclaimer render correctly** | UX | Visual QA, not run yet |
+| **Check: NVIDIA live-call verification (second LLM provider)** | Infra | Needs API key + spend go-ahead |
 | **Check: MCP server live verification (Plan 13)** | Infra | Free part not run; billed part needs your OK to spend |
 | **Check: Account "API tokens (MCP access)" panel renders correctly** | UX | Visual QA, not run yet |
+| **Check: full test suite + `tsc` after Plan 11** | Infra | Suite green (841/841); `tsc` found 8 pre-existing errors, not yet fixed |
+| **Check: docs review for Plan 11/12/13 topics** | Infra | Not started |
+| **Big flow test** | — | Ready to run — needs your OK to spend real Anthropic money |
 | **Production DB backup/restore** | Infra | Not started |
 | **Deploy online** | — | Not started — always last |
 
 ---
 
-### **Big flow test**
+### **Check: guided tour copy sign-off**
 
-**Current state:** Not run. Scope fully designed.
+**Current state:** All seven steps of the guided tour (`app/components/shell/GuidedTour.tsx`)
+have real drafted body text, shipped and working in the real app (ported from
+`Layout-Workbench.html`, verified in-browser). The user wants to do the tone/wording review
+directly rather than delegate it.
 
-**Scope — one real end-to-end pass, not a scripted check:**
-- Import a real agent file
-- Manually edit it in the structured view: add/edit/remove a section; add/edit/remove a tool or config value
-- Edit the same agent via chat: a section edit and a config edit, reviewing the proposal card, the lock, and the applied result
-- Export the edited agent and reimport it, confirming the round trip holds
+**Scope:** Read through the seven steps, tighten wording if wanted. No code change unless the
+review finds something.
 
-Also exercises Prometheus's end-to-end verification against a real reply, which has never
-actually been run — the chat stage here needs the same real, billed Anthropic calls anyway.
-Anything the test finds gets fixed inline or spun into its own item — the point is to find
-gaps before real users do, not to gate the test on being bug-free beforehand.
+**Effort:** Trivial
+**Status:** Not started — pending user review
 
-**Effort:** Small (1–2 hours, manual)
-**Depends on:** Every other TODO item above
-**Blocker:** Needs your OK to spend real Anthropic money first (standing rule 2)
-**Status:** Ready to run
+---
+
+### **Check: landing page walkthrough UX (ux agent review)**
+
+**Current state:** The `/welcome` landing page's "How it works" walkthrough (4-step
+carousel — Import/See/Edit/Review & Export, both the inline card and the "Full view"
+modal) went through real screenshot integration and layout tuning
+(`app/components/Welcome/WelcomePage.tsx` + the kept-in-sync mock
+`architecture/layout/Layout-Landing.html`) on 2026-08-17. The `ux` agent then reviewed
+both files end-to-end (non-technical/client lens) and returned 10 concrete findings, none
+yet actioned:
+
+- [ ] **Inline card height jumps between steps** — the modal got a fixed `min-height` on
+  its text block specifically because Step 3's longer title was pushing the screenshot
+  around; the inline card has the same shape of problem (`.wgrid > div:first-child` /
+  the equivalent React block) and never got the same fix — only the outer shell has
+  `min-height:350px`, which doesn't stop it growing taller.
+- [ ] **Control grouping differs between the two views** — modal has Previous/dots/Next
+  as one row; inline card splits Previous+Next from the dots, with "Full view" parked
+  between them.
+- [ ] **"01 / 04" counter misaligned in the inline card** — inherits `text-align:left`
+  while the kicker/title/desc below it are explicitly centered, so it floats
+  top-left, disconnected from its own label. Not an issue in the modal (centered there).
+- [ ] **Step 4's modal image has no custom crop** — steps 1–3 each got a tuned
+  `fullImage`/position/zoom/fit for the modal; Step 4 falls back to plain `cover`, so
+  "Full view" isn't actually more detailed there.
+- [ ] **Step 4 bundles two actions** ("Review & Export") while steps 1–3 are each one
+  clean verb — reads slightly rushed by comparison.
+- [ ] **No click-to-enlarge on the screenshot itself** — only the small "Full view" text
+  button opens the modal; clicking the image does nothing.
+- [ ] **No responsive/mobile handling at all** in either file (only
+  `prefers-color-scheme` exists as a media query) — the two-column inline grid and the
+  modal's `min(1200-1320px, 92vw)` width have no narrower-viewport fallback. Flagged as
+  a real conversion risk for an invite-request page, not just cosmetic.
+- [ ] **No keyboard support in the modal** — no Escape-to-close, no arrow-key step
+  navigation.
+- [ ] **No annotation tying copy to screenshot content** — the screenshots are dense
+  real UI captures (chat log, diff view, config panel); a callout/arrow/highlight
+  pointing at the specific part each step's copy describes would help a cold visitor.
+- [ ] **Orphaned file:** `public/welcome/step-2-see-full3.jpg` isn't referenced by
+  either file — leftover from iterating on the Step 2 crop, safe to delete.
+
+Creative suggestions from the same review (not findings, optional to act on): unify the
+control-row shape across both views; make the modal image-first (shrink/move the
+repeated text block so the screenshot is the payoff, not buried under copy); split Step
+4 into its own step or rename it to own the double-duty honestly; consider
+auto-advancing the inline carousel on a slow timer on first visit (pausing on
+interaction) since it's fully passive today; trim the Structural/Strict mode jargon in
+Step 1's description for a cold landing-page audience.
+
+**Scope:** Work through the checklist above — each item is independently actionable, no
+required order except the mock-first pattern (standing rule 4) for anything layout-shaped.
+
+**Effort:** Small–Medium (mostly CSS/layout fixes; the responsive-handling item is the
+one genuinely bigger piece)
+**Depends on:** None
+**Status:** Not started
+
+---
+
+### **Check: Workbench branding + disclaimer render correctly**
+
+**Current state:** The Workbench footer (ProcessMind Solutions mark) and the
+`ConsentPopup.tsx` sensitive-data disclaimer ("Content you enter here is sent to an external
+AI provider — do not paste passwords, API keys, or other sensitive or confidential data.")
+are both built and believed correct, but neither has been opened in a running app since
+shipping.
+
+**Scope:** Log in, trigger `ConsentPopup`, confirm the disclaimer line and the Workbench
+footer both render as expected, both themes.
+
+**Effort:** Trivial
+**Status:** Not started
 
 ---
 
@@ -168,6 +239,46 @@ log row appears with the right provider/model/usage.
 
 **Effort:** Trivial
 **Blocker:** Needs a real NVIDIA API key + your explicit go-ahead on the spend (standing rule 2)
+**Status:** Not started
+
+---
+
+### **Check: MCP server live verification (Plan 13)**
+
+**Current state:** Code + full automated test suite done and green (2026-08-15). Live
+verification per plan §5.7/§6 steps 5–6 has not been run.
+
+**Scope — two parts:**
+- **Free:** connect a real console MCP client (Claude Code) to `/api/mcp` with a
+  generated token, complete the handshake, run `tools/list`, all three read tools
+  (`list_agents`, `get_agent`, `export_agent`), the `myagent://agent/{id}` resource
+  list/read, and `import_agent` with `dryRun:true`. No spend — confirms the protocol
+  implementation actually works against a real client, not just the hand-built test
+  requests in `app/api/__tests__/mcp.test.ts`.
+- **Billed — needs an explicit go-ahead first (standing rule 2):** one real `import_agent`
+  call (no `dryRun`), confirming the resulting `llm_call_log` row carries the right
+  `userId`, `origin: 'mcp'`, `provider`, `model`, and usage.
+
+Per standing rule 3, shut the dev server down afterward.
+
+**Effort:** Small
+**Depends on:** None
+**Status:** Not started
+
+---
+
+### **Check: Account "API tokens (MCP access)" panel renders correctly**
+
+**Current state:** The token-generation panel in `AccountView.tsx` (list, create with
+name + scope, one-time plaintext reveal + copy, revoke) is built and covered by API-level
+tests, but has never been opened in a running browser.
+
+**Scope:** Log in, open `/account`, generate a token (confirm the one-time reveal + copy
+button work and the plaintext is never shown again after leaving the page), confirm the
+list/prefix/scope/dates render correctly, revoke a token and confirm it disappears from
+the active list. Both themes.
+
+**Effort:** Trivial
 **Status:** Not started
 
 ---
@@ -229,74 +340,25 @@ don't restructure what already reads fine)
 
 ---
 
-### **Check: guided tour copy sign-off**
+### **Big flow test**
 
-**Current state:** All seven steps of the guided tour (`app/components/shell/GuidedTour.tsx`)
-have real drafted body text, shipped and working in the real app (ported from
-`Layout-Workbench.html`, verified in-browser). The user wants to do the tone/wording review
-directly rather than delegate it.
+**Current state:** Not run. Scope fully designed.
 
-**Scope:** Read through the seven steps, tighten wording if wanted. No code change unless the
-review finds something.
+**Scope — one real end-to-end pass, not a scripted check:**
+- Import a real agent file
+- Manually edit it in the structured view: add/edit/remove a section; add/edit/remove a tool or config value
+- Edit the same agent via chat: a section edit and a config edit, reviewing the proposal card, the lock, and the applied result
+- Export the edited agent and reimport it, confirming the round trip holds
 
-**Effort:** Trivial
-**Status:** Not started — pending user review
+Also exercises Prometheus's end-to-end verification against a real reply, which has never
+actually been run — the chat stage here needs the same real, billed Anthropic calls anyway.
+Anything the test finds gets fixed inline or spun into its own item — the point is to find
+gaps before real users do, not to gate the test on being bug-free beforehand.
 
----
-
-### **Check: Workbench branding + disclaimer render correctly**
-
-**Current state:** The Workbench footer (ProcessMind Solutions mark) and the
-`ConsentPopup.tsx` sensitive-data disclaimer ("Content you enter here is sent to an external
-AI provider — do not paste passwords, API keys, or other sensitive or confidential data.")
-are both built and believed correct, but neither has been opened in a running app since
-shipping.
-
-**Scope:** Log in, trigger `ConsentPopup`, confirm the disclaimer line and the Workbench
-footer both render as expected, both themes.
-
-**Effort:** Trivial
-**Status:** Not started
-
----
-
-### **Check: MCP server live verification (Plan 13)**
-
-**Current state:** Code + full automated test suite done and green (2026-08-15). Live
-verification per plan §5.7/§6 steps 5–6 has not been run.
-
-**Scope — two parts:**
-- **Free:** connect a real console MCP client (Claude Code) to `/api/mcp` with a
-  generated token, complete the handshake, run `tools/list`, all three read tools
-  (`list_agents`, `get_agent`, `export_agent`), the `myagent://agent/{id}` resource
-  list/read, and `import_agent` with `dryRun:true`. No spend — confirms the protocol
-  implementation actually works against a real client, not just the hand-built test
-  requests in `app/api/__tests__/mcp.test.ts`.
-- **Billed — needs an explicit go-ahead first (standing rule 2):** one real `import_agent`
-  call (no `dryRun`), confirming the resulting `llm_call_log` row carries the right
-  `userId`, `origin: 'mcp'`, `provider`, `model`, and usage.
-
-Per standing rule 3, shut the dev server down afterward.
-
-**Effort:** Small
-**Depends on:** None
-**Status:** Not started
-
----
-
-### **Check: Account "API tokens (MCP access)" panel renders correctly**
-
-**Current state:** The token-generation panel in `AccountView.tsx` (list, create with
-name + scope, one-time plaintext reveal + copy, revoke) is built and covered by API-level
-tests, but has never been opened in a running browser.
-
-**Scope:** Log in, open `/account`, generate a token (confirm the one-time reveal + copy
-button work and the plaintext is never shown again after leaving the page), confirm the
-list/prefix/scope/dates render correctly, revoke a token and confirm it disappears from
-the active list. Both themes.
-
-**Effort:** Trivial
-**Status:** Not started
+**Effort:** Small (1–2 hours, manual)
+**Depends on:** Every other TODO item above
+**Blocker:** Needs your OK to spend real Anthropic money first (standing rule 2)
+**Status:** Ready to run
 
 ---
 

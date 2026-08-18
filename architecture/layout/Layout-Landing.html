@@ -58,6 +58,8 @@
   .shot .shotbar span{width:8px;height:8px;border-radius:50%;background:var(--border)}
   .shot .shotbody{padding:26px 18px; display:flex; align-items:center; justify-content:center; flex:1;
     color:var(--faint); font-size:12px; font-style:italic; text-align:center}
+  .shot .shotbody.has-img{padding:0}
+  .shot .shotbody img{width:100%; height:100%; object-fit:cover; display:block}
 
   .foot{position:sticky; bottom:0; z-index:5; background:var(--panel); border-top:1px solid var(--border); font-size:11.5px; color:var(--faint)}
   .footrow{display:flex; align-items:center; gap:18px; max-width:980px; margin:0 auto; padding:10px 28px}
@@ -79,7 +81,7 @@
   .hero .cta{display:inline-block; margin-top:14px; background:var(--accent); color:#fff; padding:10px 18px; border-radius:9px; text-decoration:none; font-weight:700}
   .hero .cta:hover{background:var(--accent-ink)}
 
-  .trust{max-width:980px; margin:0 auto; padding:0 28px 40px; width:100%; text-align:left}
+  .trust{max-width:980px; margin:0 auto; padding:40px 28px 40px; width:100%; text-align:left}
   .trust .box{display:flex; align-items:flex-start; gap:14px; background:var(--elev); width:100%;
     border:1px solid var(--border); border-radius:10px; box-shadow:0 12px 28px -18px rgba(0,0,0,.35);
     padding:22px 26px}
@@ -96,6 +98,10 @@
     display:flex; flex-direction:column}
   .wcard .counter{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent-ink); margin-bottom:8px}
   .wgrid{display:grid; grid-template-columns:1.1fr 1fr; column-gap:26px; row-gap:25px; align-items:start; flex:1; min-height:170px}
+  /* Top-aligned vertically (matches the counter/kicker staying pinned across steps of
+     varying description length), centered horizontally — the step text column only,
+     not the screenshot frame beside it. */
+  .wgrid > div:first-child{text-align:center}
   .wgrid .wkicker{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:8px}
   .wgrid h3{font-size:22px; margin:0 0 8px; letter-spacing:-.01em}
   .wgrid p{font-size:13.5px; color:var(--muted); margin:0}
@@ -109,13 +115,36 @@
   .wdots span{width:8px; height:8px; border-radius:50%; cursor:pointer; background:var(--border)}
   .wdots span.on{background:var(--accent)}
   .invite-wrap{display:flex; justify-content:center; padding:31px 0 22px}
-  .cta{background:var(--accent); color:#fff; padding:12px 22px; border-radius:10px; text-decoration:none; font-weight:700}
+  /* font-size/padding/radius bumped from the .hero .cta baseline above — matched by eye
+     against the live app after the ×1.1 sizing pass still read a bit small at the plain
+     baseline values (2026-08-17). */
+  .cta{background:var(--accent); color:#fff; font-size:15.5px; padding:13.6px 24.5px; border-radius:11px; text-decoration:none; font-weight:700}
   .cta:hover{background:var(--accent-ink)}
 
   .modalback{position:fixed; inset:0; z-index:50; display:grid; place-items:center; padding:20px;
     background:rgba(20,24,30,.5)}
-  .modalcard{width:min(860px,94vw); background:var(--elev); border:1px solid var(--border); border-radius:12px;
-    box-shadow:0 24px 60px -20px rgba(0,0,0,.4); padding:32px; position:relative}
+  /* 860px→1200px (2026-08-17 fix): the old width was actually NARROWER than the inline
+     card's own container (~1030px), so "Full view" opened a same-size (or smaller) modal
+     — no zoom at all, just a re-centered popup. .shot has aspect-ratio:9/5 locked, so
+     widening the modal is enough on its own to make the screenshot column genuinely
+     bigger — width grows, height follows automatically, no separate image-size hack
+     needed. */
+  .modalcard{width:min(1200px,92vw); background:var(--elev); border:1px solid var(--border); border-radius:12px;
+    box-shadow:0 24px 60px -20px rgba(0,0,0,.4); padding:36px; position:relative}
+
+  /* Stacked full-view layout (2026-08-17 test) — everything centered in one column:
+     counter/kicker/title/desc on top, screenshot in the middle, controls row at the
+     bottom. Kept separate from .wgrid/.wctrls (the inline card's side-by-side layout)
+     rather than reusing/overriding them, since the two shapes genuinely diverge instead
+     of one being a bigger version of the other. */
+  .mstack{display:flex; flex-direction:column; align-items:center; text-align:center}
+  .mtext{display:flex; flex-direction:column; align-items:center; min-height:212px}
+  .mstack .counter{margin-bottom:8px}
+  .mstack .wkicker{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:8px}
+  .mstack .step-title{font-size:32px; letter-spacing:-.01em; margin:0 0 12px}
+  .mstack .step-desc{font-size:16px; color:var(--muted); max-width:600px; margin:0 0 28px}
+  .mstack .mshot{width:100%; max-width:820px; margin:0 0 28px}
+  .mctrls{display:flex; align-items:center; justify-content:center; gap:16px}
   .modalx{position:absolute; top:14px; right:14px; background:transparent; border:none; font-size:16px;
     color:var(--faint); cursor:pointer; padding:6px}
   .modalx:hover{color:var(--text)}
@@ -192,8 +221,8 @@
 
   <div class="page page-hero">
   <div class="hero">
-    <h1>Build and edit AI agents without fighting YAML frontmatter</h1>
-    <p>Import an agent, edit it in a structured view or by chatting with it, export it back out — one workbench, no hand-editing markdown.</p>
+    <h1>Your agent library, now visual</h1>
+    <p>One workbench to see, edit, and organize every agent you maintain — by hand or by chat, with nothing hidden and nothing written until you approve it.</p>
   </div>
 
   <div class="walk">
@@ -218,7 +247,7 @@
     </div>
   </div>
 
-  <div class="invite-wrap"><a class="cta" href="#">Get Start - Ask a invite!</a></div>
+  <div class="invite-wrap"><a class="cta" href="#">Get started — ask for an invite</a></div>
   </div>
 
   <div class="page page-secondary">
@@ -267,21 +296,31 @@
 </div>
 
 <!-- ===== walkthrough fullscreen modal (Version A) ===== -->
+<!-- Stacked layout (2026-08-17 test) — replaces the side-by-side wgrid the inline card
+     uses: counter/kicker/title/desc centered on top, screenshot centered in the middle,
+     Previous/dots/Next centered in one row underneath. A deliberately different shape
+     from the inline card, not just a bigger version of it — see .mstack below. -->
 <div class="modalback" id="modalOverlay" hidden>
   <div class="modalcard" id="modalPanel">
     <button class="modalx" id="btnCloseModal">✕</button>
-    <div class="counter step-counter"></div>
-    <div class="wgrid" style="min-height:240px">
-      <div>
+    <div class="mstack">
+      <!-- Fixed min-height on .mtext (2026-08-17 fix) — without it, this block's real
+           height depends on how many lines each step's title/desc wraps to (step 3's
+           title is longer than the others, e.g.), which made the whole modal — and the
+           screenshot frame below it — visibly grow/shrink as you clicked through steps.
+           Reserves worst-case space so only the text changes, not the modal's size. -->
+      <div class="mtext">
+        <div class="counter step-counter"></div>
         <div class="wkicker step-kicker"></div>
-        <h3 class="step-title" style="font-size:24px"></h3>
+        <h3 class="step-title"></h3>
         <p class="step-desc"></p>
       </div>
-      <div class="shot"><div class="shotbar"><span></span><span></span><span></span></div>
-        <div class="shotbody step-shot" style="min-height:160px"></div></div>
-      <div class="wctrls">
-        <div class="wctrls-col"><button class="wbtn" id="btnPrev2">← Previous</button></div>
-        <div class="wctrls-col"><button class="wbtn" id="btnNext2">Next →</button><div class="wdots"></div></div>
+      <div class="shot mshot"><div class="shotbar"><span></span><span></span><span></span></div>
+        <div class="shotbody step-shot-full" style="min-height:220px"></div></div>
+      <div class="mctrls">
+        <button class="wbtn" id="btnPrev2">← Previous</button>
+        <div class="wdots"></div>
+        <button class="wbtn" id="btnNext2">Next →</button>
       </div>
     </div>
   </div>
@@ -307,10 +346,10 @@
 <script>
   (function () {
     var steps = [
-      { kicker: 'STEP 1 — IMPORT', title: 'Bring in any agent file', desc: 'Drop in a .md agent — Structural mode reorganizes it into a canonical layout, Strict mode keeps your structure and just labels it.', shot: '[ screenshot — import dialog ]' },
-      { kicker: 'STEP 2 — EDIT', title: 'Change it directly, or describe the change', desc: 'Edit fields in the structured view, or tell the built-in chat what you want changed — it proposes the edit for review.', shot: '[ screenshot — structured view + chat ]' },
-      { kicker: 'STEP 3 — REVIEW', title: 'See exactly what changed', desc: 'Every proposed edit shows as a diff against the raw file before it applies. Nothing changes silently.', shot: '[ screenshot — raw view / diff ]' },
-      { kicker: 'STEP 4 — EXPORT', title: 'Take it back out clean', desc: 'Download the result as a plain agent file, ready to drop back into your own tools.', shot: '[ screenshot — export ]' }
+      { kicker: 'STEP 1 — IMPORT', title: 'Bring in any agent', desc: 'Drop in a .md agent file — Structural mode reorganizes it into a clean, canonical layout; Strict mode keeps your structure and just labels it. Nothing gets silently dropped.', shot: '[ screenshot — import dialog ]', img: '../../public/welcome/step-1-import.jpg', fullImg: '../../public/welcome/step-1-import-full.jpg', fullImgFit: 'contain' },
+      { kicker: 'STEP 2 — SEE', title: 'See the whole agent at once', desc: 'Every section — Role, Behavior, Guardrails, Output — sits on screen together, always. No more losing track of an agent inside a chat transcript or a wall of YAML.', shot: '[ screenshot — structured view, all sections expanded ]', img: '../../public/welcome/step-2-see.jpg', fullImg: '../../public/welcome/step-2-see-full.jpg', fullImgFit: 'cover', fullImgPos: 'left top', fullImgZoom: 1.3 },
+      { kicker: 'STEP 3 — EDIT', title: 'Edit it directly, or just describe the change', desc: 'Change a field by hand, or tell the built-in chat what you want — it already knows the agent\'s full current state, so it proposes a precise edit instead of guessing.', shot: '[ screenshot — structured view + chat, mid-edit ]', img: '../../public/welcome/step-3-edit.jpg', imgPos: 'left center', fullImg: '../../public/welcome/step-3-edit-full.jpg', fullImgPos: 'center' },
+      { kicker: 'STEP 4 — REVIEW & EXPORT', title: 'Approve the diff, take it with you', desc: 'Every proposed change shows as a diff before it applies — nothing writes itself. When you\'re done, export the result as a plain agent file, ready for your own tools.', shot: '[ screenshot — proposal diff / export ]', img: '../../public/welcome/step-4-review.jpg', fullImg: '../../public/welcome/step-4-review-full.jpg' }
     ];
 
     var state = { step: 0 };
@@ -322,7 +361,41 @@
       document.querySelectorAll('.step-kicker').forEach(function (el) { el.textContent = s.kicker; });
       document.querySelectorAll('.step-title').forEach(function (el) { el.textContent = s.title; });
       document.querySelectorAll('.step-desc').forEach(function (el) { el.textContent = s.desc; });
-      document.querySelectorAll('.step-shot').forEach(function (el) { el.textContent = s.shot; });
+      // Shared by .step-shot (inline card, always s.img) and .step-shot-full (the
+      // "Full view" modal, s.fullImg when a step has one, else the same s.img) — the
+      // modal is meant to get a separate, usually higher-detail screenshot per step
+      // (public/welcome/step-N-name-full.jpg), added one step at a time same as s.img.
+      // fit: 'contain' for a source far from the 9:5 frame ratio (e.g. step-1-import-full.jpg
+      // is portrait, 567×798; cover would crop it down to ~39% of its own height) — shows
+      // the whole image letterboxed instead of cropping.
+      // pos: object-position override — .step-shot-full passes s.fullImgPos when set
+      // (falls back to s.imgPos) so repositioning the modal's screenshot never affects
+      // the inline card's.
+      // zoom: extra scale() on top of cover's own (often near-1x) fit — e.g. 1.3 for 30%
+      // more. Scales from the same corner as `pos` (transform-origin mirrors it), so
+      // zooming in crops further from the opposite side instead of re-centering.
+      function fillShot(el, src, fit, pos, zoom) {
+        el.innerHTML = '';
+        if (src) {
+          el.classList.add('has-img');
+          var img = document.createElement('img');
+          img.src = src;
+          img.alt = s.shot;
+          var p = pos || s.imgPos || 'center';
+          img.style.objectPosition = p;
+          img.style.objectFit = fit || 'cover';
+          if (zoom && zoom !== 1) {
+            img.style.transform = 'scale(' + zoom + ')';
+            img.style.transformOrigin = p;
+          }
+          el.appendChild(img);
+        } else {
+          el.classList.remove('has-img');
+          el.textContent = s.shot;
+        }
+      }
+      document.querySelectorAll('.step-shot').forEach(function (el) { fillShot(el, s.img); });
+      document.querySelectorAll('.step-shot-full').forEach(function (el) { fillShot(el, s.fullImg || s.img, s.fullImgFit, s.fullImgPos, s.fullImgZoom); });
       document.querySelectorAll('.wdots').forEach(function (container) {
         container.innerHTML = '';
         steps.forEach(function (_, i) {
