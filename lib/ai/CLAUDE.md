@@ -101,7 +101,7 @@ Key exports:
 **Fail-safe chain (Plan 11 D3):**
 - An absent `llmProvider` DB row → `getActiveProviderId()` returns `'anthropic'` (fail-safe default).
 - An unknown/corrupt stored value → `getActiveProviderId()` returns `'anthropic'` + `console.warn`.
-- A configured but env-var-less provider cannot be stored in the first place — the PATCH route rejects it with `400 provider_not_configured`. If env vars are removed after the setting was stored, `getProviderById` throws at the next AI call with a clear error message.
+- A configured but env-var-less provider cannot be stored in the first place — the PATCH route rejects it with `400 provider_not_configured`. If env vars are removed after the setting was stored, the NEXT *live* AI call throws a clear error — but only when the provider's own `complete()`/`stream()` actually needs the key (`getAnthropicApiKey()` / `getOpenAICompatibleApiKey()`), not at resolution time. `getProviderById()` itself deliberately does not check `isProviderConfigured()` (fixed 2026-08-18) — constructing a provider object or reading its `defaultModel()` needs no credential, and an eager throw there ran on every call including dry-run (gateway.ts resolves the provider before its dry-run gate, to log the model that would have been used), which broke the Plan 04-documented no-API-key dry-run deployment mode. The live-path throw is caught by `gateway.ts`'s existing try/catch, which logs it properly before re-throwing.
 
 ## Callers — shape (§3.6, normative; updated Plan 05 §3.9)
 

@@ -22,20 +22,27 @@ const ALL_KEYS = [...OAUTH_KEYS, ...OTHER_KEYS] as const;
 
 const originalValues: Partial<Record<(typeof ALL_KEYS)[number], string | undefined>> = {};
 
+/** process.env.NODE_ENV is typed read-only in recent @types/node; every other
+ *  key here is writable. Cast locally so the generic key loop below (and the
+ *  direct NODE_ENV assignments further down this file) work uniformly. */
+function setEnv(key: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete (process.env as Record<string, string | undefined>)[key];
+  } else {
+    (process.env as Record<string, string | undefined>)[key] = value;
+  }
+}
+
 beforeEach(() => {
   for (const key of ALL_KEYS) {
     originalValues[key] = process.env[key];
-    delete process.env[key];
+    setEnv(key, undefined);
   }
 });
 
 afterEach(() => {
   for (const key of ALL_KEYS) {
-    if (originalValues[key] === undefined) {
-      delete process.env[key];
-    } else {
-      process.env[key] = originalValues[key];
-    }
+    setEnv(key, originalValues[key]);
   }
 });
 
@@ -183,7 +190,7 @@ describe('_assertOAuthEnv', () => {
     process.env.GOOGLE_CLIENT_ID = 'id';
     process.env.GOOGLE_CLIENT_SECRET = 'secret';
     process.env.OAUTH_REDIRECT_BASE_URL = 'http://localhost:3000';
-    process.env.NODE_ENV = 'development';
+    setEnv('NODE_ENV', 'development');
     expect(() => _assertOAuthEnv()).not.toThrow();
   });
 
@@ -191,7 +198,7 @@ describe('_assertOAuthEnv', () => {
     process.env.GOOGLE_CLIENT_ID = 'id';
     process.env.GOOGLE_CLIENT_SECRET = 'secret';
     process.env.OAUTH_REDIRECT_BASE_URL = 'http://example.com';
-    process.env.NODE_ENV = 'production';
+    setEnv('NODE_ENV', 'production');
     expect(() => _assertOAuthEnv()).toThrow(/must use https in production/);
   });
 
@@ -199,7 +206,7 @@ describe('_assertOAuthEnv', () => {
     process.env.GOOGLE_CLIENT_ID = 'id';
     process.env.GOOGLE_CLIENT_SECRET = 'secret';
     process.env.OAUTH_REDIRECT_BASE_URL = 'https://example.com';
-    process.env.NODE_ENV = 'production';
+    setEnv('NODE_ENV', 'production');
     expect(() => _assertOAuthEnv()).not.toThrow();
   });
 });

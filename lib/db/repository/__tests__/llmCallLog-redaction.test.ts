@@ -42,6 +42,7 @@ const RESP: WriteCallLogInput['responsePayload'] = {
 function makeRow(overrides: Partial<WriteCallLogInput> = {}): string {
   return writeCallLog({
     kind: 'chat',
+    provider: 'anthropic',
     agentId: null,
     agentLabel: 'test',
     dryRun: false,

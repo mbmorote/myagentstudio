@@ -55,23 +55,31 @@ export function isProviderConfigured(id: string): boolean {
  * Returns the LLMProvider instance for the given id.
  * Instantiates on first call; subsequent calls return the cached instance.
  *
- * Throws if:
- *   - id is not in PROVIDER_IDS.
- *   - The provider's required env vars are not set (guards against selecting an
- *     unconfigured provider at runtime — the PATCH route also enforces this at
- *     write time, so under normal operation this throw is a belt-and-braces check).
+ * Throws only if id is not in PROVIDER_IDS.
+ *
+ * Deliberately does NOT check isProviderConfigured() here (fixed 2026-08-18 —
+ * found by running the real test suite, and independently by code review of
+ * Plan 11's diff: an earlier version of this function threw eagerly on an
+ * unconfigured provider, which ran on EVERY call including the dry-run path,
+ * since gateway.ts resolves the provider before its dry-run gate to log the
+ * model that would have been used. That broke the Plan 04-documented no-API-key
+ * dry-run deployment mode — a deployment with liveLlmCalls off and no
+ * ANTHROPIC_API_KEY set previously worked because createAnthropicProvider()
+ * never touches the key until complete()/stream() is actually called, which
+ * dry-run never reaches. Constructing a provider object (or reading its
+ * defaultModel()) needs no credential for either provider; only an actual
+ * network call does, and each provider's own complete()/stream() already
+ * throws a clear, specific error at that point (getAnthropicApiKey() /
+ * getOpenAICompatibleApiKey()) — caught by gateway.ts's existing live-path
+ * try/catch, which logs it properly, unlike this function's former throw,
+ * which fired before any log row existed. isProviderConfigured() remains the
+ * real gate: PATCH /api/settings uses it to refuse SELECTING an unconfigured
+ * provider (D3) — that's where "can't be selected" belongs, not here.
  */
 export function getProviderById(id: string): LLMProvider {
   const knownId = PROVIDER_IDS.find((p) => p === id) as ProviderId | undefined;
   if (!knownId) {
     throw new Error(`[provider-registry] Unknown provider id: "${id}"`);
-  }
-
-  if (!isProviderConfigured(knownId)) {
-    throw new Error(
-      `[provider-registry] Provider "${knownId}" is not configured. ` +
-      `Set the required env vars and restart the dev server.`,
-    );
   }
 
   if (!_instances.has(knownId)) {

@@ -13,7 +13,11 @@
  *     (proves constraint 4 — resolution is fresh per call, not at gateway init)
  *   - isProviderConfigured: true/false per env var presence
  *   - getProviderById with unknown id → throws
- *   - getProviderById with unconfigured id → throws
+ *   - getProviderById with an UNCONFIGURED id does NOT throw (fixed 2026-08-18 —
+ *     see providerRegistry.ts's getProviderById docstring for why: constructing a
+ *     provider object needs no credential, only an actual network call does, and
+ *     an eager throw here broke the documented no-API-key dry-run deployment mode
+ *     since gateway.ts resolves the provider before its dry-run gate)
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -120,10 +124,14 @@ describe('getProviderById', () => {
     expect(() => getProviderById('nonexistent')).toThrow('Unknown provider id');
   });
 
-  it('throws when provider is not configured', () => {
+  it('does NOT throw for an unconfigured-but-known id — construction needs no credential (2026-08-18)', () => {
     vi.stubEnv('OPENAI_COMPATIBLE_API_KEY', '');
     vi.stubEnv('OPENAI_COMPATIBLE_BASE_URL', '');
-    expect(() => getProviderById('openaiCompatible')).toThrow('not configured');
+    const p = getProviderById('openaiCompatible');
+    expect(p.id).toBe('openaiCompatible');
+    // isProviderConfigured still correctly reports false — PATCH /api/settings
+    // is where that's actually enforced (D3), not here.
+    expect(isProviderConfigured('openaiCompatible')).toBe(false);
   });
 });
 

@@ -43,6 +43,7 @@ const RESP: WriteCallLogInput['responsePayload'] = {
 function makeInput(overrides: Partial<WriteCallLogInput> = {}): WriteCallLogInput {
   return {
     kind: 'chat',
+    provider: 'anthropic',
     agentId: 'agent-1',
     agentLabel: 'test-agent',
     dryRun: false,
@@ -148,6 +149,7 @@ describe('llmCallLog repository', () => {
   it('reserveCallSlot writes a row that immediately counts (dryRun:false) with a null response', () => {
     const id = reserveCallSlot({
       kind: 'chat',
+      provider: 'anthropic',
       agentId: 'agent-1',
       agentLabel: 'test-agent',
       model: 'claude-opus-4-8',
@@ -168,6 +170,7 @@ describe('llmCallLog repository', () => {
   it('finalizeCallLog completes a reserved row with the real outcome, in place (no new row)', () => {
     const id = reserveCallSlot({
       kind: 'chat',
+      provider: 'anthropic',
       agentId: 'agent-1',
       agentLabel: 'test-agent',
       model: 'claude-opus-4-8',
@@ -196,6 +199,7 @@ describe('llmCallLog repository', () => {
   it('finalizeCallLog can record an error outcome on a reserved row', () => {
     const id = reserveCallSlot({
       kind: 'chat',
+      provider: 'anthropic',
       agentId: null,
       agentLabel: null,
       model: 'claude-opus-4-8',
