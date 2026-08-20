@@ -18,13 +18,15 @@ route (app/api/…)
                        setting fresh per call so a setting flip takes effect immediately
                        without a restart (Plan 11 constraint 4).
                     ├─ anthropicProvider.ts  ← @anthropic-ai/sdk (sole SDK importer)
-                    └─ openaiCompatibleProvider.ts  ← fetch + /v1/chat/completions
+                    └─ openaiCompatibleProvider.ts  ← fetch + /chat/completions
 ```
 
 **Per-provider transport isolation:** each provider file is the only file permitted
 to import its own transport dependency. `@anthropic-ai/sdk` may only be imported by
-`lib/ai/anthropicProvider.ts`. The OpenAI-compatible endpoint path (`/v1/chat/completions`)
-may only appear in `lib/ai/openaiCompatibleProvider.ts`. Both rules are enforced by a
+`lib/ai/anthropicProvider.ts`. The OpenAI-compatible endpoint path (`/chat/completions`,
+appended to a caller-supplied base URL that already carries the vendor's own `/v1`
+segment — fixed 2026-08-20, previously double-appended `/v1` and 404'd on every live
+call) may only appear in `lib/ai/openaiCompatibleProvider.ts`. Both rules are enforced by a
 table-driven fitness function (`lib/ai/__tests__/architecture.test.ts`) that fails if
 any other file contains the guarded string. Adding a third provider means adding one
 row to each applicable table, not special-casing any assertion.
@@ -80,7 +82,7 @@ Key exports:
 
 `openaiCompatibleProvider.ts` is the second implementation (Plan 11). It:
 - Uses plain `fetch` with no new npm dependency — a vendor swap is three env vars, not a code change.
-- Is the **sole** file permitted to construct requests against `/v1/chat/completions` (enforced by the architecture fitness function).
+- Is the **sole** file permitted to construct requests against the chat-completions path (enforced by the architecture fitness function). `OPENAI_COMPATIBLE_BASE_URL` is expected to already carry the vendor's own `/v1` segment (matching real vendor convention — NVIDIA/OpenAI/Groq all document `base_url` ending in `/v1`); this file appends `/chat/completions` only, never `/v1/chat/completions` (a real double-`/v1` bug, found and fixed 2026-08-20 against a live NVIDIA NIM call).
 - Places `system` as `messages[0]` with `role:'system'` (the OpenAI wire format, as opposed to Anthropic's top-level param).
 - Maps stop reasons: `stop`→`end_turn`, `length`→`max_tokens` (the critical mapping — without it Daedalus's truncation guard stops firing), `tool_calls`→`tool_use`, anything else→`other`.
 - Clamps `maxTokens` to `MAX_OUTPUT_TOKENS` (4096) to avoid hard 400s when Daedalus requests 32k from a model with a lower ceiling. Truncation surfaces through the existing `stopReason:'max_tokens'` path rather than as an opaque HTTP error.
@@ -188,7 +190,7 @@ Key behaviors: agent-wide or cited scope, no tools, split-level heading demotion
 |---|---|
 | `provider.ts` | `LLMProvider` interface + provider-agnostic types + shared `LlmProviderResponseError` |
 | `anthropicProvider.ts` | The ONLY `@anthropic-ai/sdk` importer. Lazy singleton, `complete()`, `stream()`. |
-| `openaiCompatibleProvider.ts` | OpenAI-compatible `fetch`-based provider (`/v1/chat/completions`). Zero new deps. |
+| `openaiCompatibleProvider.ts` | OpenAI-compatible `fetch`-based provider (`/chat/completions`, appended to a `/v1`-carrying base URL). Zero new deps. |
 | `providerRegistry.ts` | The ONLY file that knows both providers. Lazy per-id cache, `resolveActiveProvider()`. |
 | `gateway.ts` | Gate check, audit log, `LlmDryRunBlockedError`. The choke point. |
 | `hermes.ts` | Strict Import Stage-2 caller (labels-only) |

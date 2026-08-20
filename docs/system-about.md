@@ -346,6 +346,13 @@ and nothing lands until the user clicks **Apply**. A separate route,
 - No datatype/`allowedValues` validation is applied to AI-proposed values beyond what a
   manual edit would already get — the same flag-don't-block posture, applied consistently
   regardless of who (or what) produced the value.
+- **Drastic-shrink guard** (2026-08-20, found live against a small model via the second
+  provider): `parsePrometheusResponse()` warns — never blocks or drops — when a proposed
+  section's new content is under 30% of its prior length and the prior content was
+  non-trivial. Purely a character-count comparison, deliberately with no text-pattern or
+  keyword matching, since this app's own agents are themselves about agents and could
+  legitimately contain any phrasing a keyword heuristic might otherwise flag. Surfaces as
+  a warning row on the proposal card, same as every other tolerated issue.
 - A `SectionRevision` written this way is tagged `author: "ai"`, which records "applied
   through the chat proposal flow" — not a cryptographically verified claim of model
   authorship, since the apply payload is client-supplied by design.
@@ -419,13 +426,19 @@ else in `lib/ai/` is provider-blind. Two implementations currently exist:
   `@anthropic-ai/sdk` in the entire codebase (enforced by a fitness-function test in
   `lib/ai/__tests__/architecture.test.ts` that scans every source file and asserts the
   import appears in exactly one place).
-- `lib/ai/openaiCompatibleProvider.ts` — a `fetch`-based implementation of the
-  `/v1/chat/completions` wire format, with no new npm dependency. Configured by three env
-  vars (`OPENAI_COMPATIBLE_API_KEY`, `OPENAI_COMPATIBLE_BASE_URL`,
-  `OPENAI_COMPATIBLE_MODEL`). Works with NVIDIA NIM, OpenAI, Groq, Together, Mistral,
-  vLLM, and any other OpenAI-compatible endpoint. The fitness function guards its endpoint
-  path literal (`/v1/chat/completions`) so this is also the sole file that constructs
-  those requests.
+- `lib/ai/openaiCompatibleProvider.ts` — a `fetch`-based implementation of the OpenAI
+  chat-completions wire format, with no new npm dependency. Configured by three env vars
+  (`OPENAI_COMPATIBLE_API_KEY`, `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_MODEL`).
+  `OPENAI_COMPATIBLE_BASE_URL` is expected to already carry the vendor's own `/v1` segment
+  (matching real vendor convention — NVIDIA NIM, OpenAI, Groq, etc. all document
+  `base_url` ending in `/v1`); the provider appends `/chat/completions` only. Works with
+  NVIDIA NIM, OpenAI, Groq, Together, Mistral, vLLM, and any other OpenAI-compatible
+  endpoint — live-verified 2026-08-20 against a real NVIDIA NIM account, which also
+  surfaced that not every model listed in NVIDIA's own `/v1/models` catalog is actually
+  callable on a free-tier key (an account-level entitlement gate, separate from the
+  catalog listing — see `.env.example` for confirmed working/broken examples). The
+  fitness function guards the endpoint path literal so this is also the sole file that
+  constructs those requests.
 
 **Provider selection:** the `'llmProvider'` setting is admin-only (like `'liveLlmCalls'`
 and `'chatMaxTokens'`). Default `'anthropic'`. Unknown or corrupt stored value → silent

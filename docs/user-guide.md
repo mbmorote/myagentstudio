@@ -101,6 +101,8 @@ Select an agent in the Library panel to open it. Type an instruction in the **AI
 
 **Reviewing and applying a proposal:** the card is collapsed by default (one line per changed part when expanded — description, each section, each config key), with a "show current" toggle per row to compare against what's there today before you commit. Click **Apply** to write every changed part in the proposal at once (there's no way to apply only part of it), or **Discard** to drop it. Sending a new chat message before applying or discarding also discards the pending proposal — only the latest turn's proposal is ever actionable. **Apply is last-write-wins**: if you've made no other changes since the proposal was returned (guaranteed by the lock below), there's nothing to conflict with.
 
+Occasionally a proposal card shows a highlighted warning row — e.g. a section's proposed content dropped sharply in size compared to what's there today. This is a heads-up, not an error: some AI models (especially smaller or free ones) can truncate long content instead of returning it in full. Use the "show current" comparison to check the proposed content actually looks complete before applying; nothing stops you from applying anyway if it's a legitimate shortening.
+
 **Follow-ups remember the conversation:** Prometheus sees your recent back-and-forth in the same session, not just the instruction you just sent — so "make that shorter" or "no, keep the tone but trim it" refers correctly to what you just discussed. This is dialogue only (your instructions and Prometheus's replies); it never resends a past proposal's actual content — that always comes from the agent's current, real state instead. How many prior messages are kept is admin-configurable (**Chat history turns** in System Settings, default 10). Client-only notices (dry-run/error/cancelled messages) are never included. This history exists only in your browser tab for the current session — it does not persist across a reload.
 
 **Cancellation:** click the ✕ button, or close the tab. Nothing is ever written by the chat call itself — cancelling just stops waiting for a reply that would have produced a proposal, same as any other interrupted request.
@@ -154,7 +156,7 @@ separate buttons, one admin-only; they were merged into this one modal.)
 
 ### Live LLM calls toggle
 
-The **Live LLM calls** toggle controls whether AI calls (import, chat) are actually sent to the Anthropic API.
+The **Live LLM calls** toggle controls whether AI calls (import, chat) are actually sent to whichever AI provider is currently active (Anthropic by default, or a second, OpenAI-compatible provider like NVIDIA NIM if the admin has enabled and selected one).
 
 - **On (default):** normal behavior — AI calls are made, billed, and logged.
 - **Off (dry-run mode):** every AI call is recorded and blocked before any network request is made. No response is produced, no money is spent, and no changes are written to any agent.

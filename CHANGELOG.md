@@ -8,6 +8,41 @@ version of this file, kept locally as historical record — not tracked in git).
 
 ---
 
+## 2026-08-20 — Closed NVIDIA live-call verification TODO; found and fixed a real provider bug along the way
+
+Live-verified the second LLM provider (Plan 11) against a real NVIDIA NIM account —
+the one step Plan 11 had deliberately left undone. Along the way, found and fixed a
+real bug rather than just confirming the happy path:
+
+- **Double-`/v1` path bug:** `openaiCompatibleProvider.ts`'s `COMPLETIONS_PATH`
+  (`/v1/chat/completions`) was being appended to a base URL that — per every real
+  vendor's own documented convention (NVIDIA, OpenAI, Groq all ship `base_url` already
+  ending in `/v1`) — already carried that segment, doubling into
+  `/v1/v1/chat/completions` and 404ing on every live call. Fixed the code to append
+  `/chat/completions` only; updated the architecture fitness test's guarded token to
+  match.
+- **Not every catalog-listed model is callable:** confirmed live that
+  `nvidia/llama-3.1-nemotron-70b-instruct` (the model Plan 11's docs previously
+  recommended) 404s with "Function not found for account" on a free-tier key despite
+  being listed in NVIDIA's `/v1/models` catalog — an account-entitlement gate, a
+  documented pattern on NVIDIA's own developer forums. Replaced the recommended/default
+  model with `meta/llama-3.1-8b-instruct` (confirmed working) in `.env.example`,
+  `README.md`, and the code-level fallback in `lib/env.ts`; documented other
+  confirmed working/broken models for future reference.
+- **Guardrail added:** the same live testing surfaced a real content-corruption case —
+  a small model (`meta/llama-3.1-8b-instruct`) returned structurally valid JSON that
+  truncated a section's content down to a placeholder stub, which the app applied with
+  no warning. Added a purely quantitative "drastic shrink" check to
+  `parsePrometheusResponse()` (warns, never blocks, no text-pattern/keyword matching —
+  this app's own agents are themselves about agents, so keyword heuristics risk false
+  positives) plus an explicit anti-truncation example in Prometheus's own system prompt.
+  The one real agent this happened to (`analyst`) was restored from
+  `section_revision`/`agent_snapshot` history.
+
+Confirmed via `llm_call_log`: a real chat call now completes successfully with
+`provider: 'openaiCompatible'`, the right model, and real usage numbers. `npx tsc
+--noEmit` clean throughout; `npm test`: 68/68 files, 880/880 pass.
+
 ## 2026-08-18 — Closed two Plan 12 TODO checks
 
 **Workbench branding + disclaimer render check:** already covered by the same-day live

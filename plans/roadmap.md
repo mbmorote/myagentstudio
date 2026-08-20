@@ -30,7 +30,6 @@ aren't detailed further, the description here is all there is.
 
 | Item | Kind | Bucket | Status / description |
 |---|---|---|---|
-| **Check: NVIDIA live-call verification (second LLM provider)** | Infra | TODO | Needs API key + spend go-ahead |
 | **Check: MCP server live verification (Plan 13)** | Infra | TODO | Free part not run; billed part needs your OK to spend |
 | **Check: Account "API tokens (MCP access)" panel renders correctly** | UX | TODO | Visual QA, not run yet |
 | **Check: docs review for Plan 11/12/13 topics** | Infra | TODO | Not started |
@@ -116,30 +115,12 @@ goes before it.
 
 | Item | Kind | Status |
 |---|---|---|
-| **Check: NVIDIA live-call verification (second LLM provider)** | Infra | Needs API key + spend go-ahead |
 | **Check: MCP server live verification (Plan 13)** | Infra | Free part not run; billed part needs your OK to spend |
 | **Check: Account "API tokens (MCP access)" panel renders correctly** | UX | Visual QA, not run yet |
 | **Check: docs review for Plan 11/12/13 topics** | Infra | Not started |
 | **Big flow test** | — | Ready to run — needs your OK to spend real Anthropic money |
 | **Production DB backup/restore** | Infra | Not started |
 | **Deploy online** | — | Not started — always last |
-
----
-
-### **Check: NVIDIA live-call verification (second LLM provider)**
-
-**Current state:** Plan 11 shipped 2026-08-15 (`plans/archive/11-second-llm-provider.md`) —
-implementation and all mocked tests pass (53/53). The one step that plan deliberately left
-undone: a real call against NVIDIA NIM to confirm `stream()`/`complete()` work end-to-end and
-`llm_call_log.provider` reads `'openaiCompatible'` after a live call.
-
-**Scope:** Set `OPENAI_COMPATIBLE_API_KEY`/`_BASE_URL`/`_MODEL` in `.env.local`, switch the
-`llmProvider` setting to `openaiCompatible` in `/settings`, send one chat message, confirm a
-log row appears with the right provider/model/usage.
-
-**Effort:** Trivial
-**Blocker:** Needs a real NVIDIA API key + your explicit go-ahead on the spend (standing rule 2)
-**Status:** Not started
 
 ---
 
