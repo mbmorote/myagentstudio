@@ -30,8 +30,6 @@ aren't detailed further, the description here is all there is.
 
 | Item | Kind | Bucket | Status / description |
 |---|---|---|---|
-| **Check: landing page walkthrough UX (ux agent review)** | UX | TODO | 6 of 10 findings fixed 2026-08-17; 1 open (annotations), 1 kept as-is, 1 split out |
-| **Check: Workbench branding + disclaimer render correctly** | UX | TODO | Visual QA, not run yet |
 | **Check: NVIDIA live-call verification (second LLM provider)** | Infra | TODO | Needs API key + spend go-ahead |
 | **Check: MCP server live verification (Plan 13)** | Infra | TODO | Free part not run; billed part needs your OK to spend |
 | **Check: Account "API tokens (MCP access)" panel renders correctly** | UX | TODO | Visual QA, not run yet |
@@ -118,8 +116,6 @@ goes before it.
 
 | Item | Kind | Status |
 |---|---|---|
-| **Check: landing page walkthrough UX (ux agent review)** | UX | 6 of 10 findings fixed 2026-08-17; 1 open (annotations), 1 kept as-is, 1 split out |
-| **Check: Workbench branding + disclaimer render correctly** | UX | Visual QA, not run yet |
 | **Check: NVIDIA live-call verification (second LLM provider)** | Infra | Needs API key + spend go-ahead |
 | **Check: MCP server live verification (Plan 13)** | Infra | Free part not run; billed part needs your OK to spend |
 | **Check: Account "API tokens (MCP access)" panel renders correctly** | UX | Visual QA, not run yet |
@@ -127,78 +123,6 @@ goes before it.
 | **Big flow test** | — | Ready to run — needs your OK to spend real Anthropic money |
 | **Production DB backup/restore** | Infra | Not started |
 | **Deploy online** | — | Not started — always last |
-
----
-
-### **Check: landing page walkthrough UX (ux agent review)**
-
-**Current state:** The `/welcome` landing page's "How it works" walkthrough (4-step
-carousel — Import/See/Edit/Ship it, both the inline card and the "Full view" modal) went
-through real screenshot integration and layout tuning
-(`app/components/Welcome/WelcomePage.tsx` + the kept-in-sync mock
-`architecture/layout/Layout-Landing.html`) on 2026-08-17. The `ux` agent then reviewed
-both files end-to-end (non-technical/client lens) and returned 10 concrete findings.
-6 of 10 fixed same-day; the mobile/responsive one was split out to its own item (see
-"Landing page mobile/responsive support" below) since it's a genuinely bigger, separately
-schedulable piece of work, not a quick pass alongside the others:
-
-- [x] **Inline card height jumps between steps** — fixed: the inline card's text column
-  now has the same fixed `min-height` reservation the modal's already had, so a longer
-  step title/desc no longer pushes the card (and the screenshot inside it) taller.
-- **Control grouping differs between the two views** — reviewed, kept as-is
-  deliberately: the inline card's Previous+Next / Full view / dots split is the intended
-  design, not an oversight.
-- [x] **"01 / 04" counter misaligned in the inline card** — fixed: now centered to match
-  the kicker/title/desc below it, in both files.
-- [x] **Step 4's modal image has no custom crop** — fixed: `fullImageFit`/`fullImagePosition`
-  now set explicitly (still `cover`/`center` — the image was already close enough to 9:5
-  that no zoom was actually needed — but it's now a documented decision, not a silent gap).
-- [x] **Step 4 bundles two actions** ("Review & Export") — fixed: kicker/title reworked
-  to "SHIP IT" / "Approve it, then ship it," one cohesive phrase instead of two nouns
-  bolted together, in both files.
-- [x] **No click-to-enlarge on the screenshot itself** — fixed: the inline card's
-  screenshot frame is now clickable (opens "Full view") with a hover overlay hint, in
-  both files. The existing "Full view" button is unchanged, kept per the control-grouping
-  decision above.
-- [x] **No keyboard support in the modal** — fixed: Escape closes the modal, ←/→ move
-  between steps, in both files.
-- [ ] **No annotation tying copy to screenshot content** — still open. The screenshots
-  are dense real UI captures (chat log, diff view, config panel); a callout/arrow/highlight
-  pointing at the specific part each step's copy describes would help a cold visitor. Bigger
-  than the items above (needs actual design work on the images themselves, not just
-  layout/code) — deferred, not started.
-- [x] **Orphaned file:** `public/welcome/step-2-see-full3.jpg` — deleted, along with the
-  `public/welcome/old/` experimentation folder.
-
-Creative suggestions from the same review (not findings, still optional): make the modal
-image-first (shrink/move the repeated text block so the screenshot is the payoff, not
-buried under copy); consider auto-advancing the inline carousel on a slow timer on first
-visit (pausing on interaction) since it's fully passive today; trim the Structural/Strict
-mode jargon in Step 1's description for a cold landing-page audience.
-
-**Scope:** One item left open (annotations) — pick up whenever, no dependency on
-anything else here.
-
-**Effort:** Trivial remaining (everything Small–Medium already done)
-**Depends on:** None
-**Status:** 6 of 10 findings fixed 2026-08-17; 1 kept as-is by decision; 1 split out to
-its own item; 1 (annotations) still open
-
----
-
-### **Check: Workbench branding + disclaimer render correctly**
-
-**Current state:** The Workbench footer (ProcessMind Solutions mark) and the
-`ConsentPopup.tsx` sensitive-data disclaimer ("Content you enter here is sent to an external
-AI provider — do not paste passwords, API keys, or other sensitive or confidential data.")
-are both built and believed correct, but neither has been opened in a running app since
-shipping.
-
-**Scope:** Log in, trigger `ConsentPopup`, confirm the disclaimer line and the Workbench
-footer both render as expected, both themes.
-
-**Effort:** Trivial
-**Status:** Not started
 
 ---
 

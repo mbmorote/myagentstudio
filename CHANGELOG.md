@@ -8,6 +8,21 @@ version of this file, kept locally as historical record — not tracked in git).
 
 ---
 
+## 2026-08-18 — Closed two Plan 12 TODO checks
+
+**Workbench branding + disclaimer render check:** already covered by the same-day live
+review — the `ConsentPopup.tsx` sensitive-data disclaimer and the Workbench footer
+(ProcessMind Solutions mark) were both confirmed rendering correctly during that pass. The
+roadmap line just hadn't been updated to reflect it; closed with no further action needed.
+
+**Landing walkthrough UX — annotation finding:** the `ux` agent's 2026-08-17 review flagged
+that the walkthrough's real-UI screenshots had no callout/arrow tying specific copy claims
+(e.g. "every proposed change shows as a diff") to the exact region of a dense screenshot
+that demonstrates them. Decided not to build: the screenshots are already tightly cropped
+per-step to match their copy, which does the same job well enough — drawing overlay
+annotations on top isn't worth the time right now. Closes the item; the other 9 of 10
+findings from that review were already fixed 2026-08-17.
+
 ## 2026-08-18 — Synced public docs with Plan 12's shipped changes
 
 `docs/user-guide.md` and `docs/system-about.md` still described the pre-Plan-12 world in
