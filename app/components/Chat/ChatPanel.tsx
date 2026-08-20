@@ -109,6 +109,14 @@ interface ChatPanelProps {
   isApplying?: boolean;
   onApplyProposal?: () => Promise<void>;
   onDiscardProposal?: () => void;
+  /**
+   * Gates the dry-run notice's "View log entry" link — /settings?log=<id> is an
+   * admin-only route (app/settings/page.tsx redirects non-admins to /), so
+   * showing this link to a regular user would be a dead link, not a smaller
+   * feature (found 2026-08-20 during the Plan 12 docs review; ActivityLogPane.tsx's
+   * own Permalink link already gates the same way for the same reason).
+   */
+  isAdmin: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -180,6 +188,7 @@ export function ChatPanel({
   isApplying,
   onApplyProposal,
   onDiscardProposal,
+  isAdmin,
 }: ChatPanelProps) {
   const [instruction, setInstruction] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -739,12 +748,16 @@ export function ChatPanel({
                 {msg.role === 'assistant' && msg.dryRunLogId !== undefined && (
                   <div className="mt-[6px] text-[11px] text-[var(--muted)]">
                     {msg.dryRunLogId ? (
-                      <Link
-                        href={`/settings?log=${msg.dryRunLogId}`}
-                        className="text-[var(--accent)] hover:underline"
-                      >
-                        View log entry →
-                      </Link>
+                      isAdmin ? (
+                        <Link
+                          href={`/settings?log=${msg.dryRunLogId}`}
+                          className="text-[var(--accent)] hover:underline"
+                        >
+                          View log entry →
+                        </Link>
+                      ) : (
+                        <span className="text-[var(--faint)]">Recorded in the activity log — see ⚙ Settings → Activity log.</span>
+                      )
                     ) : (
                       <span className="text-[var(--faint)]">(log entry could not be written)</span>
                     )}

@@ -32,7 +32,7 @@ aren't detailed further, the description here is all there is.
 |---|---|---|---|
 | **Check: MCP server live verification (Plan 13)** | Infra | TODO | Free part not run; billed part needs your OK to spend |
 | **Check: Account "API tokens (MCP access)" panel renders correctly** | UX | TODO | Visual QA, not run yet |
-| **Check: docs review for Plan 11/12/13 topics** | Infra | TODO | Not started |
+| **Check: docs review for Plan 11/12/13 topics** | Infra | TODO | Plan 11/12 topics done 2026-08-20; Plan 13 topics still pending |
 | **Big flow test** |  | TODO | Ready to run — needs your OK to spend real Anthropic money |
 | **Production DB backup/restore** | Infra | TODO | Not started |
 | **Deploy online** |  | TODO | Not started — always last |
@@ -117,7 +117,7 @@ goes before it.
 |---|---|---|
 | **Check: MCP server live verification (Plan 13)** | Infra | Free part not run; billed part needs your OK to spend |
 | **Check: Account "API tokens (MCP access)" panel renders correctly** | UX | Visual QA, not run yet |
-| **Check: docs review for Plan 11/12/13 topics** | Infra | Not started |
+| **Check: docs review for Plan 11/12/13 topics** | Infra | Plan 11/12 topics done 2026-08-20; Plan 13 topics still pending |
 | **Big flow test** | — | Ready to run — needs your OK to spend real Anthropic money |
 | **Production DB backup/restore** | Infra | Not started |
 | **Deploy online** | — | Not started — always last |
@@ -166,31 +166,48 @@ the active list. Both themes.
 
 ### **Check: docs review for Plan 11/12/13 topics**
 
-**Current state:** Not started. Plans 11 (second LLM provider), 12 (pre-login landing page +
-access-request signup), and 13 (MCP server) all shipped in quick succession on the same day
-(2026-08-15), each doing its own docs pass over largely the same set of files —
+**Current state:** Plan 11 and Plan 12's slices both done 2026-08-20. Plan 13's slice is
+still outstanding. Original context: Plans 11 (second LLM provider), 12 (pre-login landing
+page + access-request signup), and 13 (MCP server) all shipped in quick succession on the
+same day (2026-08-15), each doing its own docs pass over largely the same set of files —
 `docs/system-about.md`, `docs/user-guide.md`, `docs/project-explanation.md`,
 `docs/roadmap.md`, `README.md`, `CHANGELOG.md`, and several `CLAUDE.md` files
 (`lib/ai/`, `lib/auth/`, `lib/db/`, plus the new `lib/mcp/`). Each pass checked its own
 addition was accurate at the time, but none of the three checked the *others'* additions for
 staleness, redundancy, or drift once the later plans landed on top.
 
-**Scope:** A single read-through pass across the doc set above with all three plans' topics
-in mind at once (not three separate passes) — check for:
+**Plan 11 findings (fixed 2026-08-20):** `lib/ai/CLAUDE.md` and `docs/system-about.md` both
+still described the buggy `/v1/chat/completions` double-append (found and fixed the same day
+via live NVIDIA testing) instead of the corrected `/chat/completions`-appended-to-a-`/v1`-
+carrying-base-URL behavior. `docs/user-guide.md` said Live LLM calls "sends to the Anthropic
+API," stale once a second provider exists. `docs/roadmap.md` still listed the second provider
+under "Coming Next" pending live verification, which is now done.
+
+**Plan 12 findings (fixed 2026-08-20):** not just stale wording this time — a real functional
+gap. `ChatPanel.tsx`/`ImportDialog.tsx`'s dry-run notices showed a "View log entry →" link
+unconditionally, but its target (`/settings?log=<id>`) is an admin-only route that redirects
+a non-admin session away — a dead link for every regular user, silently broken since the
+Preferences-modal merge. `ActivityLogPane.tsx`'s own equivalent Permalink link had already
+been correctly gated `isAdmin`-only; the older call sites just never got the same fix. Now
+gated the same way, threaded from `WorkbenchShell.tsx`'s existing `session` prop.
+`docs/user-guide.md`'s "Deep links" paragraph corrected to describe the actual (admin-only)
+behavior. `docs/project-explanation.md` checked — no Plan 12 mentions, nothing stale.
+
+**Scope (Plan 13 remainder):** A single read-through pass across the doc set above with
+Plan 13's topics in mind — check for:
 - Facts that were true when written but are now stale (e.g. a "not yet built" note for
   something a later plan actually built).
 - Redundant or near-duplicate explanations of the same fact across two files, drifting out
   of sync with each other (violates the project's own one-fact-one-home principle,
   `CLAUDE.md` standing rule 6).
-- Anything a later plan's docs pass should have touched but didn't (e.g. a "known gaps"
-  bullet Plan 13 made obsolete, or a settings table Plan 11 or 12 should have extended).
+- Anything Plan 13's own docs pass should have touched but didn't (e.g. a "known gaps"
+  bullet it made obsolete elsewhere).
 - Overall narrative coherence — do `docs/system-about.md` and `docs/project-explanation.md`
-  in particular still read as one coherent system description, not three bolted-on sections.
+  in particular still read as one coherent system description, not bolted-on sections.
 
-**Effort:** Small–Medium (a focused read, not a rewrite — fix what's actually wrong or stale,
-don't restructure what already reads fine)
+**Effort:** Small (Plan 13 is the last and smallest of the three slices)
 **Depends on:** None
-**Status:** Not started
+**Status:** Plan 11/12 done 2026-08-20; Plan 13 not started
 
 ---
 

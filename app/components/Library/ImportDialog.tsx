@@ -43,6 +43,14 @@ import { apiFetch } from '@/lib/apiFetch';
 interface ImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Gates the dry-run notice's "View log entry" link — /settings?log=<id> is an
+   * admin-only route (app/settings/page.tsx redirects non-admins to /), so
+   * showing this link to a regular user would be a dead link, not a smaller
+   * feature (found 2026-08-20 during the Plan 12 docs review; ActivityLogPane.tsx's
+   * own Permalink link already gates the same way for the same reason).
+   */
+  isAdmin: boolean;
 }
 
 type ImportMode = 'structural' | 'strict';
@@ -91,7 +99,7 @@ function humanizeSecs(secs: number): string {
   return `${m} minute${m !== 1 ? 's' : ''}`;
 }
 
-export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
+export function ImportDialog({ open, onOpenChange, isAdmin }: ImportDialogProps) {
   const [mdText, setMdText] = useState('');
   const [mode, setMode] = useState<ImportMode>('structural');
   const [submitting, setSubmitting] = useState(false);
@@ -360,14 +368,18 @@ export function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
               <p>
                 The import was recorded but not sent — no changes were made.{' '}
                 {dryRunBlock.logId ? (
-                  <a
-                    href={`/settings?log=${dryRunBlock.logId}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[var(--accent)] hover:underline"
-                  >
-                    View log entry →
-                  </a>
+                  isAdmin ? (
+                    <a
+                      href={`/settings?log=${dryRunBlock.logId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[var(--accent)] hover:underline"
+                    >
+                      View log entry →
+                    </a>
+                  ) : (
+                    <span className="text-[var(--faint)]">Recorded in the activity log — see ⚙ Settings → Activity log.</span>
+                  )
                 ) : (
                   <span className="text-[var(--faint)]">(log entry could not be written)</span>
                 )}

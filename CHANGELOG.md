@@ -8,6 +8,27 @@ version of this file, kept locally as historical record — not tracked in git).
 
 ---
 
+## 2026-08-20 — Closed Plan 12's docs-review slice; fixed a dead link for non-admin users
+
+Docs-review pass for Plan 12's topics (the second and third of the roadmap's
+"docs review for Plan 11/12/13" TODO item, following Plan 11's slice earlier the
+same day) surfaced a real functional gap, not just stale wording: `ChatPanel.tsx`
+and `ImportDialog.tsx`'s dry-run notices both showed a "View log entry →" link
+unconditionally, pointing at `/settings?log=<id>` — but that route
+(`app/settings/page.tsx`) is admin-only and redirects any non-admin session to `/`.
+For a regular user, the link silently failed. The Preferences modal's own
+`ActivityLogPane.tsx` had already handled this correctly (its Permalink button is
+admin-only-shown, by design, for exactly this reason) — the fix just hadn't been
+applied to these two older call sites.
+
+Fixed: both links are now gated to `isAdmin`, threaded down from `WorkbenchShell.tsx`'s
+existing `session` prop (`ChatPanel` directly; `ImportDialog` via
+`LibraryPanel` → `ImportButton`). A non-admin now sees a plain note pointing at their
+own Activity log category instead of a dead link. `docs/user-guide.md`'s "Deep links"
+paragraph updated to describe the admin-only behavior accurately.
+`docs/project-explanation.md` checked — no Plan 12 mentions, nothing stale.
+`npx tsc --noEmit` clean; `npm test`: 68/68 files, 880/880 pass.
+
 ## 2026-08-20 — Closed NVIDIA live-call verification TODO; found and fixed a real provider bug along the way
 
 Live-verified the second LLM provider (Plan 11) against a real NVIDIA NIM account —

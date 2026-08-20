@@ -57,6 +57,8 @@ interface LibraryPanelProps {
    * passed down here read-only.
    */
   mode: 'flat' | 'grouped';
+  /** Threaded to ImportButton → ImportDialog to gate the dry-run notice's admin-only log link. */
+  isAdmin: boolean;
 }
 
 // Group behavior deferred 2026-08-07 at the user's request (pre-launch scope cut, alongside
@@ -69,6 +71,7 @@ export function LibraryPanel({
   agents: initialAgents,
   groups: initialGroups,
   mode,
+  isAdmin,
 }: LibraryPanelProps) {
   const [agents, setAgents] = useState<AgentLiteDTO[]>(initialAgents);
   const [groups, setGroups] = useState<GroupDTO[]>(initialGroups);
@@ -318,7 +321,7 @@ export function LibraryPanel({
           )
         )}
 
-        <ImportButton />
+        <ImportButton isAdmin={isAdmin} />
       </div>
 
       {/* Drag overlay — shows agent name while dragging */}

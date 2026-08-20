@@ -11,7 +11,7 @@
 import { useState } from 'react';
 import { ImportDialog } from '@/app/components/Library/ImportDialog';
 
-export function ImportButton() {
+export function ImportButton({ isAdmin }: { isAdmin: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -22,7 +22,7 @@ export function ImportButton() {
       >
         ⇪ Import agent
       </div>
-      <ImportDialog open={open} onOpenChange={setOpen} />
+      <ImportDialog open={open} onOpenChange={setOpen} isAdmin={isAdmin} />
     </>
   );
 }

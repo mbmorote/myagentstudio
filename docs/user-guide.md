@@ -211,7 +211,7 @@ A log row whose content is private shows a "content hidden" marker in the activi
 
 You can filter the log by **All / Dry-run / Live** using the buttons above the table.
 
-**Deep links:** the notices shown in `ImportDialog` and `ChatPanel` after a dry-run block include a "View log entry →" link that opens `/settings?log=<id>`, which scrolls directly to and highlights that row in the activity log.
+**Deep links (admin only):** the notices shown in `ImportDialog` and `ChatPanel` after a dry-run block include a "View log entry →" link, for the admin, that opens `/settings?log=<id>` and scrolls directly to and highlights that row in the activity log — this is a separate, older full-page view, still admin-gated. A regular user sees a plain note instead ("Recorded in the activity log — see ⚙ Settings → Activity log") and finds the same row by opening the Activity log category themselves, since the deep-link target isn't reachable for a non-admin session (fixed 2026-08-20 — it previously showed the same link to everyone, which redirected a regular user away with nothing to show).
 
 ---
 

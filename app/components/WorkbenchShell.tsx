@@ -305,6 +305,7 @@ export function WorkbenchShell({
                 agents={agents}
                 groups={groups}
                 mode={libraryMode}
+                isAdmin={session.role === 'admin'}
               />
             </Panel>
             <Gutter
@@ -394,6 +395,7 @@ export function WorkbenchShell({
                 agentId={agent.id}
                 agentName={agent.name}
                 agent={agent}
+                isAdmin={session.role === 'admin'}
                 interactionLock={effectiveLock}
                 citedItems={citedItems}
                 onRemoveCite={removeCite}
