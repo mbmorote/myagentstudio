@@ -134,11 +134,13 @@ export function getOpenAICompatibleBaseUrl(): string {
 
 /**
  * Returns the configured model ID for the OpenAI-compatible provider.
- * Defaults to nvidia/llama-3.1-nemotron-70b-instruct, a widely available
- * NVIDIA NIM model. Override with OPENAI_COMPATIBLE_MODEL.
+ * Defaults to meta/llama-3.1-8b-instruct — confirmed callable on a real NVIDIA
+ * NIM free-tier account (2026-08-20; see .env.example for other confirmed-working
+ * options and why not every catalog-listed model is actually callable). Override
+ * with OPENAI_COMPATIBLE_MODEL.
  */
 export function getOpenAICompatibleModel(): string {
-  return process.env.OPENAI_COMPATIBLE_MODEL ?? 'nvidia/llama-3.1-nemotron-70b-instruct';
+  return process.env.OPENAI_COMPATIBLE_MODEL ?? 'meta/llama-3.1-8b-instruct';
 }
 
 /**

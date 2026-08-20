@@ -43,10 +43,10 @@ To enable a second LLM provider (OpenAI-compatible, e.g. NVIDIA NIM, OpenAI, Gro
 ```
 OPENAI_COMPATIBLE_API_KEY=<your-key>
 OPENAI_COMPATIBLE_BASE_URL=https://integrate.api.nvidia.com/v1
-OPENAI_COMPATIBLE_MODEL=nvidia/llama-3.1-nemotron-70b-instruct
+OPENAI_COMPATIBLE_MODEL=meta/llama-3.1-8b-instruct
 ```
 
-All three vars must be set together to enable the provider. Switch between providers from **System Settings** (admin only) — no restart needed. See `.env.example` for more vendor examples.
+All three vars must be set together to enable the provider. Switch between providers from **System Settings** (admin only) — no restart needed. See `.env.example` for more vendor examples and notes on which NVIDIA NIM models are actually callable on a free-tier key (not every model listed in NVIDIA's catalog is — see `.env.example`).
 
 Start the dev server:
 

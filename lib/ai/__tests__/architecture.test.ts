@@ -13,7 +13,7 @@
  *   getClient(           → anthropicProvider.ts only
  *   .messages.create(    → anthropicProvider.ts only
  *   .messages.stream(    → anthropicProvider.ts only
- *   /v1/chat/completions → openaiCompatibleProvider.ts only
+ *   /chat/completions → openaiCompatibleProvider.ts only
  *     (guards the OpenAI-compatible endpoint path so a future provider cannot
  *     quietly re-open the transport without registering itself properly)
  *
@@ -77,7 +77,7 @@ const SOLE_OWNER_TABLE: Array<{ token: string; owner: string; description: strin
   { token: '.messages.create(',     owner: 'anthropicProvider.ts', description: 'Anthropic .messages.create()' },
   { token: '.messages.stream(',     owner: 'anthropicProvider.ts', description: 'Anthropic .messages.stream()' },
   {
-    token: '/v1/chat/completions',
+    token: '/chat/completions',
     owner: 'openaiCompatibleProvider.ts',
     description: 'OpenAI-compatible completions path',
   },

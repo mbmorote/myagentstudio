@@ -3,8 +3,10 @@ import 'server-only';
 /**
  * lib/ai/openaiCompatibleProvider.ts
  *
- * LLMProvider implementation for any OpenAI-compatible endpoint
- * (/v1/chat/completions wire format). Configured entirely by environment
+ * LLMProvider implementation for any OpenAI-compatible endpoint (the
+ * .../chat/completions wire format, appended to a caller-supplied base URL
+ * that already carries the vendor's version segment — see COMPLETIONS_PATH
+ * below). Configured entirely by environment
  * variables — the file has no vendor identity. Pointing it at NVIDIA NIM
  * is three env vars, not a code change.
  *
@@ -28,7 +30,7 @@ import 'server-only';
  *     including request headers (constraint 7 — no credential in any log line).
  *
  * This file is the ONLY file permitted to construct requests against the
- * /v1/chat/completions path. Enforced by the architecture fitness function
+ * chat-completions path. Enforced by the architecture fitness function
  * (lib/ai/__tests__/architecture.test.ts).
  *
  * Does NOT: log, gate, or know about kind/agentId/settings/lib/db.
@@ -55,11 +57,19 @@ import type { LLMProvider, LlmResponse, LlmStopReason, ResolvedLlmRequest } from
 const MAX_OUTPUT_TOKENS = 4096;
 
 /**
- * The URL path that uniquely identifies this transport.
+ * The URL path that uniquely identifies this transport, appended to
+ * OPENAI_COMPATIBLE_BASE_URL as-is. The base URL is expected to already carry
+ * the vendor's version segment, matching how every real OpenAI-compatible
+ * vendor documents its own base_url (e.g. NVIDIA NIM:
+ * https://integrate.api.nvidia.com/v1, OpenAI: https://api.openai.com/v1,
+ * Groq: https://api.groq.com/openai/v1) — appending '/v1/chat/completions'
+ * here on top of an already-versioned base URL doubles the segment into
+ * '/v1/v1/chat/completions' and 404s (found live, 2026-08-20).
+ *
  * Guarded by the architecture fitness function so this is the sole file
  * that ever constructs an OpenAI-compatible chat completion request.
  */
-const COMPLETIONS_PATH = '/v1/chat/completions';
+const COMPLETIONS_PATH = '/chat/completions';
 
 // ─────────────────────────────  Helpers  ──────────────────────────────────────
 
