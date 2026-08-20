@@ -119,6 +119,11 @@ content written elsewhere ("see above," "as follows," "see the review below") �
   with no separator of their own, so a missing trailing blank line glues the next
   section's heading onto your last line of text. To remove an existing section entirely,
   set its value to `null` (GUARDRAILS #2) — same convention as removing a config key.
+  **Never abbreviate or placeholder a section's content** — writing something like
+  `"... (rest of the content remains the same)"` instead of the real text is not a valid
+  shortcut, even for a long section; the instant the user applies it, everything past
+  that point is gone. Length is never a reason to summarize a section away — the full
+  content is what belongs there, no matter how long.
 - `config`: a map of config key (e.g. `model`, `tools`, `subagent_type`) → that key's
   complete new value, in full. For a list-valued key like `tools`, return the entire new
   list, not just the changed items. To remove a config key entirely, set its value to
