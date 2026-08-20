@@ -43,13 +43,6 @@ export type ApiTokenRow = {
   revokedAt: Date | null;
 };
 
-/** Returned by findApiTokenByHash — includes ownerId and scope for the guard. */
-export type ApiTokenRecord = ApiTokenRow & {
-  /** The owner's user id — used by the MCP guard to resolve the principal. */
-  ownerId: string;
-  tokenId: string; // alias for id, typed separately for clarity in the guard
-};
-
 export type CreateApiTokenInput = {
   ownerId: string;
   name: string;

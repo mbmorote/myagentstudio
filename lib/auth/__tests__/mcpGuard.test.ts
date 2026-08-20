@@ -3,7 +3,7 @@
  *
  * Tests for lib/auth/mcpGuard.ts (Plan 13 §5.3).
  *
- * Mocks the repository lookup (findApiTokenByHash / touchApiTokenLastUsed) and the
+ * Mocks the repository barrel (findApiTokenByHash / touchApiTokenLastUsed) and the
  * rate limiter (checkRateLimitByKey) — the two seams mcpGuard.ts calls out to.
  *
  * Cases:
@@ -11,7 +11,10 @@
  *     all 401, and all produce the SAME body (no oracle distinguishing "revoked"
  *     from "never existed")
  *   - Valid token → principal carries the right userId/scope and NO role field at all
- *   - Rate limiter: exceeding it → 429 + Retry-After; a different token is unaffected
+ *   - Rate limiter: exceeding it → 429 + Retry-After (both the pre-lookup IP-keyed
+ *     check and the post-lookup per-token check); a request under the limit is
+ *     unaffected
+ *   - touchApiTokenLastUsed fires on a stale/null lastUsedAt, is skipped when recent
  *   - No log line or error body contains the presented token's plaintext
  */
 
@@ -36,7 +39,7 @@ let mockRecord: MockTokenRecord | null = null;
 let mockRateLimitResult: null | { retryAfterSeconds: number } = null;
 const touchCalls: string[] = [];
 
-vi.mock('../../db/repository/apiTokens.js', () => ({
+vi.mock('../../db/repository/index.js', () => ({
   findApiTokenByHash: vi.fn(() => mockRecord),
   touchApiTokenLastUsed: vi.fn((id: string) => { touchCalls.push(id); }),
 }));
@@ -176,11 +179,33 @@ describe('authenticateMcpToken — success', () => {
     await authenticateMcpToken(makeRequest(`Bearer ${plaintext}`));
     expect(touchCalls).toContain('tok-2');
   });
+
+  it('skips the touch write when lastUsedAt was updated within the last 5 minutes', async () => {
+    mockRecord = {
+      id: 'tok-5', tokenId: 'tok-5', ownerId: 'user-1', name: 'x', prefix: 'mya_xxxx',
+      scope: 'read', createdAt: new Date(), lastUsedAt: new Date(),
+      expiresAt: null, revokedAt: null,
+    };
+    const { plaintext } = generateApiToken();
+    await authenticateMcpToken(makeRequest(`Bearer ${plaintext}`));
+    expect(touchCalls).not.toContain('tok-5');
+  });
 });
 
 // ── Rate limiting ────────────────────────────────────────────────────────────────
 
 describe('authenticateMcpToken — rate limiting', () => {
+  it('an invalid/unknown token still gets rate-limited (IP check runs before lookup)', async () => {
+    mockRecord = null; // unknown token — would 401 if the IP check didn't fire first
+    mockRateLimitResult = { retryAfterSeconds: 7 };
+    const { plaintext } = generateApiToken();
+    const result = await authenticateMcpToken(makeRequest(`Bearer ${plaintext}`));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.response.status).toBe(429);
+    expect(result.response.headers.get('Retry-After')).toBe('7');
+  });
+
   it('rate-limited → 429 with Retry-After', async () => {
     mockRecord = {
       id: 'tok-3', tokenId: 'tok-3', ownerId: 'user-1', name: 'x', prefix: 'mya_xxxx',

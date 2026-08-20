@@ -52,13 +52,18 @@ const PUBLIC_PATHS = new Set([
   '/api/auth/signup',
   '/api/auth/logout',
   '/api/auth/request-access',
-  // Plan 13 (2026-08-15) — MCP server. A console MCP client authenticates with a
-  // per-user bearer token (Authorization header), never the session cookie this
-  // middleware checks, so the cookie gate here would reject every legitimate MCP
-  // request. Bypassing it is safe by this file's own stated design: middleware is
-  // NOT the authorization boundary — app/api/mcp/route.ts independently calls
-  // authenticateMcpToken() on every request and rejects with 401 on its own if the
-  // bearer token is missing, unknown, revoked, or expired.
+]);
+
+// Plan 13 (2026-08-15) — MCP server. NOT unauthenticated: a console MCP client
+// authenticates with a per-user bearer token (Authorization header), never the session
+// cookie this middleware checks, so the cookie gate here would reject every legitimate
+// MCP request. Bypassing it is safe by this file's own stated design: middleware is NOT
+// the authorization boundary — app/api/mcp/route.ts independently calls
+// authenticateMcpToken() on every request and rejects with 401 on its own if the bearer
+// token is missing, unknown, revoked, or expired. Kept separate from PUBLIC_PATHS so
+// this set never reads as "no auth required" — every path here still authenticates
+// itself downstream, just not via cookie.
+const ALTERNATE_AUTH_PATHS = new Set([
   '/api/mcp',
 ]);
 
@@ -81,7 +86,11 @@ const PUBLIC_PATH_PREFIXES = ['/api/auth/oauth/', '/welcome/'];
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
 
-  if (PUBLIC_PATHS.has(pathname) || PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))) {
+  if (
+    PUBLIC_PATHS.has(pathname) ||
+    ALTERNATE_AUTH_PATHS.has(pathname) ||
+    PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))
+  ) {
     // If the user already has a valid session, bounce them away from /login and /signup
     if (pathname === '/login' || pathname === '/signup') {
       const token = request.cookies.get(SESSION_COOKIE)?.value;

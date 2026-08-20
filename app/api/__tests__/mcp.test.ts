@@ -107,10 +107,22 @@ beforeAll(() => {
   });
 });
 
+// Each request gets its own x-forwarded-for so the guard's IP-keyed rate limiter (a
+// real, unmocked, module-level store — see mcpGuard.ts step 2) never accumulates
+// across this file's ~14 requests and falsely trips a 429 in an unrelated test, same
+// pattern as auth.test.ts's nextLoginIp()/nextSignupIp().
+let mcpIpCounter = 1;
+function nextMcpIp(): string { return `10.0.0.${mcpIpCounter++}`; }
+
 function jsonRpcRequest(body: unknown, extraHeaders: Record<string, string> = {}): Request {
   return new Request('http://localhost/api/mcp', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...extraHeaders },
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json, text/event-stream',
+      'x-forwarded-for': nextMcpIp(),
+      ...extraHeaders,
+    },
     body: JSON.stringify(body),
   });
 }
@@ -201,7 +213,12 @@ describe('POST /api/mcp — malformed JSON-RPC', () => {
   it('invalid JSON body → a protocol-level error, not a 500', async () => {
     const req = new Request('http://localhost/api/mcp', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${tokenPlaintext}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        Authorization: `Bearer ${tokenPlaintext}`,
+        'x-forwarded-for': nextMcpIp(),
+      },
       body: '{not valid json',
     });
     const res = await mcpPOST(req);
@@ -240,7 +257,12 @@ function importAgentRpc(name: string, id: number): unknown {
 function bearerRequest(plaintext: string, body: unknown): Request {
   return new Request('http://localhost/api/mcp', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${plaintext}` },
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json, text/event-stream',
+      Authorization: `Bearer ${plaintext}`,
+      'x-forwarded-for': nextMcpIp(),
+    },
     body: JSON.stringify(body),
   });
 }

@@ -151,17 +151,15 @@ async function runStructuralPipeline(
       ? rawName[0]
       : '';
 
-  if (agentName) {
-    const snapshotInfo = getAgentSnapshotInfo(agentName, userId);
-    if (snapshotInfo && snapshotInfo.rawSourceSnapshot === rawMd) {
-      // Byte-identical — skip the AI call entirely (free, and stops a looping client
-      // from spending — §5.5).
-      const dto = getAgentFull(snapshotInfo.id, userId);
-      if (dto) return { ok: true, agent: dto, skipped: 'unchanged' };
-    }
+  const snapshotInfo = agentName ? getAgentSnapshotInfo(agentName, userId) : null;
+  if (snapshotInfo && snapshotInfo.rawSourceSnapshot === rawMd) {
+    // Byte-identical — skip the AI call entirely (free, and stops a looping client
+    // from spending — §5.5).
+    const dto = getAgentFull(snapshotInfo.id, userId);
+    if (dto) return { ok: true, agent: dto, skipped: 'unchanged' };
   }
 
-  const agentId = agentName ? (getAgentSnapshotInfo(agentName, userId)?.id ?? null) : null;
+  const agentId = snapshotInfo?.id ?? null;
   const sectionDefs = getSectionDefs('claude');
 
   let restructuredBody: string;
