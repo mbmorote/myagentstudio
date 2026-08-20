@@ -209,6 +209,7 @@ export async function callPrometheus(
     input.splitLevel,
     input.citedSectionKeys,
     input.citedConfigKeys,
+    input.sections,
   );
 }
 
@@ -314,12 +315,16 @@ function buildUserMessage(input: PrometheusInput, blueprint: string): string {
  * @param splitLevel       Agent's split level — used for section demotion (§4.4)
  * @param citedSectionKeys When set+non-empty: only these section keys pass the filter
  * @param citedConfigKeys  When set+non-empty: only these config keys pass the filter
+ * @param currentSections  Optional — the section content shown to the model, used only
+ *   to warn (never drop) on a drastic size shrink (isDrasticShrink). Omit to skip the
+ *   check entirely; existing call sites are unaffected.
  */
 export function parsePrometheusResponse(
   responseText: string,
   splitLevel: number,
   citedSectionKeys?: string[],
   citedConfigKeys?: string[],
+  currentSections?: { sectionKey: string; content: string }[],
 ): PrometheusProposal {
   const warnings: string[] = [];
 
@@ -468,7 +473,17 @@ export function parsePrometheusResponse(
           continue;
         }
         // Split-level demotion at propose time (§4.4)
-        sectionMap[key] = demoteSplitLevelHeadings(value, splitLevel);
+        const demoted = demoteSplitLevelHeadings(value, splitLevel);
+        sectionMap[key] = demoted;
+
+        // Drastic-shrink guard — quantitative only, warns but never drops (§ guardrail,
+        // added 2026-08-20 after a live case truncated a section to a placeholder stub).
+        const current = currentSections?.find((s) => s.sectionKey === key);
+        if (current && isDrasticShrink(demoted, current.content)) {
+          warnings.push(
+            `Section "${key}"'s proposed content dropped from ${current.content.length} to ${demoted.length} characters — review carefully before applying.`,
+          );
+        }
       }
 
       if (Object.keys(sectionMap).length > 0) {
@@ -655,4 +670,23 @@ export function deriveHeadingForNewSection(
   const words = sectionKey.replace(/[-_]+/g, ' ').trim().toUpperCase();
   const label = words || sectionKey.toUpperCase();
   return '#'.repeat(Math.max(1, splitLevel)) + ' ' + label;
+}
+
+// ─────────────────────────────  Drastic-shrink guard  ─────────────────────────
+
+const MIN_CONTENT_LENGTH_TO_CHECK = 200;
+const SHRINK_RATIO_THRESHOLD = 0.3;
+
+/**
+ * True when newContent is a drastic size drop from oldContent — a purely
+ * quantitative check (character-count ratio only, no wording inspection).
+ * Deliberately avoids any text-pattern/keyword matching: this project's agents
+ * are themselves about agents, so real content can legitimately contain any
+ * phrasing a keyword heuristic might otherwise treat as suspicious — found live
+ * 2026-08-20 when a small model's response dropped a ~5,000-character section to
+ * 127 characters (a real truncation), which this check exists to flag.
+ */
+export function isDrasticShrink(newContent: string, oldContent: string): boolean {
+  if (oldContent.length <= MIN_CONTENT_LENGTH_TO_CHECK) return false;
+  return newContent.length < oldContent.length * SHRINK_RATIO_THRESHOLD;
 }

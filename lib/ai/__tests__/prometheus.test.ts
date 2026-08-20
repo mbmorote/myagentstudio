@@ -434,3 +434,68 @@ describe('parsePrometheusResponse — warnings', () => {
     expect(result.warnings.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+// ─────────────────────────────  Drastic-shrink guard  ─────────────────────────
+
+describe('parsePrometheusResponse — drastic-shrink guard (currentSections, quantitative only)', () => {
+  it('warns when a section drops to a small fraction of its prior length, real content still applied', () => {
+    const oldContent = 'A'.repeat(5000);
+    const newContent = 'B'.repeat(127);
+    const raw = JSON.stringify({
+      message: 'ok',
+      modifications: { sections: { behavior: newContent } },
+    });
+    const result = parsePrometheusResponse(raw, 1, undefined, undefined, [
+      { sectionKey: 'behavior', content: oldContent },
+    ]);
+    expect(result.modifications.sections?.behavior).toBe(newContent);
+    expect(result.warnings.some((w) => /behavior.*dropped from 5000 to 127/i.test(w))).toBe(true);
+  });
+
+  it('does not warn on a moderate shrink (confirms the threshold, not "any shrink")', () => {
+    const oldContent = 'A'.repeat(1000);
+    const newContent = 'B'.repeat(500); // 50% — above the 30% threshold
+    const raw = JSON.stringify({
+      message: 'ok',
+      modifications: { sections: { behavior: newContent } },
+    });
+    const result = parsePrometheusResponse(raw, 1, undefined, undefined, [
+      { sectionKey: 'behavior', content: oldContent },
+    ]);
+    expect(result.warnings.filter((w) => /dropped from/i.test(w))).toHaveLength(0);
+  });
+
+  it('does not warn when the prior content was already trivially short (under the floor)', () => {
+    const oldContent = 'short'; // well under MIN_CONTENT_LENGTH_TO_CHECK
+    const newContent = '';
+    const raw = JSON.stringify({
+      message: 'ok',
+      modifications: { sections: { behavior: newContent } },
+    });
+    const result = parsePrometheusResponse(raw, 1, undefined, undefined, [
+      { sectionKey: 'behavior', content: oldContent },
+    ]);
+    expect(result.warnings.filter((w) => /dropped from/i.test(w))).toHaveLength(0);
+  });
+
+  it('does not warn or crash when currentSections is omitted (back-compat with existing call sites)', () => {
+    const raw = JSON.stringify({
+      message: 'ok',
+      modifications: { sections: { behavior: 'x'.repeat(10) } },
+    });
+    const result = parsePrometheusResponse(raw, 1);
+    expect(result.modifications.sections?.behavior).toBe('x'.repeat(10));
+    expect(result.warnings.filter((w) => /dropped from/i.test(w))).toHaveLength(0);
+  });
+
+  it('does not warn for a brand-new section absent from currentSections (an add, not a shrink)', () => {
+    const raw = JSON.stringify({
+      message: 'ok',
+      modifications: { sections: { 'new-section': 'x'.repeat(10) } },
+    });
+    const result = parsePrometheusResponse(raw, 1, undefined, undefined, [
+      { sectionKey: 'behavior', content: 'A'.repeat(5000) },
+    ]);
+    expect(result.warnings.filter((w) => /dropped from/i.test(w))).toHaveLength(0);
+  });
+});
