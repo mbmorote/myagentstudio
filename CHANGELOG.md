@@ -7,6 +7,17 @@ status. For full blow-by-blow detail behind any entry below, see the referenced 
 
 ---
 
+## 2026-08-24 — Added AGPL-3.0 LICENSE + README license/contributing sections (Plan 01 step 3)
+
+Added `LICENSE`: the full AGPL-3.0 text pulled verbatim from `gnu.org/licenses/agpl-3.0.txt`
+rather than reproduced from memory, to guarantee an exact legal document — left completely
+unmodified, FSF copyright notice and all. README gained two new sections: **License** (one
+sentence naming AGPL-3.0 with a link, one sentence noting commercial licensing is available
+on request, plus the `Copyright (C) 2026 ProcessMind Solutions` line) and **Contributing**
+(issues/small PRs welcome, larger contributions need prior discussion — the why is inline:
+that discretion is what keeps the commercial-licensing option meaningful for a sole
+copyright holder).
+
 ## 2026-08-24 — Full-history leak scan (Plan 01 step 2): scrubbed personal data from all 93 commits
 
 The pre-publish plan's one irreversible-publish check (public-repo Plan 01, step 2) — scan

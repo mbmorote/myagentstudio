@@ -132,3 +132,13 @@ Personal Access Token you generate in **Account**. See
 - **[Project explanation](docs/project-explanation.md)** — the product story: the problem, who it's for, how it works, how it was built.
 - **[System About](docs/system-about.md)** — the engineering reference: stack, architecture, data model, design principles.
 - **[Roadmap](docs/roadmap.md)** — what's available today, coming next, and planned.
+
+## License
+
+MyAgentStudio is released under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0). Commercial licensing is available on request for anyone whose use case doesn't fit the AGPL's terms.
+
+Copyright (C) 2026 ProcessMind Solutions.
+
+## Contributing
+
+Issues and small pull requests are welcome. Larger contributions need a prior discussion first — as sole copyright holder, that's what keeps the commercial-licensing option above meaningful.
