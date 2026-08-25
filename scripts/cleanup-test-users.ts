@@ -29,9 +29,15 @@
  *     they reference.
  *
  * USAGE:
- *   npm run cleanup:test-users                    # dry run — lists what would happen
- *   npm run cleanup:test-users -- --yes            # deletes non-kept users
- *   npm run cleanup:test-users -- --yes --full     # also wipes ALL invite codes + access requests
+ *   CLEANUP_KEEP_EMAIL='you@example.com' npm run cleanup:test-users
+ *                                                   # dry run — lists what would happen
+ *   CLEANUP_KEEP_EMAIL='you@example.com' npm run cleanup:test-users -- --yes
+ *                                                   # deletes non-kept users
+ *   ... -- --yes --full                            # also wipes ALL invite codes + access requests
+ *
+ * CLEANUP_KEEP_EMAIL moved out of a hardcoded constant 2026-08-24 (was the operator's
+ * real email, which has no business sitting in published source) — same
+ * env-var-at-invocation-time pattern as scripts/bootstrap-user.ts's BOOTSTRAP_USER_EMAIL.
  *
  * Builds its own DB connection rather than importing lib/db/client.ts — see
  * scripts/bootstrap-user.ts's header for why (server-only guard).
@@ -44,9 +50,13 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { eq, ne, inArray } from 'drizzle-orm';
 import * as schema from '../lib/db/schema.js';
 
-const KEEP_EMAIL = 'you@example.com';
-
 function main() {
+  const KEEP_EMAIL = process.env.CLEANUP_KEEP_EMAIL?.trim().toLowerCase();
+  if (!KEEP_EMAIL) {
+    console.error('CLEANUP_KEEP_EMAIL is not set — refusing to run (see file header for usage).');
+    process.exit(1);
+  }
+
   const execute = process.argv.includes('--yes');
   const full = process.argv.includes('--full');
 

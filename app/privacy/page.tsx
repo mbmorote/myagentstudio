@@ -24,6 +24,11 @@
  * that level of personal detail and publishing it would be a real
  * identity-theft/safety risk with no offsetting benefit.
  *
+ * Legal-entity name/CNPJ moved to env vars 2026-08-24 (same reasoning as
+ * CONTACT_EMAIL below): the actual value only needs to exist in production's
+ * untracked .env.local, never in source. Unset falls back to a generic
+ * statement that's still accurate, not a broken/empty page.
+ *
  * Server component — no interactivity; rendered once on the server, no 'use client'.
  * Uses h-screen + overflow-y-auto (not min-h-screen) for the same reason WelcomePage does:
  * app/globals.css sets body{overflow:hidden} for the Workbench shell's fixed-viewport
@@ -31,6 +36,8 @@
  */
 
 const CONTACT_EMAIL = process.env.NEXT_PUBLIC_AUTHOR_EMAIL || null;
+const LEGAL_ENTITY_NAME = process.env.NEXT_PUBLIC_LEGAL_ENTITY_NAME || null;
+const LEGAL_ENTITY_CNPJ = process.env.NEXT_PUBLIC_LEGAL_ENTITY_CNPJ || null;
 
 export default function PrivacyPage() {
   return (
@@ -73,9 +80,19 @@ export default function PrivacyPage() {
           <section className="mb-8">
             <h2 className="text-[17px] font-semibold mb-2 tracking-[-0.01em]">1. Who We Are</h2>
             <p className="text-[var(--muted)]">
-              This Service is operated by [REDACTED], doing business as ProcessMind
-              Solutions (CNPJ [REDACTED]), a Brazilian individual entrepreneurship (Empresário
-              Individual) registered under Simples Nacional.
+              {LEGAL_ENTITY_NAME && LEGAL_ENTITY_CNPJ ? (
+                <>
+                  This Service is operated by {LEGAL_ENTITY_NAME}, doing business as ProcessMind
+                  Solutions (CNPJ {LEGAL_ENTITY_CNPJ}), a Brazilian individual entrepreneurship
+                  (Empresário Individual) registered under Simples Nacional.
+                </>
+              ) : (
+                <>
+                  This Service is operated by ProcessMind Solutions, a Brazilian individual
+                  entrepreneurship (Empresário Individual) registered under Simples Nacional.
+                  Full legal-entity registration details are available on request.
+                </>
+              )}
             </p>
           </section>
 

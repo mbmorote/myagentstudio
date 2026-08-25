@@ -7,6 +7,32 @@ status. For full blow-by-blow detail behind any entry below, see the referenced 
 
 ---
 
+## 2026-08-24 — Pre-publish exclusion audit: moved the operator's personal identifiers out of tracked source
+
+First pass of the pre-publish repo audit (public-repo Plan 01, step 1) surfaced three real
+findings in the current tree — none in git history, all fixed rather than just flagged:
+
+- `scripts/cleanup-test-users.ts` hardcoded the operator's real Gmail address as
+  `KEEP_EMAIL`. Moved to a required `CLEANUP_KEEP_EMAIL` env var, read at invocation time
+  and never stored — same pattern `scripts/bootstrap-user.ts` already uses for
+  `BOOTSTRAP_USER_EMAIL`/`BOOTSTRAP_USER_PASSWORD`. The script now refuses to run at all
+  if it's unset, rather than silently doing nothing.
+- `app/privacy/page.tsx` and `app/terms/page.tsx`'s "Who We Are" section hardcoded the
+  operator's full real legal name and real CNPJ inline. Both moved to
+  `NEXT_PUBLIC_LEGAL_ENTITY_NAME`/`NEXT_PUBLIC_LEGAL_ENTITY_CNPJ` — same
+  optional-env-var-with-a-graceful-fallback pattern the same files already used for
+  `CONTACT_EMAIL`. Unset renders a generic-but-still-accurate statement naming only
+  ProcessMind Solutions, not a broken or empty section — real values only need to exist in
+  production's untracked `.env.local`.
+- The same real CNPJ, in `CHANGELOG.md`'s own 2026-08-18 entry describing that page
+  rewrite, was generalized (see that entry) since this file is real published history too,
+  not exempt from the audit just because it's prose rather than code.
+
+No git-history leak scan yet (Plan 01 step 2 — the actual irreversible-publish check);
+this was only the current-tree pass.
+
+---
+
 ## 2026-08-24 — Repo reorg: `architecture/` → `reference/`; roadmap reconciled around deferred launch checks
 
 Moved `architecture/audits/` (gitignored historical archive — retired design docs, financial
@@ -225,13 +251,14 @@ invited IT/professional users, not personal friends) is realistic enough about p
 rights to ask.
 
 Both pages gained a new "Who We Are" section naming the real legal entity behind
-ProcessMind Solutions (a Brazilian Empresário Individual under Simples Nacional, CNPJ
-[REDACTED]) at the operator's explicit request — deliberately excludes CPF, home
-address, and phone number even though those exist in the underlying registration record,
-since a public legal page has no legitimate need for that level of detail. Closes the
-roadmap's "`/terms` jurisdiction placeholder" TODO item — Governing Law now names Brazil,
-matching where the entity is actually registered, instead of the literal `[jurisdiction]`
-placeholder that had been sitting there since Plan 12.
+ProcessMind Solutions (a Brazilian Empresário Individual under Simples Nacional, with its
+real CNPJ) at the operator's explicit request — deliberately excludes CPF, home address,
+and phone number even though those exist in the underlying registration record, since a
+public legal page has no legitimate need for that level of detail. Closes the roadmap's
+"`/terms` jurisdiction placeholder" TODO item — Governing Law now names Brazil, matching
+where the entity is actually registered, instead of the literal `[jurisdiction]`
+placeholder that had been sitting there since Plan 12. (Name/CNPJ themselves moved out of
+tracked source entirely on 2026-08-24 — see that date's entry.)
 
 ## 2026-08-18 — Preferences modal: Account + Settings merged, per-user activity log, gateway bug fix
 
