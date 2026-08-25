@@ -7,6 +7,31 @@ status. For full blow-by-blow detail behind any entry below, see the referenced 
 
 ---
 
+## 2026-08-24 — Full-history leak scan (Plan 01 step 2): scrubbed personal data from all 93 commits
+
+The pre-publish plan's one irreversible-publish check (public-repo Plan 01, step 2) — scan
+every commit, not just HEAD, since history is being published as-is. `gitleaks` found no
+secrets/credentials anywhere in history. A manual sweep for personal data found real
+findings starting in the very first commit, so surgical removal (`git filter-repo`, not a
+squash — commit count/dates/messages/order all preserved, only hashes changed) was run
+against the whole history in one pass, after a full backup bundle taken first (same
+convention as the 2026-08-12 scrub):
+
+- **Whole files removed from every commit they ever appeared in** (none exist in the
+  current tree — this only affects recoverability from old commits): a personal
+  career-evaluation document, three internal design-review files, and one test-fixture
+  file that quoted the operator's name in an AI reply.
+- **Text redacted everywhere it appeared, files otherwise left intact**: the operator's
+  real first name (replaced with "the user"), full legal name, business tax ID, and
+  personal Gmail address (the last one only fully covered on a second pass — the first
+  pass's rule list missed it, caught and fixed by re-running the same verification sweep
+  after).
+
+Verified clean after: `gitleaks` re-scan (0 findings), and a full-history grep for every
+flagged string across all 93 commits (0 hits). `origin` was detached by `filter-repo` as
+its standard safety behavior — expected and fine, since the actual publish target is a
+fresh public repo, not the old private dev remote that pointed there.
+
 ## 2026-08-24 — Pre-publish exclusion audit: moved the operator's personal identifiers out of tracked source
 
 First pass of the pre-publish repo audit (public-repo Plan 01, step 1) surfaced three real
