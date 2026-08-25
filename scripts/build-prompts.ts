@@ -39,7 +39,7 @@ const AGENTS: AgentSpec[] = [
  *
  *   1. Real-agent format (YAML frontmatter): `---\n...\n---\n` followed by the
  *      system prompt body, verbatim — same split as a real Claude Code subagent
- *      file (architecture/Agent-Full-Reference.md). Everything after the closing
+ *      file (reference/Agent-Full-Reference.md). Everything after the closing
  *      `---` is the prompt, unmodified.
  *   2. Legacy format: a leading `# Title` line with content starting at the first
  *      `##` heading. Everything before that first `##` is stripped.

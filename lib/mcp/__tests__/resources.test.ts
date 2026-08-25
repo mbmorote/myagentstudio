@@ -6,7 +6,7 @@
  * Cases:
  *   - listResourcesForPrincipal covers the same agent set list_agents does, in the
  *     myagentstudio://agent/{id} shape
- *   - readAgentResource returns byte-identical text to export_agent for the same
+ *   - readAgentResource returns byte-identical text to pull_agent for the same
  *     agent (they must share one code path — divergence here means someone added a
  *     second export)
  *   - Tenancy: a resource read for another owner's agent id returns null
@@ -81,7 +81,7 @@ describe('listResourcesForPrincipal', () => {
 });
 
 describe('readAgentResource', () => {
-  it('returns byte-identical text to export_agent for the same agent', () => {
+  it('returns byte-identical text to pull_agent for the same agent', () => {
     const resourceText = readAgentResource(principalFor(userA.id), agentA.id);
     const exportResult = handleExportAgent(principalFor(userA.id), { agentId: agentA.id });
     expect(exportResult.ok).toBe(true);
@@ -89,7 +89,7 @@ describe('readAgentResource', () => {
     expect(resourceText).toBe(exportResult.markdown);
   });
 
-  it("returns null for another owner's agent id (same non-disclosure posture as export_agent)", () => {
+  it("returns null for another owner's agent id (same non-disclosure posture as pull_agent)", () => {
     expect(readAgentResource(principalFor(userB.id), agentA.id)).toBeNull();
   });
 

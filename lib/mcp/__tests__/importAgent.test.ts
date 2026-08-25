@@ -1,7 +1,9 @@
 /**
  * lib/mcp/__tests__/importAgent.test.ts
  *
- * Tests for the write-scope MCP tool handler import_agent (Plan 13 §5.5).
+ * Tests for the write-scope MCP tool handler push_agent (renamed from
+ * import_agent 2026-08-24; handler function name handleImportAgent and this
+ * file's own name are unchanged — Plan 13 §5.5).
  * Provider mocked at the module level, running the real gateway and the real
  * assemble/persist path — the pattern app/api/agents/__tests__/import-dryrun.test.ts
  * already uses.

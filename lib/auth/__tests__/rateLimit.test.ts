@@ -33,18 +33,18 @@ afterEach(() => {
 });
 
 describe('checkRateLimit', () => {
-  it('allows requests under the limit (10 per window)', () => {
+  it('allows requests under the limit (20 per window)', () => {
     const route = uniqueRoute();
     const req = makeRequest('1.2.3.4');
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       expect(checkRateLimit(req, route)).toBeNull();
     }
   });
 
-  it('blocks the 11th request within the same window', () => {
+  it('blocks the 21st request within the same window', () => {
     const route = uniqueRoute();
     const req = makeRequest('1.2.3.5');
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       checkRateLimit(req, route);
     }
     const result = checkRateLimit(req, route);
@@ -55,7 +55,7 @@ describe('checkRateLimit', () => {
   it('retryAfterSeconds is at most the full window (15 min = 900s)', () => {
     const route = uniqueRoute();
     const req = makeRequest('1.2.3.6');
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       checkRateLimit(req, route);
     }
     const result = checkRateLimit(req, route);
@@ -65,7 +65,7 @@ describe('checkRateLimit', () => {
   it('resets after the 15-minute window expires', () => {
     const route = uniqueRoute();
     const req = makeRequest('1.2.3.7');
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       checkRateLimit(req, route);
     }
     expect(checkRateLimit(req, route)).not.toBeNull();
@@ -80,7 +80,7 @@ describe('checkRateLimit', () => {
     const route = uniqueRoute();
     const reqA = makeRequest('10.0.0.1');
     const reqB = makeRequest('10.0.0.2');
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       checkRateLimit(reqA, route);
     }
     // A is now blocked, but B (different IP, same route) is fresh.
@@ -92,7 +92,7 @@ describe('checkRateLimit', () => {
     const routeA = uniqueRoute();
     const routeB = uniqueRoute();
     const req = makeRequest('10.0.0.3');
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       checkRateLimit(req, routeA);
     }
     expect(checkRateLimit(req, routeA)).not.toBeNull();
@@ -103,7 +103,7 @@ describe('checkRateLimit', () => {
     const route = uniqueRoute();
     const reqMulti = makeRequest(' 10.0.0.4 , 10.0.0.5');
     const reqSameFirst = makeRequest('10.0.0.4');
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       checkRateLimit(reqMulti, route);
     }
     // Same effective IP (first entry, trimmed) as reqMulti → shares the limit.
@@ -120,16 +120,16 @@ describe('checkRateLimit', () => {
 // ── checkRateLimitByKey (Plan 13 — generalized key, used by the MCP guard) ──────
 
 describe('checkRateLimitByKey', () => {
-  it('allows requests under the limit (10 per window) for a direct string key', () => {
+  it('allows requests under the limit (20 per window) for a direct string key', () => {
     const key = `mcp:${uniqueRoute()}`;
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       expect(checkRateLimitByKey(key)).toBeNull();
     }
   });
 
-  it('blocks the 11th request within the same window', () => {
+  it('blocks the 21st request within the same window', () => {
     const key = `mcp:${uniqueRoute()}`;
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       checkRateLimitByKey(key);
     }
     const result = checkRateLimitByKey(key);
@@ -140,7 +140,7 @@ describe('checkRateLimitByKey', () => {
   it('tracks different keys independently — one token id does not affect another', () => {
     const keyA = `mcp:${uniqueRoute()}`;
     const keyB = `mcp:${uniqueRoute()}`;
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       checkRateLimitByKey(keyA);
     }
     expect(checkRateLimitByKey(keyA)).not.toBeNull();
@@ -153,7 +153,7 @@ describe('checkRateLimitByKey', () => {
     const route = uniqueRoute();
     const req = makeRequest('10.9.9.9');
     const equivalentKey = `${route}:10.9.9.9`;
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       checkRateLimit(req, route);
     }
     expect(checkRateLimitByKey(equivalentKey)).not.toBeNull();

@@ -65,7 +65,11 @@ usable directly in tests.
 
 ## Rate limiting (`rateLimit.ts`)
 
-An in-process, fixed-window limiter (10 attempts / 15 minutes) guarding endpoints reachable
+An in-process, fixed-window limiter (20 attempts / 15 minutes — raised from 10 on
+2026-08-24, after MCP testing showed the shared `'unknown'`-IP bucket every no-proxy
+local-dev client collapses into was too tight for normal use; login/signup share this
+same constant and remain adequately protected by bcrypt's per-attempt cost) guarding
+endpoints reachable
 without a session cookie: login, signup, and — since Plan 13 — the MCP endpoint's bearer-token
 guard. `checkRateLimit(request, route)` keys by `(route, client IP)` for the browser-facing
 endpoints; IP comes from the first entry of `x-forwarded-for`, falling back to `'unknown'`.

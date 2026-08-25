@@ -35,16 +35,20 @@ import {
   TOOL_INPUT_SHAPE as GET_AGENT_INPUT_SHAPE,
   handleGetAgent,
 } from './tools/getAgent.js';
+// tools/exportAgent.ts / tools/importAgent.ts are the internal file names — the
+// MCP-facing tool names they export are 'pull_agent' / 'push_agent' (renamed
+// 2026-08-24 for the CLI/git mental model; see the addendum note at the top of
+// plans/archive/13-mcp-server-exposing-agents.md).
 import {
-  TOOL_NAME as EXPORT_AGENT_NAME,
-  TOOL_DESCRIPTION as EXPORT_AGENT_DESCRIPTION,
-  TOOL_INPUT_SHAPE as EXPORT_AGENT_INPUT_SHAPE,
+  TOOL_NAME as PULL_AGENT_NAME,
+  TOOL_DESCRIPTION as PULL_AGENT_DESCRIPTION,
+  TOOL_INPUT_SHAPE as PULL_AGENT_INPUT_SHAPE,
   handleExportAgent,
 } from './tools/exportAgent.js';
 import {
-  TOOL_NAME as IMPORT_AGENT_NAME,
-  TOOL_DESCRIPTION as IMPORT_AGENT_DESCRIPTION,
-  TOOL_INPUT_SHAPE as IMPORT_AGENT_INPUT_SHAPE,
+  TOOL_NAME as PUSH_AGENT_NAME,
+  TOOL_DESCRIPTION as PUSH_AGENT_DESCRIPTION,
+  TOOL_INPUT_SHAPE as PUSH_AGENT_INPUT_SHAPE,
   handleImportAgent,
   type ImportAgentToolResult,
 } from './tools/importAgent.js';
@@ -60,7 +64,7 @@ const SERVER_VERSION = '1.0.0';
 // ─────────────────────────────  Content wrapping  ──────────────────────────────
 //
 // Tool descriptions and returned content are part of the attack surface (§4.4).
-// Agent content returned by get_agent and export_agent (never list_agents, whose
+// Agent content returned by get_agent and pull_agent (never list_agents, whose
 // payload is IDs/labels only) is wrapped in a clearly delimited block labeled as
 // data, with a one-line note that it is user-authored content and not instructions
 // — the cheapest available mitigation for the real prompt-injection vector here.
@@ -78,7 +82,7 @@ function errorResult(text: string): CallToolResult {
 }
 
 /**
- * Renders an import_agent failure as a clear, typed message — mirrors the named
+ * Renders a push_agent failure as a clear, typed message — mirrors the named
  * errors the web UI's import route returns, so a refusal is legible to the model
  * instead of a bare error code (§4.7: a blocked call is a hard, visible stop, never
  * a silent no-op, and the user/client is told why).
@@ -86,9 +90,9 @@ function errorResult(text: string): CallToolResult {
 function describeImportFailure(result: Extract<ImportAgentToolResult, { ok: false }>): string {
   switch (result.error) {
     case 'write_scope_required':
-      return 'Refused: this token is read-scoped. import_agent requires a write-scoped token.';
+      return 'Refused: this token is read-scoped. push_agent requires a write-scoped token.';
     case 'mcp_writes_disabled':
-      return 'Refused: MCP writes are turned off in Settings (mcpWrites). An admin must enable them before import_agent can run.';
+      return 'Refused: MCP writes are turned off in Settings (mcpWrites). An admin must enable them before push_agent can run.';
     case 'llm_cap_reached':
       return `Refused: per-user LLM call cap reached (limit=${result.limit}, window=${result.windowSeconds}s). Retry after ${result.retryAfterSeconds}s.`;
     case 'llm_dry_run':
@@ -114,10 +118,10 @@ function describeImportFailure(result: Extract<ImportAgentToolResult, { ok: fals
 
 /**
  * Builds a server bound to one principal. Registers all four tools (list_agents,
- * get_agent, export_agent — read scope; import_agent — write scope, scope-checked
+ * get_agent, pull_agent — read scope; push_agent — write scope, scope-checked
  * inside its own handler) and the myagentstudio://agent/{id} resource. tools/list always
  * returns all four names regardless of the token's scope — scope is enforced at
- * call time inside import_agent's handler, not by hiding the tool (§5.6).
+ * call time inside push_agent's handler, not by hiding the tool (§5.6).
  */
 function buildServer(principal: McpPrincipal): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
@@ -142,18 +146,18 @@ function buildServer(principal: McpPrincipal): McpServer {
   );
 
   server.registerTool(
-    EXPORT_AGENT_NAME,
-    { description: EXPORT_AGENT_DESCRIPTION, inputSchema: EXPORT_AGENT_INPUT_SHAPE },
+    PULL_AGENT_NAME,
+    { description: PULL_AGENT_DESCRIPTION, inputSchema: PULL_AGENT_INPUT_SHAPE },
     async (args) => {
       const result = handleExportAgent(principal, args);
       if (!result.ok) return errorResult(`Agent not found: ${args.agentId}`);
-      return textResult(wrapUserContent('agent-export', result.markdown));
+      return textResult(wrapUserContent('agent-pull', result.markdown));
     },
   );
 
   server.registerTool(
-    IMPORT_AGENT_NAME,
-    { description: IMPORT_AGENT_DESCRIPTION, inputSchema: IMPORT_AGENT_INPUT_SHAPE },
+    PUSH_AGENT_NAME,
+    { description: PUSH_AGENT_DESCRIPTION, inputSchema: PUSH_AGENT_INPUT_SHAPE },
     async (args) => {
       const result = await handleImportAgent(principal, args);
       if (!result.ok) {

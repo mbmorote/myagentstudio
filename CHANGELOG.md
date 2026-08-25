@@ -2,11 +2,77 @@
 
 Chronological project history, condensed to what changed and why it mattered — not a
 session log. `CLAUDE.md` is current-state instructions only; `plans/roadmap.md` tracks live
-status. For full blow-by-blow detail behind any entry below, see the referenced plan file,
-`git log`, or `architecture/audits/CHANGELOG-detailed.md` (the prior, much more detailed
-version of this file, kept locally as historical record — not tracked in git). Newest first.
+status. For full blow-by-blow detail behind any entry below, see the referenced plan file or
+`git log`. Newest first.
 
 ---
+
+## 2026-08-24 — Repo reorg: `architecture/` → `reference/`; roadmap reconciled around deferred launch checks
+
+Moved `architecture/audits/` (gitignored historical archive — retired design docs, financial
+evaluations, point-in-time reviews) out of the repo tree entirely onto local disk, alongside
+other non-published planning material. With `audits/` gone, `architecture/`'s only remaining
+content (`layout/` mockup + `Agent-Full-Reference.md`) no longer matched the old name, so the
+folder was renamed to `reference/` — every live reference across `CLAUDE.md`,
+`lib/ai/CLAUDE.md`, `plans/roadmap.md`, `scripts/build-prompts.ts`, `.gitignore`, and 7
+component header comments updated in the same pass. Historical narrative in `CHANGELOG.md`
+and `plans/archive/*` left as accurate-at-the-time record, per the project's own
+frozen-archive convention — only the one dead functional pointer (to a detail file kept
+outside the repo) was reworded.
+
+`plans/roadmap.md` reconciled: **Deploy online** no longer folds the formal Big Flow Test,
+the MCP write-path check, and the tokens-panel visual QA into its own gating scope — a
+manual smoke test of the core flow already covers this launch, so all three move to a new
+NEXT item, **Post-launch verification pass**, run against the real deployment instead of
+blocking it. The MCP item's own card updated to reflect that its read-only surface is
+already live-verified (2026-08-24) and only the write half remains open. The top-level
+Overview table (which had drifted out of sync with the detailed TODO section below it) was
+resynced in the same pass.
+
+---
+
+## 2026-08-24 — Closed Plan 13's remaining checklist; MCP tools renamed push/pull; live-verified reads against a real client
+
+Closed out the last of Plan 13's pre-launch checklist. **QA validation against the plan
+spec — PASS**: every constraint, all seven D-decisions, and the full fitness-function table
+verified against the actual implementation, with one cosmetic-only deviation noted (the
+plan's `myagent://` URI text vs. the built `myagentstudio://`, just the project rename
+landing after the plan was drafted). **Docs review (Plan 13's slice, closing the roadmap's
+three-plan docs-review item)** found a stale repo-structure diagram in
+`docs/system-about.md` §2 (never mentioned `app/api/mcp/`, `app/api/account/tokens/`, or
+`lib/mcp/`) and a real bucket-drift bug in the public `docs/roadmap.md`: four items
+(Console MCP access, Group organization, AI chat history persistence, Export to other
+platforms) sat under "Planned" ("timing not yet committed") when they're all internally
+scoped as NEXT — Console MCP access's own row text even said "Built; pending final
+verification," directly contradicting its own bucket. All four moved to "Coming Next."
+
+**MCP tools renamed:** `export_agent` → `pull_agent`, `import_agent` → `push_agent` — the
+CLI/git mental model MCP clients live in (pull the current version down, push your edited
+version back up), rather than the web UI's own "import"/"export" vocabulary, which is
+unchanged. Touched ~20 files (tool implementations, `server.ts`, tests, and every doc that
+named the old tools); `tsc`/`npm test` clean after.
+
+**MCP server live-verified for reads, against a real client — not simulated.** Connected a
+genuine Claude Code session to `/api/mcp` (`claude mcp add`), confirmed the handshake, and
+successfully called `list_agents` and `pull_agent`/`get_agent` — real agent list back, real
+content pulled down and used to update a local file. This surfaced a real local-dev bug: the
+per-token rate limiter's pre-lookup IP check collapses every no-reverse-proxy client into one
+shared `'unknown'`-IP bucket, and the original 10-attempts/15-minute ceiling was tight enough
+that a handful of legitimate test calls could trip it. **Fixed:** raised to 20/15min
+(`lib/auth/rateLimit.ts`) — a shared constant with the login/signup limiter, so all four
+call sites' hardcoded test boundaries (`lib/auth/__tests__/rateLimit.test.ts`,
+`app/api/auth/__tests__/{auth,request-access,oauth-start}.test.ts`) were updated too, not
+just the constant. `tsc`/`npm test` clean after. The billed write-path half (`push_agent`)
+and the tokens-panel visual QA are still open — folded into the "Deploy online" TODO item's
+own acceptance criteria, to run against the real deployment instead of local dev.
+
+Also: `app/layout.tsx` never had favicon metadata configured — every browser was falling
+back to a generic default icon. Wired up the existing `processmind-mark.png` brand asset via
+Next.js's standard `metadata.icons`.
+
+`plans/13-mcp-server-exposing-agents.md` moved to `plans/archive/` (one step ahead of its own
+"once live-verified" rule, by explicit decision to consolidate tracking onto
+`plans/roadmap.md` alone); `plans/review-checklist-temp.md` deleted, its purpose served.
 
 ## 2026-08-20 — Closed Plan 12's docs-review slice; fixed a dead link for non-admin users
 
@@ -251,7 +317,7 @@ file — `lib/mcp/server.ts` — enforced by a fitness test alongside three more
 no mutating repository function besides `upsertAgentFromImport`, no direct provider/SDK
 import, no session-cookie read anywhere under `lib/mcp/`). `middleware.ts` bypasses
 `/api/mcp` by exact path — the route re-authenticates independently, same as every other
-route. See `plans/13-mcp-server-exposing-agents.md` for the full design and the seven
+route. See `plans/archive/13-mcp-server-exposing-agents.md` for the full design and the seven
 resolved decisions, and `lib/mcp/CLAUDE.md` for the folder map.
 
 ## 2026-08-15 — Second LLM provider (Plan 11)

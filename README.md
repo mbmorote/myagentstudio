@@ -105,7 +105,7 @@ Configurable from **System Settings** (`/settings`, admin only):
 | `maxLlmCallsPerUserPerHour` | `15` | Per-user hourly LLM call cap (rolling 60-minute window). The admin is always exempt. |
 | `chatMaxTokens` | `8192` | Max tokens Prometheus may generate per chat reply. |
 | `chatHistoryTurns` | `10` | How many prior chat messages Prometheus sees for context. |
-| `mcpWrites` | `false` | When on, write-scoped MCP tokens can call `import_agent` (see "Console MCP access" below). Off by default — a deployment that never touches this setting behaves exactly as if the MCP server didn't exist. |
+| `mcpWrites` | `false` | When on, write-scoped MCP tokens can call `push_agent` (see "Console MCP access" below). Off by default — a deployment that never touches this setting behaves exactly as if the MCP server didn't exist. |
 
 ## The workbench layout
 
@@ -121,7 +121,7 @@ All four panels resize via drag gutters. Library and Raw fold to rails to reclai
 ## Console MCP access
 
 A console/CLI MCP client (Claude Code and equivalents — not Claude Desktop's GUI connector)
-can list, read, export, and import your own agents over `POST /api/mcp`, authenticated by a
+can list, read, pull, and push your own agents over `POST /api/mcp`, authenticated by a
 Personal Access Token you generate in **Account**. See
 [docs/user-guide.md](docs/user-guide.md#connecting-a-console-mcp-client) for setup and
 [docs/system-about.md §13](docs/system-about.md) for the design.

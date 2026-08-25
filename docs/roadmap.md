@@ -42,6 +42,10 @@ Starting in the next release — decided and ready to build.
 
 | Item | Category | Importance | What it is |
 |---|---|---|---|
+| **Console MCP access** | Feature | Major | Lets a console/CLI AI tool (like Claude Code) list, read, pull, and — with permission — push your own agents from the terminal, authenticated by a personal access token you generate yourself. Built; pending final verification. |
+| **Group organization** | Feature | Minor | Filing agents into groups (an agent can belong to several at once) and switching between a flat and grouped Library view. The underlying data model and API are already built; only the on-screen controls are being re-enabled. |
+| **AI chat history that survives a reload** | Feature | Major | Conversations currently live only in the browser tab for the current session. |
+| **Export to other platforms** | Feature | Major | Translating an agent to formats beyond Claude's, starting with Copilot. |
 | **Automated invite-code email delivery** | Resource | Minor | When an admin approves an access request or generates a code, email it automatically instead of sending it by hand. |
 
 ## Planned
@@ -50,11 +54,7 @@ Decided and wanted — timing not yet committed.
 
 | Item | Category | Importance | What it is |
 |---|---|---|---|
-| **Console MCP access** | Feature | Major | Lets a console/CLI AI tool (like Claude Code) read, export, and — with permission — import your own agents from the terminal, authenticated by a personal access token you generate yourself. Built; pending final verification. |
-| **Group organization** | Feature | Minor | Filing agents into groups (an agent can belong to several at once) and switching between a flat and grouped Library view. The underlying data model and API are already built; only the on-screen controls are being re-enabled. |
-| **AI chat history that survives a reload** | Feature | Major | Conversations currently live only in the browser tab for the current session. |
 | **A Skill module** | Feature | Major | A second library entity alongside Agent, for Claude's `SKILL.md` files — its own import/export and structured view. |
-| **Export to other platforms** | Feature | Major | Translating an agent to formats beyond Claude's, starting with Copilot. |
 | **Sharing & forking agents** | Feature | Minor | Letting one user hand an agent to another to fork their own copy from it. |
 | **Organizations & teams** | Feature | Minor | Agents owned jointly by a group of people, not just by one account. |
 

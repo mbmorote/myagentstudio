@@ -3,7 +3,7 @@
 /**
  * app/components/shell/GuidedTour.tsx
  *
- * Ported from architecture/layout/Layout-Workbench.html's guided-tour prototype
+ * Ported from reference/layout/Layout-Workbench.html's guided-tour prototype
  * (Plan 12 mini-tour, 2026-08-14) — a spotlight rect (giant box-shadow cutout, pulsing
  * accent ring) plus a popover that follows it. Seven steps over the actual core loop:
  * welcome, then Library (import) → Custom Visualization (edit direct) → Chat (edit via

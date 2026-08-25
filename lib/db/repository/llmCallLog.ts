@@ -50,8 +50,9 @@ export type WriteCallLogInput = {
   sharedWithAdmin: boolean;
   /**
    * Plan 13 (2026-08-15) — 'web' (browser session, default) or 'mcp' (MCP bearer
-   * token, import_agent tool). Defaults to 'web' when omitted so every pre-existing
-   * caller keeps writing exactly what it always wrote.
+   * token, push_agent tool — renamed from import_agent 2026-08-24). Defaults to
+   * 'web' when omitted so every pre-existing caller keeps writing exactly what it
+   * always wrote.
    */
   origin?: 'web' | 'mcp';
 };

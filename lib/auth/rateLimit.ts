@@ -12,7 +12,11 @@
  *     — a direct string key. Used by the MCP guard to key by ('mcp', tokenId), so each
  *       token has its own independent rate window rather than sharing one per IP.
  *
- * Limit: 10 attempts per 15-minute window per key.
+ * Limit: 20 attempts per 15-minute window per key (raised from 10, 2026-08-24 — MCP
+ * testing showed 10 was too tight for the shared 'unknown'-IP bucket that every
+ * no-reverse-proxy local-dev client collapses into; login/signup share this same
+ * constant and are still comfortably protected by bcrypt's per-attempt cost on top
+ * of it).
  *
  * Stated limitations, accepted deliberately (same as before this generalization):
  *   - Per-process: a multi-instance deploy multiplies the effective limit.
@@ -27,7 +31,7 @@
 import type { NextRequest } from 'next/server';
 
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-const MAX_ATTEMPTS = 10;
+const MAX_ATTEMPTS = 20;
 
 type WindowEntry = {
   count: number;

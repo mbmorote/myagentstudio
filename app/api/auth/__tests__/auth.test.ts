@@ -26,7 +26,7 @@
  *     - returns 204 and clears the cookie (even with no session)
  *
  *   rate limiter:
- *     - 11th attempt from the same (route, IP) → 429 rate_limited
+ *     - 21st attempt from the same (route, IP) → 429 rate_limited
  */
 
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -444,12 +444,12 @@ describe('POST /api/auth/logout', () => {
 // ── rate limiter ──────────────────────────────────────────────────────────────
 
 describe('rate limiter', () => {
-  it('returns 429 after 10 failed login attempts from the same IP', async () => {
+  it('returns 429 after 20 failed login attempts from the same IP', async () => {
     // Use a dedicated IP for the rate limit test only (10.99.x.x range not used above)
     const ip = `10.99.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255) + 1}`;
 
     let lastStatus = 0;
-    for (let i = 0; i < 11; i++) {
+    for (let i = 0; i < 21; i++) {
       const res = await loginPOST(makeLoginRequest({
         email: 'nobody-ratelimit@nowhere.invalid',
         password: 'wrong-pw-for-rate-test',

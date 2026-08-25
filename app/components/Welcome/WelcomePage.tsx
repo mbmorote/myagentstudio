@@ -3,7 +3,7 @@
 /**
  * app/components/Welcome/WelcomePage.tsx
  *
- * Plan 12 — pre-login landing page, ported from architecture/layout/Layout-Landing.html
+ * Plan 12 — pre-login landing page, ported from reference/layout/Layout-Landing.html
  * (2026-08-14). Public route (see /welcome/page.tsx + middleware.ts PUBLIC_PATHS) — the
  * first thing a prospective, non-signed-up visitor sees; distinct audience from the
  * first-login guided tour (GuidedTour.tsx), which only signed-up users ever see.

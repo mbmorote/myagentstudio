@@ -3,12 +3,18 @@ import 'server-only';
 /**
  * lib/mcp/tools/importAgent.ts
  *
- * MCP tool: import_agent (Plan 13 §4.4, write scope — the only write surface).
+ * MCP tool: push_agent (Plan 13 §4.4, write scope — the only write surface).
+ * Named "push" (not the internal "import" vocabulary the web UI and repository
+ * layer use) for the CLI/git mental model MCP clients live in: you're pushing a
+ * local file's content up into MyAgentStudio. Renamed 2026-08-24 — see the
+ * addendum note at the top of plans/archive/13-mcp-server-exposing-agents.md. Internal
+ * file/function names (this file, upsertAgentFromImport, etc.) are unchanged —
+ * only the name and description the MCP client sees changed.
  *
  * Composes the exact same building blocks app/api/agents/import/route.ts uses —
  * parse() → callDaedalus()/callHermes() → assembleStructural()/assemble() →
  * checkCoverage() → upsertAgentFromImport() — rather than forking a second, thinner
- * import path (constraint 4, §4.1). The byte-identical re-import short-circuit, the
+ * import path (constraint 4, §4.1). The byte-identical re-push short-circuit, the
  * coverage check, the truncation rejection, and the pre/post-import snapshot writes
  * all happen here for exactly the same reason they happen in the route: they live
  * inside upsertAgentFromImport() and the shared assemble* functions, not in either
@@ -46,19 +52,23 @@ import {
 import { getMcpWrites } from '../../settings.js';
 import type { McpPrincipal } from '../../auth/mcpGuard.js';
 
-export const TOOL_NAME = 'import_agent';
+export const TOOL_NAME = 'push_agent';
 
 export const TOOL_DESCRIPTION =
-  "Imports a markdown agent document into the authenticated user's library, creating " +
-  "a new agent or updating an existing one with a matching name (owner-scoped — never " +
-  "another user's). Uses the same AI-assisted restructuring pipeline as the web UI's " +
-  "import (mode 'structural', default) or a labels-only mode that never sends section " +
-  "content to a model ('strict'). This is the ONLY write this server exposes — there " +
-  "is no tool for editing a section or config value directly. Requires a write-scoped " +
-  "token, and refuses with a named, typed error if the server's MCP-writes switch is " +
-  "off or the account's hourly LLM-call cap is reached — in both cases before any " +
-  "model call is made. Pass dryRun:true to exercise the request without spending a " +
-  "live call. Re-importing byte-identical content is free (no LLM call, no write).";
+  "Pushes a local markdown agent document up into the authenticated user's " +
+  "MyAgentStudio library, creating a new agent or updating an existing one with a " +
+  "matching name (owner-scoped — never another user's). This is a full replace, " +
+  "not a merge: any section present in the target agent but absent from the " +
+  "pushed document is removed. Uses the same AI-assisted restructuring pipeline " +
+  "as the web UI's import (mode 'structural', default) or a labels-only mode " +
+  "that never sends section content to a model ('strict'). This is the ONLY " +
+  "write this server exposes — there is no tool for editing a section or config " +
+  "value directly; the natural round trip is pull_agent -> edit the file -> " +
+  "push_agent. Requires a write-scoped token, and refuses with a named, typed " +
+  "error if the server's MCP-writes switch is off or the account's hourly " +
+  "LLM-call cap is reached — in both cases before any model call is made. Pass " +
+  "dryRun:true to exercise the request without spending a live call. Pushing " +
+  "byte-identical content is free (no LLM call, no write).";
 
 export const TOOL_INPUT_SHAPE = {
   md: z.string().min(1, 'md is required'),
@@ -115,9 +125,9 @@ export async function handleImportAgent(
     structured = parse(args.md);
   } catch (err) {
     if (err instanceof FrontmatterParseError) {
-      console.error('[mcp/import_agent] Frontmatter parse error:', err.message);
+      console.error('[mcp/push_agent] Frontmatter parse error:', err.message);
     } else {
-      console.error('[mcp/import_agent] Stage-1 parse failed:', err);
+      console.error('[mcp/push_agent] Stage-1 parse failed:', err);
     }
     return { ok: false, error: 'invalid_body' };
   }
@@ -183,18 +193,18 @@ async function runStructuralPipeline(
       };
     }
     if (err instanceof LlmDryRunBlockedError) {
-      console.info('[mcp/import_agent/structural] Dry-run blocked:', err.message);
+      console.info('[mcp/push_agent/structural] Dry-run blocked:', err.message);
       return { ok: false, error: 'llm_dry_run', kind: err.kind, model: err.model, logId: err.logId };
     }
     if (err instanceof DaedalusTruncatedError) {
-      console.error('[mcp/import_agent/structural] Response truncated (max_tokens):', err.message);
+      console.error('[mcp/push_agent/structural] Response truncated (max_tokens):', err.message);
       return { ok: false, error: 'structural_truncated' };
     }
     if (err instanceof DaedalusUpstreamError) {
-      console.error('[mcp/import_agent/structural] Upstream failure:', err.message);
+      console.error('[mcp/push_agent/structural] Upstream failure:', err.message);
       return { ok: false, error: 'ai_upstream' };
     }
-    console.error('[mcp/import_agent/structural] Unexpected error:', String(err));
+    console.error('[mcp/push_agent/structural] Unexpected error:', String(err));
     return { ok: false, error: 'internal' };
   }
 
@@ -208,7 +218,7 @@ async function runStructuralPipeline(
     if (err instanceof Error && err.name === 'MissingNameError') {
       return { ok: false, error: 'missing_name' };
     }
-    console.error('[mcp/import_agent/structural] Assemble/persist error:', err);
+    console.error('[mcp/push_agent/structural] Assemble/persist error:', err);
     return { ok: false, error: 'internal' };
   }
 }
@@ -258,22 +268,22 @@ async function runStrictPipeline(
       };
     }
     if (err instanceof LlmDryRunBlockedError) {
-      console.info('[mcp/import_agent/strict] Dry-run blocked:', err.message);
+      console.info('[mcp/push_agent/strict] Dry-run blocked:', err.message);
       return { ok: false, error: 'llm_dry_run', kind: err.kind, model: err.model, logId: err.logId };
     }
     if (err instanceof HermesTruncatedError) {
-      console.error('[mcp/import_agent/strict] Stage-2 response truncated:', err.message);
+      console.error('[mcp/push_agent/strict] Stage-2 response truncated:', err.message);
       return { ok: false, error: 'strict_truncated' };
     }
     if (err instanceof HermesInvalidResponseError) {
-      console.error('[mcp/import_agent/strict] Stage-2 invalid AI labels:', err.message);
+      console.error('[mcp/push_agent/strict] Stage-2 invalid AI labels:', err.message);
       return { ok: false, error: 'invalid_ai_labels' };
     }
     if (err instanceof HermesUpstreamError) {
-      console.error('[mcp/import_agent/strict] Stage-2 upstream failure:', err.message);
+      console.error('[mcp/push_agent/strict] Stage-2 upstream failure:', err.message);
       return { ok: false, error: 'ai_upstream' };
     }
-    console.error('[mcp/import_agent/strict] Unexpected Stage-2 error:', String(err));
+    console.error('[mcp/push_agent/strict] Unexpected Stage-2 error:', String(err));
     return { ok: false, error: 'internal' };
   }
 
@@ -285,7 +295,7 @@ async function runStrictPipeline(
     if (err instanceof Error && err.name === 'MissingNameError') {
       return { ok: false, error: 'missing_name' };
     }
-    console.error('[mcp/import_agent/strict] Assemble/persist error:', err);
+    console.error('[mcp/push_agent/strict] Assemble/persist error:', err);
     return { ok: false, error: 'internal' };
   }
 }

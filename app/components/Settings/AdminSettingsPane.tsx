@@ -4,7 +4,7 @@
  * app/components/Settings/AdminSettingsPane.tsx
  *
  * "Admin" category of the Preferences modal (2026-08-18 Account + Settings
- * merge, prototyped in architecture/layout/Layout-Workbench.html per CLAUDE.md
+ * merge, prototyped in reference/layout/Layout-Workbench.html per CLAUDE.md
  * standing rule 4). Admin-only pane — PreferencesModal never mounts this for a
  * non-admin.
  *

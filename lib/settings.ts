@@ -294,7 +294,7 @@ export function getAccessRequestCodeExpiryHours(): number {
  *   - Anything else → FALSE (fail-closed) + console.warn
  *
  * A deployment that never configures this setting behaves exactly as before MCP existed —
- * import_agent calls are refused with a clear, named error.
+ * push_agent calls are refused with a clear, named error.
  */
 export function getMcpWrites(): boolean {
   const raw = getSetting('mcpWrites');

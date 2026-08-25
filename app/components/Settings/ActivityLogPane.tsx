@@ -4,7 +4,7 @@
  * app/components/Settings/ActivityLogPane.tsx
  *
  * "Activity log" category of the Preferences modal (2026-08-18 Account +
- * Settings merge, prototyped in architecture/layout/Layout-Workbench.html per
+ * Settings merge, prototyped in reference/layout/Layout-Workbench.html per
  * CLAUDE.md standing rule 4). Visible to EVERY authenticated user, unlike the
  * other two Settings-derived panes — the whole point of this category split is
  * that a regular user can now see their own calls too (roadmap's "Per-user view

@@ -14,7 +14,7 @@ something ships, it drops out of here entirely rather than accumulating as a clo
 The history of *how* something got built lives in `CHANGELOG.md`; the current-state facts
 about how the system works live in `docs/system-about.md`. One fact, one home.
 
-**Layout work still prototypes first** — `architecture/layout/Layout-Workbench.html` before
+**Layout work still prototypes first** — `reference/layout/Layout-Workbench.html` before
 live code (see `CLAUDE.md` standing rule 4).
 
 ---
@@ -30,13 +30,10 @@ aren't detailed further, the description here is all there is.
 
 | Item | Kind | Bucket | Status / description |
 |---|---|---|---|
-| **Check: MCP server live verification (Plan 13)** | Infra | TODO | Free part not run; billed part needs your OK to spend |
-| **Check: Account "API tokens (MCP access)" panel renders correctly** | UX | TODO | Visual QA, not run yet |
-| **Check: docs review for Plan 11/12/13 topics** | Infra | TODO | Plan 11/12 topics done 2026-08-20; Plan 13 topics still pending |
-| **Big flow test** |  | TODO | Ready to run — needs your OK to spend real Anthropic money |
 | **Production DB backup/restore** | Infra | TODO | Not started |
 | **Deploy online** |  | TODO | Not started — always last |
 | **Component/UI test coverage** | Infra | NEXT | Not started — first thing once v1 is live |
+| **Post-launch verification pass** | Infra | NEXT | Deliberately deferred past this launch — manual smoke test done 2026-08-24 instead |
 | **AI chat persistence** | Behavior | NEXT | Not started — approach undecided |
 | **Validate `SESSION_TTL_SECONDS` live behavior** | Infra | NEXT | Not started |
 | **Strict-mode merged-heading re-audit** | Infra | NEXT | Not started |
@@ -51,7 +48,7 @@ aren't detailed further, the description here is all there is.
 | **Automated invite-code email delivery** | Infra | NEXT | Not started — provider undecided |
 | **Improve the guided tour** | UX | NEXT | Not started |
 | **Optional call-log persistence toggle** | Infra | NEXT | Undecided if wanted |
-| **MCP server exposing MyAgentStudio's agents** | Infra | NEXT | Built + test suite green (Phases 1–4, 2026-08-15) — pending live-client verification, see card below |
+| **MCP server exposing MyAgentStudio's agents** | Infra | NEXT | Built + test suite green (Phases 1–4, 2026-08-15), read-only live-verified 2026-08-24 — write path pending, see card below |
 | **Re-enable group behavior** | UX | NEXT | Ready — three flag flips |
 | **Surface `applied`/`skipped` from apply-proposal in the UI** | UX | NEXT | Not started |
 | **`AgentView.tsx` save-name bypasses `apiFetch`** | Behavior | NEXT | Ready — trivial fix |
@@ -109,127 +106,21 @@ aren't detailed further, the description here is all there is.
 ## TODO — before v1 goes online
 
 Must happen before v1 launches. **Deploy online is always last** — anything newly added here
-goes before it.
+goes before it. Reorganized 2026-08-24: the MCP QA validation and docs-review items closed
+(outcomes logged in `CHANGELOG.md`, per this file's own "closed items drop out" convention)
+and dropped out of this list entirely. The remaining launch-verification work (tokens panel
+QA, the formal Big Flow Test, the MCP write-path check) is deliberately **not** required to
+close this list — the user already manually smoke-tested the core import → chat-edit →
+proposal → apply → export flow on 2026-08-24, which stands in for the formal versions to
+keep the launch date. All three moved to NEXT as **Post-launch verification pass**, to run
+against the real deployment once it exists rather than gating it.
 
 ### Overview
 
 | Item | Kind | Status |
 |---|---|---|
-| **Check: MCP server live verification (Plan 13)** | Infra | Free part not run; billed part needs your OK to spend |
-| **Check: Account "API tokens (MCP access)" panel renders correctly** | UX | Visual QA, not run yet |
-| **Check: docs review for Plan 11/12/13 topics** | Infra | Plan 11/12 topics done 2026-08-20; Plan 13 topics still pending |
-| **Big flow test** | — | Ready to run — needs your OK to spend real Anthropic money |
 | **Production DB backup/restore** | Infra | Not started |
 | **Deploy online** | — | Not started — always last |
-
----
-
-### **Check: MCP server live verification (Plan 13)**
-
-**Current state:** Code + full automated test suite done and green (2026-08-15). Live
-verification per plan §5.7/§6 steps 5–6 has not been run.
-
-**Scope — two parts:**
-- **Free:** connect a real console MCP client (Claude Code) to `/api/mcp` with a
-  generated token, complete the handshake, run `tools/list`, all three read tools
-  (`list_agents`, `get_agent`, `export_agent`), the `myagent://agent/{id}` resource
-  list/read, and `import_agent` with `dryRun:true`. No spend — confirms the protocol
-  implementation actually works against a real client, not just the hand-built test
-  requests in `app/api/__tests__/mcp.test.ts`.
-- **Billed — needs an explicit go-ahead first (standing rule 2):** one real `import_agent`
-  call (no `dryRun`), confirming the resulting `llm_call_log` row carries the right
-  `userId`, `origin: 'mcp'`, `provider`, `model`, and usage.
-
-Per standing rule 3, shut the dev server down afterward.
-
-**Effort:** Small
-**Depends on:** None
-**Status:** Not started
-
----
-
-### **Check: Account "API tokens (MCP access)" panel renders correctly**
-
-**Current state:** The token-generation panel in `AccountView.tsx` (list, create with
-name + scope, one-time plaintext reveal + copy, revoke) is built and covered by API-level
-tests, but has never been opened in a running browser.
-
-**Scope:** Log in, open `/account`, generate a token (confirm the one-time reveal + copy
-button work and the plaintext is never shown again after leaving the page), confirm the
-list/prefix/scope/dates render correctly, revoke a token and confirm it disappears from
-the active list. Both themes.
-
-**Effort:** Trivial
-**Status:** Not started
-
----
-
-### **Check: docs review for Plan 11/12/13 topics**
-
-**Current state:** Plan 11 and Plan 12's slices both done 2026-08-20. Plan 13's slice is
-still outstanding. Original context: Plans 11 (second LLM provider), 12 (pre-login landing
-page + access-request signup), and 13 (MCP server) all shipped in quick succession on the
-same day (2026-08-15), each doing its own docs pass over largely the same set of files —
-`docs/system-about.md`, `docs/user-guide.md`, `docs/project-explanation.md`,
-`docs/roadmap.md`, `README.md`, `CHANGELOG.md`, and several `CLAUDE.md` files
-(`lib/ai/`, `lib/auth/`, `lib/db/`, plus the new `lib/mcp/`). Each pass checked its own
-addition was accurate at the time, but none of the three checked the *others'* additions for
-staleness, redundancy, or drift once the later plans landed on top.
-
-**Plan 11 findings (fixed 2026-08-20):** `lib/ai/CLAUDE.md` and `docs/system-about.md` both
-still described the buggy `/v1/chat/completions` double-append (found and fixed the same day
-via live NVIDIA testing) instead of the corrected `/chat/completions`-appended-to-a-`/v1`-
-carrying-base-URL behavior. `docs/user-guide.md` said Live LLM calls "sends to the Anthropic
-API," stale once a second provider exists. `docs/roadmap.md` still listed the second provider
-under "Coming Next" pending live verification, which is now done.
-
-**Plan 12 findings (fixed 2026-08-20):** not just stale wording this time — a real functional
-gap. `ChatPanel.tsx`/`ImportDialog.tsx`'s dry-run notices showed a "View log entry →" link
-unconditionally, but its target (`/settings?log=<id>`) is an admin-only route that redirects
-a non-admin session away — a dead link for every regular user, silently broken since the
-Preferences-modal merge. `ActivityLogPane.tsx`'s own equivalent Permalink link had already
-been correctly gated `isAdmin`-only; the older call sites just never got the same fix. Now
-gated the same way, threaded from `WorkbenchShell.tsx`'s existing `session` prop.
-`docs/user-guide.md`'s "Deep links" paragraph corrected to describe the actual (admin-only)
-behavior. `docs/project-explanation.md` checked — no Plan 12 mentions, nothing stale.
-
-**Scope (Plan 13 remainder):** A single read-through pass across the doc set above with
-Plan 13's topics in mind — check for:
-- Facts that were true when written but are now stale (e.g. a "not yet built" note for
-  something a later plan actually built).
-- Redundant or near-duplicate explanations of the same fact across two files, drifting out
-  of sync with each other (violates the project's own one-fact-one-home principle,
-  `CLAUDE.md` standing rule 6).
-- Anything Plan 13's own docs pass should have touched but didn't (e.g. a "known gaps"
-  bullet it made obsolete elsewhere).
-- Overall narrative coherence — do `docs/system-about.md` and `docs/project-explanation.md`
-  in particular still read as one coherent system description, not bolted-on sections.
-
-**Effort:** Small (Plan 13 is the last and smallest of the three slices)
-**Depends on:** None
-**Status:** Plan 11/12 done 2026-08-20; Plan 13 not started
-
----
-
-### **Big flow test**
-
-**Current state:** Not run. Scope fully designed.
-
-**Scope — one real end-to-end pass, not a scripted check:**
-- Import a real agent file
-- Manually edit it in the structured view: add/edit/remove a section; add/edit/remove a tool or config value
-- Edit the same agent via chat: a section edit and a config edit, reviewing the proposal card, the lock, and the applied result
-- Export the edited agent and reimport it, confirming the round trip holds
-
-Also exercises Prometheus's end-to-end verification against a real reply, which has never
-actually been run — the chat stage here needs the same real, billed Anthropic calls anyway.
-Anything the test finds gets fixed inline or spun into its own item — the point is to find
-gaps before real users do, not to gate the test on being bug-free beforehand.
-
-**Effort:** Small (1–2 hours, manual)
-**Depends on:** Every other TODO item above
-**Blocker:** Needs your OK to spend real Anthropic money first (standing rule 2)
-**Status:** Ready to run
 
 ---
 
@@ -250,14 +141,35 @@ one-time safety copy taken before a risky migration, not a repeatable procedure.
 
 ### **Deploy online**
 
-**Current state:** App runs locally only.
+**Current state:** App runs locally only. Hosting decided 2026-08-24: AWS EC2 free tier
+(`t3.micro`, Ubuntu), SQLite persisted on-instance with a daily backup cron, Caddy for
+automatic HTTPS (session cookie is `secure: true` in production — `http://` would silently
+drop it), NVIDIA NIM as the default LLM provider for beta users. A purchased domain
+(~$10–12/yr) is the plan, with a free dynamic-DNS subdomain as the fallback. No infra
+provisioned yet.
+
+MCP's read-only surface is already live-verified against a real client (2026-08-24): a
+genuine Claude Code session called `list_agents` and `pull_agent`/`get_agent` successfully
+(see `CHANGELOG.md`). That pass also found and fixed a real rate-limiter tuning bug — the
+shared `'unknown'`-IP bucket every no-reverse-proxy client collapses into was too tight at
+10/15min, raised to 20/15min (`lib/auth/rateLimit.ts`).
 
 **Scope:**
-- Whatever the smallest real hosting step is — get a version reachable outside the local network
-- The *automated* version of this (CI/CD) is a separate FUTURE item, not required for this first deploy
+- EC2 instance + Caddy (auto-HTTPS) + PM2, app deployed from the public repo, `.env.local`
+  configured for production (fresh `JWT_SECRET`, NVIDIA key as the default provider, Google
+  OAuth vars left unset — deferred), DNS pointed at the instance
+- The daily SQLite backup cron is installed as part of this step, not a follow-up — see
+  **Production DB backup/restore** for the still-missing restore documentation
+- A personal go-live smoke pass: login over HTTPS, provider/live-calls/rate-limit settings
+  confirmed at their intended values, first batch of invite codes generated
+- The *automated* version of this (CI/CD) is a separate FUTURE item, not required for this
+  first deploy
+- **Deliberately not required to close this item** — the formal Big Flow Test, the MCP
+  write-path check, and the tokens-panel visual QA. Tracked separately as NEXT's
+  **Post-launch verification pass**, run against the real deployment instead of gating it.
 
 **Effort:** Depends on the hosting choice
-**Depends on:** All other TODO items
+**Depends on:** Production DB backup/restore
 **Status:** Not started — always last
 
 ---
@@ -273,6 +185,7 @@ this bucket is free to reorder.
 | Item | Status |
 |---|---|
 | **Component/UI test coverage** | Not started — first thing once v1 is live |
+| **Post-launch verification pass** | Not started — deliberately deferred past this launch |
 | **AI chat persistence** | Not started — needs an approach decision |
 | **Validate `SESSION_TTL_SECONDS` live behavior** | Not started — just needs to be run |
 | **Strict-mode merged-heading re-audit** | Not started — low risk |
@@ -287,7 +200,7 @@ this bucket is free to reorder.
 | **Automated invite-code email delivery** | Not started — provider undecided |
 | **Improve the guided tour** | Not started — depends on the MVP tour shipping first |
 | **Optional call-log persistence toggle** | Undecided if wanted |
-| **MCP server exposing MyAgentStudio's agents** | Built + test suite green (Phases 1–4) 2026-08-15 — pending live-client verification |
+| **MCP server exposing MyAgentStudio's agents** | Built + test suite green (Phases 1–4) 2026-08-15, read-only live-verified 2026-08-24 — write path pending |
 | **Re-enable group behavior** | Ready — three flag flips |
 | **Surface `applied`/`skipped` from apply-proposal in the UI** | Not started |
 | **`AgentView.tsx` save-name bypasses `apiFetch`** | Ready — trivial fix |
@@ -310,6 +223,31 @@ against real usage than delay launch chasing coverage up front.
 
 **Effort:** Large
 **Status:** Not started
+
+---
+
+### **Post-launch verification pass**
+
+**Current state:** Deliberately not run before this launch. The user manually smoke-tested
+the core import → chat-edit → proposal → apply → export flow on 2026-08-24, which stood in
+for the formal checks below to keep the launch date. MCP's read-only surface is separately
+already live-verified against a real client (see the MCP item's card below) — only its
+write half is still open.
+
+**Scope — three checks, the two billed ones each needing a fresh explicit go-ahead per
+standing rule 2:**
+- **Big Flow Test** (billed): one real end-to-end pass — import a real agent file, edit it
+  manually and via chat, export and reimport, confirming the round trip holds. Also the
+  first real exercise of Prometheus's own verification logic against a genuine reply.
+- **MCP write path** (billed): turn on `mcpWrites`, use a `write`-scoped token, try
+  `push_agent` with `dryRun:true` first, then one real call — confirm the resulting
+  `llm_call_log` row carries `origin: 'mcp'` correctly.
+- **Account "API tokens (MCP access)" panel** — visual QA (one-time reveal + copy, list
+  render, revoke). Never opened in a running browser yet. Free.
+
+**Effort:** Small
+**Depends on:** Deploy online (run against the real domain, not local dev)
+**Status:** Not started — deliberately deferred past this launch
 
 ---
 
@@ -441,7 +379,7 @@ deciding whether this is worth building at all.
 **Current state:** Split out from the "Check: landing page walkthrough UX (ux agent
 review)" TODO item (2026-08-17) — the `ux` agent's review of the "How it works"
 walkthrough flagged that neither `app/components/Welcome/WelcomePage.tsx` nor the mock
-`architecture/layout/Layout-Landing.html` have any responsive/mobile handling at all
+`reference/layout/Layout-Landing.html` have any responsive/mobile handling at all
 (only `prefers-color-scheme` exists as a media query anywhere in either file). The
 walkthrough's two-column inline grid and the "Full view" modal's fixed
 `min(1200–1320px, 92vw)` width have no narrower-viewport fallback — on a phone this
@@ -514,7 +452,7 @@ shown only transiently. Timing-wise: revisit soon after launch rather than let i
 
 **Current state:** **Built and test-verified 2026-08-15** — all four phases (token subsystem,
 read-only server, fitness functions, `import_agent`) implemented per
-`plans/13-mcp-server-exposing-agents.md`, plus the full test suite (`lib/mcp/__tests__/`,
+`plans/archive/13-mcp-server-exposing-agents.md`, plus the full test suite (`lib/mcp/__tests__/`,
 `lib/auth/__tests__/apiToken.test.ts` + `mcpGuard.test.ts`,
 `lib/db/repository/__tests__/apiTokens.test.ts`, `app/api/__tests__/account-tokens.test.ts` +
 `mcp.test.ts`) and docs (`lib/mcp/CLAUDE.md`, `docs/system-about.md` §13, `lib/auth/CLAUDE.md`,
@@ -543,8 +481,14 @@ clean; it separately surfaced 8 pre-existing Plan 11 errors (3× `NODE_ENV` read
   which the SDK's transport requires on every POST (a real client sends this
   automatically) — test-only fix, now documented in `lib/mcp/CLAUDE.md`.
 
-**Not yet live-verified** — plan §5.7/§6 steps 5–6 (a real console client handshake, free;
-one real billed `import_agent` call) still need an explicit ask per standing rule 2.
+**Read-only surface live-verified 2026-08-24** — a real Claude Code session completed the
+handshake and successfully called `list_agents` and `pull_agent`/`get_agent`. Only the
+billed `push_agent` call remains, tracked under NEXT's **Post-launch verification pass**.
+
+**Tool names renamed 2026-08-24:** `export_agent` → `pull_agent`, `import_agent` →
+`push_agent` (CLI/git mental model). `plans/archive/13-mcp-server-exposing-agents.md` still uses
+the original names as the historical decision record; `lib/mcp/CLAUDE.md` and
+`docs/system-about.md` §13 have the current names.
 
 **Scope:** An MCP server so a **console MCP client** (Claude Code and equivalents) can
 read/import a user's agents outside the web UI. **Clients:** console/CLI only — Claude
@@ -552,7 +496,7 @@ Desktop's GUI connector is explicitly not a target, which is what keeps an OAuth
 authorization server out of scope entirely. **Auth:** per-user Personal Access Tokens (opaque
 bearer, generated in Account, stored SHA-256-hashed, scoped read/write, revocable) — the
 session cookie genuinely does not extend to a non-browser client. **Surface:** four tools —
-`list_agents`, `get_agent`, `export_agent` (read) and `import_agent` (write) — plus agents as
+`list_agents`, `get_agent`, `pull_agent` (read) and `push_agent` (write) — plus agents as
 read-only resources. **Structured field-level editing is deliberately not exposed**: the only
 mutation is "import this markdown document," which reuses the existing import pipeline and
 inherits its whole safety story (owner-scoped name lookup that creates-or-updates,
@@ -570,9 +514,9 @@ risk, and two schema enum additions, and resolving the client question removed O
 remains: a token subsystem, a protocol endpoint, three thin repository reads, one tool wrapping
 the existing import pipeline, one nullable log column, one bool setting, tests and docs. The
 read-only slice alone is Small–Medium.
-**Status:** Built + test suite green 2026-08-15 — `plans/13-mcp-server-exposing-agents.md`.
-Awaiting live verification (needs an explicit ask per standing rule 2) before this item
-can close
+**Status:** Built + test suite green 2026-08-15, read-only surface live-verified 2026-08-24 —
+`plans/archive/13-mcp-server-exposing-agents.md`. Write-path verification tracked under
+**Post-launch verification pass**; this item closes once that runs
 
 ---
 
@@ -738,7 +682,7 @@ One NEXT item (**Optional call-log persistence toggle**) is timed but still genu
 undecided-if — that's why it says "(see IDEA)": this paragraph is the note, not a separate
 per-item entry. **MCP server exposing MyAgentStudio's agents** used to sit here too; it was decided
 **wanted** on 2026-08-15 and now has a full design in
-`plans/13-mcp-server-exposing-agents.md`, so it's an ordinary NEXT item.
+`plans/archive/13-mcp-server-exposing-agents.md`, so it's an ordinary NEXT item.
 
 ### **Mobile access to the workbench**
 

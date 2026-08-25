@@ -137,7 +137,7 @@ output it produces, not in a folder meant for passive reference material). Each 
 in **real-agent shape**: YAML frontmatter (`name`, `description`, `tools: []`) followed by
 `#`-level body sections (`ROLE`, `BEHAVIOR`, `GUARDRAILS`, `OUTPUT FORMAT`, plus `INPUT` for
 Daedalus) — the same split as a real Claude Code subagent file
-(`architecture/Agent-Full-Reference.md`). `build-prompts.ts` strips the frontmatter block and
+(`reference/Agent-Full-Reference.md`). `build-prompts.ts` strips the frontmatter block and
 compiles the body verbatim as the prompt.
 
 ```

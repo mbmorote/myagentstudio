@@ -4,6 +4,9 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'MyAgentStudio',
   description: 'Agent workbench',
+  icons: {
+    icon: '/processmind-mark.png',
+  },
 };
 
 export default function RootLayout({

@@ -7,9 +7,9 @@ import 'server-only';
  * myagentstudio://agent/{id} resource, addressable content a client can attach without
  * a tool call or a model decision. Read scope only.
  *
- * Backed by the exact same two repository calls list_agents and export_agent use
+ * Backed by the exact same two repository calls list_agents and pull_agent use
  * (listAgents / exportAgentMarkdown) — no third data path, so a resource read and
- * an export_agent call are guaranteed to return byte-identical text for the same
+ * a pull_agent call are guaranteed to return byte-identical text for the same
  * agent.
  */
 
@@ -40,7 +40,7 @@ export function listResourcesForPrincipal(principal: McpPrincipal): ResourceList
 /**
  * resources/read for a myagentstudio://agent/{id} URI. Returns null for an agentId that
  * does not exist or does not belong to this principal — same non-disclosure posture
- * as export_agent.
+ * as pull_agent.
  */
 export function readAgentResource(principal: McpPrincipal, agentId: string): string | null {
   return exportAgentMarkdown(agentId, principal.userId);

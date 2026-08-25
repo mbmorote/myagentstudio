@@ -2,8 +2,15 @@
 
 The tool/resource layer behind `POST /api/mcp` — a second front door onto a user's own
 agents for console/CLI MCP clients (Claude Code and equivalents). See
-`docs/system-about.md` §13 for the full design summary and `plans/13-mcp-server-exposing-agents.md`
+`docs/system-about.md` §13 for the full design summary and `plans/archive/13-mcp-server-exposing-agents.md`
 for the complete decision record. This file is the map of the folder itself.
+
+**Naming note (2026-08-24):** the MCP-facing tool names are `pull_agent` and `push_agent`,
+not `export_agent`/`import_agent` — renamed for the CLI/git mental model MCP clients live
+in (you're pushing a local file up, pulling the current version down). Internal file names
+(`tools/exportAgent.ts`, `tools/importAgent.ts`) and function names (`handleExportAgent`,
+`handleImportAgent`) are unchanged on purpose — only what the external model sees changed.
+The web UI's own "Import"/"Export" vocabulary is separate and also unchanged.
 
 ## Spec/SDK pin (revisit at build time if this drifts)
 
@@ -37,8 +44,8 @@ lib/mcp/server.ts                        ← the ONLY @modelcontextprotocol/sdk 
       │                                     closes both once the response is built.
       ├─ lib/mcp/tools/listAgents.ts     ← read. listAgents(ownerId)
       ├─ lib/mcp/tools/getAgent.ts       ← read. getAgentFull(id, ownerId)
-      ├─ lib/mcp/tools/exportAgent.ts    ← read. exportAgentMarkdown(id, ownerId)
-      ├─ lib/mcp/tools/importAgent.ts    ← WRITE. composes the same pipeline
+      ├─ lib/mcp/tools/exportAgent.ts    ← read. pull_agent. exportAgentMarkdown(id, ownerId)
+      ├─ lib/mcp/tools/importAgent.ts    ← WRITE. push_agent. composes the same pipeline
       │                                     app/api/agents/import/route.ts uses
       └─ lib/mcp/resources.ts            ← myagentstudio://agent/{id}, same 2 repo calls as above
 ```
@@ -49,7 +56,7 @@ Each `tools/*.ts` file exports a `TOOL_NAME`, a `TOOL_DESCRIPTION`, an optional
 (`lib/mcp/__tests__/tools.test.ts`, `importAgent.test.ts`). `server.ts` is the only file that
 touches the SDK's `registerTool`/`registerResource`/`CallToolResult` shapes; it wraps each
 handler's plain result into the SDK's expected response, and is where the "user-authored
-content, not instructions" wrapping (`get_agent`/`export_agent`/`import_agent` results) lives.
+content, not instructions" wrapping (`get_agent`/`pull_agent`/`push_agent` results) lives.
 
 ## Guardrails this folder is built around — all test-enforced, not just documented
 
@@ -64,7 +71,7 @@ content, not instructions" wrapping (`get_agent`/`export_agent`/`import_agent` r
    writers, not after the fact as a carve-out.
 3. **Gateway is the only route to a model.** No file under `lib/mcp/` imports
    `@anthropic-ai/sdk`, `anthropicProvider.ts`, or `openaiCompatibleProvider.ts` directly —
-   `import_agent` reaches a model only via `callDaedalus`/`callHermes` → `lib/ai/gateway.ts`,
+   `push_agent` reaches a model only via `callDaedalus`/`callHermes` → `lib/ai/gateway.ts`,
    exactly like the web import route.
 4. **Session/token isolation.** No file under `lib/mcp/` imports `next/headers` or reads the
    session cookie. The MCP principal (`{ userId, tokenId, scope }`, deliberately **no role**)
@@ -74,7 +81,7 @@ content, not instructions" wrapping (`get_agent`/`export_agent`/`import_agent` r
 contains `authenticateMcpToken(` and does **not** contain `authenticate(` — the MCP endpoint
 must never accept a browser session cookie by copy-paste from a neighboring route.
 
-## The one write tool — `import_agent`
+## The one write tool — `push_agent`
 
 Three independent gates, all checked before any model call, in `lib/mcp/tools/importAgent.ts`:
 
@@ -96,22 +103,22 @@ specifically rather than trusting they carried over.
 | File | Role |
 |---|---|
 | `server.ts` | The ONLY `@modelcontextprotocol/sdk` importer. Builds/closes a stateless server+transport pair per request; wraps each tool handler's plain result into a `CallToolResult`. |
-| `resources.ts` | `myagentstudio://agent/{id}` list/read — same two repository calls `list_agents`/`export_agent` use. |
+| `resources.ts` | `myagentstudio://agent/{id}` list/read — same two repository calls `list_agents`/`pull_agent` use. |
 | `tools/listAgents.ts` | Read. `list_agents` — `listAgents(ownerId)`. |
 | `tools/getAgent.ts` | Read. `get_agent` — `getAgentFull(id, ownerId)`, the same `AgentDTO` the web UI gets. |
-| `tools/exportAgent.ts` | Read. `export_agent` — `exportAgentMarkdown(id, ownerId)`, deterministic. |
-| `tools/importAgent.ts` | **Write.** `import_agent` — the only write tool; see above. |
+| `tools/exportAgent.ts` | Read. `pull_agent` (file/function names unchanged) — `exportAgentMarkdown(id, ownerId)`, deterministic. |
+| `tools/importAgent.ts` | **Write.** `push_agent` (file/function names unchanged) — the only write tool; see above. |
 | `__tests__/architecture.test.ts` | The four fitness assertions listed above. |
 | `__tests__/tools.test.ts` | Tenancy, scope-independence, and flag-don't-block cases for the three read tools. |
-| `__tests__/resources.test.ts` | Resource list/read tenancy + byte-identical parity with `export_agent`. |
+| `__tests__/resources.test.ts` | Resource list/read tenancy + byte-identical parity with `pull_agent`. |
 | `__tests__/importAgent.test.ts` | Gates, create-vs-update, snapshot trail, short-circuit, cross-owner safety, dry-run, truncation, coverage warnings — all on the MCP path specifically. |
 
 ## What deliberately isn't here
 
 No `applyChanges.ts`, no structured field-level write tool, no `get_blueprint`, no
-`create_agent` (covered by `import_agent`'s create-on-new-name semantic), no admin tools
+`create_agent` (covered by `push_agent`'s create-on-new-name semantic), no admin tools
 (settings/invite-codes/other users' logs — an admin's MCP token is an ordinary user's
 token), no OAuth 2.1 authorization server (out of scope per D6 — console/CLI clients only,
 never Claude Desktop's GUI connector), no MCP-specific LLM spend cap (D7 — the existing
-per-user hourly cap is shared). See `plans/13-mcp-server-exposing-agents.md` §9 for the full
+per-user hourly cap is shared). See `plans/archive/13-mcp-server-exposing-agents.md` §9 for the full
 list and reasoning.

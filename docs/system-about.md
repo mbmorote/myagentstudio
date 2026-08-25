@@ -50,8 +50,10 @@ app/
     ├── chat/                    Prometheus — proposes, writes nothing
     ├── auth/                    login, signup, logout, oauth/[provider]/{start,callback}
     ├── settings/                 System Settings + invite codes
-    ├── account/                  the signed-in user's own settings
-    └── llm-call-log/             activity log reads
+    ├── account/                  the signed-in user's own settings + tokens/ (MCP
+    │                             Personal Access Tokens — Plan 13)
+    ├── llm-call-log/             activity log reads
+    └── mcp/                      the MCP server endpoint — POST /api/mcp (Plan 13, §13)
 
 lib/
 ├── db/                          Drizzle schema, migrations, seed, repository/*
@@ -60,6 +62,7 @@ lib/
 ├── import/                      Stage-2 assembly (Strict + Structural), coverage check
 ├── ai/                          the LLM gateway, the three system agents, prompt compiler
 ├── auth/                        session, JWT, password hashing, OAuth, rate limiting
+├── mcp/                         MCP tool/resource layer (Plan 13, §13) — see lib/mcp/CLAUDE.md
 ├── apiFetch.ts, proposalStore.ts, settings.ts, env.ts, utils.ts
 
 lib/ai/prompts/system-agents/    source .md for Hermes / Daedalus / Prometheus
@@ -523,23 +526,28 @@ token's `userId` exactly like a route scopes by session `userId`:
 |---|---|---|---|
 | `list_agents` | read | `listAgents(ownerId)` | no |
 | `get_agent` | read | `getAgentFull(id, ownerId)` — same `AgentDTO` the UI uses | no |
-| `export_agent` | read | `exportAgentMarkdown(id, ownerId)` — deterministic, no AI | no |
-| `import_agent` | **write** | the *existing* import pipeline (`parse` → `callDaedalus`/`callHermes` → `assembleStructural`/`assemble` → `checkCoverage` → `upsertAgentFromImport`) | yes |
+| `pull_agent` | read | `exportAgentMarkdown(id, ownerId)` — deterministic, no AI | no |
+| `push_agent` | **write** | the *existing* import pipeline (`parse` → `callDaedalus`/`callHermes` → `assembleStructural`/`assemble` → `checkCoverage` → `upsertAgentFromImport`) | yes |
 
-Plus each agent as a read-only resource at `myagent://agent/{id}` (same two repository
-calls `list_agents`/`export_agent` use — a resource read and `export_agent` are guaranteed
+(Named `pull_agent`/`push_agent` for the CLI/git mental model — renamed 2026-08-24 from
+`export_agent`/`import_agent`. The underlying repository functions, the web UI's own
+"Import"/"Export" buttons, and the import pipeline's internal vocabulary are unchanged —
+only the two MCP tool names changed.)
+
+Plus each agent as a read-only resource at `myagentstudio://agent/{id}` (same two repository
+calls `list_agents`/`pull_agent` use — a resource read and `pull_agent` are guaranteed
 byte-identical for the same agent). `tools/list` always returns all four names regardless of
-a token's scope — a `read` token calling `import_agent` gets a clear refusal, not a hidden
-tool. Content returned by `get_agent`/`export_agent` is wrapped in a labeled block noting
+a token's scope — a `read` token calling `push_agent` gets a clear refusal, not a hidden
+tool. Content returned by `get_agent`/`pull_agent` is wrapped in a labeled block noting
 it's user-authored data, not instructions — the cheapest available prompt-injection
 mitigation, not a claim of full protection.
 
-**`import_agent` is the whole write surface, on purpose.** No tool mutates a section or
+**`push_agent` is the whole write surface, on purpose.** No tool mutates a section or
 config value directly — structured field-level editing was deliberately dropped from this
 plan's scope (it would have meant extracting a shared write contract out of the propose/apply
 route and replicating its config-merge invariant, the plan's single highest-risk piece). The
-natural workflow is round-trip through a file: `export_agent` → the external client edits the
-markdown → `import_agent` puts it back, reusing `upsertAgentFromImport`'s owner-scoped
+natural workflow is round-trip through a file: `pull_agent` → the external client edits the
+markdown → `push_agent` puts it back, reusing `upsertAgentFromImport`'s owner-scoped
 name-match-or-create semantics and its entire existing safety story for free: a `pre-import`
 snapshot before an update, a `post-import` snapshot after, `reimport`-tagged
 `SectionRevision` rows, retained history on removed sections, `rawSourceSnapshot` holding the

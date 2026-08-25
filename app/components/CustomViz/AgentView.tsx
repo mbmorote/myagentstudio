@@ -79,7 +79,7 @@ const LIST_KEY_ORDER = ['tools', 'disallowedTools', 'skills'];
 const INITIAL_PROMPT_KEY = 'initialPrompt';
 // Shared "⌘" badge hint (Agent(...) tools-pill + initialPrompt) — one string so a wording
 // change only has to happen here. Keep in sync with the mirrored constant in
-// architecture/layout/Layout-Workbench.html (MAIN_AGENT_ONLY_HINT).
+// reference/layout/Layout-Workbench.html (MAIN_AGENT_ONLY_HINT).
 const MAIN_AGENT_ONLY_HINT = 'Only applies when this agent runs as the main agent';
 
 // Color hex values for the `color` field swatch
@@ -380,7 +380,7 @@ export function AgentView({
 
   // Same "confirm if changed" pattern as promptOutsideRef, but invalid JSON stays open
   // with the error shown rather than silently discarding a typo the user asked to keep
-  // (matches architecture/layout/Layout-Workbench.html's __cfgOutsideCloseCustom).
+  // (matches reference/layout/Layout-Workbench.html's __cfgOutsideCloseCustom).
   customOutsideRef.current = (key: string) => {
     const draftText = customJsonDrafts[key];
     if (draftText === undefined) return;

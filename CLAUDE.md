@@ -39,7 +39,7 @@ follow these even though you have no memory of when they were agreed:
    app bug until traced back to the stray processes. Before starting a fresh one, check
    `netstat -ano | grep LISTENING` (or equivalent) for leftover Node processes on 3000+ and
    kill them first.
-4. **Prototype layout/UI changes in `architecture/layout/Layout-Workbench.html` before
+4. **Prototype layout/UI changes in `reference/layout/Layout-Workbench.html` before
    touching live code.** Reason: it's a self-contained static file — no dev server, no DB, no
    build step — so iterating on a visual change there is faster to test and safer to throw
    away than iterating directly in the real React components. Once a change is settled in the
@@ -70,7 +70,7 @@ follow these even though you have no memory of when they were agreed:
    one.** A code comment or doc cross-reference that only says `(Rules Index #41)` or
    `(§3.7)`, with no restatement of what that rule actually *is*, has zero value the moment
    its target moves — which is exactly what happened 2026-08-12 when `TechDesign.md` retired
-   to `architecture/audits/` and dozens of comments citing its numbered rules across `lib/`
+   out of the live tree and dozens of comments citing its numbered rules across `lib/`
    and `app/api/` went dark, needing a dedicated cleanup pass. Going forward: if a fact is
    worth citing, restate it in one clause inline at the citation site; a bare number or
    section symbol is never sufficient by itself. Applies equally to doc files — it's the
@@ -82,10 +82,11 @@ follow these even though you have no memory of when they were agreed:
    pass — not as a deferred follow-up.** Before considering a move done, grep the whole
    repo — docs and code comments both — for the old filename/path and fix or drop what turns
    up. Concrete example: `plans/01`–`09` moving to `plans/archive/` and `Concept.md`/
-   `TechDesign.md` retiring to `architecture/audits/` (2026-08-12, Plan 10) were each quick
+   `TechDesign.md` retiring out of the live tree (2026-08-12, Plan 10) were each quick
    moves, but references to the old paths were scattered across dozens of files and took a
    separate, dedicated pass to actually find — do the grep as part of the move itself, not
-   after.
+   after. Same pattern repeated 2026-08-24: `architecture/` renamed to `reference/` once its
+   last non-`layout/` content (`audits/`) moved out of the repo entirely.
 
 ## Folders
 
@@ -93,16 +94,15 @@ follow these even though you have no memory of when they were agreed:
   `system-about.md` (engineering reference — stack, architecture, data model, design
   principles), `project-explanation.md` (product story/portfolio narrative), `roadmap.md`
   (friendly capability matrix). Each owns one audience; a fact lives in exactly one of them.
-- **`architecture/`** — supporting technical reference material, not itself audience
-  documentation.
-  - **`architecture/layout/`** — the layout mockup (`Layout-Workbench.html`) + its original
+- **`reference/`** — supporting technical reference material, not itself audience
+  documentation. (Renamed from `architecture/` 2026-08-24 once its only local-only,
+  gitignored content — `audits/`, the historical archive of retired design docs and
+  past point-in-time reviews — moved out of the repo entirely.)
+  - **`reference/layout/`** — the layout mockup (`Layout-Workbench.html`) + its original
     source sketch (`LayoutModel1.png`). See standing rule 4.
-  - **`architecture/Agent-Full-Reference.md`** — field-by-field annotated reference for the
+  - **`reference/Agent-Full-Reference.md`** — field-by-field annotated reference for the
     full Claude Code subagent frontmatter schema. Source for the Tier 1 Config zone's `hint`
     text in the app.
-  - **`architecture/audits/`** — local-only, gitignored historical archive (never committed
-    — see `.gitignore`). Holds retired design docs and past point-in-time reviews. Not
-    itemized here; open the folder directly if you need something from it.
 - **`plans/`** — build-sequence plans. **`plans/roadmap.md`** is the living file and the
   single source of truth for status — **start here for "what's next."** TODO (before v1
   goes online) / NEXT (soon after launch) / FUTURE (eventual, unprioritized) / IDEA (not
@@ -141,12 +141,12 @@ follow these even though you have no memory of when they were agreed:
   who it's for, the killer feature, the feature flows, how it was developed.
 - **`docs/roadmap.md`** — a curated, plain-language projection of `plans/roadmap.md`:
   Available today / Coming next / Planned, big items only.
-- **`architecture/Agent-Full-Reference.md`** — field-by-field annotated reference for the
+- **`reference/Agent-Full-Reference.md`** — field-by-field annotated reference for the
   full Claude Code subagent frontmatter schema.
-- **`architecture/layout/Layout-Workbench.html`** — the *look*. Interactive, self-contained
+- **`reference/layout/Layout-Workbench.html`** — the *look*. Interactive, self-contained
   mockup of the 4-pane UI. Authoritative behavior spec for any UI detail that needs
   re-checking, per standing rule 4.
-- **`architecture/layout/LayoutModel1.png`** — the original hand-annotated layout sketch.
+- **`reference/layout/LayoutModel1.png`** — the original hand-annotated layout sketch.
 - **`plans/roadmap.md`** — the living technical backlog and status tracker.
 - **`plans/archive/`** — completed numbered plans (01–09), kept for history.
 - **`lib/ai/CLAUDE.md`** — the gateway architecture (single choke point, one-SDK-importer
@@ -159,7 +159,7 @@ follow these even though you have no memory of when they were agreed:
 - **`lib/db/CLAUDE.md`** — schema, migrations, seed scripts, and the repository layer.
 - **`lib/mcp/CLAUDE.md`** — the MCP server exposing a user's agents to console/CLI clients
   (Plan 13): tool/resource layer, the SDK-isolation and write-surface-containment fitness
-  functions, and the `import_agent` write path.
+  functions, and the `push_agent` write path (renamed from `import_agent` 2026-08-24).
 
 ## Notes
 

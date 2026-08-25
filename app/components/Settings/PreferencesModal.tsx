@@ -7,7 +7,7 @@
  * SettingsModal.tsx (admin-only "⚙ System Settings") and AccountModal.tsx
  * ("Account", everyone) with ONE modal opened from ONE topbar button, a left
  * sidebar of categories inside. Prototyped first in
- * architecture/layout/Layout-Workbench.html per CLAUDE.md standing rule 4;
+ * reference/layout/Layout-Workbench.html per CLAUDE.md standing rule 4;
  * this is the real-code migration of that prototype.
  *
  * Categories:

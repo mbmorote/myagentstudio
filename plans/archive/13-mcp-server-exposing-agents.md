@@ -1,5 +1,27 @@
 # Plan 13 — MCP Server Exposing MyAgent's Agents
 
+> **Archived 2026-08-24 — one step ahead of this file's own rule.** The line below says
+> this plan "moves to `plans/archive/` once live verification is done" — live verification
+> (§5.7/§6 steps 5–6) is **not** done yet as of the archive date. Archived early anyway, by
+> explicit user decision, to consolidate tracking onto `plans/roadmap.md` alone rather than
+> maintaining this file and `plans/review-checklist-temp.md` (deleted the same day) in
+> parallel. Nothing is lost: `plans/roadmap.md`'s **"Check: MCP server live verification
+> (Plan 13)"** TODO row already carries the full remaining scope (free handshake, then one
+> billed `push_agent` call) independent of this file's presence. QA validation against this
+> plan's spec was completed 2026-08-24 — **PASS**, one cosmetic-only deviation (this file's
+> `myagent://agent/{id}` URI text vs. the built `myagentstudio://agent/{id}`, just the
+> project rename landing after this plan was drafted).
+>
+> **Addendum (2026-08-24) — tool names renamed.** `export_agent` → `pull_agent` and
+> `import_agent` → `push_agent`, for the CLI/git mental model MCP clients live in (pull the
+> current version down, push your edited version back up). This section and the rest of
+> this document below still use the original `import_agent`/`export_agent` names as they
+> were decided at the time — this is the historical decision record, not rewritten after
+> the fact. The current, as-built names are documented in `lib/mcp/CLAUDE.md` and
+> `docs/system-about.md` §13. Internal file/function names (`tools/exportAgent.ts`,
+> `handleImportAgent`, `upsertAgentFromImport`, etc.) and the web UI's own "Import"/"Export"
+> vocabulary are unchanged — only the two MCP-facing tool names changed.
+>
 > **Status: 🟡 Built and test-verified 2026-08-15, not yet live-verified.** All four
 > implementation phases (§6 steps 2–4: token subsystem, read-only server + fitness
 > functions, `import_agent`) are implemented, along with the full test suite (§5.1–§5.6)

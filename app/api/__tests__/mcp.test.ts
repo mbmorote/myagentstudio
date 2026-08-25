@@ -15,15 +15,16 @@
  *   - A request carrying a Cookie header but no bearer token → still 401 (the two
  *     auth models are disjoint on purpose)
  *   - tools/list returns all four tool names regardless of scope (list_agents,
- *     get_agent, export_agent, import_agent)
+ *     get_agent, pull_agent, push_agent — renamed from export_agent/import_agent
+ *     2026-08-24)
  *   - tools/call happy path: list_agents returns the caller's agents
  *   - tools/call with an unknown tool name → a JSON-RPC error, not a 500
  *   - Malformed JSON-RPC → a protocol-level error, not a 500
  *   - A request with an unexpected Origin header → rejected (403)
  *   - GET /api/mcp → 405; DELETE /api/mcp → 405
- *   - import_agent past the per-user LLM cap → a tool error carrying
+ *   - push_agent past the per-user LLM cap → a tool error carrying
  *     retryAfterSeconds, no log row written (§5.6, D7's "same cap" answer)
- *   - Log rows from an MCP-initiated import_agent call carry origin:'mcp'
+ *   - Log rows from an MCP-initiated push_agent call carry origin:'mcp'
  */
 
 import { beforeAll, describe, expect, it, vi } from 'vitest';
@@ -174,7 +175,7 @@ describe('POST /api/mcp — tools/list', () => {
     expect(res.status).toBe(200);
     const body = await res.json() as { result: { tools: Array<{ name: string }> } };
     const names = body.result.tools.map((t) => t.name).sort();
-    expect(names).toEqual(['export_agent', 'get_agent', 'import_agent', 'list_agents']);
+    expect(names).toEqual(['get_agent', 'list_agents', 'pull_agent', 'push_agent']);
   });
 });
 
@@ -247,11 +248,11 @@ describe('GET/DELETE /api/mcp — unsupported methods', () => {
   });
 });
 
-// ── import_agent: cap + origin tracking (Phase 4, §5.6) ─────────────────────────
+// ── push_agent: cap + origin tracking (Phase 4, §5.6) ─────────────────────────
 
 function importAgentRpc(name: string, id: number): unknown {
   const md = `---\nname: ${name}\ndescription: test\n---\n\n# Role\n\nContent.\n`;
-  return { jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'import_agent', arguments: { md } } };
+  return { jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'push_agent', arguments: { md } } };
 }
 
 function bearerRequest(plaintext: string, body: unknown): Request {
@@ -267,8 +268,8 @@ function bearerRequest(plaintext: string, body: unknown): Request {
   });
 }
 
-describe('POST /api/mcp — import_agent origin tracking', () => {
-  it("a successful import_agent call writes a log row with origin:'mcp'", async () => {
+describe('POST /api/mcp — push_agent origin tracking', () => {
+  it("a successful push_agent call writes a log row with origin:'mcp'", async () => {
     setSetting('mcpWrites', 'true');
     setSetting('liveLlmCalls', 'true');
     setSetting('maxLlmCallsPerUserPerHour', '1000');
@@ -291,7 +292,7 @@ describe('POST /api/mcp — import_agent origin tracking', () => {
   });
 });
 
-describe('POST /api/mcp — import_agent per-user cap', () => {
+describe('POST /api/mcp — push_agent per-user cap', () => {
   it('past the per-user cap → a tool error carrying retry-after info, no new log row', async () => {
     setSetting('mcpWrites', 'true');
     setSetting('liveLlmCalls', 'true');

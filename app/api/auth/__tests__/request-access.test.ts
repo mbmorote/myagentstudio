@@ -14,7 +14,7 @@
  *   - anti-enumeration dedupe (§ file header of the route): already-registered email,
  *     already-open request, and already-active bound invite code all return the exact
  *     same generic 201 without creating a duplicate/second row
- *   - rate limiter: 11th attempt from the same IP → 429
+ *   - rate limiter: 21st attempt from the same IP → 429
  */
 
 import { beforeAll, describe, expect, it, vi } from 'vitest';
@@ -243,11 +243,11 @@ describe('POST /api/auth/request-access — dedupe (never reveals which branch f
 // ── rate limiter ──────────────────────────────────────────────────────────────
 
 describe('POST /api/auth/request-access — rate limiter', () => {
-  it('returns 429 after 10 attempts from the same IP', async () => {
+  it('returns 429 after 20 attempts from the same IP', async () => {
     const ip = `10.98.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255) + 1}`;
 
     let lastStatus = 0;
-    for (let i = 0; i < 11; i++) {
+    for (let i = 0; i < 21; i++) {
       const res = await requestAccessPOST(makeRequest(
         { name: 'Rate Limited', email: `ratelimit-${i}-${crypto.randomUUID()}@example.com` },
         ip,

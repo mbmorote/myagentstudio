@@ -2,14 +2,16 @@
  * lib/mcp/__tests__/tools.test.ts
  *
  * Tests for the read-scope MCP tool handlers (Plan 13 §5.4): list_agents, get_agent,
- * export_agent. Each handler is called directly with a principal — no protocol round
- * trip, no SDK involved (that's what makes these directly testable per §4.1).
+ * pull_agent (renamed from export_agent 2026-08-24; handler function name
+ * handleExportAgent is unchanged, only the MCP-facing tool name changed). Each
+ * handler is called directly with a principal — no protocol round trip, no SDK
+ * involved (that's what makes these directly testable per §4.1).
  *
  * Cases:
- *   - Tenancy: A's principal can never list, read, or export B's agent
+ *   - Tenancy: A's principal can never list, read, or pull B's agent
  *   - get_agent returns the derived validation block; an unknown config key is
  *     FLAGGED, not rejected (flag-don't-block, constraint 5)
- *   - export_agent's markdown and get_agent's structured content describe the same
+ *   - pull_agent's markdown and get_agent's structured content describe the same
  *     agent consistently
  *   - list_agents only returns the caller's own agents, in the documented shape
  *   - A principal's scope ('read' or 'write') has no bearing on whether a read tool
@@ -133,7 +135,7 @@ describe('handleGetAgent', () => {
   });
 });
 
-// ── export_agent ───────────────────────────────────────────────────────────────
+// ── pull_agent (handleExportAgent) ───────────────────────────────────────────────
 
 describe('handleExportAgent', () => {
   it("returns the deterministic markdown export for the caller's own agent", () => {
@@ -158,8 +160,8 @@ describe('handleExportAgent', () => {
 
 // ── Cross-tool consistency ────────────────────────────────────────────────────
 
-describe('export_agent vs get_agent consistency', () => {
-  it("export_agent's markdown mentions the same name get_agent returns", () => {
+describe('pull_agent vs get_agent consistency', () => {
+  it("pull_agent's markdown mentions the same name get_agent returns", () => {
     const exportResult = handleExportAgent(principalFor(userA.id), { agentId: agentA.id });
     const getResult = handleGetAgent(principalFor(userA.id), { agentId: agentA.id });
     expect(exportResult.ok).toBe(true);

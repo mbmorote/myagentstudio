@@ -248,9 +248,9 @@ describe('POST /api/auth/oauth/[provider]/start', () => {
 
   it('returns 429 rate_limited after too many attempts from the same IP', async () => {
     const ip = nextIp();
-    // The rate limiter allows 10 attempts per window; the 11th triggers it
+    // The rate limiter allows 20 attempts per window; the 21st triggers it
     let lastRes!: Response;
-    for (let i = 0; i < 11; i++) {
+    for (let i = 0; i < 21; i++) {
       lastRes = await POST(
         makeStartRequest({ mode: 'login' }, ip),
         makeParams(),

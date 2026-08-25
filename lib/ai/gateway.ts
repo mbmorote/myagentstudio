@@ -49,7 +49,8 @@ export type LlmCallContext = {
   /**
    * Plan 13 (2026-08-15) — MCP server origin tracking.
    * 'web' = browser-session call (default when absent).
-   * 'mcp' = call via an MCP bearer token (import_agent tool).
+   * 'mcp' = call via an MCP bearer token (push_agent tool — renamed from
+   * import_agent 2026-08-24).
    * Written to llm_call_log.origin so the audit log can distinguish MCP-initiated
    * calls from browser-initiated ones — without this, an audit log that can't tell
    * them apart is actively wrong once two sources exist.
