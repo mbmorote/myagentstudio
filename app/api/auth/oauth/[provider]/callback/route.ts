@@ -34,6 +34,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getOAuthConfig, isOAuthConfigured } from '@/lib/env';
 import { getOAuthProvider } from '@/lib/auth/oauth/providers';
 import { readOAuthTx, clearOAuthTxOn } from '@/lib/auth/oauth/tx';
 import { OAuthError } from '@/lib/auth/oauth/types';
@@ -70,7 +71,20 @@ export async function GET(
   { params }: { params: Promise<Params> },
 ): Promise<NextResponse> {
   const { provider } = await params;
-  const origin = new URL(request.url).origin;
+  // Deliberately NOT new URL(request.url).origin as the primary source — behind
+  // a reverse proxy (Caddy), that resolves to the app's internal address (e.g.
+  // localhost:3000), not the public domain. OAUTH_REDIRECT_BASE_URL is the same
+  // trusted, env-configured origin the start route already uses for the
+  // redirect_uri sent to the provider (invariant 16) — reused here for
+  // consistency, not derived from a request header either. Falls back to the
+  // request-derived origin only when OAuth isn't configured at all (unreachable
+  // in production — this route requires a valid tx cookie, which only exists
+  // after the start route's own isOAuthConfigured() check passed), which keeps
+  // this route's existing unit tests working without requiring them to set real
+  // OAuth env vars.
+  const origin = isOAuthConfigured()
+    ? getOAuthConfig().redirectBaseUrl
+    : new URL(request.url).origin;
 
   /**
    * Step 0: Every response goes through this helper, which ALWAYS clears the
