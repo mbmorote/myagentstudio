@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "pretest": "tsx scripts/build-prompts.ts",
     "test": "vitest run",
     "db:seed": "tsx lib/db/seed.ts",
     "auth:bootstrap": "tsx scripts/bootstrap-user.ts",
