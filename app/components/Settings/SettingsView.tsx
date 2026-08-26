@@ -626,10 +626,10 @@ export function SettingsView({
       <section>
         <h2 className="text-[15px] font-semibold text-[var(--text)] mb-4">Access requests</h2>
         <p className="text-[12px] text-[var(--muted)] mb-3">
-          From "Request access" on the signup form. Generate a code to offer a spot (bound
+          From &quot;Request access&quot; on the signup form. Generate a code to offer a spot (bound
           to their email, expires per the setting above — currently{' '}
           {localSettings.find((s) => s.key === 'accessRequestCodeExpiryHours')?.value ?? 5}h); the
-          code isn't emailed automatically yet, so copy it and send it to them yourself.
+          code isn&apos;t emailed automatically yet, so copy it and send it to them yourself.
         </p>
 
         {accessRequestsError && (
@@ -701,7 +701,7 @@ export function SettingsView({
         <h2 className="text-[15px] font-semibold text-[var(--text)] mb-4">Users</h2>
         <p className="text-[12px] text-[var(--muted)] mb-3">
           Every account on this deployment. Read-only here — role and log-sharing changes
-          aren't editable from this grid yet.
+          aren&apos;t editable from this grid yet.
         </p>
 
         {usersError && (

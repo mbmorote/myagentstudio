@@ -318,8 +318,8 @@ export function AdminSettingsPane() {
       <section>
         <h2 className="text-[15px] font-semibold text-[var(--text)] mb-4">Access requests</h2>
         <p className="text-[12px] text-[var(--muted)] mb-3">
-          From "Request access" on the signup form. Generate a code to offer a spot (bound
-          to their email, expires per the setting above); the code isn't emailed
+          From &quot;Request access&quot; on the signup form. Generate a code to offer a spot (bound
+          to their email, expires per the setting above); the code isn&apos;t emailed
           automatically yet, so copy it and send it to them yourself.
         </p>
 
@@ -485,7 +485,7 @@ export function AdminSettingsPane() {
         <h2 className="text-[15px] font-semibold text-[var(--text)] mb-4">Users</h2>
         <p className="text-[12px] text-[var(--muted)] mb-3">
           Every account on this deployment. Read-only here — role and log-sharing changes
-          aren't editable from this grid yet.
+          aren&apos;t editable from this grid yet.
         </p>
 
         {usersError && <p className="text-[12px] text-[var(--err)] mb-3">{usersError}</p>}
