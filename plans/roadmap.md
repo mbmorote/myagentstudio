@@ -191,6 +191,9 @@ this bucket is free to reorder.
 | **Strict-mode merged-heading re-audit** | Not started — low risk |
 | **Export translation to other platforms** | Not started |
 | **Display-label lookup for `model`** | Not started — low priority |
+| **Show `provider` column in Activity Log** | Not started — low priority |
+| **Replace `window.alert()` with a proper UI component** | Not started — low priority |
+| **Better starter content for "+ New agent"** | Not started |
 | **`AgentSnapshot(kind:'export')` diff-view UI** | Not started — ready to scope |
 | **AI-assisted config-key mapping** | Not started |
 | **Log retention / pruning / pagination** | Not started |
@@ -315,6 +318,60 @@ a platform-specific representation to something else).
 
 **Effort:** Small
 **Status:** Not started, low priority
+
+---
+
+### **Show `provider` column in Activity Log**
+
+**Current state:** `llm_call_log.provider` (`'anthropic'` vs. the OpenAI-compatible
+provider) is stored in the database and returned by `GET /api/llm-call-log`, but
+`ActivityLogPane.tsx`'s `LogListItem` type doesn't declare it and the table has no
+"Provider" column — only `model` is shown. Found 2026-08-26 while reviewing the log
+during Plan 02's AWS deploy. In practice the provider is usually inferable from the model
+name itself (e.g. `meta/llama-3.1-8b-instruct` obviously isn't Anthropic), so this is
+cosmetic, not a missing-data gap.
+
+**Scope:** Add `provider` to `LogListItem`, add a "Provider" column/cell to the table.
+
+**Effort:** Small
+**Status:** Not started, low priority
+
+---
+
+### **Replace `window.alert()` with a proper UI component**
+
+**Current state:** `AgentView.tsx` (lines ~748, ~752 — the custom-config-key validation
+messages) uses raw browser `window.alert()`. Found 2026-08-26. This is the only place in
+the app using it — everywhere else (e.g. `CreateAgentButton.tsx`) already uses an inline
+error message pattern (`<p className="text-[11px] text-[var(--err)]">`).
+
+**Why it's worth fixing:** a native OS alert box breaks visual consistency with the rest
+of the app, can't be themed for light/dark mode, and blocks the JS thread until dismissed
+— out of step with the rest of the UI's inline-message pattern.
+
+**Scope:** Replace both call sites with the same inline error-message pattern already
+established elsewhere in the codebase (or a small shared toast/banner component if a
+third call site shows up later — not worth building an abstraction for two call sites
+today).
+
+**Effort:** Small
+**Status:** Not started, low priority
+
+---
+
+### **Better starter content for "+ New agent"**
+
+**Current state:** `createAgent()` (`lib/db/repository/agents.ts`) seeds a brand-new agent
+with only empty core sections (from `sectionDef` where `isCore: true`) — no example
+content, no config defaults, no guidance. A first-time user clicking "+ New agent" lands
+on a blank slate with just section headings and nothing else. Found 2026-08-26.
+
+**Scope:** Needs a design decision first — what "better" means here (placeholder/hint text
+per section vs. a filled-out example agent vs. a small set of starter templates to pick
+from). Not scoped in detail yet.
+
+**Effort:** Medium — depends on the design decision above.
+**Status:** Not started
 
 ---
 
