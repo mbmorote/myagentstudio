@@ -1,7 +1,7 @@
 # MyAgentStudio — Roadmap
 
-Living index of open work. Four buckets, in priority order: **TODO** (must ship before v1
-goes online — "Deploy online" is always the last item), **NEXT** (decided and scoped, but
+Living index of open work. Four buckets, in priority order: **TODO** (must ship before the
+next release), **NEXT** (decided and scoped, but
 deliberately deferred to right after launch — "ship now, harden fast": real user feedback on
 a live beta matters more than finishing this before anyone sees it), **FUTURE** (decided
 eventually, not yet prioritized — free to reorder), **IDEA** (either not yet decided whether
@@ -17,6 +17,10 @@ about how the system works live in `docs/system-about.md`. One fact, one home.
 **Layout work still prototypes first** — `reference/layout/Layout-Workbench.html` before
 live code (see `CLAUDE.md` standing rule 4).
 
+**Convention changed 2026-08-26:** this file no longer takes new intake — it only drains
+as existing items ship. New work items (bugs, small features) go on the repo's GitHub
+Project board instead. Existing items already listed below stay here until closed.
+
 ---
 
 ## Overview — everything at a glance
@@ -30,8 +34,6 @@ aren't detailed further, the description here is all there is.
 
 | Item | Kind | Bucket | Status / description |
 |---|---|---|---|
-| **Production DB backup/restore** | Infra | TODO | Not started |
-| **Deploy online** |  | TODO | Not started — always last |
 | **Component/UI test coverage** | Infra | NEXT | Not started — first thing once v1 is live |
 | **Post-launch verification pass** | Infra | NEXT | Deliberately deferred past this launch — manual smoke test done 2026-08-24 instead |
 | **AI chat persistence** | Behavior | NEXT | Not started — approach undecided |
@@ -67,11 +69,11 @@ aren't detailed further, the description here is all there is.
 | **Sharing / forking** | UX | FUTURE | Let one user hand an agent to another to fork their own copy |
 | **Skill module** | UX | FUTURE | A second library entity alongside Agent, for Claude's `SKILL.md` files |
 | **Storage target dialect (Postgres vs. Azure SQL)** | Infra | FUTURE | Move off SQLite once the hosting choice demands it |
+| **Production DB restore documentation** | Infra | FUTURE | Backup cron already ships (daily, 14-day retention, since 2026-08-26) — this is just writing down the restore runbook, not building anything |
 | **Catalog evolution** | Infra | FUTURE | Distinguish "never known" from "was known, catalog since changed" for config/section keys |
 | **`ConfigDef` platform-scoping** | Infra | FUTURE | Per-platform config catalogs, once a second platform (beyond Claude) exists |
 | **"Replay this request" from a dry-run log row** | UX | FUTURE | Re-run a stored dry-run request for real, straight from the Activity Log |
 | **Dedicated group-management view** | UX | FUTURE | A standalone panel for managing groups, beyond the Library's inline controls |
-| **CI/CD** | Infra | FUTURE | Automated test → build → deploy, instead of the manual first deploy |
 | **Docker** | Infra | FUTURE | Containerize the app |
 | **Azure / hosting infra maturity** | Infra | FUTURE | App Service first, Kubernetes only if that ever becomes the real goal |
 | **Organizations / teams** | Behavior | FUTURE | Agents owned jointly by a group of people, not just one account |
@@ -105,74 +107,8 @@ aren't detailed further, the description here is all there is.
 
 ## TODO — before v1 goes online
 
-Must happen before v1 launches. **Deploy online is always last** — anything newly added here
-goes before it. Reorganized 2026-08-24: the MCP QA validation and docs-review items closed
-(outcomes logged in `CHANGELOG.md`, per this file's own "closed items drop out" convention)
-and dropped out of this list entirely. The remaining launch-verification work (tokens panel
-QA, the formal Big Flow Test, the MCP write-path check) is deliberately **not** required to
-close this list — the user already manually smoke-tested the core import → chat-edit →
-proposal → apply → export flow on 2026-08-24, which stands in for the formal versions to
-keep the launch date. All three moved to NEXT as **Post-launch verification pass**, to run
-against the real deployment once it exists rather than gating it.
-
-### Overview
-
-| Item | Kind | Status |
-|---|---|---|
-| **Production DB backup/restore** | Infra | Not started |
-| **Deploy online** | — | Not started — always last |
-
----
-
-### **Production DB backup/restore**
-
-**Current state:** No ongoing backup exists — every "backup" reference in the repo today is a
-one-time safety copy taken before a risky migration, not a repeatable procedure.
-
-**Scope:**
-- Document how to snapshot the live SQLite file and restore it, somewhere findable
-- No code required unless the eventual hosting target makes this non-trivial
-
-**Effort:** Small, mostly documentation
-**Depends on:** None
-**Status:** Not started
-
----
-
-### **Deploy online**
-
-**Current state:** App runs locally only. Hosting decided 2026-08-24: AWS EC2 free tier
-(`t3.micro`, Ubuntu), SQLite persisted on-instance with a daily backup cron, Caddy for
-automatic HTTPS (session cookie is `secure: true` in production — `http://` would silently
-drop it), NVIDIA NIM as the default LLM provider for beta users. A purchased domain
-(~$10–12/yr) is the plan, with a free dynamic-DNS subdomain as the fallback. No infra
-provisioned yet.
-
-MCP's read-only surface is already live-verified against a real client (2026-08-24): a
-genuine Claude Code session called `list_agents` and `pull_agent`/`get_agent` successfully
-(see `CHANGELOG.md`). That pass also found and fixed a real rate-limiter tuning bug — the
-shared `'unknown'`-IP bucket every no-reverse-proxy client collapses into was too tight at
-10/15min, raised to 20/15min (`lib/auth/rateLimit.ts`).
-
-**Scope:**
-- EC2 instance + Caddy (auto-HTTPS) + PM2, app deployed from the public repo, `.env.local`
-  configured for production (fresh `JWT_SECRET`, NVIDIA key as the default provider, Google
-  OAuth vars left unset — deferred), DNS pointed at the instance
-- The daily SQLite backup cron is installed as part of this step, not a follow-up — see
-  **Production DB backup/restore** for the still-missing restore documentation
-- A personal go-live smoke pass: login over HTTPS, provider/live-calls/rate-limit settings
-  confirmed at their intended values, first batch of invite codes generated
-- The *automated* version of this (CI/CD) is a separate FUTURE item, not required for this
-  first deploy
-- **Deliberately not required to close this item** — the formal Big Flow Test, the MCP
-  write-path check, and the tokens-panel visual QA. Tracked separately as NEXT's
-  **Post-launch verification pass**, run against the real deployment instead of gating it.
-
-**Effort:** Depends on the hosting choice
-**Depends on:** Production DB backup/restore
-**Status:** Not started — always last
-
----
+Empty as of 2026-08-26 — v1 shipped (Plans 01/02). Anything that must block a future
+release lands here when it exists; nothing currently does.
 
 ## NEXT — first priorities once v1 is online
 
@@ -249,7 +185,7 @@ standing rule 2:**
   render, revoke). Never opened in a running browser yet. Free.
 
 **Effort:** Small
-**Depends on:** Deploy online (run against the real domain, not local dev)
+**Depends on:** none — the app is live in production, ready to run against the real domain
 **Status:** Not started — deliberately deferred past this launch
 
 ---
@@ -679,12 +615,12 @@ these are "yes, eventually" items with a revisit trigger, not actively scoped wo
 | **System agents become real, platform-managed agents** | Confirmed wanted, explicitly "far away" |
 | **Sharing / forking** | Ready to scope — prerequisite (`ownerId`) satisfied |
 | **Skill module** | Ready to scope |
-| **Storage target dialect (Postgres vs. Azure SQL)** | At the hosting-choice trigger (Deploy online) |
+| **Storage target dialect (Postgres vs. Azure SQL)** | Passed 2026-08-26 without firing — SQLite chosen for the AWS EC2 deploy and working fine; revisit only if it stops being adequate |
+| **Production DB restore documentation** | Before opening the beta more widely, or the first time a restore is actually needed |
 | **Catalog evolution** | Once catalog-versioning infrastructure exists |
 | **`ConfigDef` platform-scoping** | When a second platform's import/create is built |
 | **"Replay this request" from a dry-run log row** | If manual re-running becomes a papercut |
 | **Dedicated group-management view** | Not researched |
-| **CI/CD** | After the first manual deploy |
 | **Docker** | Once the app runs end-to-end online |
 | **Azure / hosting infra maturity** | Folds with the storage-dialect item |
 | **Organizations / teams** | Needs a product/design debate before buildable |
