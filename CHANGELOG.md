@@ -7,6 +7,28 @@ status. For full blow-by-blow detail behind any entry below, see the referenced 
 
 ---
 
+## 2026-08-27 — CI/CD: skip deploy on docs-only pushes; auto-merge item removed
+
+Merging to `master` no longer redeploys identical app code when only documentation changed. A
+new `changes` job (`dorny/paths-filter@v3`) diffs the push against `**/*.md`, `docs/**`,
+`plans/**`, `reference/**`; `deploy` now additionally requires
+`needs.changes.outputs.non_docs == 'true'`, so `test-and-build` still runs on every push but
+the SSH deploy and AWS security-group open/close only run when something outside those doc
+paths actually changed.
+
+Two follow-up hotfixes were needed: the `changes` job initially had no `actions/checkout`
+step, and `dorny/paths-filter` needs local git history to diff against `github.event.before`
+on push events (unlike `pull_request` events, which use the GitHub API and don't need one) —
+every push was failing the `changes` job outright, which meant `deploy` was skipped
+unconditionally regardless of content. Second, the exclude patterns had no effect because
+`predicate-quantifier` defaults to `'some'` (OR logic) — the leading `'**'` pattern alone
+always matched, so a real docs-only PR (#21) still deployed. Setting
+`predicate-quantifier: every` (AND logic) fixed it, confirmed by a second docs-only PR (#22)
+correctly showing `deploy: skipped`.
+
+The roadmap's paired "auto-merge tradeoffs" item was removed rather than carried forward — not
+an engineering task, just a repo-settings decision.
+
 ## 2026-08-26 — CI/CD pipeline: push to master now auto-tests, builds, and deploys (Plan 03)
 
 A push to `master` now automatically tests, builds, and deploys to the live server — no
