@@ -57,6 +57,7 @@ aren't detailed further, the description here is all there is.
 | **Validation flag for malformed `name`/`description` on import** | Behavior | NEXT | Not started |
 | **Wire `AgentDTO.validation` into the UI** | UX | NEXT | Not started |
 | **Wiring a declared model for Prometheus** | Behavior | NEXT | Not started |
+| **Repair near-miss JSON in Prometheus responses + surface parse-recovery warnings** | Behavior | NEXT | Not started — found live 2026-08-26 |
 | **App version number in footer** | UX | NEXT | Ready to build — fully designed, implemented once then reverted for scope reasons (Plan 03) |
 | **Task/bug tracking conventions (GitHub Issues + Project board)** | Infra | NEXT | Not started |
 | **Skip CI/CD deploy for docs-only pushes** | Infra | NEXT | Not started — revisit once the pipeline's real usage patterns are clearer |
@@ -150,6 +151,7 @@ this bucket is free to reorder.
 | **Validation flag for malformed `name`/`description` on import** | Not started |
 | **Wire `AgentDTO.validation` into the UI** | Not started |
 | **Wiring a declared model for Prometheus** | Not started |
+| **Repair near-miss JSON in Prometheus responses + surface parse-recovery warnings** | Not started — found live 2026-08-26 |
 | **App version number in footer** | Ready to build |
 | **Task/bug tracking conventions (GitHub Issues + Project board)** | Not started |
 | **Skip CI/CD deploy for docs-only pushes** | Not started |
@@ -600,6 +602,53 @@ frontmatter `model` is simply left **unset** today (not hardcoded to any specifi
 
 **Effort:** Trivial
 **Status:** Not started
+
+---
+
+### **Repair near-miss JSON in Prometheus responses + surface parse-recovery warnings**
+
+**Current state:** Found 2026-08-26 live in chat with the `analyst` agent — a Prometheus
+reply containing a stray backslash inside its `message` string (`atlassian-mcp-server\*`,
+an invalid JSON escape — only `\"`, `\\`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t`, `\uXXXX` are
+legal after a backslash in JSON) failed all three of `parsePrometheusResponse()`'s
+extraction attempts (`lib/ai/prometheus.ts:322`) and fell into the 2026-08-12 "non-JSON
+fallback," which dumps the entire raw response — braces, `"message":`, everything — into
+`message` as if it were the answer. `ChatPanel.tsx` renders `msg.text` with no parsing of
+its own, so the literal JSON envelope rendered straight into the chat bubble instead of the
+model's actual markdown answer. The model almost certainly wrote `\*` as a markdown escape
+(stopping a literal `*` from merging into its own `**bold**` markup) without accounting for
+the fact that a lone backslash isn't legal inside a JSON string.
+
+A second, related gap surfaced during the same investigation: the fallback path already
+writes a warning into `PrometheusProposal.warnings` ("Prometheus did not return the
+expected format..."), but a fallback response always carries `modifications: {}`, and
+`ChatPanel.tsx` only renders `warnings` inside the proposal card (`renderProposalCard()`) —
+which is never created for a modifications-less turn. That warning is silently dropped
+today; the user gets no indication anything went wrong beyond the garbled text itself.
+
+**Scope — two parts:**
+1. **Repair pass, not just detection:** before the three existing extraction attempts
+   (direct parse / code-fence strip / greedy slice), add a pass that walks the raw text
+   tracking JSON-string boundaries (respecting `\"` escaping) and fixes common near-miss
+   mistakes a model makes while writing markdown inside a JSON string — at minimum, an
+   invalid backslash escape (anything after `\` that isn't a legal JSON escape character)
+   and literal unescaped control characters (raw newline/tab/CR inside a string). Turns
+   "almost-valid JSON with one bad character" into a clean parse instead of falling all the
+   way to the raw-dump fallback.
+2. **Surface recovery to the user:** whenever a response needed anything past the first
+   clean-parse attempt (fence-strip, slice, repair, or the no-JSON-found fallback), show a
+   visible signal on that message — distinct from a silent success — e.g. a small "⚠
+   formatting issue — recovered" note on the bubble. Needs its own render path independent
+   of whether a proposal card exists, not routed through `renderProposalCard()`'s warnings
+   list the way it is today.
+
+**Effort:** Small–Medium — the repair pass is a self-contained string-scanning function,
+unit-testable the same way as the existing `isDrasticShrink()` check (pure, deterministic,
+no keyword/content matching); the UI signal reuses `warnings` but needs a render path that
+doesn't depend on a proposal card existing.
+**Depends on:** None
+**Status:** Not started — root cause diagnosed 2026-08-26 from a raw request/response pair,
+not yet reproduced under `npm test`
 
 ---
 
