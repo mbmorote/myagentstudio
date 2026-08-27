@@ -87,6 +87,50 @@ follow these even though you have no memory of when they were agreed:
    separate, dedicated pass to actually find — do the grep as part of the move itself, not
    after. Same pattern repeated 2026-08-24: `architecture/` renamed to `reference/` once its
    last non-`layout/` content (`audits/`) moved out of the repo entirely.
+8. **The GitHub repo is public — nothing in it can be selectively hidden.** GitHub gives no
+   partial-visibility control on a public repo: every commit, every PR (open, closed, or
+   merged), every PR comment, and the full history are visible to any visitor. Closing a PR
+   only changes its state label — it does not hide it. Before any commit or PR (docs-only
+   included), check the actual diff for anything that shouldn't be public — secrets,
+   credentials, internal-only notes, or WIP not meant for a portfolio audience — since once
+   pushed, removing it cleanly means deleting/rewriting history, not just closing something.
+   Reason this rule exists: on a public repo, review has to happen before the push — there
+   is no later step that can undo or hide what's already visible.
+9. **The GitHub Issues workflow: branch → work → commit → push → PR → merge — and merge is
+   the deploy trigger.** Standard flow for working a tracked issue (`gh issue list` on
+   `mbmorote/myagentstudio` — a separate list from `plans/roadmap.md`, not reconciled against
+   it by default):
+   1. Branch off `master` for the issue.
+   2. Implement the fix.
+   3. Commit.
+   4. Push the branch, open a PR into `master` (reference the issue, e.g. `Closes #12`).
+   5. CI runs `test-and-build` on the PR automatically (`.github/workflows/ci.yml`).
+   6. Merge the PR into `master`.
+   7. That merge is itself a push to `master`, which re-runs `test-and-build` and then the
+      `deploy` job — SSH to the AWS EC2 host, deploy, close SSH again. **There is no separate
+      manual deploy step; merging to `master` deploys to production**, for any push including
+      docs-only ones (tracked as a known inefficiency: "Review/improve CI/CD process",
+      `plans/roadmap.md`).
+
+   Rule 1 (never commit without explicit ask) still governs every step here by default. How
+   much gets done before stopping to check in is picked per-issue via one of three levels,
+   named by the trigger phrase used when starting the issue:
+
+   - **Level 1 — "issue #N, plan first."** Read the issue, branch, then **stop and present
+     the plan** (files touched, what changes) before writing any code. After approval,
+     implement, then **stop again** and show the diff before any build/test check or commit.
+   - **Level 2 — "issue #N" (no qualifier; the default).** Read the issue, branch, implement
+     directly, then **stop and show the diff** — no build/test run, no commit yet.
+   - **Level 3 — "issue #N, full send."** Read the issue, branch, implement, commit, push,
+     open the PR — no stops, no diff shown; report back with the PR link. Review happens on
+     GitHub instead of in-session.
+
+   All three levels leave commit/push/PR-open ungated only insofar as the chosen level says
+   so — anything past what the level covers still needs a fresh ask. **Merge into `master` is
+   never included by default at any level**, since it's the deploy trigger to production; it
+   only gets bundled into a Level 3 run if named explicitly in the trigger itself (e.g. "issue
+   #N, full send including merge"). Ambiguous phrasing ("go ahead", unqualified) is not an
+   instruction to pick the widest reading — ask which level/steps are meant.
 
 ## Folders
 
