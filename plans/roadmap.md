@@ -68,7 +68,7 @@ listed here stay until closed.
 | **GDPR-style export/deletion workflow** | FUTURE | Medium | High | Behavior | Not scoped | No legal obligation today, but "get real users" is a near-term goal |
 | **Instant auto-apply mode** | FUTURE | Medium | Low | Behavior | Not scoped | Skip the confirm-click for proposals |
 | **Review user account management** | FUTURE | Medium | Medium | UX | Not scoped | Password reset, self-service email/password/delete, own-session management |
-| **Review/improve CI/CD process** | FUTURE | Medium | Medium | Infra | Not scoped | Skip deploy on docs-only pushes; auto-merge tradeoffs |
+| **Review/improve CI/CD process** | FUTURE | Medium | Medium | Infra | Docs-only deploy skip shipped 2026-08-27; auto-merge tradeoffs still open | Skip deploy on docs-only pushes (done); auto-merge tradeoffs (not scoped) |
 | **`AgentSnapshot(kind:'export')` diff-view UI** | FUTURE | Low | Medium | UX | Not scoped | Compare two snapshots side-by-side |
 | **AI-assisted config-key mapping** | FUTURE | Low | Medium | Behavior | Not scoped | Auto-label a messy frontmatter key to its canonical `propKey` |
 | **An admin toggle for auto-linking** | FUTURE | Low | Low | Infra | Not scoped | Contingency for a Google Workspace domain-takeover risk |
@@ -309,14 +309,22 @@ other active sessions).
 
 ### Review/improve CI/CD process
 
-Merges two related pipeline questions surfaced during Plan 03's close-out: (1) every push to
-`master` triggers both the test-and-build and deploy jobs, even a docs-only push — harmless
-but not free (a full `npm ci` + build + `pm2 restart`, brief service blip, plus opening/closing
-the AWS security-group hole, just to redeploy identical app code); (2) GitHub's built-in
-auto-merge would remove the manual click-merge-after-seeing-CI-green step, but since a push to
-`master` now literally means deploying, that moves the real approval checkpoint earlier, to
-before CI has even run. Revisit both together once there's a better feel for actual
-day-to-day pipeline use.
+Merged two related pipeline questions surfaced during Plan 03's close-out. (1) **Shipped
+2026-08-27**: every push to `master` used to trigger both the test-and-build and deploy jobs,
+even a docs-only push — harmless but not free (a full `npm ci` + build + `pm2 restart`, brief
+service blip, plus opening/closing the AWS security-group hole, just to redeploy identical app
+code). Fixed with a `changes` job (`dorny/paths-filter@v3`, `predicate-quantifier: every`) that
+gates `deploy` on whether the push touched anything outside `**/*.md`, `docs/**`, `plans/**`,
+`reference/**`. Took two follow-up hotfixes to get right: the `changes` job needs
+`actions/checkout` first (push events, unlike `pull_request`, need local git history to diff
+against `github.event.before`), and the exclude patterns need `predicate-quantifier: every`
+(AND logic) — the default `'some'` (OR) meant the leading `'**'` pattern alone always matched,
+so the excludes never actually subtracted anything. Verified with two real docs-only merges:
+PR #21 (before the quantifier fix) still deployed, PR #22 (after) correctly skipped. (2) **Still
+open**: GitHub's built-in auto-merge would remove the manual click-merge-after-seeing-CI-green
+step, but since a push to `master` now means deploying (for non-docs changes), that moves the
+real approval checkpoint earlier, to before CI has even run. Revisit once there's a better feel
+for actual day-to-day pipeline use.
 
 ### `AgentSnapshot(kind:'export')` diff-view UI
 
