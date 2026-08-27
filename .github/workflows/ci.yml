@@ -7,6 +7,22 @@ on:
     branches: [master]
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      non_docs: ${{ steps.filter.outputs.non_docs }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            non_docs:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!plans/**'
+              - '!reference/**'
+
   test-and-build:
     runs-on: ubuntu-latest
     steps:
@@ -20,8 +36,8 @@ jobs:
       - run: npm run build
 
   deploy:
-    needs: test-and-build
-    if: github.ref == 'refs/heads/master'
+    needs: [test-and-build, changes]
+    if: github.ref == 'refs/heads/master' && needs.changes.outputs.non_docs == 'true'
     runs-on: ubuntu-latest
     concurrency:
       group: deploy
