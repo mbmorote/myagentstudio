@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import packageJson from './package.json';
 
 /**
  * next.config.ts
@@ -9,6 +10,9 @@ import type { NextConfig } from 'next';
  * `.js` imports to their `.ts`/`.tsx` counterparts, matching tsconfig moduleResolution.
  */
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: packageJson.version,
+  },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   webpack: (config: any) => {
     config.resolve = config.resolve ?? {};

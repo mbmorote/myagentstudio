@@ -465,6 +465,7 @@ export function WorkbenchShell({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/processmind-mark.png" alt="" className="w-4 h-4 object-contain" />
         <span>Produced by ProcessMind Solutions</span>
+        <span>· v{process.env.NEXT_PUBLIC_APP_VERSION}</span>
       </div>
     </div>
   );
