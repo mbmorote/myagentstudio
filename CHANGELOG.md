@@ -7,6 +7,41 @@ status. For full blow-by-blow detail behind any entry below, see the referenced 
 
 ---
 
+## 2026-08-26 — CI/CD pipeline: push to master now auto-tests, builds, and deploys (Plan 03)
+
+A push to `master` now automatically tests, builds, and deploys to the live server — no
+manual SSH round-trip needed for routine updates. `.github/workflows/ci.yml` runs two
+jobs: `test-and-build` (checkout, Node 22, `npm ci`, `npm test`, `npm run build`) on every
+push and PR, then `deploy` (gated on `test-and-build` passing, only on a real push to
+`master`) opens a temporary hole in the EC2 security group for the GitHub runner's own IP,
+SSHes in with a dedicated, forced-command-restricted deploy key (can only ever run
+`~/deploy.sh` on the server, nothing else), runs the same update sequence Plan 02's manual
+procedure used (`git pull && npm ci && npm run build && pm2 restart` + a live health
+check), then closes the security-group hole again — even if the deploy failed. A
+`master` branch-protection rule now requires that check to pass before any commit can
+reach `master` at all, whether via PR or direct push.
+
+Proven end-to-end on its first real run (PR #2): CI green → SG opened → deploy executed
+live (`Deploy over SSH` step: 1m 31s) → health check against `https://myagentstudio.dev`
+passed → SG closed again. Two real bugs surfaced and fixed along the way, both process
+issues rather than app bugs: a missing `pretest` npm hook meant CI's `npm test` had no
+generated system-prompt files to import on a clean checkout (fixed by adding
+`"pretest": "tsx scripts/build-prompts.ts"`, matching the existing `predev`/`prebuild`
+pattern); and the scoped IAM user's policy was initially written against the wrong AWS
+account ID (an org management-account ID pulled from an unrelated screen, not the actual
+working account), causing the first live deploy run to fail with `UnauthorizedOperation`
+until corrected.
+
+**Gate-semantics shift, in effect from this point on:** pushing to `master` now literally
+*is* deploying. The existing "no push without explicit go" standing gate absorbs the
+deploy gate — there's no such thing as an innocent push to `master` anymore; work in
+progress belongs on branches.
+
+Plan 03's original scope also included an app version-number footer display and GitHub
+Issues/labels/Project-board tracking conventions — both extracted out to
+`plans/roadmap.md` as independent items (not part of the CI/CD flow itself). Full detail:
+`03-CICD.md` in the Plans folder.
+
 ## 2026-08-24 — Added AGPL-3.0 LICENSE + README license/contributing sections (Plan 01 step 3)
 
 Added `LICENSE`: the full AGPL-3.0 text pulled verbatim from `gnu.org/licenses/agpl-3.0.txt`

@@ -57,6 +57,8 @@ aren't detailed further, the description here is all there is.
 | **Validation flag for malformed `name`/`description` on import** | Behavior | NEXT | Not started |
 | **Wire `AgentDTO.validation` into the UI** | UX | NEXT | Not started |
 | **Wiring a declared model for Prometheus** | Behavior | NEXT | Not started |
+| **App version number in footer** | UX | NEXT | Ready to build — fully designed, implemented once then reverted for scope reasons (Plan 03) |
+| **Task/bug tracking conventions (GitHub Issues + Project board)** | Infra | NEXT | Not started |
 | **`scripts/build-prompts.ts` readable output** | Infra | FUTURE | The compiled system prompt currently emits as one giant escaped-string line — make it human-readable |
 | **Structured outputs for Prometheus** | Behavior | FUTURE | Replace prompt-instructed JSON with Anthropic's API-enforced structured outputs, so malformed replies become structurally impossible |
 | **Incremental streaming** | Behavior | FUTURE | Token-by-token chat responses instead of waiting for the full reply |
@@ -146,6 +148,8 @@ this bucket is free to reorder.
 | **Validation flag for malformed `name`/`description` on import** | Not started |
 | **Wire `AgentDTO.validation` into the UI** | Not started |
 | **Wiring a declared model for Prometheus** | Not started |
+| **App version number in footer** | Ready to build |
+| **Task/bug tracking conventions (GitHub Issues + Project board)** | Not started |
 
 ---
 
@@ -591,6 +595,62 @@ frontmatter `model` is simply left **unset** today (not hardcoded to any specifi
 `scripts/build-prompts.ts` is touched.
 
 **Effort:** Trivial
+**Status:** Not started
+
+---
+
+### **App version number in footer**
+
+**Current state:** Extracted 2026-08-26 from Plan 03 (CI/CD)'s original Step 5 — not part
+of the CI/CD flow itself, moved here to stand on its own with independent priority.
+Design already fully worked out and implemented once during Plan 03 (then reverted, only
+for scope-organization reasons, not because anything was wrong with it):
+
+- `next.config.ts` gains an `env` block reading `package.json`'s `version` into
+  `NEXT_PUBLIC_APP_VERSION` at build time (the running build IS the version, no API
+  route needed).
+- `app/components/WorkbenchShell.tsx`'s existing branding footer (currently "Produced by
+  ProcessMind Solutions") gets one more `<span>` showing `· v{APP_VERSION}`, reusing the
+  container's existing muted/small styling — no new styling needed.
+- Bump process: `npm version patch|minor|major` (creates commit + tag) → matching
+  `CHANGELOG.md` entry → push. Stays behind the no-commit-without-ask standing rule like
+  any other commit.
+- Deliberately not bumped yet — first real bump happens when work on the next version
+  actually starts, not just to exercise the mechanism.
+- A separate, second footer exists on the pre-login `/welcome` landing page
+  (`WelcomePage.tsx`) — out of scope for this item unless explicitly requested.
+
+**Effort:** Trivial — two small file edits, already proven to work
+**Status:** Ready to build
+
+---
+
+### **Task/bug tracking conventions (GitHub Issues + Project board)**
+
+**Current state:** Extracted 2026-08-26 from Plan 03 (CI/CD)'s original Step 6 — not part
+of the CI/CD flow itself, moved here to stand on its own with independent priority. This
+file's own header already carries the convention this item would actually build: *"this
+file no longer takes new intake — it only drains as existing items ship. New work items
+... go on the repo's GitHub Project board instead."* That board doesn't exist yet — this
+item is what builds it.
+
+**Scope:**
+- No bulk migration of this file's existing items — they stay here until closed.
+- Create 2–3 real starter Issues from the current NEXT list, so the Issues tab isn't
+  empty when Plans 06/07 send visitors (an empty Issues tab on a "live product" repo
+  reads as abandoned).
+- Label set: `bug`, `enhancement`, `good first issue` (the README's AGPL/contribution
+  note already invites small PRs — gives newcomers somewhere to land).
+- Create a repo-level GitHub Project (free, built-in) as a kanban board over Issues —
+  columns `Backlog` / `In Progress` / `Done`. Every new Issue gets added to the board;
+  `Done` items stay visible there (public evidence) instead of disappearing the way
+  closed items in this file do.
+- PRs stay optional (per Plan 03's D1) — used for non-trivial changes and as portfolio
+  evidence; direct-to-`master` allowed for trivial fixes (though in practice, branch
+  protection now requires any commit reach `master` with a passing check attached first —
+  see `03-CICD.md`).
+
+**Effort:** Small
 **Status:** Not started
 
 ---
