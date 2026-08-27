@@ -45,7 +45,7 @@ listed here stay until closed.
 |---|---|---|---|---|---|---|
 | **Claude Desktop MCP support (OAuth 2.1)** | NEXT | High | High | Infra | Scoped idea, not started | Needs a real OAuth 2.1 authorization server in front of the existing MCP endpoint |
 | **Delete or disconnect user (admin)** | NEXT | High | Medium | Behavior | Not started | Admin-initiated deletion, plus a lighter session-disconnect option |
-| **Email-sending provider** | NEXT | High | Medium | Infra | Not started | Covers invite-code delivery and general account notifications |
+| **Email-sending provider** | NEXT | High | Medium | Infra | On-going — plan drafted at `plans/14-email-sending-provider.md` | Covers invite-code delivery and general account notifications |
 | **Landing page mobile/responsive support** | NEXT | High | Medium | UX | Not started | Real conversion-risk gap on `/welcome`, not cosmetic |
 | **Share agent** | NEXT | High | Medium | UX | Ready to scope | Hand an agent to another user to fork their own copy |
 | **User-configured LLM key (BYOK)** | NEXT | High | High | Behavior | Needs an LLM strategy review first | Bring-your-own-key; absorbs per-user quota/spend-cap questions |
