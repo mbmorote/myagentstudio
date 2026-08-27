@@ -60,6 +60,7 @@ aren't detailed further, the description here is all there is.
 | **App version number in footer** | UX | NEXT | Ready to build — fully designed, implemented once then reverted for scope reasons (Plan 03) |
 | **Task/bug tracking conventions (GitHub Issues + Project board)** | Infra | NEXT | Not started |
 | **Skip CI/CD deploy for docs-only pushes** | Infra | NEXT | Not started — revisit once the pipeline's real usage patterns are clearer |
+| **Auto-merge PRs once CI passes** | Infra | NEXT | Not started — weigh against losing the manual pre-merge checkpoint |
 | **`scripts/build-prompts.ts` readable output** | Infra | FUTURE | The compiled system prompt currently emits as one giant escaped-string line — make it human-readable |
 | **Structured outputs for Prometheus** | Behavior | FUTURE | Replace prompt-instructed JSON with Anthropic's API-enforced structured outputs, so malformed replies become structurally impossible |
 | **Incremental streaming** | Behavior | FUTURE | Token-by-token chat responses instead of waiting for the full reply |
@@ -152,6 +153,7 @@ this bucket is free to reorder.
 | **App version number in footer** | Ready to build |
 | **Task/bug tracking conventions (GitHub Issues + Project board)** | Not started |
 | **Skip CI/CD deploy for docs-only pushes** | Not started |
+| **Auto-merge PRs once CI passes** | Not started |
 
 ---
 
@@ -674,6 +676,27 @@ app-relevant paths — e.g. the `dorny/paths-filter` action, or GitHub's native
 
 **Effort:** Small
 **Status:** Not started — revisit once real pipeline usage shows this is worth it
+
+---
+
+### **Auto-merge PRs once CI passes**
+
+**Current state:** Surfaced 2026-08-26 alongside the item above, while discussing the
+CI/CD pipeline's day-to-day feel. GitHub has a built-in "Enable auto-merge" toggle on a
+PR — once turned on, it merges automatically the instant required status checks pass, no
+manual click needed. Needs one repo-level setting first (**Settings → General → Pull
+Requests → "Allow auto-merge"**), then it's a per-PR toggle.
+
+**The real tradeoff, not yet resolved:** today's "explicit go" checkpoint is *clicking
+merge after seeing CI is actually green*. With auto-merge, that checkpoint moves earlier —
+to the moment "Enable auto-merge" is clicked, potentially before CI has even started.
+Since a push to `master` now literally means deploying (Plan 03's gate-semantics shift),
+auto-merge means pre-authorizing the deploy before it's been seen to pass, not after.
+Grouped here with the item above so both can be weighed together once there's a better
+feel for how the pipeline actually gets used day to day.
+
+**Effort:** Trivial to turn on; the open question is whether it's wanted, not how to build it
+**Status:** Not started — weigh against losing the manual pre-merge checkpoint
 
 ---
 
