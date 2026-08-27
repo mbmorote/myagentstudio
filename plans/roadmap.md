@@ -59,6 +59,7 @@ aren't detailed further, the description here is all there is.
 | **Wiring a declared model for Prometheus** | Behavior | NEXT | Not started |
 | **App version number in footer** | UX | NEXT | Ready to build — fully designed, implemented once then reverted for scope reasons (Plan 03) |
 | **Task/bug tracking conventions (GitHub Issues + Project board)** | Infra | NEXT | Not started |
+| **Skip CI/CD deploy for docs-only pushes** | Infra | NEXT | Not started — revisit once the pipeline's real usage patterns are clearer |
 | **`scripts/build-prompts.ts` readable output** | Infra | FUTURE | The compiled system prompt currently emits as one giant escaped-string line — make it human-readable |
 | **Structured outputs for Prometheus** | Behavior | FUTURE | Replace prompt-instructed JSON with Anthropic's API-enforced structured outputs, so malformed replies become structurally impossible |
 | **Incremental streaming** | Behavior | FUTURE | Token-by-token chat responses instead of waiting for the full reply |
@@ -150,6 +151,7 @@ this bucket is free to reorder.
 | **Wiring a declared model for Prometheus** | Not started |
 | **App version number in footer** | Ready to build |
 | **Task/bug tracking conventions (GitHub Issues + Project board)** | Not started |
+| **Skip CI/CD deploy for docs-only pushes** | Not started |
 
 ---
 
@@ -652,6 +654,26 @@ item is what builds it.
 
 **Effort:** Small
 **Status:** Not started
+
+---
+
+### **Skip CI/CD deploy for docs-only pushes**
+
+**Current state:** Surfaced 2026-08-26 during Plan 03 close-out — every push to `master`
+currently triggers both the `test-and-build` and `deploy` jobs, including pushes that
+only touch docs (`*.md`, `plans/**`). Functionally harmless (the app doesn't change) but
+not free: a full `npm ci` + `npm run build` + `pm2 restart` (brief service blip) plus
+opening/closing the AWS security-group hole, just to redeploy identical app code.
+Deliberately not fixed proactively — the plan is to watch the pipeline's real usage for a
+while first and adjust for actual cases seen, not guess upfront.
+
+**Scope, once picked up:** keep `test-and-build` running on every push (cheap, worth
+always verifying) but gate the `deploy` job specifically on whether the diff touches
+app-relevant paths — e.g. the `dorny/paths-filter` action, or GitHub's native
+`paths-ignore` on the trigger if an all-or-nothing skip turns out to be good enough.
+
+**Effort:** Small
+**Status:** Not started — revisit once real pipeline usage shows this is worth it
 
 ---
 
