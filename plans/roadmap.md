@@ -47,7 +47,7 @@ listed here stay until closed.
 | **Delete or disconnect user (admin)** | NEXT | High | Medium | Behavior | Not started | Admin-initiated deletion, plus a lighter session-disconnect option |
 | **Email-sending provider** | NEXT | High | Medium | Infra | On-going — plan drafted at `plans/14-email-sending-provider.md` | Covers invite-code delivery and general account notifications |
 | **Landing page mobile/responsive support** | NEXT | High | Medium | UX | Not started | Real conversion-risk gap on `/welcome`, not cosmetic |
-| **Share agent** | NEXT | High | Medium | UX | Ready to scope | Hand an agent to another user to fork their own copy |
+| **Share agent** | NEXT | High | Medium | UX | On-going — plan drafted at `plans/15-share-agent.md` | Live reference (code + email grant), owner keeps a "copy to me" fork option |
 | **User-configured LLM key (BYOK)** | NEXT | High | High | Behavior | Needs an LLM strategy review first | Bring-your-own-key; absorbs per-user quota/spend-cap questions |
 | **Improve the guided tour** | NEXT | Medium | Medium | UX | Not started | True anchored coach-marks, more trigger conditions |
 | **Surface `applied`/`skipped` from apply-proposal in the UI** | NEXT | Medium | Low | UX | Not started | Data already exists server-side; UI-only work |
