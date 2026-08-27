@@ -87,6 +87,15 @@ follow these even though you have no memory of when they were agreed:
    separate, dedicated pass to actually find — do the grep as part of the move itself, not
    after. Same pattern repeated 2026-08-24: `architecture/` renamed to `reference/` once its
    last non-`layout/` content (`audits/`) moved out of the repo entirely.
+8. **The GitHub repo is public — nothing in it can be selectively hidden.** GitHub gives no
+   partial-visibility control on a public repo: every commit, every PR (open, closed, or
+   merged), every PR comment, and the full history are visible to any visitor. Closing a PR
+   only changes its state label — it does not hide it. Before any commit or PR (docs-only
+   included), check the actual diff for anything that shouldn't be public — secrets,
+   credentials, internal-only notes, or WIP not meant for a portfolio audience — since once
+   pushed, removing it cleanly means deleting/rewriting history, not just closing something.
+   Reason this rule exists: on a public repo, review has to happen before the push — there
+   is no later step that can undo or hide what's already visible.
 
 ## Folders
 
