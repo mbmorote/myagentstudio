@@ -745,11 +745,11 @@ export function AgentView({
     const name = raw?.trim();
     if (!name) return;
     if (configMap.has(name)) {
-      window.alert(`'${name}' already exists on this agent.`);
+      setConfigError(`'${name}' already exists on this agent.`);
       return;
     }
     if (catalogKeySet.has(name)) {
-      window.alert(`'${name}' is a standard config key — use the list above instead of "custom key…" for it.`);
+      setConfigError(`'${name}' is a standard config key — use the list above instead of "custom key…" for it.`);
       return;
     }
     void saveConfig([...currentConfigPairs(), { propKey: name, value: {} }]);
