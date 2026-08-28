@@ -577,7 +577,7 @@ export function AgentView({
     setNameSaving(true);
     setNameError(null);
     try {
-      const response = await fetch(`/api/agents/${agent.id}`, {
+      const response = await apiFetch(`/api/agents/${agent.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: trimmed }),
