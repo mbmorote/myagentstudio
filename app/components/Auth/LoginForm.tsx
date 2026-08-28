@@ -59,9 +59,18 @@ interface LoginFormProps {
    *  modal to switch to, so it keeps plain Links (`/signup` and `/signup?mode=request`,
    *  the latter read by SignupForm itself — see its file header). */
   onSwitchToSignup?: (mode: 'signup' | 'request') => void;
+  /**
+   * When set, called instead of navigating to `nextPath` on a successful
+   * password sign-in (issue #14, 2026-08-28 — the in-place re-auth modal,
+   * ReauthModal.tsx). Lets a caller resume in place after a session expired
+   * mid-session rather than losing the page/in-flight action to a navigation.
+   * The Google button below is unaffected — an OAuth sign-in is a full-page
+   * redirect round trip by nature and can't resume in place regardless.
+   */
+  onLoginSuccess?: () => void;
 }
 
-export function LoginForm({ oauthConfigured, embedded = false, onSwitchToSignup }: LoginFormProps) {
+export function LoginForm({ oauthConfigured, embedded = false, onSwitchToSignup, onLoginSuccess }: LoginFormProps) {
   const searchParams = useSearchParams();
   const nextPath = safeNext(searchParams.get('next'));
 
@@ -105,7 +114,11 @@ export function LoginForm({ oauthConfigured, embedded = false, onSwitchToSignup 
         return;
       }
 
-      window.location.href = nextPath;
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      } else {
+        window.location.href = nextPath;
+      }
     } catch {
       setFormError('Network error. Please try again.');
     } finally {
