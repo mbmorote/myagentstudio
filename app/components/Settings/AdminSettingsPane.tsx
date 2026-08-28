@@ -10,9 +10,10 @@
  *
  * Bundles everything that isn't Account or LLM: the platform settings
  * (maxUsers, accessRequestCodeExpiryHours, mcpWrites), Access requests, Invite
- * codes, and the Users grid — each paginated 10/page (2026-08-18, same-day
- * addition alongside the modal redesign). Self-contained fetch/save for all
- * four, same round-trips SettingsView.tsx already used.
+ * codes, and the Users grid — each paginated 10/page (Access requests and
+ * Users since 2026-08-18's modal redesign; Invite codes added 2026-08-28,
+ * issue #10). Self-contained fetch/save for all four, same round-trips
+ * SettingsView.tsx already used.
  */
 
 import { useEffect, useState } from 'react';
@@ -146,6 +147,7 @@ export function AdminSettingsPane() {
   const [newCodeNote, setNewCodeNote] = useState('');
   const [generatingCode, setGeneratingCode] = useState(false);
   const [newCode, setNewCode] = useState<string | null>(null);
+  const [codesPage, setCodesPage] = useState(1);
 
   useEffect(() => {
     setCodesLoading(true);
@@ -264,8 +266,12 @@ export function AdminSettingsPane() {
     }
   }
 
-  const unredeemedCodes = codes.filter((c) => !c.redeemedBy);
-  const redeemedCodes = codes.filter((c) => c.redeemedBy);
+  // Unredeemed codes always sort first (most actionable), redeemed after — same
+  // grouping as before pagination, just applied to the paged slice now.
+  const orderedCodes = [...codes.filter((c) => !c.redeemedBy), ...codes.filter((c) => c.redeemedBy)];
+  const pagedCodes = orderedCodes.slice((codesPage - 1) * PAGE_SIZE, codesPage * PAGE_SIZE);
+  const pagedUnredeemedCodes = pagedCodes.filter((c) => !c.redeemedBy);
+  const pagedRedeemedCodes = pagedCodes.filter((c) => c.redeemedBy);
   const pagedAccessRequests = accessRequests.slice((accessRequestsPage - 1) * PAGE_SIZE, accessRequestsPage * PAGE_SIZE);
   const pagedUsers = users.slice((usersPage - 1) * PAGE_SIZE, usersPage * PAGE_SIZE);
 
@@ -423,6 +429,7 @@ export function AdminSettingsPane() {
         ) : codes.length === 0 ? (
           <p className="text-[12px] text-[var(--faint)]">No invite codes yet.</p>
         ) : (
+          <>
           <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[9px] overflow-hidden">
             <table className="w-full text-[12px]">
               <thead>
@@ -437,11 +444,22 @@ export function AdminSettingsPane() {
                 </tr>
               </thead>
               <tbody>
-                {unredeemedCodes.map((c) => {
+                {pagedUnredeemedCodes.map((c) => {
                   const expiry = formatExpiry(c.expiresAt);
                   return (
                     <tr key={c.code} className="border-b border-[var(--border)] hover:bg-[var(--bg)]">
-                      <td className="px-3 py-2 font-mono text-[var(--text)] tracking-wider">{c.code}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[var(--text)] tracking-wider">{c.code}</span>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(c.code)}
+                            className="text-[11px] text-[var(--accent-ink)] hover:underline flex-none"
+                            title="Copy this code"
+                          >
+                            Copy
+                          </button>
+                        </div>
+                      </td>
                       <td className="px-3 py-2 text-[var(--muted)]">{c.note ?? '—'}</td>
                       <td className="px-3 py-2 text-[var(--muted)]">{c.boundEmail ?? 'Anyone'}</td>
                       <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatTs(c.createdAt)}</td>
@@ -463,9 +481,9 @@ export function AdminSettingsPane() {
                     </tr>
                   );
                 })}
-                {redeemedCodes.map((c) => (
+                {pagedRedeemedCodes.map((c) => (
                   <tr key={c.code} className="border-b border-[var(--border)] opacity-50">
-                    <td className="px-3 py-2 font-mono text-[var(--muted)] tracking-wider line-through">{c.code}</td>
+                    <td className="px-3 py-2 font-mono text-[var(--muted)] tracking-wider line-through whitespace-nowrap">{c.code}</td>
                     <td className="px-3 py-2 text-[var(--muted)]">{c.note ?? '—'}</td>
                     <td className="px-3 py-2 text-[var(--muted)]">{c.boundEmail ?? 'Anyone'}</td>
                     <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatTs(c.createdAt)}</td>
@@ -477,6 +495,8 @@ export function AdminSettingsPane() {
               </tbody>
             </table>
           </div>
+          <Pager page={codesPage} totalItems={codes.length} pageSize={PAGE_SIZE} onPageChange={setCodesPage} />
+          </>
         )}
       </section>
 
