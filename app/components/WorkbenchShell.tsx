@@ -211,6 +211,10 @@ export function WorkbenchShell({
   // Google path leaves a one-time ?newAccount=1 query param. Whichever is
   // present is consumed and cleared immediately so a page refresh never re-shows it.
   const [showConsentPopup, setShowConsentPopup] = useState(false);
+  // GuidedTour only mounts (and can autostart) once this is true, so the two
+  // first-run overlays never stack (#5) — consent popup first, tour from its
+  // onClose; if there's no popup to show, unblock the tour immediately.
+  const [tourReady, setTourReady] = useState(false);
   useEffect(() => {
     const fromPassword = sessionStorage.getItem(SIGNUP_CONSENT_FLAG_KEY);
     if (fromPassword) {
@@ -223,7 +227,9 @@ export function WorkbenchShell({
       url.searchParams.delete(NEW_ACCOUNT_QUERY_PARAM);
       window.history.replaceState({}, '', url.toString());
       setShowConsentPopup(true);
+      return;
     }
+    setTourReady(true);
   }, []);
 
   // ── Fold state (R15 — local only) ──────────────────────────────────────────
@@ -258,16 +264,25 @@ export function WorkbenchShell({
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg)]">
-      {showConsentPopup && <ConsentPopup onClose={() => setShowConsentPopup(false)} />}
+      {showConsentPopup && (
+        <ConsentPopup
+          onClose={() => {
+            setShowConsentPopup(false);
+            setTourReady(true);
+          }}
+        />
+      )}
 
       {/* ── Topbar ──────────────────────────────────────────────────────── */}
       <Topbar session={session} onReplayTour={() => tourRef.current?.start()} />
 
-      <GuidedTour
-        ref={tourRef}
-        onUnfoldLeft={() => setLeftFolded(false)}
-        onUnfoldRight={() => setRightFolded(false)}
-      />
+      {tourReady && (
+        <GuidedTour
+          ref={tourRef}
+          onUnfoldLeft={() => setLeftFolded(false)}
+          onUnfoldRight={() => setRightFolded(false)}
+        />
+      )}
 
       {/* ── Workbench grid ──────────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0 p-[9px] gap-0">
