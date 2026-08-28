@@ -253,6 +253,14 @@ export function ChatPanel({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
+  // Follow the latest message on every append (send or receive), not just
+  // the success path — a fixed effect keyed on message count instead of a
+  // scrollToBottom() call at each setMessages() call site (#6).
+  useEffect(() => {
+    const t = setTimeout(scrollToBottom, 50);
+    return () => clearTimeout(t);
+  }, [messages.length, scrollToBottom]);
+
   // 'proposal' lock: send is ALLOWED (§5.4 Decision F — discards proposal first).
   const canSend =
     !isInFlight &&
@@ -623,8 +631,6 @@ export function ChatPanel({
         onProposalReceived(proposal.message, mods, proposal.warnings ?? []);
       }
       // Empty modifications → question-only turn; no card, no lock (§5.4)
-
-      setTimeout(scrollToBottom, 50);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       setMessages((prev) => [

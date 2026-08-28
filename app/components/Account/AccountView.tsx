@@ -28,6 +28,13 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/apiFetch';
 
+/** Ready-to-paste `claude mcp add` command for a freshly revealed token (#7) —
+ *  the MCP URL is derived from the current origin rather than left as a placeholder. */
+function buildMcpCommand(token: string): string {
+  const mcpUrl = `${window.location.origin}/api/mcp`;
+  return `claude mcp add --transport http myagentstudio ${mcpUrl} --header "Authorization: Bearer ${token}"`;
+}
+
 /** One linked OAuth provider row, passed from the server page (§7.2, Plan 06 §4.1). */
 interface LinkedAccount {
   provider: string;
@@ -99,6 +106,7 @@ export function AccountView({
   // One-time plaintext reveal after creation
   const [revealedPlaintext, setRevealedPlaintext] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [commandCopied, setCommandCopied] = useState(false);
 
   // Load tokens on mount
   useEffect(() => {
@@ -201,6 +209,17 @@ export function AccountView({
       await navigator.clipboard.writeText(revealedPlaintext);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard not available — no-op
+    }
+  }
+
+  async function handleCopyCommand() {
+    if (!revealedPlaintext) return;
+    try {
+      await navigator.clipboard.writeText(buildMcpCommand(revealedPlaintext));
+      setCommandCopied(true);
+      setTimeout(() => setCommandCopied(false), 2000);
     } catch {
       // clipboard not available — no-op
     }
@@ -338,7 +357,7 @@ export function AccountView({
         {revealedPlaintext && (
           <div className="mb-4 bg-[var(--panel)] border border-[var(--ok)] rounded-[9px] p-4 space-y-2">
             <p className="text-[12px] text-[var(--ok)] font-medium">
-              Token created — copy it now. You will not see this again.
+              Token created — copy the command below and run it in your CLI. You will not see this token again.
             </p>
             <div className="flex items-center gap-2">
               <code className="flex-1 text-[11px] font-mono text-[var(--text)] bg-[var(--elev)] px-2 py-1 rounded break-all">
@@ -348,13 +367,20 @@ export function AccountView({
                 onClick={() => void handleCopy()}
                 className="flex-none text-[12px] px-3 py-1 rounded-[6px] bg-[var(--elev)] text-[var(--text)] hover:bg-[var(--border)] transition-colors cursor-pointer"
               >
-                {copied ? 'Copied' : 'Copy'}
+                {copied ? 'Copied' : 'Copy token'}
               </button>
             </div>
-            <p className="text-[11px] text-[var(--muted)]">
-              Use with:{' '}
-              <code className="font-mono">claude mcp add --transport http myagentstudio &lt;url&gt; --header &quot;Authorization: Bearer &lt;token&gt;&quot;</code>
-            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-[11px] font-mono text-[var(--text)] bg-[var(--elev)] px-2 py-1 rounded break-all">
+                {buildMcpCommand(revealedPlaintext)}
+              </code>
+              <button
+                onClick={() => void handleCopyCommand()}
+                className="flex-none text-[12px] px-3 py-1 rounded-[6px] bg-[var(--elev)] text-[var(--text)] hover:bg-[var(--border)] transition-colors cursor-pointer"
+              >
+                {commandCopied ? 'Copied' : 'Copy command'}
+              </button>
+            </div>
             <button
               onClick={() => setRevealedPlaintext(null)}
               className="text-[11px] text-[var(--muted)] hover:text-[var(--text)] transition-colors cursor-pointer"
