@@ -24,6 +24,25 @@ import {
 
 const ADMIN_KEYS = new Set(['maxUsers', 'accessRequestCodeExpiryHours', 'mcpWrites']);
 
+/**
+ * DD/MM hh:mm — compact date format for the invite-codes "Created" column only
+ * (2026-08-28, at the user's request). Deliberately a local helper, not a change
+ * to prefsShared.tsx's shared formatTs() — that's also used by Access requests,
+ * Users, and Activity log, which weren't asked to change.
+ */
+function formatShortDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}/${mm} ${hh}:${min}`;
+  } catch {
+    return iso;
+  }
+}
+
 const REFERRAL_SOURCE_LABELS: Record<string, string> = {
   linkedin: 'LinkedIn',
   thread: 'A thread/post online',
@@ -431,16 +450,17 @@ export function AdminSettingsPane() {
         ) : (
           <>
           <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[9px] overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-[12px]">
               <thead>
                 <tr className="border-b border-[var(--border)] text-left">
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium w-16"></th>
                   <th className="px-3 py-2 text-[var(--muted)] font-medium">Code</th>
-                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Label</th>
                   <th className="px-3 py-2 text-[var(--muted)] font-medium">For</th>
                   <th className="px-3 py-2 text-[var(--muted)] font-medium">Created</th>
                   <th className="px-3 py-2 text-[var(--muted)] font-medium">Expires</th>
                   <th className="px-3 py-2 text-[var(--muted)] font-medium">Status</th>
-                  <th className="px-3 py-2 text-[var(--muted)] font-medium w-16"></th>
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Label</th>
                 </tr>
               </thead>
               <tbody>
@@ -448,6 +468,15 @@ export function AdminSettingsPane() {
                   const expiry = formatExpiry(c.expiresAt);
                   return (
                     <tr key={c.code} className="border-b border-[var(--border)] hover:bg-[var(--bg)]">
+                      <td className="px-3 py-2">
+                        <button
+                          onClick={() => handleRevokeCode(c.code)}
+                          className="text-[11px] text-[var(--faint)] hover:text-[var(--err)] transition-colors"
+                          title="Revoke this code"
+                        >
+                          Revoke
+                        </button>
+                      </td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-[var(--text)] tracking-wider">{c.code}</span>
@@ -460,40 +489,40 @@ export function AdminSettingsPane() {
                           </button>
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-[var(--muted)]">{c.note ?? '—'}</td>
-                      <td className="px-3 py-2 text-[var(--muted)]">{c.boundEmail ?? 'Anyone'}</td>
-                      <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatTs(c.createdAt)}</td>
+                      <td className="px-3 py-2 text-[var(--muted)]">
+                        <span className="block max-w-[110px] truncate" title={c.boundEmail ?? undefined}>{c.boundEmail ?? 'Anyone'}</span>
+                      </td>
+                      <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatShortDate(c.createdAt)}</td>
                       <td className={`px-3 py-2 whitespace-nowrap ${expiry.expired ? 'text-[var(--err)]' : 'text-[var(--muted)]'}`}>
                         {expiry.text}
                       </td>
-                      <td className={expiry.expired ? 'px-3 py-2 text-[var(--err)]' : 'px-3 py-2 text-[var(--ok)]'}>
+                      <td className={expiry.expired ? 'px-3 py-2 text-[var(--err)] whitespace-nowrap' : 'px-3 py-2 text-[var(--ok)] whitespace-nowrap'}>
                         {expiry.expired ? 'Expired' : 'Unused'}
                       </td>
-                      <td className="px-3 py-2 text-right">
-                        <button
-                          onClick={() => handleRevokeCode(c.code)}
-                          className="text-[11px] text-[var(--faint)] hover:text-[var(--err)] transition-colors"
-                          title="Revoke this code"
-                        >
-                          Revoke
-                        </button>
+                      <td className="px-3 py-2 text-[var(--muted)]">
+                        <span className="block max-w-[110px] truncate" title={c.note ?? undefined}>{c.note ?? '—'}</span>
                       </td>
                     </tr>
                   );
                 })}
                 {pagedRedeemedCodes.map((c) => (
                   <tr key={c.code} className="border-b border-[var(--border)] opacity-50">
-                    <td className="px-3 py-2 font-mono text-[var(--muted)] tracking-wider line-through whitespace-nowrap">{c.code}</td>
-                    <td className="px-3 py-2 text-[var(--muted)]">{c.note ?? '—'}</td>
-                    <td className="px-3 py-2 text-[var(--muted)]">{c.boundEmail ?? 'Anyone'}</td>
-                    <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatTs(c.createdAt)}</td>
-                    <td className="px-3 py-2 text-[var(--faint)]">—</td>
-                    <td className="px-3 py-2 text-[var(--faint)]">Redeemed {c.redeemedAt ? formatTs(c.redeemedAt) : ''}</td>
                     <td className="px-3 py-2"></td>
+                    <td className="px-3 py-2 font-mono text-[var(--muted)] tracking-wider line-through whitespace-nowrap">{c.code}</td>
+                    <td className="px-3 py-2 text-[var(--muted)]">
+                      <span className="block max-w-[110px] truncate" title={c.boundEmail ?? undefined}>{c.boundEmail ?? 'Anyone'}</span>
+                    </td>
+                    <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatShortDate(c.createdAt)}</td>
+                    <td className="px-3 py-2 text-[var(--faint)] whitespace-nowrap">—</td>
+                    <td className="px-3 py-2 text-[var(--faint)] whitespace-nowrap">Redeemed {c.redeemedAt ? formatShortDate(c.redeemedAt) : ''}</td>
+                    <td className="px-3 py-2 text-[var(--muted)]">
+                      <span className="block max-w-[110px] truncate" title={c.note ?? undefined}>{c.note ?? '—'}</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
           <Pager page={codesPage} totalItems={codes.length} pageSize={PAGE_SIZE} onPageChange={setCodesPage} />
           </>
