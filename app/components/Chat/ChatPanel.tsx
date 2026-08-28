@@ -69,6 +69,14 @@ interface ChatMessage {
    *  not just summarized by the chips above. In-memory only, same lifetime as the rest
    *  of `messages` (no chat persistence yet — NEXT item 2). */
   modifications?: PendingProposal['modifications'];
+  /**
+   * Server-side recovery warnings for a modifications-less turn (issue #12,
+   * 2026-08-28) — e.g. "needed a JSON repair before it could be parsed". Only
+   * set when there's no proposal card for this turn; when modifications exist,
+   * the proposal card already renders `warnings` itself (renderProposalCard()
+   * below) and setting this too would duplicate them.
+   */
+  warnings?: string[];
 }
 
 /** State for a cap-reached prompt, shown in place of a message bubble (§3.9). */
@@ -623,6 +631,7 @@ export function ChatPanel({
           changedConfigKeys: changedConfigKeys.length > 0 ? changedConfigKeys : undefined,
           hasDescriptionChange: hasDescriptionChange || undefined,
           modifications: hasModifications ? mods : undefined,
+          warnings: !hasModifications && proposal.warnings?.length ? proposal.warnings : undefined,
         },
       ]);
 
@@ -749,6 +758,16 @@ export function ChatPanel({
                 }`}
               >
                 {msg.text}
+
+                {/* Recovery warnings for a modifications-less turn (issue #12) — the
+                    proposal card renders `warnings` itself when modifications exist, so
+                    msg.warnings is only ever set in the complementary case (see the
+                    ChatMessage.warnings doc comment above). */}
+                {msg.role === 'assistant' && msg.warnings?.map((w, wi) => (
+                  <div key={wi} className="mt-[6px] text-[10.5px] text-[var(--warn)]">
+                    ⚠ {w}
+                  </div>
+                ))}
 
                 {/* Dry-run notice link (§5.2) */}
                 {msg.role === 'assistant' && msg.dryRunLogId !== undefined && (

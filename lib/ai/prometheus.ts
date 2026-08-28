@@ -288,15 +288,96 @@ function buildUserMessage(input: PrometheusInput, blueprint: string): string {
 
 // ─────────────────────────────  Parser  ───────────────────────────────────────
 
+/** Escape sequences JSON considers legal after a backslash inside a string. */
+const VALID_JSON_ESCAPES = new Set(['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u']);
+
+/**
+ * Repairs common near-miss JSON mistakes inside string literals, so a response
+ * that is "almost valid JSON" parses cleanly instead of falling all the way to
+ * the raw-dump fallback below (issue #12, 2026-08-28 — found live: a stray
+ * backslash in a Prometheus reply, e.g. a Windows path or regex fragment typed
+ * without escaping, made every one of the three extraction attempts fail).
+ *
+ * Walks the text tracking whether the cursor is inside a `"..."` string
+ * (respecting `\"` so an escaped quote doesn't end the string early) and fixes,
+ * only inside strings:
+ *   - An invalid escape (`\` followed by anything other than `" \ / b f n r t u`)
+ *     — the model almost always meant a literal backslash, so it's escaped
+ *     (`\d` → `\\d`), preserving the original character rather than dropping it.
+ *   - A raw control character (0x00–0x1F) — replaced with its proper JSON
+ *     escape (`\n`, `\r`, `\t`, or `\u00XX` for anything else).
+ *
+ * Pure and deterministic — no text-pattern/keyword matching (same style as
+ * isDrasticShrink() below) — and a no-op on text that needs no repair, so it is
+ * always safe to run before the three extraction attempts rather than only as a
+ * last resort: already-valid JSON parses identically either way.
+ */
+export function repairNearMissJson(text: string): string {
+  let out = '';
+  let inString = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (!inString) {
+      out += ch;
+      if (ch === '"') inString = true;
+      continue;
+    }
+
+    if (ch === '"') {
+      out += ch;
+      inString = false;
+      continue;
+    }
+
+    if (ch === '\\') {
+      const next = text[i + 1];
+      if (next !== undefined && VALID_JSON_ESCAPES.has(next)) {
+        out += ch + next;
+        i++; // consume the escaped character too
+        continue;
+      }
+      // Invalid escape — treat as a literal backslash the model forgot to escape.
+      out += '\\\\';
+      continue;
+    }
+
+    const code = ch.charCodeAt(0);
+    if (code < 0x20) {
+      switch (ch) {
+        case '\n': out += '\\n'; break;
+        case '\r': out += '\\r'; break;
+        case '\t': out += '\\t'; break;
+        case '\b': out += '\\b'; break;
+        case '\f': out += '\\f'; break;
+        default: out += '\\u' + code.toString(16).padStart(4, '0');
+      }
+      continue;
+    }
+
+    out += ch;
+  }
+  return out;
+}
+
 /**
  * Extracts, validates, and normalises Prometheus's JSON response into a
  * PrometheusProposal. Exported so unit tests can call it directly
  * (plans/archive/07-prometheus-propose-apply.md §6.2).
  *
- * Extraction is a three-step ordered attempt (§4.2):
- *   1. JSON.parse(responseText.trim())        — normal well-behaved model output
+ * repairNearMissJson() runs once upfront (issue #12, 2026-08-28) to fix common
+ * near-miss mistakes inside string literals — see its own doc comment — before
+ * any of the three ordered extraction attempts (§4.2):
+ *   1. JSON.parse(repairedText.trim())        — normal well-behaved model output
  *   2. Strip code fence, then parse            — model wrapped it in ```json … ```
  *   3. Greedy first-{-to-last-} slice, parse  — model added prose around the object
+ *
+ * Whenever attempt 1 fails and a later attempt (repair, fence-strip, or slice)
+ * is what actually produced a parseable object, a warning is pushed so the
+ * recovery is visible to the user, not just to whichever caller happens to
+ * render `warnings` (issue #12 part 2 — this used to only reach the UI when a
+ * proposal card existed, so a modifications-less recovered turn's warning was
+ * silently dropped; see ChatPanel.tsx's inline warning rendering).
  *
  * If all three attempts find no usable JSON object at all (2026-08-12 — observed for
  * advisory/opinion instructions where the model answers in plain prose with no JSON
@@ -328,23 +409,37 @@ export function parsePrometheusResponse(
 ): PrometheusProposal {
   const warnings: string[] = [];
 
-  // ── Step 1: Extract JSON — three attempts (§4.2) ─────────────────────────
+  // ── Step 1: Extract JSON — three attempts (§4.2), against repaired text ──
+  // repairNearMissJson() runs once, upfront, ahead of all three attempts — it's
+  // a no-op on text that's already valid JSON, so this doesn't change behavior
+  // for the normal case (§ repairNearMissJson doc comment above).
+  const repairedText = repairNearMissJson(responseText);
+  const wasRepaired = repairedText !== responseText;
   let parsed: unknown;
+  // True whenever the response needed anything past a clean first-try parse of
+  // the model's own text — surfaced to the user below (issue #12 part 2) since
+  // today this would otherwise be silently invisible outside the proposal card.
+  // Starts true if repair changed anything: a repaired response parsing on
+  // "attempt 1" below is still attempt 1 against the REPAIRED text, not the
+  // model's original output, so it counts as recovery even when the catch
+  // branch below never runs.
+  let neededRecovery = wasRepaired;
 
   // Attempt 1: direct parse (the normal case)
   try {
-    parsed = JSON.parse(responseText.trim());
+    parsed = JSON.parse(repairedText.trim());
   } catch {
+    neededRecovery = true;
     // Attempt 2: strip ```json … ``` fences
     try {
-      const stripped = responseText
+      const stripped = repairedText
         .replace(/^```json\s*\n?/, '')
         .replace(/\n?```\s*$/, '')
         .trim();
       parsed = JSON.parse(stripped);
     } catch {
       // Attempt 3: greedy first-{-to-last-} slice
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      const jsonMatch = repairedText.match(/\{[\s\S]*\}/);
       let sliceParsed: unknown;
       let sliceOk = false;
       if (jsonMatch) {
@@ -375,6 +470,14 @@ export function parsePrometheusResponse(
       }
       parsed = sliceParsed;
     }
+  }
+
+  if (neededRecovery) {
+    warnings.push(
+      wasRepaired
+        ? "Prometheus's reply needed a JSON formatting repair (e.g. an unescaped backslash) before it could be parsed — recovered automatically."
+        : "Prometheus's reply wasn't clean JSON (extra text or a code-fence wrapper around it) — recovered automatically.",
+    );
   }
 
   // ── Step 2: Validate root is a plain object ───────────────────────────────

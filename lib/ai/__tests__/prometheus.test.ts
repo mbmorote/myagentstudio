@@ -20,6 +20,7 @@ vi.mock('../prompts/generated/prometheus.js', () => ({
 import {
   parsePrometheusResponse,
   PrometheusInvalidResponseError,
+  repairNearMissJson,
 } from '../prometheus.js';
 
 // ─────────────────────────────  Extraction tests  ─────────────────────────────
@@ -84,6 +85,64 @@ describe('parsePrometheusResponse — JSON extraction (§4.2)', () => {
     expect(() => parsePrometheusResponse('null', 1)).toThrow(
       PrometheusInvalidResponseError,
     );
+  });
+});
+
+// ─────────────────────────────  Repair pass (issue #12)  ──────────────────────
+
+describe('repairNearMissJson — pure string-repair function', () => {
+  it('is a no-op on already-valid JSON', () => {
+    const valid = JSON.stringify({ message: 'Hi "there"\nsecond line\ttab', path: 'C:\\Users\\ok' });
+    expect(repairNearMissJson(valid)).toBe(valid);
+  });
+
+  it('escapes a stray backslash inside a string (e.g. an unescaped Windows path)', () => {
+    // Deliberately hand-built invalid JSON: \U is not a legal JSON escape.
+    const raw = '{"message":"path is C:\\Users\\ok"}';
+    const repaired = repairNearMissJson(raw);
+    expect(() => JSON.parse(repaired)).not.toThrow();
+    expect(JSON.parse(repaired).message).toBe('path is C:\\Users\\ok');
+  });
+
+  it('escapes a raw control character (unescaped newline) inside a string', () => {
+    const raw = '{"message":"line one\nline two"}'; // real 0x0A byte, not \n
+    const repaired = repairNearMissJson(raw);
+    expect(() => JSON.parse(repaired)).not.toThrow();
+    expect(JSON.parse(repaired).message).toBe('line one\nline two');
+  });
+
+  it('leaves text outside string literals untouched (structural braces/commas)', () => {
+    const raw = '{"a":1,"b":[1,2,3]}';
+    expect(repairNearMissJson(raw)).toBe(raw);
+  });
+});
+
+describe('parsePrometheusResponse — repair-assisted parse + recovery warning (issue #12)', () => {
+  it('recovers a response with a stray backslash and warns about the repair', () => {
+    const raw = '{"message":"see C:\\Users\\config","modifications":{}}';
+    const result = parsePrometheusResponse(raw, 1);
+    expect(result.message).toBe('see C:\\Users\\config');
+    expect(result.warnings.some((w) => /formatting repair/i.test(w))).toBe(true);
+  });
+
+  it('warns when recovery only needed code-fence stripping (no repair)', () => {
+    const raw = '```json\n' + JSON.stringify({ message: 'Fenced.', modifications: {} }) + '\n```';
+    const result = parsePrometheusResponse(raw, 1);
+    expect(result.warnings.some((w) => /recovered automatically/i.test(w))).toBe(true);
+    expect(result.warnings.some((w) => /formatting repair/i.test(w))).toBe(false);
+  });
+
+  it('warns when recovery only needed the greedy slice (no repair)', () => {
+    const inner = JSON.stringify({ message: 'Prose before.', modifications: {} });
+    const raw = `Here is my answer: ${inner} That is all.`;
+    const result = parsePrometheusResponse(raw, 1);
+    expect(result.warnings.some((w) => /recovered automatically/i.test(w))).toBe(true);
+  });
+
+  it('does not warn when the response parses cleanly on the first attempt', () => {
+    const raw = JSON.stringify({ message: 'Clean.', modifications: {} });
+    const result = parsePrometheusResponse(raw, 1);
+    expect(result.warnings).toEqual([]);
   });
 });
 
