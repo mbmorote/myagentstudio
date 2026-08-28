@@ -43,7 +43,7 @@ listed here stay until closed.
 
 | Item | Bucket | Priority | Effort | Kind | Status | Obs |
 |---|---|---|---|---|---|---|
-| **Claude Desktop MCP support (OAuth 2.1)** | NEXT | High | High | Infra | Scoped idea, not started | Needs a real OAuth 2.1 authorization server in front of the existing MCP endpoint |
+| **Claude Desktop MCP support (OAuth 2.1)** | NEXT | High | High | Infra | On-going — plan drafted at `plans/16-oauth21-mcp.md` | Needs a real OAuth 2.1 authorization server in front of the existing MCP endpoint |
 | **Delete or disconnect user (admin)** | NEXT | High | Medium | Behavior | Not started | Admin-initiated deletion, plus a lighter session-disconnect option |
 | **Email-sending provider** | NEXT | High | Medium | Infra | On-going — plan drafted at `plans/14-email-sending-provider.md` | Covers invite-code delivery and general account notifications |
 | **Landing page mobile/responsive support** | NEXT | High | Medium | UX | Not started | Real conversion-risk gap on `/welcome`, not cosmetic |
