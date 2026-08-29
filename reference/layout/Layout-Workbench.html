@@ -335,6 +335,68 @@
   .zone-label .tier{color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:0 5px;
                     font-size:9px;letter-spacing:.03em}
 
+  /* ================= Plan 15 — Share agent (mockup dispatches, §4.9) =================
+     Four concepts prototyped here per standing rule 4, before any React work:
+     1. "Shared with me" library section + redeem action row (below, inside .pbody rules
+        and buildLibrary()).
+     2. Owner Access zone — [Share] Access, third zone in the viz panel, same zone-label
+        convention as Config/Sections above.
+     3. Read-only shared-agent view — a SEPARATE render path (buildSharedView), not a
+        readOnly flag threaded through the editable one — matching the real D1 decision
+        in plans/15-share-agent.md (a missed branch in a separate component is merely
+        something the recipient can't see, not a live edit control that 404s). Toggled
+        here via a mockup-only "viewing as" control since one file has to demonstrate
+        both audiences without real navigation.
+     4. Redeem-code dialog — reuses .modal-* from the Import modal above almost verbatim,
+        one field instead of many. */
+
+  /* ---- Owner Access zone (dispatch 2) ---- */
+  .access-link-row{display:flex;align-items:center;gap:8px;padding:6px 0;flex-wrap:wrap}
+  .access-code{font-family:var(--mono);font-size:11px;color:var(--text);background:var(--elev);
+    border:1px solid var(--border);border-radius:7px;padding:6px 10px;flex:1;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .access-code.off{color:var(--faint);font-style:italic;border-style:dashed}
+  .access-btn{font:inherit;font-size:11.5px;font-weight:600;border-radius:7px;padding:6px 12px;
+    cursor:pointer;border:1px solid var(--border);background:var(--elev);color:var(--text);flex:none}
+  .access-btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+  .access-btn.danger:hover{border-color:var(--err);color:var(--err)}
+  .access-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .access-btn.primary:hover{filter:brightness(1.08);color:#fff}
+  .access-hint{font-size:10.5px;color:var(--faint);margin-top:5px;line-height:1.4}
+  .access-people{display:flex;flex-direction:column;gap:1px;margin-top:12px}
+  .access-people-label{font-size:10px;font-weight:700;color:var(--faint);text-transform:uppercase;
+    letter-spacing:.05em;margin-bottom:4px}
+  .access-person{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:7px}
+  .access-person:hover{background:var(--bg)}
+  .access-person .ap-email{color:var(--text);font-size:12px}
+  .access-person .ap-via{color:var(--faint);font-size:10.5px;margin-left:auto}
+  .access-person .ap-remove{flex:none;width:16px;height:16px;border-radius:4px;border:1px solid var(--border);
+    background:var(--elev);color:var(--faint);font-size:11px;line-height:1;display:grid;place-items:center;
+    cursor:pointer;opacity:0;transition:opacity .12s;padding:0}
+  .access-person:hover .ap-remove{opacity:1}
+  .access-person .ap-remove:hover{color:var(--err);border-color:var(--err)}
+  .access-empty{font-size:12px;color:var(--faint);font-style:italic;padding:6px 4px}
+  .access-add-row{display:flex;gap:6px;margin-top:10px}
+  .access-add-row input{flex:1;font:inherit;font-size:12px;padding:6px 10px;border:1px solid var(--border);
+    border-radius:7px;background:var(--bg);color:var(--text);outline:none}
+  .access-add-row input:focus{border-color:var(--accent)}
+
+  /* ---- Library "Shared with me" section (dispatch 1) ---- */
+  .arow.shared-row .tag{color:var(--accent-ink);font-weight:500}
+  .arow.shared-row .av{background:var(--accent-wash);color:var(--accent-ink);border-color:var(--accent)}
+
+  /* ---- Viewing-as toggle + read-only shared view (dispatch 3) ---- */
+  .phead .role.view-toggle{cursor:pointer;color:var(--accent-ink);font-weight:700}
+  .phead .role.view-toggle:hover{text-decoration:underline}
+  .shared-banner{display:flex;align-items:center;gap:10px;background:var(--accent-wash);
+    border:1px solid var(--accent);border-radius:8px;padding:10px 12px;margin-bottom:14px;
+    font-size:12px;color:var(--accent-ink);flex-wrap:wrap}
+  .shared-banner b{color:var(--text)}
+  .shared-actions{margin-left:auto;display:flex;gap:8px;flex:none}
+  .shared-readonly .pill,.shared-readonly .arow{cursor:default}
+  .shared-readonly .sec-h,.shared-readonly .ipk{cursor:default}
+  .shared-readonly .row-remove,.shared-readonly .badge.required{display:none}
+
   .sec{border:1px solid var(--border);border-radius:9px;margin-bottom:9px;background:var(--elev);overflow:hidden}
   .sec.cited{border-color:var(--accent)}
   /* .sec-h = toggle zone: pointer + hover tint. .sec-b[onclick] (view mode) = cite zone:
@@ -774,8 +836,16 @@
 
 <!-- ================= content templates ================= -->
 <template id="tpl-viz">
-  <div class="phead"><span class="glyph">◈</span> Custom Visualization <span class="role">platform main view</span><button class="lock-sim-btn" id="lockSimBtn" onclick="window.__lockToggle()" title="Simulate proposal-pending lock (Plan 08 Phase 0 demo)">⊘ lock demo</button></div>
-  <div class="pbody"><div class="viz">
+  <div class="phead"><span class="glyph">◈</span> Custom Visualization <span class="role">platform main view</span>
+    <!-- Plan 15 dispatch 3 — MOCKUP-ONLY control, not a real feature: one file has to
+         demonstrate both the owner's editable view and the recipient's read-only view
+         without real navigation between two accounts. Real app: which one renders is
+         decided server-side by access ('owner' | 'shared'), never a client toggle. -->
+    <span class="role view-toggle" id="vizViewToggle" onclick="window.__vizToggleViewAs()" title="Mockup-only — preview the read-only shared view">viewing as: owner</span>
+    <button class="lock-sim-btn" id="lockSimBtn" onclick="window.__lockToggle()" title="Simulate proposal-pending lock (Plan 08 Phase 0 demo)">⊘ lock demo</button>
+  </div>
+  <div class="pbody"><div class="viz" id="vizRoot">
+    <div id="vizOwnerRoot">
     <div class="agentcard-head">
       <div class="bigav">at</div>
       <div style="min-width:0;flex:1">
@@ -791,6 +861,19 @@
     <div class="locked-zone" id="configArea"><!-- zone-label + rendered by buildConfig() --></div>
 
     <div class="locked-zone" id="sectionsArea"><!-- zone-label + rendered by buildSections() --></div>
+
+    <!-- Plan 15 dispatch 2 — Zone 3, [Share] Access. Same zone-label convention as
+         Config/Sections above; owner-only (never rendered in the shared/read-only view,
+         which has its own separate root below, per D1's real decision). -->
+    <div class="locked-zone" id="accessArea"><!-- zone-label + rendered by buildAccess() --></div>
+    </div>
+
+    <!-- Plan 15 dispatch 3 — the read-only shared-agent view. A SEPARATE root, not the
+         owner root above with edit affordances hidden by CSS — matching the real D1
+         decision (plans/15-share-agent.md §8): a missed branch here is a control that
+         simply isn't rendered, never a live edit control that 404s. Populated by
+         buildSharedView(); hidden unless vizState.viewAs === 'shared'. -->
+    <div id="vizSharedRoot" hidden></div>
   </div></div>
 </template>
 
@@ -1055,6 +1138,31 @@ or any tool that modifies files — intentionally excluded.</pre>
     <div class="modal-foot">
       <button class="modal-btn-cancel" id="importModalCancel">Cancel</button>
       <button class="modal-btn-import" id="importModalSubmit">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Redeem share-code modal (Plan 15 dispatch 4) ── one field, modeled on the Import
+     modal above almost verbatim. Reuses .modal-* verbatim — no new modal CSS needed.
+     Real app: the owner's copy button copies a bare code, not a URL (no APP_BASE_URL
+     exists yet — see D5 in plans/15-share-agent.md), so this dialog is the recipient's
+     only entry point, opened from the Library's Manage zone (see "⇱ Redeem share code"
+     below). -->
+<div class="modal-overlay" id="redeemModal" hidden>
+  <div class="modal" style="width:440px" role="dialog" aria-modal="true" aria-labelledby="redeemModalTitle">
+    <div class="modal-head">
+      <div class="modal-title" id="redeemModalTitle">Redeem a share code</div>
+      <div class="modal-desc">Paste the code someone gave you. Once redeemed, their agent appears in your library under "Shared with me" — a live reference, not a copy, until you choose to copy it.</div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-field">
+        <label class="flabel">Share code</label>
+        <input type="text" id="redeemCodeInput" placeholder="shr_…" onkeydown="if(event.key==='Enter')window.__redeemSubmitFromInput();" style="width:100%;box-sizing:border-box;font:inherit;font-family:var(--mono);font-size:12px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text);outline:none" />
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="modal-btn-cancel" id="redeemModalCancel">Cancel</button>
+      <button class="modal-btn-import" id="redeemModalSubmit">Redeem</button>
     </div>
   </div>
 </div>
@@ -1469,6 +1577,14 @@ or any tool that modifies files — intentionally excluded.</pre>
     { name: 'Personal', agents: ['Zara', 'Aria', 'Ada'] },
     { name: 'Pipeline', agents: ['analyst', 'dev', 'qa', 'architect', 'secure-code-auditor'] },
   ];
+  // Plan 15 dispatch 1 — agents someone else shared with this user. Deliberately a
+  // SEPARATE list from LIB_AGENTS/LIB_GROUPS (never merged in) — a shared agent is
+  // never in any of the viewer's own groups (SharedAgentLiteDTO has no groupIds) and
+  // this list excludes anything the viewer owns, per plans/15-share-agent.md §4.4.
+  const LIB_SHARED = {
+    'incident-runbook': { av: 'ir', ownerEmail: 'priya@example.com' },
+    'onboarding-buddy': { av: 'ob', ownerEmail: 'devon@example.com' },
+  };
   // Default is Flat ("Agents") per the user's revision 2026-07-29 — the phead role word
   // itself is the toggle (id="libModeToggle"), not a separate segmented control.
   // Selected agent changed 2026-08-06 to the real ImportTestAgent/TestAgent.md stress-test
@@ -1482,8 +1598,29 @@ or any tool that modifies files — intentionally excluded.</pre>
     const tag = a.tag ? `<span class="tag">${a.tag}</span>` : '';
     return `<div class="arow${sel}" onclick="window.__libSelect('${name}')"><span class="av">${a.av}</span><span class="nm">${name}</span>${tag}</div>`;
   }
-  window.__libSelect = function (name) { libState.selected = name; buildLibrary(); };
+  window.__libSelect = function (name) {
+    libState.selected = name;
+    buildLibrary();
+    // Plan 15 dispatch 1+3 integration (mockup-only): picking a "Shared with me" row
+    // previews the read-only view automatically; picking an owned agent returns to the
+    // normal editable one. Real app: this is server-decided per agent, never a client
+    // toggle — see buildSharedView()'s own doc comment.
+    if (typeof vizState !== 'undefined') {
+      vizState.viewAs = Object.prototype.hasOwnProperty.call(LIB_SHARED, name) ? 'shared' : 'owner';
+      buildSharedView(document.getElementById('centerTop'));
+    }
+  };
   window.__libToggleMode = function () { libState.mode = libState.mode === 'flat' ? 'grouped' : 'flat'; buildLibrary(); };
+  // Plan 15 dispatch 1 — read-only row variant for a shared agent: no delete, no drag
+  // handle, no group × (none of those exist for a row the viewer doesn't own). The
+  // owner's email replaces the imported/created source tag a normal row would show.
+  function sharedRow(name) {
+    const a = LIB_SHARED[name];
+    const sel = name === libState.selected ? ' sel' : '';
+    return `<div class="arow shared-row${sel}" onclick="window.__libSelect('${name}')">` +
+      `<span class="av">${a.av}</span><span class="nm">${name}</span>` +
+      `<span class="tag">shared · ${a.ownerEmail}</span></div>`;
+  }
   function buildLibrary() {
     const body = document.getElementById('libBody'); if (!body) return;
     const toggleLabel = document.getElementById('libModeToggle');
@@ -1499,9 +1636,18 @@ or any tool that modifies files — intentionally excluded.</pre>
       listHtml = LIB_GROUPS.map(g => `<div class="lgroup">▾ ${g.name}</div>${g.agents.map(libRow).join('')}`).join('') +
         (ungrouped.length ? `<div class="lgroup">▾ Ungrouped</div>${ungrouped.map(libRow).join('')}` : '');
     }
+    // Plan 15 dispatch 1 — "Shared with me", its own zone-label separator, same pattern
+    // as "Manage" below. Only rendered when non-empty (a user with nothing shared to
+    // them sees no trace of this section — same "no row unless it applies" convention
+    // the rest of the panel already follows).
+    const sharedNames = Object.keys(LIB_SHARED);
+    const sharedHtml = sharedNames.length
+      ? `<div class="zone-label">Shared with me</div>${sharedNames.map(sharedRow).join('')}`
+      : '';
     const manage = `<div class="zone-label">Manage</div>` +
-      `<div class="laction">＋ New agent</div><div class="laction">＋ New group</div><div class="laction" id="importAgentTrigger">⇪ Import agent</div>`;
-    body.innerHTML = listHtml + manage;
+      `<div class="laction">＋ New agent</div><div class="laction">＋ New group</div><div class="laction" id="importAgentTrigger">⇪ Import agent</div>` +
+      `<div class="laction" id="redeemShareTrigger">⇱ Redeem share code</div>`;
+    body.innerHTML = listHtml + sharedHtml + manage;
   }
 
   // ---------- Tier 1 config zone (editable) ----------
@@ -2276,6 +2422,83 @@ or any tool that modifies files — intentionally excluded.</pre>
     area.innerHTML = cfgHeaderLayoutSwitch() + sectionsLabel + sectionsHtml;
   }
 
+  // ---------- Zone 3: Share Access (Plan 15 dispatch 2) ----------
+  // Owner-only. Same zone-label convention as Config/Sections above. Two independent
+  // controls per constraint 5 (plans/15-share-agent.md §3): disabling the link and
+  // revoking a person never imply each other — this is the Google Docs model, not a
+  // single "make private" button.
+  const accState = {
+    collapsed: false,
+    linkEnabled: true,
+    code: 'shr_9fK2mQ8pXz3vLwRt7yNcB1jHgAeSdFo',
+    shares: [
+      { email: 'priya@example.com', via: 'email', date: '2026-08-24' },
+      { email: 'devon@example.com', via: 'code', date: '2026-08-27' },
+    ],
+    addEmailOpen: false,
+    addEmailDraft: '',
+  };
+  function buildAccess(host) {
+    const area = host && host.querySelector('#accessArea'); if (!area) return;
+    const chev = accState.collapsed ? '▸' : '▾';
+    const label = `<div class="zone-label" style="cursor:pointer" onclick="window.__accToggleCollapse()" title="${accState.collapsed ? 'Expand' : 'Collapse'} share access">` +
+      `<span class="tier">Share</span> Access <span class="chev" style="color:var(--faint);font-size:9px">${chev}</span></div>`;
+    if (accState.collapsed) { area.innerHTML = label; return; }
+
+    const linkRow = accState.linkEnabled
+      ? `<div class="access-link-row"><span class="access-code">${accState.code}</span>` +
+        `<button type="button" class="access-btn" onclick="window.__accCopyCode()">⧉ Copy</button>` +
+        `<button type="button" class="access-btn danger" onclick="window.__accDisableLink()">Disable</button></div>` +
+        `<div class="access-hint">Anyone with this link can view — never edit — this agent, until you disable it. Disabling kills the link permanently; re-enabling makes a brand-new one, never the old one back.</div>`
+      : `<div class="access-link-row"><span class="access-code off">link sharing is off</span>` +
+        `<button type="button" class="access-btn primary" onclick="window.__accEnableLink()">Enable link</button></div>`;
+
+    const peopleRows = accState.shares.length
+      ? accState.shares.map((s, i) =>
+          `<div class="access-person"><span class="ap-email">${cfgEsc(s.email)}</span>` +
+          `<span class="ap-via">${s.via === 'code' ? 'redeemed the link' : 'added by you'} · ${s.date}</span>` +
+          `<button type="button" class="ap-remove" title="Revoke ${cfgEsc(s.email)}'s access" onclick="window.__accRevoke(${i})">×</button></div>`
+        ).join('')
+      : `<div class="access-empty">No one has access yet.</div>`;
+
+    const addRow = accState.addEmailOpen
+      ? `<div class="access-add-row"><input type="text" id="accAddEmailInput" placeholder="name@example.com" value="${cfgEsc(accState.addEmailDraft)}" ` +
+        `oninput="window.__accAddEmailDraft(this.value)" onkeydown="if(event.key==='Enter')window.__accAddEmail();if(event.key==='Escape')window.__accCancelAddEmail();" autofocus>` +
+        `<button type="button" class="access-btn primary" onclick="window.__accAddEmail()">Add</button>` +
+        `<button type="button" class="access-btn" onclick="window.__accCancelAddEmail()">Cancel</button></div>`
+      : `<div class="access-add-row"><button type="button" class="access-btn" onclick="window.__accOpenAddEmail()">+ add by email</button></div>`;
+
+    area.innerHTML = label + linkRow +
+      `<div class="access-people"><div class="access-people-label">People with access</div>${peopleRows}</div>` +
+      addRow;
+  }
+  window.__accToggleCollapse = function () { accState.collapsed = !accState.collapsed; buildAccess(document.getElementById('centerTop')); };
+  window.__accEnableLink = function () { accState.linkEnabled = true; buildAccess(document.getElementById('centerTop')); };
+  window.__accDisableLink = function () {
+    // Same confirm-before-disable posture as removing a config key/section elsewhere in
+    // this file — a leaked link is dead the moment it's disabled, permanently (§4.5).
+    if (!confirm('Disable this share link? It stops working immediately and permanently — re-enabling later makes a brand-new code, never this one again.')) return;
+    accState.linkEnabled = false;
+    buildAccess(document.getElementById('centerTop'));
+  };
+  window.__accCopyCode = function () { alert('Copied (mockup — no real clipboard write). The real app copies the bare code, never a URL — see D5.'); };
+  window.__accOpenAddEmail = function () { accState.addEmailOpen = true; accState.addEmailDraft = ''; buildAccess(document.getElementById('centerTop')); };
+  window.__accCancelAddEmail = function () { accState.addEmailOpen = false; buildAccess(document.getElementById('centerTop')); };
+  window.__accAddEmailDraft = function (v) { accState.addEmailDraft = v; };
+  window.__accAddEmail = function () {
+    // Same minimal validation every email route in the real app uses — not a stricter
+    // regex on purpose (§4.5).
+    const email = accState.addEmailDraft.trim().toLowerCase();
+    if (!email || !email.includes('@')) { alert('Enter a valid email address.'); return; }
+    if (email === 'you@example.com') { alert("That's your own address — you already have full access."); return; } // cannot_share_with_self
+    if (!accState.shares.some(s => s.email === email)) {
+      accState.shares.push({ email, via: 'email', date: 'just now' }); // idempotent-grant: re-adding an existing address is a silent no-op, not a duplicate
+    }
+    accState.addEmailOpen = false;
+    buildAccess(document.getElementById('centerTop'));
+  };
+  window.__accRevoke = function (i) { accState.shares.splice(i, 1); buildAccess(document.getElementById('centerTop')); };
+
   // ---------- Model + effort header control ----------
   // Mirrors the real Claude model picker's shape (search + model list + a nested Effort
   // drill-down) but the model list is THIS project's own catalog (lib/blueprint/catalog.ts
@@ -2329,12 +2552,66 @@ or any tool that modifies files — intentionally excluded.</pre>
     if (meState.open) { meState.open = false; meState.effortOpen = false; buildModelEffort(document.getElementById('centerTop')); }
   });
 
+  // ---------- Read-only shared-agent view (Plan 15 dispatch 3) ----------
+  // Deliberately its own render function against its own DOM root (#vizSharedRoot),
+  // not the owner's buildConfig()/buildSections() with edit affordances hidden by CSS
+  // — matching the real D1 decision (a separate SharedAgentView component). Exactly two
+  // actions exist here, per §4.9 surface C: Copy to me and Export (D2 resolved: yes).
+  const vizState = { viewAs: 'owner' };
+  function buildSharedView(host) {
+    const ownerRoot = host && host.querySelector('#vizOwnerRoot');
+    const sharedRoot = host && host.querySelector('#vizSharedRoot');
+    if (!ownerRoot || !sharedRoot) return;
+    const isShared = vizState.viewAs === 'shared';
+    ownerRoot.hidden = isShared;
+    sharedRoot.hidden = !isShared;
+    const toggle = document.getElementById('vizViewToggle');
+    if (toggle) toggle.textContent = 'viewing as: ' + (isShared ? 'shared recipient' : 'owner');
+    if (!isShared) return;
+
+    const scalarRows = CFG_SCALAR_KEYS.filter(k => Object.prototype.hasOwnProperty.call(CFG_AGENT, k)).map(k =>
+      `<div class="list-row" style="cursor:default"><span class="row-label">${cfgEsc(k)}</span><div class="row-pills"><span class="pill">${cfgEsc(String(CFG_AGENT[k]))}</span></div></div>`
+    ).join('');
+    const listRows = CFG_LIST_KEYS.filter(k => Object.prototype.hasOwnProperty.call(CFG_AGENT, k)).map(k =>
+      `<div class="list-row" style="cursor:default"><span class="row-label">${cfgEsc(k)}</span><div class="row-pills">${CFG_AGENT[k].map(i => `<span class="pill">${cfgEsc(i)}</span>`).join('')}</div></div>`
+    ).join('');
+    const sectionsHtml = CFG_SECTIONS.map(sec =>
+      `<div class="sec" data-key="${sec.key}">` +
+      `<div class="sec-h" style="cursor:default"><span class="chev">▾</span><span class="h">${cfgEsc(sec.heading)}</span>${cfgSecCoreBadge(sec)}</div>` +
+      `<div class="sec-b" style="cursor:default">${cfgSectionBodyHtml(sec.text)}</div></div>`
+    ).join('');
+
+    sharedRoot.innerHTML =
+      `<div class="shared-banner"><span>👁 You're viewing <b>anthropic-test-agent-</b> — shared by <b>owner@example.com</b>. Read-only: nothing here can be edited.</span>` +
+      `<div class="shared-actions">` +
+      `<button type="button" class="access-btn primary" onclick="window.__sharedCopyToMe()">⧉ Copy to me</button>` +
+      `<button type="button" class="access-btn" onclick="window.__sharedExport()">⇩ Export</button>` +
+      `</div></div>` +
+      `<div class="shared-readonly">` +
+      `<div class="agentcard-head"><div class="bigav">at</div><div style="min-width:0;flex:1">` +
+      `<h1 style="cursor:default">anthropic-test-agent-</h1>` +
+      `<div class="sub">Test for import on the workbench - Compliance, safety, and governance overseer for Anthropic-facing workflows. · imported</div></div></div>` +
+      `<div class="zone-label"><span class="tier">Config</span> Keys</div>` +
+      `<div class="scalar-grid">${scalarRows}</div><div class="list-rows">${listRows}</div>` +
+      `<div class="zone-label"><span class="tier">Sections</span> Body</div>` +
+      sectionsHtml +
+      `</div>`;
+  }
+  // MOCKUP-ONLY: real navigation is server-decided (access:'owner'|'shared'); this toggle
+  // exists purely so one file can demonstrate both without two accounts.
+  window.__vizToggleViewAs = function () {
+    vizState.viewAs = vizState.viewAs === 'owner' ? 'shared' : 'owner';
+    buildSharedView(document.getElementById('centerTop'));
+  };
+  window.__sharedCopyToMe = function () { alert("Copy to me (mockup) — forks an independent copy into your own library. No AI call, no name auto-suffix; a name collision prompts for a new name (§4.6)."); };
+  window.__sharedExport = function () { alert('Export (mockup) — downloads the .md, same deterministic export the owner gets (D2 resolved: a share-holder may export).'); };
+
   // ---------- slot filling ----------
   // Example A only (R10) — viz top, chat bottom, raw right. Fixed, no switcher.
   const centerTop=document.getElementById('centerTop');
   const centerBottom=document.getElementById('centerBottom');
   const right=document.getElementById('right');
-  function fill(host,tplId){ host.innerHTML=''; host.appendChild(document.getElementById(tplId).content.cloneNode(true)); if(tplId==='tpl-raw') buildRaw(host); if(tplId==='tpl-viz'){ buildConfig(host); buildSections(host); buildModelEffort(host); } }
+  function fill(host,tplId){ host.innerHTML=''; host.appendChild(document.getElementById(tplId).content.cloneNode(true)); if(tplId==='tpl-raw') buildRaw(host); if(tplId==='tpl-viz'){ buildConfig(host); buildSections(host); buildAccess(host); buildModelEffort(host); buildSharedView(host); } }
 
   function layout(){
     fill(centerTop,'tpl-viz');
@@ -2455,6 +2732,21 @@ or any tool that modifies files — intentionally excluded.</pre>
   function openImportModal(){ importModal.hidden = false; }
   function closeImportModal(){ importModal.hidden = true; }
 
+  // ---------- Redeem share-code modal (Plan 15 dispatch 4, mockup-only wiring) ----------
+  const redeemModal = document.getElementById('redeemModal');
+  function openRedeemModal(){ redeemModal.hidden = false; const inp = document.getElementById('redeemCodeInput'); if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 0); } }
+  function closeRedeemModal(){ redeemModal.hidden = true; }
+  function submitRedeemModal(){
+    const code = (document.getElementById('redeemCodeInput').value || '').trim();
+    if (!code) { alert('Enter a share code.'); return; }
+    // Mockup-only: no real lookup. Unknown code, expired code, and a disabled code all
+    // produce the identical response in the real app (constraint 6) — nothing here to
+    // fake meaningfully differently, so this always "succeeds" for demo purposes.
+    closeRedeemModal();
+    alert(`Redeemed (mockup) — "${code}" would appear in your library under "Shared with me".`);
+  }
+  window.__redeemSubmitFromInput = submitRedeemModal;
+
   // ---------- Preferences modal (2026-08-18 — Account + Settings merged) ----------
   const prefsModal = document.getElementById('prefsModal');
   function openPrefsModal(){ prefsModal.hidden = false; }
@@ -2490,6 +2782,10 @@ or any tool that modifies files — intentionally excluded.</pre>
     if (e.target.closest('#importAgentTrigger')) { openImportModal(); return; }
     if (e.target.closest('#importModalCancel')) { closeImportModal(); return; }
     if (e.target === importModal) { closeImportModal(); return; } // click on overlay backdrop
+    if (e.target.closest('#redeemShareTrigger')) { openRedeemModal(); return; }
+    if (e.target.closest('#redeemModalCancel')) { closeRedeemModal(); return; }
+    if (e.target.closest('#redeemModalSubmit')) { submitRedeemModal(); return; }
+    if (e.target === redeemModal) { closeRedeemModal(); return; } // click on overlay backdrop
     if (e.target.closest('#prefsTrigger')) { openPrefsModal(); return; }
     if (e.target.closest('#prefsModalClose')) { closePrefsModal(); return; }
     if (e.target === prefsModal) { closePrefsModal(); return; } // click on overlay backdrop
