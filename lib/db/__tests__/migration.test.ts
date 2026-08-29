@@ -25,6 +25,7 @@ vi.mock('../client.js', async () => {
   return { db: testDb };
 });
 
+import { eq } from 'drizzle-orm';
 import { testDb } from './test-db.js';
 import { createTestUser } from './test-users.js';
 import { CONFIG_DEFS } from '../../blueprint/catalog.js';
@@ -325,5 +326,89 @@ describe('migration 0004 — oauth_account table', () => {
       .filter((r) => r.userId === owner.id);
 
     expect(rows).toHaveLength(2);
+  });
+});
+
+// ── migration 0009: agent_share table + agent.publicCode columns (Plan 15) ──
+
+describe('migration 0009 — agent_share + agent.publicCode', () => {
+  it('agent_share table exists and accepts a valid row', () => {
+    const owner = createTestUser('user');
+    const agentId = crypto.randomUUID();
+    testDb.insert(schema.agent).values({
+      id: agentId, ownerId: owner.id, name: `mig9-agent-${agentId}`,
+      description: 'migration test', source: 'created', platform: 'claude', splitLevel: 1,
+    }).run();
+
+    const shareId = crypto.randomUUID();
+    testDb.insert(schema.agentShare).values({
+      id: shareId,
+      agentId,
+      recipientEmail: 'mig9@example.com',
+      grantedVia: 'email',
+    }).run();
+
+    const row = testDb.select().from(schema.agentShare).all().find((r) => r.id === shareId);
+    expect(row).toBeDefined();
+    expect(row?.agentId).toBe(agentId);
+    expect(row?.grantedVia).toBe('email');
+    expect(row?.createdAt).toBeDefined();
+  });
+
+  it('agent_share_agent_email_unique — duplicate (agentId, email) is rejected', () => {
+    const owner = createTestUser('user');
+    const agentId = crypto.randomUUID();
+    testDb.insert(schema.agent).values({
+      id: agentId, ownerId: owner.id, name: `mig9-dup-${agentId}`,
+      description: 'migration test', source: 'created', platform: 'claude', splitLevel: 1,
+    }).run();
+
+    testDb.insert(schema.agentShare).values({
+      id: crypto.randomUUID(), agentId, recipientEmail: 'dup9@example.com', grantedVia: 'email',
+    }).run();
+
+    expect(() => {
+      testDb.insert(schema.agentShare).values({
+        id: crypto.randomUUID(), agentId, recipientEmail: 'dup9@example.com', grantedVia: 'code',
+      }).run();
+    }).toThrow();
+  });
+
+  it('agent.publicCode is nullable and agent_public_code_unique rejects a duplicate non-null code', () => {
+    const owner = createTestUser('user');
+    const agentAId = crypto.randomUUID();
+    const agentBId = crypto.randomUUID();
+    testDb.insert(schema.agent).values({
+      id: agentAId, ownerId: owner.id, name: `mig9-code-a-${agentAId}`,
+      description: 'a', source: 'created', platform: 'claude', splitLevel: 1,
+    }).run();
+    testDb.insert(schema.agent).values({
+      id: agentBId, ownerId: owner.id, name: `mig9-code-b-${agentBId}`,
+      description: 'b', source: 'created', platform: 'claude', splitLevel: 1,
+    }).run();
+
+    // Both NULL by default — no throw
+    const rows = testDb.select().from(schema.agent).all()
+      .filter((a) => a.id === agentAId || a.id === agentBId);
+    expect(rows.every((a) => a.publicCode === null)).toBe(true);
+
+    const code = `mig9-${crypto.randomUUID()}`;
+    testDb.update(schema.agent).set({ publicCode: code }).where(eq(schema.agent.id, agentAId)).run();
+
+    expect(() => {
+      testDb.update(schema.agent).set({ publicCode: code }).where(eq(schema.agent.id, agentBId)).run();
+    }).toThrow();
+  });
+
+  it("agent.source accepts 'copied' (D3)", () => {
+    const owner = createTestUser('user');
+    const id = crypto.randomUUID();
+    testDb.insert(schema.agent).values({
+      id, ownerId: owner.id, name: `mig9-copied-${id}`,
+      description: 'copy test', source: 'copied', platform: 'claude', splitLevel: 1,
+    }).run();
+
+    const row = testDb.select().from(schema.agent).all().find((a) => a.id === id);
+    expect(row?.source).toBe('copied');
   });
 });

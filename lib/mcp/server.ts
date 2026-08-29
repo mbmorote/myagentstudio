@@ -141,7 +141,10 @@ function buildServer(principal: McpPrincipal): McpServer {
     async (args) => {
       const result = handleGetAgent(principal, args);
       if (!result.ok) return errorResult(`Agent not found: ${args.agentId}`);
-      return textResult(wrapUserContent('agent', JSON.stringify(result.agent, null, 2)));
+      // access is platform metadata, not user-authored content — kept outside
+      // wrapUserContent's boundary (Plan 15, D8 resolved, §6 step 8c).
+      const accessLine = `Access: ${result.access}\n`;
+      return textResult(accessLine + wrapUserContent('agent', JSON.stringify(result.agent, null, 2)));
     },
   );
 

@@ -79,15 +79,26 @@ export const agent = sqliteTable('agent', {
   ownerId: text('owner_id').notNull(),              // soft ref → user.id
   name: text('name').notNull(),                     // stored verbatim; flag-don't-block (Rules #1); .unique() removed — per-owner unique (§4.3)
   description: text('description').notNull(),        // missing-on-import ⇒ placeholder (Rules #12)
-  source: text('source', { enum: ['created', 'imported'] }).notNull(),
+  // 'copied' added by Plan 15 (D3) — a fork produced by "Copy to me" is distinguishable
+  // from a real import in the library's source tag. Written by copyAgentForOwner() as a
+  // follow-up update after upsertAgentFromImport() writes 'imported' (that function's own
+  // fixed contract; see lib/db/repository/agents.ts).
+  source: text('source', { enum: ['created', 'imported', 'copied'] }).notNull(),
   platform: text('platform').notNull().default('claude'),   // NOT a DB enum — open catalog (PLATFORM_DEFS, §4); only 'claude' exists in this plan
   splitLevel: integer('split_level').notNull().default(1),   // R1: 1=#, 2=##…
   rawSourceSnapshot: text('raw_source_snapshot'),   // nullable: whole original .md, byte-for-byte
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  // ─── Plan 15 — Share agent (link sharing) ───
+  // NULL = link sharing off. SQLite treats each NULL as distinct in a unique index, so
+  // "off" is never a collision — a plain uniqueIndex is correct, no partial index needed.
+  publicCode: text('public_code'),
+  // Set when the code is generated, cleared with it (D6: kept — backs "link active since…").
+  publicCodeCreatedAt: integer('public_code_created_at', { mode: 'timestamp' }),
 }, (t) => ({
   ownerName: uniqueIndex('agent_owner_name_unique').on(t.ownerId, t.name),
   byOwner:   index('agent_owner_idx').on(t.ownerId),
+  publicCodeUnique: uniqueIndex('agent_public_code_unique').on(t.publicCode),
 }));
 
 // ─────────────────────  Zone 1: Config catalog + values  ─────────────────────
@@ -161,8 +172,10 @@ export const sectionRevision = sqliteTable('section_revision', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   sectionId: text('section_id').notNull(),          // SOFT ref — NOT cascade-deleted (log outlives row)
   content: text('content').notNull(),               // full content at this point, never a diff
+  // 'copied' added by Plan 15 (D3) — matches agent.source: copyAgentForOwner() rewrites the
+  // 'import' author upsertAgentFromImport() wrote on the copy's freshly-created revisions.
   author: text('author', {
-    enum: ['import', 'reimport', 'scaffold', 'user', 'ai'],
+    enum: ['import', 'reimport', 'scaffold', 'user', 'ai', 'copied'],
   }).notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
 }, (t) => ({
@@ -267,6 +280,35 @@ export const apiToken = sqliteTable('api_token', {
 }, (t) => ({
   byHash:  uniqueIndex('api_token_hash_unique').on(t.tokenHash),
   byOwner: index('api_token_owner_idx').on(t.ownerId),
+}));
+
+// ─────────────────────────────  Agent shares (Plan 15)  ─────────────────────
+// Read-only access grants on an agent, held against an email address — never a
+// userId (constraint 3, §4.2 of plans/15-share-agent.md): a row may legitimately
+// pre-date the recipient's account, and storing a userId would create a second
+// identity path to reconcile. Two mechanisms write the same row shape:
+// granted_via:'email' (owner types an address directly) and granted_via:'code'
+// (recipient redeems agent.publicCode, see the Agent table above). Table name
+// singular, matching every table in this file. Sole-owner file:
+// lib/db/repository/agentShares.ts.
+export const agentShare = sqliteTable('agent_share', {
+  // Surrogate id (not a composite PK) so the revoke route
+  // (DELETE /api/agents/[id]/shares/[shareId]) never carries an email address
+  // in its URL / access logs — same shape as api_token (surrogate id + a
+  // separate unique index on the real key).
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  agentId: text('agent_id').notNull(),              // soft ref → agent.id — no references(), cascade is explicit in deleteAgent()
+  recipientEmail: text('recipient_email').notNull(), // stored lowercased + trimmed, matching user.email's normalization; never resolved to a userId
+  grantedVia: text('granted_via', { enum: ['email', 'code'] }).notNull(), // display-only: "you added them" vs. "redeemed the link" (D6: kept)
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+}, (t) => ({
+  // The idempotency constraint (§4.2) — granting the same (agent, email) twice
+  // by either mechanism is turned into a no-op that returns the existing row.
+  // Its leading column also serves every WHERE agent_id = ? lookup.
+  agentEmailUnique: uniqueIndex('agent_share_agent_email_unique').on(t.agentId, t.recipientEmail),
+  // The library query — run on every page load for every user. The hottest
+  // query this table adds.
+  byEmail: index('agent_share_email_idx').on(t.recipientEmail),
 }));
 
 // ─────────────────────  OAuth accounts  ─────────────────────────────────────────────

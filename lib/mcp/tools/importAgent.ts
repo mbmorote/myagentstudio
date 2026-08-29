@@ -26,6 +26,18 @@ import 'server-only';
  *   2. The mcpWrites admin kill switch (default OFF).
  *   3. The LLM gateway's own dry-run hard stop + per-user hourly cap (unchanged,
  *      reached via origin:'mcp' in the LlmCallContext — no MCP-specific limit, D7).
+ *
+ * Plan 15 (D8 resolved, §6 step 8c) made shared agents visible over MCP via the
+ * three read tools and resources.ts — this file needed NO code change as a
+ * result. upsertAgentFromImport(userId, data) always writes into `userId`'s OWN
+ * namespace: it looks up an existing agent by (name, ownerId=userId), so a
+ * share-holder "pushing" a document whose frontmatter name matches a shared
+ * agent's name creates or updates their OWN separate agent under that name —
+ * never the shared agent, never the actual owner's row. This is the exact same
+ * protection app/api/agents/import/route.ts already has for two DIFFERENT
+ * owners colliding on a name (§6.3 fix) — re-verified here for the
+ * shared-agent case specifically in lib/mcp/__tests__/tools.test.ts, not just
+ * assumed to carry over.
  */
 
 import { z } from 'zod';

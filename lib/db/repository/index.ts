@@ -10,6 +10,11 @@ export {
   getAgentFull,
   getAgentSnapshotInfo,
   listAgents,
+  getAgentFullForViewer,
+  listSharedWithViewer,
+  getAgentOwnerAndName,
+  copyAgentForOwner,
+  CannotCopyOwnAgentError,
   updateSectionContent,
   addSection,
   deleteSection,
@@ -17,6 +22,7 @@ export {
   upsertAgentFromImport,
   deleteAgent,
   exportAgentMarkdown,
+  exportAgentMarkdownForViewer,
   VersionConflictError,
   SectionNotFoundError,
 } from './agents.js';
@@ -24,6 +30,7 @@ export {
 export type {
   AgentDTO,
   AgentLiteDTO,
+  SharedAgentLiteDTO,
   ConfigDefLite,
   SectionDefLite,
   ImportedAgentData,
@@ -93,3 +100,16 @@ export {
   TooManyTokensError,
 } from './apiTokens.js';
 export type { ApiTokenRow, CreateApiTokenInput } from './apiTokens.js';
+
+export {
+  createShare,
+  listSharesForAgent,
+  deleteShare,
+  deleteSharesForAgent,
+  findShare,
+  setPublicCode,
+  clearPublicCode,
+  findAgentIdByPublicCode,
+  getPublicCodeInfo,
+} from './agentShares.js';
+export type { AgentShareRow } from './agentShares.js';

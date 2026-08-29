@@ -31,6 +31,7 @@ import { createTestUser } from '../../db/__tests__/test-users.js';
 import { CONFIG_DEFS } from '../../blueprint/catalog.js';
 import { SECTION_DEFS } from '../../db/sectionDefsSeed.js';
 import { createAgent } from '../../db/repository/agents.js';
+import { createShare } from '../../db/repository/agentShares.js';
 
 import { handleListAgents } from '../tools/listAgents.js';
 import { handleGetAgent } from '../tools/getAgent.js';
@@ -168,5 +169,51 @@ describe('pull_agent vs get_agent consistency', () => {
     expect(getResult.ok).toBe(true);
     if (!exportResult.ok || !getResult.ok) return;
     expect(exportResult.markdown).toContain(getResult.agent.name);
+  });
+});
+
+// ── Plan 15 (D8 resolved, §6 step 8c) — shared-agent visibility over MCP ────
+
+describe('shared-agent visibility over MCP', () => {
+  let userC: ReturnType<typeof createTestUser>;
+
+  beforeAll(() => {
+    userC = createTestUser('user');
+    createShare(agentA.id, userC.email, 'email');
+  });
+
+  it("list_agents includes A's agent for C, access:'shared', with ownerEmail", () => {
+    const result = handleListAgents(principalFor(userC.id));
+    const row = result.agents.find((a) => a.id === agentA.id);
+    expect(row).toBeDefined();
+    expect(row?.access).toBe('shared');
+    expect(row?.ownerEmail).toBe(userA.email);
+
+    // C's own owned agents (none) are unaffected; a stranger with no share
+    // still sees nothing of A's.
+    const strangerResult = handleListAgents(principalFor(userB.id));
+    expect(strangerResult.agents.some((a) => a.id === agentA.id)).toBe(false);
+  });
+
+  it("get_agent returns A's agent for C with access:'shared'", () => {
+    const result = handleGetAgent(principalFor(userC.id), { agentId: agentA.id });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.agent.id).toBe(agentA.id);
+    expect(result.access).toBe('shared');
+  });
+
+  it("pull_agent returns A's markdown for C", () => {
+    const result = handleExportAgent(principalFor(userC.id), { agentId: agentA.id });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.markdown).toContain('agent-a');
+  });
+
+  it("get_agent still returns 'owner' access for A on A's own agent (unaffected by C's share)", () => {
+    const result = handleGetAgent(principalFor(userA.id), { agentId: agentA.id });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.access).toBe('owner');
   });
 });
