@@ -25,6 +25,7 @@
  * layout, which would block scroll on a normal page. The root div is its own scroll container.
  */
 
+import Link from 'next/link';
 import { SiteFooter } from '@/app/components/shell/SiteFooter';
 
 const CONTACT_EMAIL = process.env.NEXT_PUBLIC_AUTHOR_EMAIL || null;
@@ -37,7 +38,7 @@ export default function TermsPage() {
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-[5] border-b border-[var(--border)] bg-[var(--panel)]">
         <div className="flex items-center gap-4 max-w-[780px] mx-auto px-7 py-3">
-          <a
+          <Link
             href="/"
             className="flex items-center gap-[9px] font-bold tracking-[-0.01em] text-[15px] text-[var(--text)] no-underline hover:opacity-80"
           >
@@ -46,14 +47,14 @@ export default function TermsPage() {
               style={{ boxShadow: '0 0 0 3px var(--accent-wash)' }}
             />
             MyAgentStudio
-          </a>
+          </Link>
           <div className="flex-1" />
-          <a
+          <Link
             href="/"
             className="text-[13px] text-[var(--muted)] no-underline hover:text-[var(--text)]"
           >
             ← Back
-          </a>
+          </Link>
         </div>
       </div>
 

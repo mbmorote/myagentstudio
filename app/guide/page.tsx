@@ -33,6 +33,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { marked } from 'marked';
+import Link from 'next/link';
 import { SiteFooter } from '@/app/components/shell/SiteFooter';
 
 /** Exact `## `-level heading text of each section to omit from the public page. */
@@ -71,7 +72,7 @@ export default function GuidePage() {
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-[5] border-b border-[var(--border)] bg-[var(--panel)]">
         <div className="flex items-center gap-4 max-w-[820px] mx-auto px-7 py-3">
-          <a
+          <Link
             href="/"
             className="flex items-center gap-[9px] font-bold tracking-[-0.01em] text-[15px] text-[var(--text)] no-underline hover:opacity-80"
           >
@@ -80,14 +81,14 @@ export default function GuidePage() {
               style={{ boxShadow: '0 0 0 3px var(--accent-wash)' }}
             />
             MyAgentStudio
-          </a>
+          </Link>
           <div className="flex-1" />
-          <a
+          <Link
             href="/"
             className="text-[13px] text-[var(--muted)] no-underline hover:text-[var(--text)]"
           >
             ← Back
-          </a>
+          </Link>
         </div>
       </div>
 
