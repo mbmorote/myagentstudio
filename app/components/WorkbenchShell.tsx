@@ -263,7 +263,25 @@ export function WorkbenchShell({
   // with the full refreshed DTO from the apply endpoint response.
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg)]">
+    <>
+      {/* ── Mobile block ─────────────────────────────────────────────────
+          The workbench is a fixed multi-pane grid (Library | Viz/Chat | Raw/Share)
+          with no responsive breakpoints of its own — it doesn't degrade below
+          tablet width, it just breaks. Rather than attempt a real mobile layout
+          pre-launch, show a friendly notice instead below 768px and hide the
+          workbench itself (CSS-only via max-[767px]: — no resize listener, no
+          hydration flicker). */}
+      <div className="hidden max-[767px]:flex h-screen flex-col items-center justify-center gap-3 bg-[var(--bg)] px-6 text-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/processmind-mark.png" alt="" className="w-10 h-10 object-contain opacity-80" />
+        <p className="text-[15px] font-medium text-[var(--text)]">Best on a larger screen</p>
+        <p className="text-[13px] text-[var(--muted)] max-w-[280px]">
+          MyAgentStudio&apos;s workbench is a multi-panel layout that needs more room than a
+          phone screen gives it. Please reopen this on a tablet, laptop, or desktop.
+        </p>
+      </div>
+
+      <div className="max-[767px]:hidden flex flex-col h-screen overflow-hidden bg-[var(--bg)]">
       {showConsentPopup && (
         <ConsentPopup
           onClose={() => {
@@ -482,6 +500,7 @@ export function WorkbenchShell({
         <span>Produced by ProcessMind Solutions</span>
         <span>· v{process.env.NEXT_PUBLIC_APP_VERSION}</span>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

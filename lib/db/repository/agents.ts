@@ -186,9 +186,33 @@ function buildAgentDTO(
 // ─────────────────────────────  CRUD  ──────────────────────────────────────
 
 /**
+ * Issue #9 — a brand-new agent used to seed its core sections from
+ * SectionDef.template (bare bracket placeholders like "You are a [senior X]…"),
+ * which read as empty to a first-time user. createAgent() now seeds a complete,
+ * realistic example (a "Code Reviewer" persona) instead — content the user
+ * edits or deletes, not a fill-in-the-blank form. def.template is untouched and
+ * still used for the "+ Add section" flow (SectionsZone.tsx) on existing agents,
+ * which must stay a blank/generic starting point, not this specific persona.
+ */
+const STARTER_EXAMPLE_SECTIONS: Record<string, string> = {
+  role: 'You are a Code Reviewer specializing in:\n- Correctness bugs and edge cases\n- Security vulnerabilities\n- Readability and maintainability\n\nYour job is to review the changes in front of you and flag anything that would cause a wrong result, a crash, or a security issue in production — not to nitpick style.',
+  behavior: '1. Read the diff or files in scope before commenting on anything.\n2. Check each change against its likely failure modes: bad input, empty/null values, concurrent access, off-by-one errors.\n3. Rank findings by severity — correctness and security first, style last.\n4. Report findings with the exact file and line, and a concrete scenario that breaks.',
+  guardrails: '- Never approve code you have not actually read.\n- Never invent a bug you cannot point to a specific line for.\n- Always distinguish "this is wrong" from "this is a style preference".',
+  output: '| Section | Format |\n|---|---|\n| Summary | 1-2 sentences |\n| Findings | Bulleted, file:line, severity-ordered |\n| Verdict | Approve / Needs changes |',
+};
+
+/** Config defaults paired with STARTER_EXAMPLE_SECTIONS above — issue #9 also
+ *  flagged that a new agent starts with no config at all. */
+const STARTER_EXAMPLE_CONFIG: { propKey: string; value: unknown }[] = [
+  { propKey: 'model', value: 'sonnet' },
+  { propKey: 'tools', value: ['Read', 'Grep', 'Glob'] },
+];
+
+/**
  * Creates an agent row (source:'created', platform:'claude' default) + seeds one
- * AgentSection per SectionDef.isCore template, each with a SectionRevision(author:'scaffold')
- * revision #0. (D5 — 'scaffold' is distinct from 'import'/'user'/'ai'.)
+ * AgentSection per SectionDef.isCore, each with a SectionRevision(author:'scaffold')
+ * revision #0 (D5 — 'scaffold' is distinct from 'import'/'user'/'ai'), plus the
+ * STARTER_EXAMPLE_CONFIG rows above.
  *
  * ownerId is required and non-defaulted (constraint 2, §6.2).
  */
@@ -220,12 +244,13 @@ export function createAgent(
 
       for (const def of coreDefs) {
         const sectionId = crypto.randomUUID();
+        const content = STARTER_EXAMPLE_SECTIONS[def.key] ?? def.template;
         tx.insert(schema.agentSection).values({
           id: sectionId,
           agentId,
           sectionKey: def.key,
           heading: def.defaultHeading,
-          content: def.template,
+          content,
           order: def.defaultOrder,
           version: 0,
         }).run();
@@ -234,9 +259,15 @@ export function createAgent(
         tx.insert(schema.sectionRevision).values({
           id: crypto.randomUUID(),
           sectionId,
-          content: def.template,
+          content,
           author: 'scaffold',
         }).run();
+      }
+
+      if (STARTER_EXAMPLE_CONFIG.length > 0) {
+        tx.insert(schema.agentConfig).values(
+          STARTER_EXAMPLE_CONFIG.map((c) => ({ agentId, propKey: c.propKey, value: c.value })),
+        ).run();
       }
     });
   } catch (err) {
