@@ -137,14 +137,15 @@ own design pass before implementation — mock-first per standing rule 4.
 
 ### Share agent
 
-Lets one user hand an agent to another to fork their own copy; prerequisite (`ownerId`) is
-already satisfied. Covers the "handoff" use case entirely — true ownership transfer (same
-agent, same identity, just a different owner) is deliberately not planned as a separate
-feature, since a copy/fork covers the real need without the hidden complexity of re-pointing
-access control, API tokens, and MCP references. Scoping note for when this is picked up:
-sharing-with-edit-access (both people work on the same underlying agent) and copying (each
-person gets an independent fork) are genuinely different things — decide explicitly which
-one(s) this actually builds, don't assume one covers the other.
+Lets an owner grant another user **live, read-only access** to an agent — via a reusable
+public link code, or by adding the recipient's email directly — so the recipient always sees
+the owner's current version, never a stale snapshot. A recipient's only mutation is
+**"Copy to me,"** which forks an independent copy into their own library. Sharing-with-edit-
+access (both people working on the same underlying agent) was the open scoping question this
+item originally raised — it's decided: **not built**, since two people editing one agent
+needs a concurrency/attribution story this doesn't have yet. True ownership transfer (same
+agent, same identity, just a different owner) is also deliberately not built — re-pointing
+access control, API tokens, and MCP references is hidden complexity a copy avoids entirely.
 
 ### User-configured LLM key (BYOK)
 

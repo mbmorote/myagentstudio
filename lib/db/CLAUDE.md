@@ -27,9 +27,14 @@ resolved to `myagent.db` at the project root regardless of working directory, wi
 and foreign-key enforcement turned on. `repository/index.ts` is the only file outside this
 folder anything may import from — routes and other `lib/` modules never reach into an
 individual `repository/*.ts` file or into `schema.ts` directly. Every repository function
-that reads or writes an owned row (`agent`, `group`) takes an `ownerId` as a required,
-never-defaulted parameter and applies it in the same statement that touches the row —
-there's no function that could accidentally return another user's data.
+that **writes** an owned row (`agent`, `group`) takes an `ownerId` as a required,
+never-defaulted parameter and applies it in the same statement that touches the row — no
+mutating function could accidentally write another user's data, and this claim is
+unqualified for every write path with no exception. **Reads have one deliberate exception
+(Plan 15):** `getAgentFullForViewer`/`listSharedWithViewer` in `agents.ts` also return an
+agent to a user holding an explicit share grant, not just its owner — see `agentShares.ts`
+below. Every other read function, and every mutating function without exception, stays
+exactly as owner-scoped as this paragraph originally claimed.
 
 ## Schema (`schema.ts`)
 
@@ -47,13 +52,14 @@ EAV zones, `SectionRevision`, `AgentSnapshot`, `Group`/`Membership`, `User`, `In
 
 ## Migrations (`migrations/`)
 
-Nine migrations to date (`0000`–`0008`), applied in order by `drizzle-kit`. `0000`–`0004`
+Ten migrations to date (`0000`–`0009`), applied in order by `drizzle-kit`. `0000`–`0004`
 built the original single-tenant schema, groups, and the LLM gateway/settings/log tables;
 `0005` added `(platform, key)` scoping to the `configDef`/`sectionDef` catalogs; `0006`
 dropped `sectionDef.label` once `defaultHeading` became the single name for a section
 (display text included); `0007` (Plan 12) added `access_request` plus
 `invite_code.bound_email`/`expires_at` for the signup-request flow; `0008` (Plan 13) added
-the `api_token` table and `llm_call_log.origin`. Migration filenames are
+the `api_token` table and `llm_call_log.origin`; `0009` (Plan 15) added `agent.publicCode`/
+`publicCodeCreatedAt` and the `agent_share` table. Migration filenames are
 `drizzle-kit`-generated (random two-word suffixes) — the leading number is the only part
 that matters for ordering.
 
@@ -113,6 +119,15 @@ its tables directly:
   `name`/`scope`/dates. `revokeApiToken()` is a soft delete (`revokedAt` set, row never
   deleted, so `lastUsedAt` survives as an audit trail) and requires both `id` and `ownerId`
   to match. `createApiToken()` enforces a per-user cap of 10 active tokens.
+- **`agentShares.ts`** — the only file that touches `agent_share`, plus the
+  `agent.publicCode` accessors (Plan 15). Grant-by-email is idempotent (re-adding an
+  existing address is a no-op, not a duplicate); a code redemption for an agent already
+  granted by email collapses onto the same row. Never stores a `userId` — a share is
+  granted against an email, so it can predate the recipient's own account. The two
+  **viewer-scoped reads** that cross the ownership boundary on purpose —
+  `getAgentFullForViewer`/`listSharedWithViewer` — live in `agents.ts` instead (they read
+  `agent` rows, so they sit next to `getAgentFull`/`listAgents` for side-by-side contrast),
+  not here.
 - **`index.ts`** — the barrel. Re-exports every function and DTO type the files above
   expose; this is the only import path anything outside `lib/db/` is allowed to use.
 
@@ -124,8 +139,9 @@ its tables directly:
 | `schema.ts` | Every Drizzle table definition |
 | `seed.ts` | Runs migrations + bootstrap-only catalog seed (`npm run db:seed`) |
 | `sectionDefsSeed.ts` | Bootstrap-only default `SectionDef` rows, consumed only by `seed.ts` |
-| `migrations/*.sql` | Nine migrations (`0000`–`0008`), `drizzle-kit`-generated, applied in numeric order |
-| `repository/agents.ts` | Agent/section/revision/snapshot CRUD |
+| `migrations/*.sql` | Ten migrations (`0000`–`0009`), `drizzle-kit`-generated, applied in numeric order |
+| `repository/agents.ts` | Agent/section/revision/snapshot CRUD, plus the two viewer-scoped reads and `copyAgentForOwner` (Plan 15) |
+| `repository/agentShares.ts` | `agent_share` rows + `agent.publicCode` accessors — share grants and the public link (Plan 15) |
 | `repository/groups.ts` | Group/membership CRUD |
 | `repository/catalog.ts` | Read-only `ConfigDef`/`SectionDef` access |
 | `repository/users.ts` | User rows + invite codes |

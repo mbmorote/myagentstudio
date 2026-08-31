@@ -35,6 +35,7 @@ Live and ready to use.
 | **First-login guided tour** | Feature | Minor | A short, skippable in-app walkthrough of the four panels for anyone signing in for the first time. |
 | **Beta & sensitive-data notice** | Fix | Minor | A one-time popup after signup, plus a persistent reminder near the chat and import inputs, that this is an early, unencrypted-at-rest beta — don't paste passwords, API keys, or other sensitive data. |
 | **A second AI provider** | Resource | Major | An additional, non-Anthropic model option behind the same interface — so the platform isn't locked to one vendor. Live-verified against a real NVIDIA NIM account. |
+| **Share an agent** | Feature | Major | Grant another user live, read-only access to an agent — by a reusable link code or by their email — so they always see your current version. They can copy it to their own library, but never edit yours. |
 
 ## Coming Next
 
@@ -46,7 +47,6 @@ Starting in the next release — decided and ready to build.
 | **AI chat history that survives a reload** | Feature | Major | Conversations currently live only in the browser tab for the current session. |
 | **Export to other platforms** | Feature | Major | Translating an agent to formats beyond Claude's, starting with Copilot. |
 | **Account email delivery** | Resource | Minor | Automated emails for account actions — an admin-generated invite code, and account-related notifications — instead of being sent or handled by hand. |
-| **Sharing agents** | Feature | Minor | Letting one user hand an agent to another to fork their own copy from it. |
 
 ## Planned
 

@@ -31,10 +31,11 @@
  * direct write-to-disk (no filesystem-path assumptions) or copy-to-clipboard (marginal
  * extra value) — the user drags the saved file into .claude/agents/ themselves.
  *
- * Zoom modal (2026-08-06) — 🔍 in the band opens a Dialog with the same `lines`
+ * Zoom modal (2026-08-06) — the band's zoom icon opens a Dialog with the same `lines`
  * rendered larger (RawLines, shared between panel and modal so they can't drift).
  * Read-only, no controls beyond closing — the panel is the narrow side rail, the modal
- * is just that same content at a size you can actually read.
+ * is just that same content at a size you can actually read. (Toolbar icons were plain
+ * emoji until the Plan 15 dock redesign, 2026-08-31, swapped them for inline SVGs.)
  */
 
 import { useState, useEffect } from 'react';
@@ -53,8 +54,8 @@ interface RawAgentViewProps {
   panelWidth?: number;
 }
 
-/** Below this panel width, the Download button shows ⇩ only — "Download" stopped fitting
- *  alongside the band text and 🔍 once the panel could go down to 200px. */
+/** Below this panel width, the Download button shows its icon only — "Download" stopped
+ *  fitting alongside the band text and the zoom icon once the panel could go down to 200px. */
 const DOWNLOAD_LABEL_MIN_WIDTH = 260;
 
 // A top-level (unindented) `key: value` frontmatter line — nested/continuation lines
@@ -217,18 +218,26 @@ export function RawAgentView({ agentId, agentName, agentUpdatedAt, panelWidth }:
           type="button"
           onClick={() => setZoomOpen(true)}
           title="Open a larger view"
-          className="ml-auto flex-none font-sans text-[12px] text-[var(--faint)] bg-transparent border-none cursor-pointer hover:text-[var(--text)]"
+          className="ml-auto flex-none flex items-center bg-transparent border-none cursor-pointer text-[var(--faint)] hover:text-[var(--text)]"
         >
-          🔍
+          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="8.5" cy="8.5" r="5" />
+            <path d="M15.5 15.5 12.3 12.3" />
+          </svg>
         </button>
         <button
           id="tourDownloadBtn"
           type="button"
           onClick={handleDownload}
           title={`Download ${agentName}.md`}
-          className="flex-none font-sans text-[10.5px] font-semibold text-[var(--accent-ink)] bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[6px] px-[8px] py-[2px] cursor-pointer hover:opacity-90"
+          className="flex-none flex items-center gap-[5px] font-sans text-[10.5px] font-semibold text-[var(--accent-ink)] bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[6px] px-[8px] py-[3px] cursor-pointer hover:opacity-90"
         >
-          {showDownloadLabel ? '⇩ Download' : '⇩'}
+          <svg viewBox="0 0 20 20" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10 3v9" />
+            <path d="M6.5 8.5 10 12l3.5-3.5" />
+            <path d="M4 14.5v1.2A1.3 1.3 0 0 0 5.3 17h9.4a1.3 1.3 0 0 0 1.3-1.3v-1.2" />
+          </svg>
+          {showDownloadLabel && 'Download'}
         </button>
       </div>
 

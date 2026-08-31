@@ -13,12 +13,15 @@
  * session → render the same landing content as /welcome. A valid session falls through
  * to the pre-existing behaviour below unchanged.
  *
- * Zero agents → render WorkbenchShell in its null-agent state.
- * One or more agents → redirect to /agents/{first.id}.
+ * Zero owned agents AND zero shared-with-them agents → render WorkbenchShell in its
+ * null-agent state.
+ * Otherwise → redirect to the first owned agent, falling back to the first shared one
+ * (Plan 15, §4.7 — a shared-only user must not land in the empty state; a wrongly
+ * prioritized redirect would just be a different, subtler symptom of the same bug).
  */
 
 import { redirect } from 'next/navigation';
-import { listAgents, listGroups, getConfigCatalog, getSectionCatalog } from '@/lib/db/repository';
+import { listAgents, listSharedWithViewer, listGroups, getConfigCatalog, getSectionCatalog } from '@/lib/db/repository';
 import { getSession } from '@/lib/auth/session';
 import { isOAuthConfigured } from '@/lib/env';
 import { WorkbenchShell } from '@/app/components/WorkbenchShell';
@@ -31,8 +34,9 @@ export default async function Home() {
   }
 
   const agents = listAgents(session.userId);
+  const sharedAgents = listSharedWithViewer(session.userId);
 
-  if (agents.length === 0) {
+  if (agents.length === 0 && sharedAgents.length === 0) {
     const groups = listGroups(session.userId);
     const configCatalog = getConfigCatalog();
     const sectionCatalog = getSectionCatalog();
@@ -41,6 +45,7 @@ export default async function Home() {
       <WorkbenchShell
         initialAgent={null}
         agents={agents}
+        sharedAgents={sharedAgents}
         groups={groups}
         configCatalog={configCatalog}
         sectionCatalog={sectionCatalog}
@@ -49,5 +54,5 @@ export default async function Home() {
     );
   }
 
-  redirect(`/agents/${agents[0].id}`);
+  redirect(`/agents/${agents.length > 0 ? agents[0].id : sharedAgents[0].id}`);
 }

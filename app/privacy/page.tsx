@@ -29,6 +29,12 @@
  * untracked .env.local, never in source. Unset falls back to a generic
  * statement that's still accurate, not a broken/empty page.
  *
+ * Revised 2026-08-31 (Plan 15, §7 risk 11 — checked, not assumed a no-op): §2 and
+ * §6 now disclose that using the agent-sharing feature makes an agent's content and
+ * your email address visible to the other user involved. This is a real, new
+ * disclosure — user-to-user sharing didn't exist when this page was last written —
+ * not boilerplate.
+ *
  * Server component — no interactivity; rendered once on the server, no 'use client'.
  * Uses h-screen + overflow-y-auto (not min-h-screen) for the same reason WelcomePage does:
  * app/globals.css sets body{overflow:hidden} for the Workbench shell's fixed-viewport
@@ -68,7 +74,7 @@ export default function PrivacyPage() {
       {/* ── Content ─────────────────────────────────────────────────────── */}
       <div className="max-w-[780px] mx-auto px-7 py-10 w-full flex-1">
         <h1 className="text-[28px] tracking-[-0.02em] mb-2">Privacy Policy</h1>
-        <p className="text-[12px] text-[var(--faint)] mb-6">Last updated: August 18, 2026</p>
+        <p className="text-[12px] text-[var(--faint)] mb-6">Last updated: August 31, 2026</p>
         <p className="text-[14px] text-[var(--muted)] leading-[1.65] mb-10">
           This Privacy Policy explains how ProcessMind Solutions (&quot;we&quot;, &quot;us&quot;, &quot;our&quot;),
           operating this Service, collects, uses, and protects your personal information. By using the
@@ -99,7 +105,7 @@ export default function PrivacyPage() {
           <section className="mb-8">
             <h2 className="text-[17px] font-semibold mb-2 tracking-[-0.01em]">2. Information We Collect</h2>
             <ul className="list-disc list-inside text-[var(--muted)] space-y-1 ml-1">
-              <li><strong>Account information:</strong> your email address, for every account.</li>
+              <li><strong>Account information:</strong> your email address, for every account. If you use the agent-sharing feature, your email address becomes visible to whoever you share an agent with (and theirs to you), per §6.</li>
               <li><strong>Request-access information:</strong> if you sign up via &quot;Request access&quot; (no invite code yet), we also collect your name and how you heard about us — this is deleted once an invite code is issued for you, not kept as ongoing account data.</li>
               <li><strong>Agent configuration data:</strong> the agent files you import, create, or edit within the Service.</li>
               <li><strong>Chat and import content:</strong> the instructions and content you submit through the chat interface or import dialog.</li>
@@ -148,9 +154,14 @@ export default function PrivacyPage() {
           <section className="mb-8">
             <h2 className="text-[17px] font-semibold mb-2 tracking-[-0.01em]">6. Data Sharing</h2>
             <p className="text-[var(--muted)]">
-              We do not sell your data. It is shared only with the AI provider processing your request
-              (§4) and, according to your own consent choice, with the admin (§5). We do not share your
-              data with any other third party.
+              We do not sell your data. It is shared with the AI provider processing your request (§4),
+              according to your own consent choice with the admin (§5), and — only when you choose to use
+              the Service&apos;s agent-sharing feature — with another user of the Service. Sharing an agent
+              gives that other person read-only access to the agent&apos;s content (name, description,
+              configuration, and sections) and shows them your email address; if someone shares an agent
+              with you, you see the same about them. This is a feature you or another user actively
+              chooses to use, not something we do on your data automatically. We do not share your data
+              with any other third party.
             </p>
           </section>
 

@@ -111,12 +111,12 @@ Configurable from **System Settings** (`/settings`, admin only):
 
 The UI is a four-pane IDE layout:
 
-- **Library** (left, foldable) — your agent list. Import files from the action bar at the bottom. (Grouping agents into collapsible groups is built underneath but not yet enabled in this release.)
-- **Custom Visualization** (center top) — the currently selected agent split into its named sections (Role, Behavior, Guardrails, Output, and any optional or custom sections). Each section can be expanded, collapsed, or edited in place.
+- **Library** (left, foldable) — your agent list, plus a "Shared with me" section for agents another user has granted you read-only access to. Import files, or redeem a share code, from the action bar at the bottom. (Grouping agents into collapsible groups is built underneath but not yet enabled in this release.)
+- **Custom Visualization** (center top) — the currently selected agent split into its named sections (Role, Behavior, Guardrails, Output, and any optional or custom sections). Each section can be expanded, collapsed, or edited in place — unless the agent was shared with you, in which case this pane is read-only with a Copy-to-me action.
 - **AI Chat** (center bottom) — type an instruction and ✦ Prometheus proposes a change to the description, sections, and/or config. Review the proposal card and click Apply (or Discard) — nothing lands until you do.
-- **Raw** (right, foldable) — a live read-only export preview of the agent as it would be written to a `.md` file. Updates after every save.
+- **Raw / Share** (right, foldable) — a two-tab dock: **Raw** is a live read-only export preview of the agent as it would be written to a `.md` file, updated after every save; **Share** (owner only) is where you enable a share link, add people by email, and revoke access.
 
-All four panels resize via drag gutters. Library and Raw fold to rails to reclaim space.
+All four panels resize via drag gutters. Library and the right dock fold to rails to reclaim space.
 
 ## Console MCP access
 

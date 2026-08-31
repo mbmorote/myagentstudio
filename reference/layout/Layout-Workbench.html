@@ -138,6 +138,25 @@
   .pbody::-webkit-scrollbar{width:10px;height:10px}
   .pbody::-webkit-scrollbar-thumb{background:var(--grip);border-radius:6px;border:3px solid var(--panel)}
 
+  /* right-panel dock tabs (Plan 15, 2026-08-31 debate) — Raw and Share are sibling tabs on
+     one dock, not Share folded into Raw's identity. Live INSIDE .phead itself (revised —
+     a separate title row saying "Raw agent" above a second row saying "Raw" was a
+     redundant double-header) so the tab labels ARE the header, same as an editor tab strip. */
+  .phead .ptabs-inline{display:flex}
+  /* Flat editor-tab look, not a button: square corners, a hairline divider between tabs
+     instead of a border box around each one, active tab lifts to the content's own
+     background with a colored top edge — same visual grammar as a code editor's tab strip.
+     First tab's negative margin cancels .phead's own left padding so the strip starts
+     flush at the panel edge, the way a real editor tab bar does. */
+  .phead .ptab{font:inherit; font-size:11.5px; font-weight:600; letter-spacing:.01em;
+        color:var(--faint); background:transparent; border:none; border-right:1px solid var(--border);
+        border-radius:6px 6px 0 0; padding:8px 18px; cursor:pointer}
+  .phead .ptab:first-child{margin-left:-12px}
+  .phead .ptab:hover{color:var(--text)}
+  .phead .ptab.active{color:var(--text); background:var(--panel); box-shadow:inset 0 3px 0 var(--accent);
+    border-bottom:1px solid var(--panel); margin-bottom:-1px}
+  .phead .ptab[hidden]{display:none}
+
   /* ---- gutters (resizers) ---- */
   .gv{flex:0 0 9px; cursor:col-resize; position:relative}
   .gh{flex:0 0 9px; cursor:row-resize; position:relative}
@@ -350,36 +369,70 @@
      4. Redeem-code dialog — reuses .modal-* from the Import modal above almost verbatim,
         one field instead of many. */
 
-  /* ---- Owner Access zone (dispatch 2) ---- */
-  .access-link-row{display:flex;align-items:center;gap:8px;padding:6px 0;flex-wrap:wrap}
-  .access-code{font-family:var(--mono);font-size:11px;color:var(--text);background:var(--elev);
-    border:1px solid var(--border);border-radius:7px;padding:6px 10px;flex:1;min-width:0;
+  /* ---- Share tab content (dispatch 2) — restyled 2026-08-31 per the Claude Design canvas
+     review: real section hierarchy (icon+title+status pill) instead of flat stacked rows,
+     SVG icons instead of text glyphs, and one generic access-footer instead of a
+     link-specific hint. #accessArea carries its own padding/layout now that Access lives
+     in the right-panel dock (.pbody has none of its own) rather than inside .viz. ---- */
+  #accessArea{padding:18px 18px 20px;display:flex;flex-direction:column;gap:18px}
+  #accessArea[hidden]{display:none} /* same author-style-beats-[hidden] trap .rband hit above */
+  .share-section{display:flex;flex-direction:column;gap:10px}
+  .share-section-head{display:flex;align-items:center;gap:7px}
+  .share-section-icon{display:flex;color:var(--muted)}
+  .share-section-icon svg{width:15px;height:15px}
+  .share-section-title{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+  .status-pill{margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:20px}
+  .status-pill.on{color:#1e7a45;background:rgba(47,158,95,.14)}
+  .status-pill.off{color:var(--muted);background:var(--bg)}
+  .count-pill{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--muted);background:var(--bg);border-radius:20px;padding:2px 8px}
+  .link-row{display:flex;align-items:center;gap:8px;background:var(--elev);border:1px solid var(--border);
+    border-radius:8px;padding:8px 8px 8px 12px}
+  .link-code{flex:1;min-width:0;font-family:var(--mono);font-size:11.5px;color:var(--text);
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .access-code.off{color:var(--faint);font-style:italic;border-style:dashed}
-  .access-btn{font:inherit;font-size:11.5px;font-weight:600;border-radius:7px;padding:6px 12px;
-    cursor:pointer;border:1px solid var(--border);background:var(--elev);color:var(--text);flex:none}
-  .access-btn:hover{border-color:var(--accent);color:var(--accent-ink)}
-  .access-btn.danger:hover{border-color:var(--err);color:var(--err)}
-  .access-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-  .access-btn.primary:hover{filter:brightness(1.08);color:#fff}
-  .access-hint{font-size:10.5px;color:var(--faint);margin-top:5px;line-height:1.4}
-  .access-people{display:flex;flex-direction:column;gap:1px;margin-top:12px}
-  .access-people-label{font-size:10px;font-weight:700;color:var(--faint);text-transform:uppercase;
-    letter-spacing:.05em;margin-bottom:4px}
-  .access-person{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:7px}
-  .access-person:hover{background:var(--bg)}
-  .access-person .ap-email{color:var(--text);font-size:12px}
-  .access-person .ap-via{color:var(--faint);font-size:10.5px;margin-left:auto}
-  .access-person .ap-remove{flex:none;width:16px;height:16px;border-radius:4px;border:1px solid var(--border);
-    background:var(--elev);color:var(--faint);font-size:11px;line-height:1;display:grid;place-items:center;
-    cursor:pointer;opacity:0;transition:opacity .12s;padding:0}
-  .access-person:hover .ap-remove{opacity:1}
-  .access-person .ap-remove:hover{color:var(--err);border-color:var(--err)}
-  .access-empty{font-size:12px;color:var(--faint);font-style:italic;padding:6px 4px}
-  .access-add-row{display:flex;gap:6px;margin-top:10px}
+  .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
+    border-radius:6px;border:1px solid transparent;background:transparent;color:var(--faint);cursor:pointer;padding:0;flex:none}
+  .icon-btn:hover{background:var(--bg);color:var(--text);border-color:var(--border)}
+  .icon-btn svg{width:15px;height:15px}
+  .link-danger{align-self:flex-start;font-size:11.5px;font-weight:600;color:var(--err);
+    background:transparent;border:none;padding:2px 0;cursor:pointer}
+  .link-danger:hover{text-decoration:underline}
+  .link-off-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    background:var(--elev);border:1px dashed var(--border);border-radius:8px;padding:12px 14px}
+  .link-off-text{font-size:12px;color:var(--faint);font-style:italic}
+  .btn-primary{font-size:11.5px;font-weight:600;color:#fff;background:var(--accent);border:1px solid var(--accent);
+    border-radius:7px;padding:7px 14px;cursor:pointer;white-space:nowrap}
+  .btn-primary:hover{filter:brightness(1.08)}
+  .share-divider{height:1px;background:var(--border)}
+  .people-list{display:flex;flex-direction:column;gap:2px}
+  .person-row{display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:7px}
+  .person-row:hover{background:var(--bg)}
+  .avatar{flex:none;width:24px;height:24px;border-radius:6px;background:var(--elev);border:1px solid var(--border);
+    display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;color:var(--muted)}
+  .person-info{display:flex;flex-direction:column;min-width:0;gap:1px}
+  .person-email{font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .person-meta{font-size:10.5px;color:var(--faint)}
+  .remove-btn{margin-left:auto;flex:none;width:22px;height:22px;border-radius:6px;border:1px solid transparent;
+    background:transparent;color:var(--faint);cursor:pointer;display:flex;align-items:center;justify-content:center;
+    opacity:0;transition:opacity .12s}
+  .person-row:hover .remove-btn{opacity:1}
+  .remove-btn:hover{color:var(--err);background:var(--elev);border-color:var(--border)}
+  .remove-btn svg{width:11px;height:11px}
+  .people-empty{font-size:12px;color:var(--faint);font-style:italic;padding:4px 2px}
+  .add-email-btn{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;
+    color:var(--muted);background:transparent;border:1px dashed var(--border);border-radius:7px;padding:7px 12px;cursor:pointer}
+  .add-email-btn:hover{color:var(--text);border-color:var(--faint);border-style:solid}
+  .add-email-btn svg{width:12px;height:12px}
+  .access-add-row{display:flex;gap:6px}
   .access-add-row input{flex:1;font:inherit;font-size:12px;padding:6px 10px;border:1px solid var(--border);
     border-radius:7px;background:var(--bg);color:var(--text);outline:none}
   .access-add-row input:focus{border-color:var(--accent)}
+  .add-email-confirm{font-size:11.5px;font-weight:600;color:#fff;background:var(--accent);border:1px solid var(--accent);
+    border-radius:7px;padding:6px 12px;cursor:pointer}
+  .add-email-confirm:hover{filter:brightness(1.08)}
+  .add-email-cancel{font-size:11.5px;font-weight:600;color:var(--muted);background:transparent;border:1px solid var(--border);
+    border-radius:7px;padding:6px 12px;cursor:pointer}
+  .add-email-cancel:hover{color:var(--text)}
+  .access-footer{padding-top:14px;border-top:1px solid var(--border);font-size:10.5px;line-height:1.55;color:var(--faint)}
 
   /* ---- Library "Shared with me" section (dispatch 1) ---- */
   .arow.shared-row .tag{color:var(--accent-ink);font-weight:500}
@@ -470,12 +523,17 @@
   .h1{color:var(--warn);font-weight:600}
   .rband{padding:6px 14px;color:var(--faint);font-size:10.5px;border-bottom:1px solid var(--border);
          font-family:var(--mono);display:flex;align-items:center;gap:10px}
+  .rband[hidden]{display:none} /* .rband's own display:flex otherwise beats the browser's
+    default [hidden]{display:none} — author styles always win over UA styles regardless of
+    specificity, so any element with its own unconditional `display` needs this guard. */
   .rband .rband-txt{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .rband .rzoom{margin-left:auto;flex:none;font-size:12px;background:none;border:none;color:var(--faint);cursor:pointer;padding:0}
+  .rband .rzoom{margin-left:auto;flex:none;display:inline-flex;background:none;border:none;color:var(--faint);cursor:pointer;padding:0}
   .rband .rzoom:hover{color:var(--text)}
-  .rband .dl{flex:none;font-family:var(--ui);font-size:10.5px;font-weight:600;color:var(--accent-ink);
-    background:var(--accent-wash);border:1px solid var(--accent);border-radius:6px;padding:2px 8px;cursor:pointer}
+  .rband .rzoom svg{width:14px;height:14px}
+  .rband .dl{flex:none;display:inline-flex;align-items:center;gap:5px;font-family:var(--ui);font-size:10.5px;font-weight:600;color:var(--accent-ink);
+    background:var(--accent-wash);border:1px solid var(--accent);border-radius:6px;padding:3px 8px;cursor:pointer}
   .rband .dl:hover{opacity:.9}
+  .rband .dl svg{width:12px;height:12px}
   /* Below ~260px the "Download" word doesn't fit alongside the band text + 🔍 — same
      260px threshold as the real app's panelWidth check (2026-08-06), done here with a
      container query since the mockup has no JS width state to key off. */
@@ -820,8 +878,14 @@
   <section class="panel right" id="right"></section>
 
   <!-- collapsed rail for RIGHT -->
-  <div class="rail" id="railRight" hidden title="Show Raw agent">
-    <span class="rico">≡</span><span class="rlabel">◂ Raw</span>
+  <!-- Revised 2026-08-31 (live-testing feedback on the real app): "◂ Raw" alone
+       undersold what's behind the rail once an owner's dock also holds Share — the
+       real app now shows "◂ Raw / Share" for an owner and "◂ Raw" for a shared
+       viewer (RightDockPanel's own Share-tab visibility). This static mockup doesn't
+       wire the rail label to the viewing-as toggle — it's a low-value corner of a
+       reference file — so it just shows the owner's default label. -->
+  <div class="rail" id="railRight" hidden title="Show Raw / Share">
+    <span class="rico">≡</span><span class="rlabel">◂ Raw / Share</span>
   </div>
 </div>
 
@@ -861,11 +925,10 @@
     <div class="locked-zone" id="configArea"><!-- zone-label + rendered by buildConfig() --></div>
 
     <div class="locked-zone" id="sectionsArea"><!-- zone-label + rendered by buildSections() --></div>
-
-    <!-- Plan 15 dispatch 2 — Zone 3, [Share] Access. Same zone-label convention as
-         Config/Sections above; owner-only (never rendered in the shared/read-only view,
-         which has its own separate root below, per D1's real decision). -->
-    <div class="locked-zone" id="accessArea"><!-- zone-label + rendered by buildAccess() --></div>
+    <!-- Zone 3 ([Share] Access) used to render here (dispatch 2, D1's original "third zone
+         in AgentView" call). Moved 2026-08-31, per debate: not the main scrolling panel, and
+         not merged into Raw's identity either — it's now the "Share" tab on the right-panel
+         dock, alongside Raw (tpl-dock-right below), closed by default, always opens on Raw. -->
     </div>
 
     <!-- Plan 15 dispatch 3 — the read-only shared-agent view. A SEPARATE root, not the
@@ -877,10 +940,26 @@
   </div></div>
 </template>
 
-<template id="tpl-raw">
-  <div class="phead"><span class="glyph">≡</span> Raw agent <span class="role">anthropic-test-agent-.md · export preview</span></div>
-  <div class="rband"><span class="rband-txt" title="Markdown · UTF‑8 · read reference">Markdown · UTF‑8 · read reference</span><button class="rzoom" title="Open a larger view" onclick="window.__openRawZoom()">🔍</button><button class="dl" title="Download anthropic-test-agent-.md">⇩<span class="dl-word"> Download</span></button></div>
-  <div class="pbody"><div class="raw" id="rawlines"></div></div>
+<!-- Right-panel dock — Raw and Share as sibling tabs, one panel, one fold (2026-08-31 debate,
+     see plans/15-share-agent.md §8 D1 / §4.9). Neither tab implies or borrows the other's
+     identity: phead + rband swap per active tab, each tab's content is its own subtree.
+     Always opens on Raw (user's explicit call) — see setFold()'s 'right' branch. -->
+<template id="tpl-dock-right">
+  <div class="phead">
+    <div class="ptabs-inline" id="dockTabs">
+      <button type="button" class="ptab active" data-tab="raw" onclick="window.__dockSetTab('raw')">Raw</button>
+      <!-- Share tab hidden entirely when viewing as a shared recipient — owner-only, same
+           posture as the old Zone 3 ("never rendered in the shared/read-only view"). -->
+      <button type="button" class="ptab" data-tab="share" id="dockShareTab" onclick="window.__dockSetTab('share')">Share</button>
+    </div>
+  </div>
+  <div class="rband" id="dockRawBand"><span class="rband-txt" title="Markdown · UTF‑8 · read reference">Markdown · UTF‑8 · read reference</span><button class="rzoom" title="Open a larger view" onclick="window.__openRawZoom()"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="8.5" r="5"/><path d="M15.5 15.5 12.3 12.3"/></svg></button><button class="dl" title="Download anthropic-test-agent-.md"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v9"/><path d="M6.5 8.5 10 12l3.5-3.5"/><path d="M4 14.5v1.2A1.3 1.3 0 0 0 5.3 17h9.4a1.3 1.3 0 0 0 1.3-1.3v-1.2"/></svg><span class="dl-word"> Download</span></button></div>
+  <div class="pbody">
+    <div class="raw" id="rawlines"></div>
+    <!-- Same #accessArea id, same buildAccess() renderer as before — only the host it's
+         queried from changed (the right panel, not centerTop). -->
+    <div class="locked-zone" id="accessArea" hidden><!-- zone-label + rendered by buildAccess() --></div>
+  </div>
 </template>
 
 <template id="tpl-chat">
@@ -2422,68 +2501,90 @@ or any tool that modifies files — intentionally excluded.</pre>
     area.innerHTML = cfgHeaderLayoutSwitch() + sectionsLabel + sectionsHtml;
   }
 
-  // ---------- Zone 3: Share Access (Plan 15 dispatch 2) ----------
-  // Owner-only. Same zone-label convention as Config/Sections above. Two independent
-  // controls per constraint 5 (plans/15-share-agent.md §3): disabling the link and
-  // revoking a person never imply each other — this is the Google Docs model, not a
-  // single "make private" button.
+  // ---------- Share tab content (Plan 15 dispatch 2) ----------
+  // Owner-only. Two independent controls per constraint 5 (plans/15-share-agent.md §3):
+  // disabling the link and revoking a person never imply each other — this is the Google
+  // Docs model, not a single "make private" button. No zone-label/collapse header here —
+  // that made sense when this was a third zone competing with Config/Sections for space
+  // in the main panel; now the "Share" tab itself is the show/hide affordance, so a second
+  // one directly under it read as a meaningless, doubled-up section (2026-08-31 feedback).
   const accState = {
-    collapsed: false,
     linkEnabled: true,
     code: 'shr_9fK2mQ8pXz3vLwRt7yNcB1jHgAeSdFo',
     shares: [
-      { email: 'priya@example.com', via: 'email', date: '2026-08-24' },
-      { email: 'devon@example.com', via: 'code', date: '2026-08-27' },
+      { email: 'priya@example.com', via: 'email', date: 'Aug 24, 2026' },
+      { email: 'devon@example.com', via: 'code', date: 'Aug 27, 2026' },
     ],
     addEmailOpen: false,
     addEmailDraft: '',
   };
+  // Inline stroke-SVG icons (2026-08-31 canvas review) — replaced the old text-glyph
+  // icons (⧉ × +) here, matching the same "no dingbats" pass the dock's Raw toolbar got.
+  const ACC_ICON_LINK = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 11.5 11.5 8.5"/><path d="M9.8 6.6 11 5.4a2.6 2.6 0 0 1 3.6 3.6l-1.2 1.2"/><path d="M10.2 13.4 9 14.6a2.6 2.6 0 0 1-3.6-3.6l1.2-1.2"/></svg>';
+  const ACC_ICON_COPY = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="9" height="9" rx="1.8"/><path d="M13 7V5.8A1.8 1.8 0 0 0 11.2 4H5.8A1.8 1.8 0 0 0 4 5.8v5.4A1.8 1.8 0 0 0 5.8 13H7"/></svg>';
+  const ACC_ICON_X = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>';
+  const ACC_ICON_PLUS = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>';
   function buildAccess(host) {
     const area = host && host.querySelector('#accessArea'); if (!area) return;
-    const chev = accState.collapsed ? '▸' : '▾';
-    const label = `<div class="zone-label" style="cursor:pointer" onclick="window.__accToggleCollapse()" title="${accState.collapsed ? 'Expand' : 'Collapse'} share access">` +
-      `<span class="tier">Share</span> Access <span class="chev" style="color:var(--faint);font-size:9px">${chev}</span></div>`;
-    if (accState.collapsed) { area.innerHTML = label; return; }
 
-    const linkRow = accState.linkEnabled
-      ? `<div class="access-link-row"><span class="access-code">${accState.code}</span>` +
-        `<button type="button" class="access-btn" onclick="window.__accCopyCode()">⧉ Copy</button>` +
-        `<button type="button" class="access-btn danger" onclick="window.__accDisableLink()">Disable</button></div>` +
-        `<div class="access-hint">Anyone with this link can view — never edit — this agent, until you disable it. Disabling kills the link permanently; re-enabling makes a brand-new one, never the old one back.</div>`
-      : `<div class="access-link-row"><span class="access-code off">link sharing is off</span>` +
-        `<button type="button" class="access-btn primary" onclick="window.__accEnableLink()">Enable link</button></div>`;
+    const linkSection = accState.linkEnabled
+      ? `<div class="link-row"><code class="link-code">${accState.code}</code>` +
+        `<button type="button" class="icon-btn" title="Copy link" onclick="window.__accCopyCode()">${ACC_ICON_COPY}</button></div>` +
+        `<button type="button" class="link-danger" onclick="window.__accDisableLink()">Disable link</button>`
+      : `<div class="link-off-row"><span class="link-off-text">Link sharing is off</span>` +
+        `<button type="button" class="btn-primary" onclick="window.__accEnableLink()">Enable link</button></div>`;
 
     const peopleRows = accState.shares.length
-      ? accState.shares.map((s, i) =>
-          `<div class="access-person"><span class="ap-email">${cfgEsc(s.email)}</span>` +
-          `<span class="ap-via">${s.via === 'code' ? 'redeemed the link' : 'added by you'} · ${s.date}</span>` +
-          `<button type="button" class="ap-remove" title="Revoke ${cfgEsc(s.email)}'s access" onclick="window.__accRevoke(${i})">×</button></div>`
-        ).join('')
-      : `<div class="access-empty">No one has access yet.</div>`;
+      ? `<div class="people-list">${accState.shares.map((s, i) =>
+          `<div class="person-row"><span class="avatar">${cfgEsc(s.email[0].toUpperCase())}</span>` +
+          `<div class="person-info"><span class="person-email">${cfgEsc(s.email)}</span>` +
+          `<span class="person-meta">${s.via === 'code' ? 'redeemed the link' : 'added by you'} · ${s.date}</span></div>` +
+          `<button type="button" class="remove-btn" title="Revoke ${cfgEsc(s.email)}'s access" onclick="window.__accRevoke(${i})">${ACC_ICON_X}</button></div>`
+        ).join('')}</div>`
+      : `<div class="people-empty">No one has access yet.</div>`;
 
     const addRow = accState.addEmailOpen
       ? `<div class="access-add-row"><input type="text" id="accAddEmailInput" placeholder="name@example.com" value="${cfgEsc(accState.addEmailDraft)}" ` +
         `oninput="window.__accAddEmailDraft(this.value)" onkeydown="if(event.key==='Enter')window.__accAddEmail();if(event.key==='Escape')window.__accCancelAddEmail();" autofocus>` +
-        `<button type="button" class="access-btn primary" onclick="window.__accAddEmail()">Add</button>` +
-        `<button type="button" class="access-btn" onclick="window.__accCancelAddEmail()">Cancel</button></div>`
-      : `<div class="access-add-row"><button type="button" class="access-btn" onclick="window.__accOpenAddEmail()">+ add by email</button></div>`;
+        `<button type="button" class="add-email-confirm" onclick="window.__accAddEmail()">Add</button>` +
+        `<button type="button" class="add-email-cancel" onclick="window.__accCancelAddEmail()">Cancel</button></div>`
+      : `<button type="button" class="add-email-btn" onclick="window.__accOpenAddEmail()">${ACC_ICON_PLUS} Add by email</button>`;
 
-    area.innerHTML = label + linkRow +
-      `<div class="access-people"><div class="access-people-label">People with access</div>${peopleRows}</div>` +
-      addRow;
+    area.innerHTML =
+      `<section class="share-section">` +
+        `<div class="share-section-head"><span class="share-section-icon">${ACC_ICON_LINK}</span>` +
+        `<span class="share-section-title">Share link</span>` +
+        `<span class="status-pill ${accState.linkEnabled ? 'on' : 'off'}">${accState.linkEnabled ? 'On' : 'Off'}</span></div>` +
+        linkSection +
+      `</section>` +
+      `<div class="share-divider"></div>` +
+      `<section class="share-section">` +
+        `<div class="share-section-head"><span class="share-section-title">People with access</span>` +
+        (accState.shares.length ? `<span class="count-pill">${accState.shares.length}</span>` : '') + `</div>` +
+        peopleRows + addRow +
+      `</section>` +
+      `<div class="access-footer">Everyone with access here — whether they redeemed the link or were added by email — can view this agent, never edit it. Revoke anyone's access, or disable the link, at any time; a disabled link is dead for good, and re-enabling always issues a brand-new one.</div>`;
   }
-  window.__accToggleCollapse = function () { accState.collapsed = !accState.collapsed; buildAccess(document.getElementById('centerTop')); };
-  window.__accEnableLink = function () { accState.linkEnabled = true; buildAccess(document.getElementById('centerTop')); };
+  // D9: re-enabling ALWAYS produces a fresh code, never resurrects the disabled one — a
+  // leaked-then-disabled link must stay dead permanently. Not real crypto, just enough
+  // entropy-shaped output to prove the "always different" property visually.
+  function mockShareCode() {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let s = 'shr_';
+    for (let i = 0; i < 43; i++) s += alphabet[Math.floor(Math.random() * alphabet.length)];
+    return s;
+  }
+  window.__accEnableLink = function () { accState.linkEnabled = true; accState.code = mockShareCode(); buildAccess(document.getElementById('right')); };
   window.__accDisableLink = function () {
     // Same confirm-before-disable posture as removing a config key/section elsewhere in
     // this file — a leaked link is dead the moment it's disabled, permanently (§4.5).
     if (!confirm('Disable this share link? It stops working immediately and permanently — re-enabling later makes a brand-new code, never this one again.')) return;
     accState.linkEnabled = false;
-    buildAccess(document.getElementById('centerTop'));
+    buildAccess(document.getElementById('right'));
   };
   window.__accCopyCode = function () { alert('Copied (mockup — no real clipboard write). The real app copies the bare code, never a URL — see D5.'); };
-  window.__accOpenAddEmail = function () { accState.addEmailOpen = true; accState.addEmailDraft = ''; buildAccess(document.getElementById('centerTop')); };
-  window.__accCancelAddEmail = function () { accState.addEmailOpen = false; buildAccess(document.getElementById('centerTop')); };
+  window.__accOpenAddEmail = function () { accState.addEmailOpen = true; accState.addEmailDraft = ''; buildAccess(document.getElementById('right')); };
+  window.__accCancelAddEmail = function () { accState.addEmailOpen = false; buildAccess(document.getElementById('right')); };
   window.__accAddEmailDraft = function (v) { accState.addEmailDraft = v; };
   window.__accAddEmail = function () {
     // Same minimal validation every email route in the real app uses — not a stricter
@@ -2495,9 +2596,33 @@ or any tool that modifies files — intentionally excluded.</pre>
       accState.shares.push({ email, via: 'email', date: 'just now' }); // idempotent-grant: re-adding an existing address is a silent no-op, not a duplicate
     }
     accState.addEmailOpen = false;
-    buildAccess(document.getElementById('centerTop'));
+    buildAccess(document.getElementById('right'));
   };
-  window.__accRevoke = function (i) { accState.shares.splice(i, 1); buildAccess(document.getElementById('centerTop')); };
+  window.__accRevoke = function (i) { accState.shares.splice(i, 1); buildAccess(document.getElementById('right')); };
+
+  // ---------- Right-panel dock tabs: Raw | Share (2026-08-31 debate) ----------
+  // Two sibling tabs on one dock, replacing the old Zone 3 (dispatch 2's access zone lived
+  // inside tpl-viz until this change). Share is owner-only — hidden entirely, not just
+  // disabled, when vizState.viewAs === 'shared' (mirrors the old Zone 3's own posture).
+  // The dock always opens on Raw regardless of which tab was active before folding — see
+  // setFold()'s 'right' branch below, which resets this on every re-open (user's explicit
+  // call; not "remember the last tab").
+  const dockState = { activeTab: 'raw' };
+  function buildDockTabs(host) {
+    if (!host) return;
+    const shareTab = host.querySelector('#dockShareTab');
+    const isSharedViewer = typeof vizState !== 'undefined' && vizState.viewAs === 'shared';
+    if (shareTab) shareTab.hidden = isSharedViewer;
+    if (dockState.activeTab === 'share' && isSharedViewer) dockState.activeTab = 'raw';
+    host.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab === dockState.activeTab));
+    const onRaw = dockState.activeTab === 'raw';
+    const rawBand = host.querySelector('#dockRawBand'), rawBody = host.querySelector('#rawlines');
+    const shareBody = host.querySelector('#accessArea');
+    if (rawBand) rawBand.hidden = !onRaw;
+    if (rawBody) rawBody.hidden = !onRaw;
+    if (shareBody) shareBody.hidden = onRaw;
+  }
+  window.__dockSetTab = function (tab) { dockState.activeTab = tab; buildDockTabs(document.getElementById('right')); };
 
   // ---------- Model + effort header control ----------
   // Mirrors the real Claude model picker's shape (search + model list + a nested Effort
@@ -2602,6 +2727,7 @@ or any tool that modifies files — intentionally excluded.</pre>
   window.__vizToggleViewAs = function () {
     vizState.viewAs = vizState.viewAs === 'owner' ? 'shared' : 'owner';
     buildSharedView(document.getElementById('centerTop'));
+    buildDockTabs(document.getElementById('right')); // Share tab must vanish for a shared viewer
   };
   window.__sharedCopyToMe = function () { alert("Copy to me (mockup) — forks an independent copy into your own library. No AI call, no name auto-suffix; a name collision prompts for a new name (§4.6)."); };
   window.__sharedExport = function () { alert('Export (mockup) — downloads the .md, same deterministic export the owner gets (D2 resolved: a share-holder may export).'); };
@@ -2611,12 +2737,16 @@ or any tool that modifies files — intentionally excluded.</pre>
   const centerTop=document.getElementById('centerTop');
   const centerBottom=document.getElementById('centerBottom');
   const right=document.getElementById('right');
-  function fill(host,tplId){ host.innerHTML=''; host.appendChild(document.getElementById(tplId).content.cloneNode(true)); if(tplId==='tpl-raw') buildRaw(host); if(tplId==='tpl-viz'){ buildConfig(host); buildSections(host); buildAccess(host); buildModelEffort(host); buildSharedView(host); } }
+  function fill(host,tplId){
+    host.innerHTML=''; host.appendChild(document.getElementById(tplId).content.cloneNode(true));
+    if(tplId==='tpl-dock-right'){ buildRaw(host); buildAccess(host); buildDockTabs(host); }
+    if(tplId==='tpl-viz'){ buildConfig(host); buildSections(host); buildModelEffort(host); buildSharedView(host); }
+  }
 
   function layout(){
     fill(centerTop,'tpl-viz');
     fill(centerBottom,'tpl-chat');
-    fill(right,'tpl-raw');
+    fill(right,'tpl-dock-right');
     // give the right panel a collapse button
     const rh=right.querySelector('.phead');
     if(rh){ const b=document.createElement('button'); b.className='foldbtn'; b.dataset.fold='right'; b.title='Collapse'; b.textContent='⟩'; rh.appendChild(b); }
@@ -2634,6 +2764,9 @@ or any tool that modifies files — intentionally excluded.</pre>
     panel.style.display = folded?'none':'';
     if(gut) gut.style.display = folded?'none':'';
     rail.hidden = !folded;
+    // Right panel always reopens on the Raw tab — never remembers Share as the last-active
+    // tab across a fold/unfold (user's explicit call in the 2026-08-31 debate).
+    if(side==='right' && !folded){ dockState.activeTab='raw'; buildDockTabs(right); }
   }
   document.addEventListener('click',e=>{
     const fb=e.target.closest('.foldbtn'); if(fb){ setFold(fb.dataset.fold,true); return; }

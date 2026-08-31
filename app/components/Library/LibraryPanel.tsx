@@ -15,8 +15,12 @@
  *   mode 'flat': every agent, no group headers at all.
  *   mode 'grouped': real groups (each a GroupSection drop zone — drag adds, × removes)
  *     + a trailing synthetic "Ungrouped" bucket for agents with no membership.
+ *   Then, if any (Plan 15, §4.9 surface A): a "Shared with me" zone-label section —
+ *     read-only AgentListItem rows (sharedOwnerEmail set), never mixed into the
+ *     flat/grouped owned lists above.
  *   Then always: a "Manage" zone-label separator + action rows, in this order:
- *     "+ New agent" (C.6), "+ New group", "⇪ Import agent" (Phase D's ImportButton).
+ *     "+ New agent" (C.6), "+ New group", "⇪ Import agent" (Phase D's ImportButton),
+ *     "⇱ Redeem share code" (Plan 15, §4.9 surface D).
  *
  * Drag-and-drop (@dnd-kit/core, R8/R9):
  *   - DragOverlay: shows the agent name while dragging.
@@ -41,7 +45,8 @@ import { AgentListItem } from '@/app/components/Library/AgentListItem';
 import { GroupSection } from '@/app/components/Library/GroupSection';
 import { CreateAgentButton } from '@/app/components/Library/CreateAgentButton';
 import { ImportButton } from '@/app/components/Library/ImportButton';
-import type { AgentLiteDTO, GroupDTO } from '@/lib/db/repository';
+import { RedeemShareDialog } from '@/app/components/Library/RedeemShareDialog';
+import type { AgentLiteDTO, GroupDTO, SharedAgentLiteDTO } from '@/lib/db/repository';
 import { apiFetch } from '@/lib/apiFetch';
 
 interface LibraryPanelProps {
@@ -49,6 +54,9 @@ interface LibraryPanelProps {
   currentAgentId?: string;
   agents: AgentLiteDTO[];
   groups: GroupDTO[];
+  /** Agents shared WITH this viewer (Plan 15) — never includes agents they own.
+   *  Rendered as its own "Shared with me" section, always read-only. */
+  sharedAgents?: SharedAgentLiteDTO[];
   /**
    * Agents (flat, no group headers) vs. Grouped (real groups + trailing synthetic
    * "Ungrouped" bucket). Prototyped 2026-07-29 — replaces the old always-on stack of
@@ -70,6 +78,7 @@ export function LibraryPanel({
   currentAgentId,
   agents: initialAgents,
   groups: initialGroups,
+  sharedAgents = [],
   mode,
   isAdmin,
 }: LibraryPanelProps) {
@@ -81,6 +90,7 @@ export function LibraryPanel({
   const [newGroupName, setNewGroupName] = useState('');
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [ungroupedCollapsed, setUngroupedCollapsed] = useState(false);
+  const [redeemOpen, setRedeemOpen] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -268,6 +278,31 @@ export function LibraryPanel({
           </>
         )}
 
+        {/* "Shared with me" (Plan 15, §4.9 surface A) — its own zone-label section,
+            never mixed into the flat/grouped lists above. Read-only rows: sharedOwnerEmail
+            set on every AgentListItem here disables delete/drag/group-remove. */}
+        {sharedAgents.length > 0 && (
+          <>
+            <div className="flex items-center gap-2 mt-[14px] mb-[6px] mx-[10px] text-[var(--faint)] text-[10px] font-bold tracking-[.09em] uppercase">
+              Shared with me
+              <span className="flex-1 h-px bg-[var(--border)]" />
+            </div>
+            {sharedAgents.map((agent) => (
+              <AgentListItem
+                key={`shared-${agent.id}`}
+                // SharedAgentLiteDTO omits groupIds (a shared agent is in none of the
+                // viewer's groups and never can be, per listSharedWithViewer's own doc
+                // comment) — AgentListItem's `agent` prop still expects the full
+                // AgentLiteDTO shape, so synthesize the empty array here.
+                agent={{ ...agent, groupIds: [] }}
+                isCurrent={agent.id === currentAgentId}
+                onDeleted={() => {}}
+                sharedOwnerEmail={agent.ownerEmail}
+              />
+            ))}
+          </>
+        )}
+
         {/* "Manage" zone-label separator — same visual pattern as AgentView's Config/
             Sections zone labels, tighter margins to match the list's own indent. */}
         <div className="flex items-center gap-2 mt-[14px] mb-[6px] mx-[10px] text-[var(--faint)] text-[10px] font-bold tracking-[.09em] uppercase">
@@ -322,6 +357,17 @@ export function LibraryPanel({
         )}
 
         <ImportButton isAdmin={isAdmin} />
+
+        {/* "⇱ Redeem share code" (Plan 15, §4.9 surface D) — same inline trigger +
+            dialog pattern as ImportButton, kept inline here rather than a separate
+            RedeemButton.tsx since the plan only speced RedeemShareDialog as new. */}
+        <div
+          onClick={() => setRedeemOpen(true)}
+          className="flex items-center gap-[7px] px-3 py-[7px] text-[var(--muted)] cursor-pointer text-[12px] hover:text-[var(--text)]"
+        >
+          ⇱ Redeem share code
+        </div>
+        <RedeemShareDialog open={redeemOpen} onOpenChange={setRedeemOpen} />
       </div>
 
       {/* Drag overlay — shows agent name while dragging */}

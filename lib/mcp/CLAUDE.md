@@ -42,12 +42,13 @@ lib/mcp/server.ts                        ← the ONLY @modelcontextprotocol/sdk 
    buildServer(principal)                   Builds a fresh McpServer + transport per
       │                                     request, registers all 4 tools + the resource,
       │                                     closes both once the response is built.
-      ├─ lib/mcp/tools/listAgents.ts     ← read. listAgents(ownerId)
-      ├─ lib/mcp/tools/getAgent.ts       ← read. getAgentFull(id, ownerId)
-      ├─ lib/mcp/tools/exportAgent.ts    ← read. pull_agent. exportAgentMarkdown(id, ownerId)
+      ├─ lib/mcp/tools/listAgents.ts     ← read. listAgents(ownerId) + listSharedWithViewer(viewerId), merged (Plan 15)
+      ├─ lib/mcp/tools/getAgent.ts       ← read. getAgentFullForViewer(id, viewerId) — owner OR share-holder (Plan 15)
+      ├─ lib/mcp/tools/exportAgent.ts    ← read. pull_agent. exportAgentMarkdownForViewer(id, viewerId) (Plan 15)
       ├─ lib/mcp/tools/importAgent.ts    ← WRITE. push_agent. composes the same pipeline
-      │                                     app/api/agents/import/route.ts uses
-      └─ lib/mcp/resources.ts            ← myagentstudio://agent/{id}, same 2 repo calls as above
+      │                                     app/api/agents/import/route.ts uses — still
+      │                                     strictly getAgentFull(id, ownerId)-scoped
+      └─ lib/mcp/resources.ts            ← myagentstudio://agent/{id}, same viewer-scoped repo calls as above
 ```
 
 Each `tools/*.ts` file exports a `TOOL_NAME`, a `TOOL_DESCRIPTION`, an optional
@@ -103,15 +104,15 @@ specifically rather than trusting they carried over.
 | File | Role |
 |---|---|
 | `server.ts` | The ONLY `@modelcontextprotocol/sdk` importer. Builds/closes a stateless server+transport pair per request; wraps each tool handler's plain result into a `CallToolResult`. |
-| `resources.ts` | `myagentstudio://agent/{id}` list/read — same two repository calls `list_agents`/`pull_agent` use. |
-| `tools/listAgents.ts` | Read. `list_agents` — `listAgents(ownerId)`. |
-| `tools/getAgent.ts` | Read. `get_agent` — `getAgentFull(id, ownerId)`, the same `AgentDTO` the web UI gets. |
-| `tools/exportAgent.ts` | Read. `pull_agent` (file/function names unchanged) — `exportAgentMarkdown(id, ownerId)`, deterministic. |
+| `resources.ts` | `myagentstudio://agent/{id}` list/read — same viewer-scoped repository calls `list_agents`/`pull_agent` use (Plan 15). |
+| `tools/listAgents.ts` | Read. `list_agents` — `listAgents(ownerId)` + `listSharedWithViewer(viewerId)`, merged into one list distinguished by `access` (Plan 15). |
+| `tools/getAgent.ts` | Read. `get_agent` — `getAgentFullForViewer(id, viewerId)`, the same `AgentDTO` the web UI gets, owner OR share-holder (Plan 15). |
+| `tools/exportAgent.ts` | Read. `pull_agent` (file/function names unchanged) — `exportAgentMarkdownForViewer(id, viewerId)`, deterministic, owner OR share-holder (Plan 15). |
 | `tools/importAgent.ts` | **Write.** `push_agent` (file/function names unchanged) — the only write tool; see above. |
 | `__tests__/architecture.test.ts` | The four fitness assertions listed above. |
 | `__tests__/tools.test.ts` | Tenancy, scope-independence, and flag-don't-block cases for the three read tools. |
 | `__tests__/resources.test.ts` | Resource list/read tenancy + byte-identical parity with `pull_agent`. |
-| `__tests__/importAgent.test.ts` | Gates, create-vs-update, snapshot trail, short-circuit, cross-owner safety, dry-run, truncation, coverage warnings — all on the MCP path specifically. |
+| `__tests__/importAgent.test.ts` | Gates, create-vs-update, snapshot trail, short-circuit, cross-owner safety (incl. a share-holder's token, Plan 15 D8), dry-run, truncation, coverage warnings — all on the MCP path specifically. |
 
 ## What deliberately isn't here
 

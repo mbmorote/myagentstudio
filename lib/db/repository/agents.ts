@@ -377,7 +377,7 @@ export type SharedAgentLiteDTO = Omit<AgentLiteDTO, 'groupIds'> & {
 export function getAgentFullForViewer(
   agentId: string,
   viewerId: string,
-): { agent: AgentDTO; access: 'owner' | 'shared' } | null {
+): { agent: AgentDTO; access: 'owner' | 'shared'; ownerEmail?: string } | null {
   const agentRow = db
     .select()
     .from(schema.agent)
@@ -404,7 +404,17 @@ export function getAgentFullForViewer(
     .get();
   if (!share) return null;
 
-  return { agent: buildAgentDTO(agentRow), access: 'shared' };
+  // ownerEmail (added 2026-08-31, not in the original §4.4 signature) — SharedAgentView's
+  // "shared by <owner>" banner needs it and there was no other viewer-scoped path to get
+  // it; safe to add since this function has no existing caller depending on the shape
+  // NOT carrying an extra optional field (every call site destructures `{ agent, access }`).
+  const owner = db
+    .select({ email: schema.user.email })
+    .from(schema.user)
+    .where(eq(schema.user.id, agentRow.ownerId))
+    .get();
+
+  return { agent: buildAgentDTO(agentRow), access: 'shared', ownerEmail: owner?.email };
 }
 
 /**

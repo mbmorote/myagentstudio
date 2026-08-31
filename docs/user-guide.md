@@ -137,13 +137,48 @@ controls. This will be enabled in a coming update.
 
 ## Exporting an agent
 
-The **Raw** panel on the right shows the current state of the selected agent as it would be written to a `.md` file. This is a live preview — it updates after every save, whether from the AI chat or a manual edit.
+The panel on the right is a dock with two tabs, **Raw** and **Share** — Raw is the one open
+by default and shows the current state of the selected agent as it would be written to a
+`.md` file. This is a live preview — it updates after every save, whether from the AI chat
+or a manual edit.
 
-Frontmatter lines are dimmed; top-level section headings are highlighted. The filename band at the top shows `<name>.md`.
+Frontmatter lines are dimmed; top-level section headings are highlighted.
 
-Click **⇩ Download** at the top of the Raw panel to save `<name>.md` directly, then move it into your `.claude/agents/` directory. Alternatively, select all text in the panel and copy it if you just want the content.
+Click **Download** at the top of the Raw tab to save `<name>.md` directly, then move it into your `.claude/agents/` directory. Alternatively, select all text in the panel and copy it if you just want the content.
 
 The export format is deterministic and semantically faithful: frontmatter keys are written in their original insertion order, YAML values are normalized (no type coercion, no added quotes beyond what is necessary for round-trip safety), and section bodies are written byte-for-byte as stored. Group memberships are platform metadata and are not written into the exported file.
+
+---
+
+## Sharing an agent
+
+The **Share** tab, next to Raw in the same right-hand dock, is where you hand an agent to
+someone else. Unlike a copy, a share is a **live reference** — whoever it's shared with
+always sees your current version, updated as you edit, never a stale snapshot. They can
+look, but never edit anything.
+
+**Two ways to share:**
+
+- **By link.** Click **Enable link** to generate a code (`shr_…`). Copy it and send it
+  however you like — email, chat, anywhere. Anyone who redeems it gets access. **Disable
+  link** kills it immediately and permanently: re-enabling later always issues a brand-new
+  code, never the old one back, so a leaked link is safe to shut off for good.
+- **By email.** Click **+ Add by email** and enter the person's address directly. This works
+  even if they don't have an account yet — the share simply starts applying the moment
+  someone signs up with that address.
+
+Either way, the person appears under **People with access**, showing how they got in
+(added by you, or redeemed the link) and when. Click the **×** next to their name to revoke
+just that person — this is independent of the link: disabling the link doesn't remove anyone
+you've added by email, and removing a person doesn't touch the link.
+
+**What the recipient sees:** the agent opens read-only — name, description, config, and
+sections, with no edit controls anywhere. They get exactly two actions: **Copy to me**,
+which forks an independent copy into their own library (their copy, their edits, no
+connection back to yours), and **Export**, to download the same `.md` file you'd get from
+the Raw tab. To redeem a code someone sent them, they use **⇱ Redeem share code** in the
+Library panel's Manage section, and the agent then shows up under a **Shared with me**
+heading in their Library.
 
 ---
 

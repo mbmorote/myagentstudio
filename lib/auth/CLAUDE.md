@@ -63,6 +63,19 @@ selection. On the rare primary-key collision, it regenerates (up to 3 attempts) 
 erroring. This module has no `server-only` guard and no secrets — it's pure computation,
 usable directly in tests.
 
+## Share code (`shareCode.ts`) — Plan 15
+
+A **third point on the same generated-credential spectrum** as `inviteCode.ts` and
+`apiToken.ts`, and the file states its own reasoning rather than just citing them: it takes
+the **storage** rule from `inviteCode.ts` (plaintext — the owner must be able to re-open the
+Share panel and copy the code again, which *is* the feature) and the **entropy** rule from
+`apiToken.ts` (`shr_` + 43 base64url chars from 32 random bytes, machine-copied and pasted,
+never hand-typed, so there's no reason to trade away a bit for legibility the way
+`inviteCode.ts`'s ambiguity-free alphabet does). Nothing else backs it — no expiry, no
+single-use, no email binding — so its 256 bits of entropy are the entire defense. Same
+collision handling as `inviteCode.ts`: regenerate on a `UNIQUE` failure, up to 3 attempts.
+No `server-only` guard, no secrets — pure computation, usable directly in tests.
+
 ## Rate limiting (`rateLimit.ts`)
 
 An in-process, fixed-window limiter (20 attempts / 15 minutes — raised from 10 on
@@ -153,6 +166,7 @@ the password-signup (client redirect) and Google-signup (server redirect) paths.
 | `guard.ts` | `authenticate()` / admin guard — the route-handler entry point |
 | `password.ts` | bcrypt hash/verify + the no-password sentinel |
 | `inviteCode.ts` | Invite-code generation and normalization |
+| `shareCode.ts` | Share-link code generation (`shr_` + 256 bits) — plaintext-stored, `apiToken.ts`-grade entropy (Plan 15) |
 | `rateLimit.ts` | Fixed-window rate limiter — `checkRateLimit` (route+IP) and `checkRateLimitByKey` (arbitrary key, used by `mcpGuard.ts`) |
 | `apiToken.ts` | Personal Access Token generation + SHA-256 hashing (Plan 13, MCP access) |
 | `mcpGuard.ts` | `authenticateMcpToken()` — the third sibling to `authenticate()`/`authenticateAdmin()`, bearer-token authenticated, never returns a role (Plan 13) |
@@ -161,6 +175,6 @@ the password-signup (client redirect) and Google-signup (server redirect) paths.
 | `oauth/providers.ts` | The provider registry — what route tests mock |
 | `oauth/google.ts` | Google provider implementation. The only `arctic`/JWKS importer |
 | `oauth/tx.ts` | The OAuth transaction cookie (set/read/clear) |
-| `__tests__/*.test.ts` | Unit tests mirroring each file above (password, session, guard, invite codes, rate limit, JWT, session TTL, consent-popup flags, API tokens, MCP guard) |
+| `__tests__/*.test.ts` | Unit tests mirroring each file above (password, session, guard, invite codes, share codes, rate limit, JWT, session TTL, consent-popup flags, API tokens, MCP guard) |
 | `oauth/__tests__/tx.test.ts` | Transaction cookie set/read/clear cases |
 | `oauth/__tests__/google-idtoken.test.ts` | `id_token` verification against a locally generated JWKS — never a real Google call |

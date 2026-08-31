@@ -9,7 +9,8 @@
  *   Topbar on top.
  *   Below: Left=Library (Panel, foldable+resizable) · gutter ·
  *          Center (col: Viz Panel over gutter over Chat Panel) · gutter ·
- *          Right=Raw (Panel, foldable+resizable)
+ *          Right=RightDockPanel (foldable+resizable) — a two-tab dock, Raw | Share
+ *          (Plan 15, 2026-08-31), not a single-purpose Panel any more.
  *
  * Fold/resize state is local useState only (R15 — no persistence).
  * key={agent.id} is set by the parent page so switching agents resets all local
@@ -26,9 +27,11 @@
  */
 
 import { useState, useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
-import type { AgentDTO, AgentLiteDTO, GroupDTO, ConfigDefLite, SectionDefLite } from '@/lib/db/repository';
+import type { AgentDTO, AgentLiteDTO, GroupDTO, ConfigDefLite, SectionDefLite, SharedAgentLiteDTO } from '@/lib/db/repository';
 import type { Session } from '@/lib/auth/session';
 import { AgentView } from '@/app/components/CustomViz/AgentView';
+import { SharedAgentView } from '@/app/components/CustomViz/SharedAgentView';
+import { SharedAgentActions } from '@/app/components/CustomViz/SharedAgentActions';
 import { ChatPanel } from '@/app/components/Chat/ChatPanel';
 import {
   subscribe as subscribeProposal,
@@ -44,7 +47,7 @@ import { Panel } from '@/app/components/shell/Panel';
 import { Rail } from '@/app/components/shell/Rail';
 import { Gutter } from '@/app/components/shell/Gutter';
 import { GuidedTour, type GuidedTourHandle } from '@/app/components/shell/GuidedTour';
-import { RawAgentView } from '@/app/components/Raw/RawAgentView';
+import { RightDockPanel } from '@/app/components/shell/RightDockPanel';
 import { LibraryPanel } from '@/app/components/Library/LibraryPanel';
 import { ConsentPopup } from '@/app/components/Auth/ConsentPopup';
 import { SIGNUP_CONSENT_FLAG_KEY, NEW_ACCOUNT_QUERY_PARAM } from '@/lib/auth/consentPopupFlag';
@@ -83,6 +86,22 @@ interface WorkbenchShellProps {
   sectionCatalog?: SectionDefLite[];
   /** Authenticated session — threaded to Topbar for email display and role-gated links. */
   session: Session;
+  /**
+   * Plan 15 — 'owner' (default, every pre-Plan-15 caller) or 'shared' when
+   * `initialAgent` is a share-holder's read-only view, resolved server-side by
+   * getAgentFullForViewer (never a client toggle — see SharedAgentView.tsx's own
+   * doc comment on D1). 'shared' swaps the center panel to SharedAgentView and
+   * removes the Chat panel and the right-panel dock entirely (chat would only ever
+   * 404; Export is a self-contained action in SharedAgentView instead of routed
+   * through a Raw panel).
+   */
+  access?: 'owner' | 'shared';
+  /** Only meaningful when access === 'shared' — the agent's owner, for SharedAgentView's banner. */
+  ownerEmail?: string;
+  /** Agents shared WITH this viewer (Plan 15) — always relevant regardless of which
+   *  agent, if any, is currently open: the Library shows the viewer's whole world,
+   *  owned agents and shared-with-them agents alike. */
+  sharedAgents?: SharedAgentLiteDTO[];
 }
 
 export function WorkbenchShell({
@@ -92,7 +111,11 @@ export function WorkbenchShell({
   configCatalog = [],
   sectionCatalog = [],
   session,
+  access = 'owner',
+  ownerEmail,
+  sharedAgents = [],
 }: WorkbenchShellProps) {
+  const isShared = access === 'shared';
   const [agent, setAgent] = useState<AgentDTO | null>(initialAgent);
   const [interactionLock, setInteractionLock] = useState<'chat' | 'edit' | null>(null);
 
@@ -319,6 +342,7 @@ export function WorkbenchShell({
                 currentAgentId={agent?.id}
                 agents={agents}
                 groups={groups}
+                sharedAgents={sharedAgents}
                 mode={libraryMode}
                 isAdmin={session.role === 'admin'}
               />
@@ -334,44 +358,59 @@ export function WorkbenchShell({
 
         {/* ── Center: Viz (top) + Gutter + Chat (bottom) ───────────────── */}
         <div className="flex flex-col flex-1 min-w-0 min-h-0">
-          {/* Custom Viz — center-top */}
+          {/* Custom Viz — center-top. No label for the owner's own view (2026-08-31
+              feedback: didn't want an "owner" status shown at all) — only a shared
+              viewer sees anything here: who shared it, plus the Copy-to-me/Export
+              actions right after it (moved out of SharedAgentView's now-removed
+              banner — same feedback round, "no alert... should not exist"). */}
           <Panel
             id="tourCustomViz"
             glyph="◈"
             label="Custom Visualization"
-            role="platform main view"
+            role={
+              isShared && agent ? (
+                <span className="flex items-center gap-[10px]">
+                  <span className="truncate">shared by {ownerEmail}</span>
+                  <SharedAgentActions agent={agent} />
+                </span>
+              ) : undefined
+            }
             className="flex-1 min-h-0"
           >
             <div className="overflow-auto h-full">
               {agent ? (
-                <AgentView
-                  agent={agent}
-                  groups={groups}
-                  configCatalog={configCatalog}
-                  sectionCatalog={sectionCatalog}
-                  interactionLock={effectiveLock}
-                  citedItems={citedItems}
-                  onToggleCite={toggleCite}
-                  onEditStart={() => setInteractionLock('edit')}
-                  onEditEnd={() => setInteractionLock(null)}
-                  onSectionSaved={(sectionId, content, newVersion) => {
-                    setAgent((prev) => {
-                      if (!prev) return prev;
-                      return {
-                        ...prev,
-                        sections: prev.sections.map((s) =>
-                          s.id === sectionId ? { ...s, content, version: newVersion } : s,
-                        ),
-                      };
-                    });
-                  }}
-                  onNameSaved={(name) => {
-                    setAgent((prev) => (prev ? { ...prev, name } : prev));
-                  }}
-                  onAgentUpdated={(newAgent) => {
-                    setAgent(newAgent);
-                  }}
-                />
+                isShared ? (
+                  <SharedAgentView agent={agent} />
+                ) : (
+                  <AgentView
+                    agent={agent}
+                    groups={groups}
+                    configCatalog={configCatalog}
+                    sectionCatalog={sectionCatalog}
+                    interactionLock={effectiveLock}
+                    citedItems={citedItems}
+                    onToggleCite={toggleCite}
+                    onEditStart={() => setInteractionLock('edit')}
+                    onEditEnd={() => setInteractionLock(null)}
+                    onSectionSaved={(sectionId, content, newVersion) => {
+                      setAgent((prev) => {
+                        if (!prev) return prev;
+                        return {
+                          ...prev,
+                          sections: prev.sections.map((s) =>
+                            s.id === sectionId ? { ...s, content, version: newVersion } : s,
+                          ),
+                        };
+                      });
+                    }}
+                    onNameSaved={(name) => {
+                      setAgent((prev) => (prev ? { ...prev, name } : prev));
+                    }}
+                    onAgentUpdated={(newAgent) => {
+                      setAgent(newAgent);
+                    }}
+                  />
+                )
               ) : (
                 <div className="flex h-full items-center justify-center text-[var(--faint)] p-6">
                   <div className="text-center">
@@ -385,18 +424,21 @@ export function WorkbenchShell({
             </div>
           </Panel>
 
-          {/* Horizontal gutter between Viz and Chat */}
+          {/* Chat panel — center-bottom. Rendered for both owner and shared viewers
+              (2026-08-31 feedback: "should be same view" — the shared/owner distinction
+              is the small role label on the Custom Visualization panel above, not a
+              different shell). A shared viewer's /api/chat request still 404s
+              server-side (no new gate needed, §4.4) — unchanged from the plan's original
+              stance, just no longer hidden client-side on top of it. Design review
+              2026-08-06 (item 3): accent border marks it as the primary action surface,
+              not a subordinate one — distinct from the Config panel's agent-color border
+              above (identity vs. "this is where you act"). */}
           <Gutter
             orientation="horizontal"
             size={chatHeight}
             setSize={setChatHeight}
             invert={true}
           />
-
-          {/* Chat panel — center-bottom. Design review 2026-08-06 (item 3): accent
-              border marks it as the primary action surface, not a subordinate one —
-              distinct from the Config panel's agent-color border above (identity vs.
-              "this is where you act"). */}
           <Panel
             id="tourChat"
             glyph="✦"
@@ -431,9 +473,22 @@ export function WorkbenchShell({
           </Panel>
         </div>
 
-        {/* ── Right: Raw panel (foldable + resizable) ──────────────────── */}
+        {/* ── Right: Raw/Share dock (foldable + resizable) ──────────────── */}
+        {/* Rendered for both owner and shared viewers (2026-08-31 feedback: "same
+            view") — RightDockPanel itself hides the Share tab (owner-only) when
+            access === 'shared'; the Raw tab (export, read reference) is identical
+            either way, per D2's own resolution that a share-holder may export. */}
         {rightFolded ? (
-          <Rail glyph="≡" label="◂ Raw" onUnfold={() => setRightFolded(false)} className="ml-[9px]" />
+          <Rail
+            glyph="≡"
+            // Matches RightDockPanel's own tab visibility: owner sees both tabs once
+            // unfolded, a shared viewer only ever sees Raw (2026-08-31 — this rail
+            // used to say "Raw" unconditionally, which undersold what's behind it for
+            // an owner now that the dock also holds Share).
+            label={access === 'owner' ? '◂ Raw / Share' : '◂ Raw'}
+            onUnfold={() => setRightFolded(false)}
+            className="ml-[9px]"
+          />
         ) : (
           <>
             <Gutter
@@ -446,26 +501,36 @@ export function WorkbenchShell({
             {/* Design review 2026-08-06 (item 4): a touch of opacity so this panel reads
                 as secondary/reference next to the Config panel's full-contrast chrome —
                 it's the "read reference" copy of the same data, not a second primary view.
-                Theme-agnostic (unlike hand-picking a lighter border color per theme). */}
-            <Panel
-              id="tourRaw"
-              glyph="≡"
-              label="Raw agent"
-              role={agent ? `${agent.name}.md · export preview` : 'export preview'}
-              foldable
-              foldDirection="right"
-              onFold={() => setRightFolded(true)}
-              className="flex-none opacity-[.92]"
-              style={{ width: rightWidth }}
-            >
-              {agent ? (
-                <RawAgentView agentId={agent.id} agentName={agent.name} agentUpdatedAt={agent.updatedAt} panelWidth={rightWidth} />
-              ) : (
+                Theme-agnostic (unlike hand-picking a lighter border color per theme).
+                2026-08-31: this pane became a two-tab dock (Raw | Share, Plan 15) —
+                RightDockPanel owns the tab strip; the plain Panel fallback below only
+                covers the no-agent-loaded case, which has nothing to tab between. */}
+            {agent ? (
+              <RightDockPanel
+                id="tourRaw"
+                agent={agent}
+                access={access}
+                panelWidth={rightWidth}
+                onFold={() => setRightFolded(true)}
+                className="flex-none opacity-[.92]"
+              />
+            ) : (
+              <Panel
+                id="tourRaw"
+                glyph="≡"
+                label="Raw agent"
+                role="export preview"
+                foldable
+                foldDirection="right"
+                onFold={() => setRightFolded(true)}
+                className="flex-none opacity-[.92]"
+                style={{ width: rightWidth }}
+              >
                 <div className="p-4 text-[12px] text-[var(--faint)]">
                   No agent loaded.
                 </div>
-              )}
-            </Panel>
+              </Panel>
+            )}
           </>
         )}
       </div>
