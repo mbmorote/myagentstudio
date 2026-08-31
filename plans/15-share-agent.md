@@ -1,6 +1,53 @@
 # Plan 15 — Share Agent
 
-> **Status: 🔴 Drafted 2026-08-27, not started.** Unlike Plan 14, the **core design here is
+> **Status: 🟢 All §6 steps (0–11) done, 2026-08-31 — backend, all of React, and docs.**
+> `npx tsc --noEmit` and the full test suite (74 files / 1002 tests) both pass clean. What's
+> left before this plan can be called closed: everything since `b07e914`/`04f10d7`/`2198aea`
+> is still **uncommitted** (steps 9's canvas-redesign iteration, all of step 10's React work,
+> and step 11's docs pass), and it has not had a real browser QA pass beyond the user's own
+> live manual testing this session (which caught and fixed several real issues — see the step
+> 9/10 rows below). Concretely: `b07e914` shipped
+> the full backend (steps 1–8c: schema, `agentShares.ts`, `shareCode.ts`, the viewer-scoped
+> reads, all six API routes, `copyAgentForOwner`, the §5.5 tenancy regression suite, the §4.10
+> fitness functions, `exportAgentMarkdownForViewer`, and the MCP share-visibility change) and
+> `04f10d7` shipped the D1-required `AgentView.tsx` structural refactor (step 8.5, producing
+> `ConfigZone`/`SectionsZone`/`ModelEffortControl` — **not** an `AccessZone`, see below). §6
+> step 9's mockup-first UI pass is done in `reference/layout/Layout-Workbench.html`: dispatch 2
+> (Owner Access) grew, via a 2026-08-31 layout debate and a Claude Design canvas review, from
+> "a third zone in `AgentView`" into a wholly different placement — **the `Share` tab of a new
+> two-tab right-panel dock (`Raw` \| `Share`)**, replacing the single-purpose Raw panel, with
+> real editor-tab styling and inline SVG icons throughout. That redesign has since been ported
+> into real code (uncommitted): `RightDockPanel.tsx` (the dock + tab strip) and `AccessZone.tsx`
+> (the `Share` tab, wired live to all four owner-facing routes) now replace the old Raw `Panel`
+> in `WorkbenchShell.tsx`, and `RawAgentView.tsx`'s toolbar icons were restyled to match — this
+> is the first slice of step 10; the rest followed in the same session (still uncommitted):
+> `LibraryPanel`'s "Shared with me" section + redeem action row, `AgentListItem`'s read-only
+> variant, `RedeemShareDialog`, `SharedAgentView` (the recipient's read-only card — Copy-to-me
+> + Export), and the `app/agents/[id]/page.tsx` / `app/page.tsx` viewer-scoped wiring —
+> `WorkbenchShell` now branches its whole layout on `access`, dropping Chat and the right dock
+> entirely for a shared viewer. **None of this has been run** — no browser session, no
+> `npx tsc` (standing rule 5: ask first) — so treat it as implemented-but-unverified. Step 11
+> (docs) has not been started. Four resolutions diverge from
+> this document's own baked-in recommendations and add real scope beyond the original draft —
+> each is called out inline at its D-item in §8, in the affected §4/§6 sections, and in §4.11's
+> files table:
+> - **D1 (read-only view):** a full structural refactor of `AgentView.tsx` (1899 lines → per-zone
+>   sub-components) was a prerequisite step (§6 step 8.5) before `SharedAgentView` is built, not
+>   just "build it as a separate component." The Access zone ended up **not** being one of
+>   `AgentView`'s post-refactor pieces at all — a later layout debate (2026-08-31) relocated it
+>   to the right-panel dock's `Share` tab instead; see §8 D1's "Refactor sequence" note.
+> - **D3 (copy source):** a new `'copied'` value is added to the `agent.source` enum (and
+>   `section_revision.author`), not left as `'imported'`.
+> - **D7 (share cap):** no per-agent cap — the `409 too_many_shares` error path is removed
+>   entirely from §4.5/§4.8.
+> - **D8 (MCP visibility):** shared agents ARE exposed read-only over MCP in this plan (§6 step
+>   8c) — the original draft explicitly recommended against this as "a plan-sized change of its
+>   own"; that recommendation was overridden deliberately.
+>
+> D2 (export: yes), D4 (no rate limit), D6 (keep both columns), and D9 (idempotent enable) match
+> the document's original recommendations with no scope change.
+>
+> Unlike Plan 14, the **core design here is
 > already settled** — it was worked out with the user in conversation before this document was
 > written, and §1–§7 record it rather than propose it. §8's items (D1–D9) are **judgment calls
 > this document already made**, each with a recommendation and reasoning, that want a yes/no
@@ -316,9 +363,11 @@ review, and every new share-aware call site is greppable.
 **What this leaves untouched, and therefore correct for free — worth stating so nobody "fixes"
 it later:**
 
-- **MCP.** `list_agents`, `get_agent`, and `pull_agent` call `listAgents(ownerId)` /
+- ~~**MCP.** `list_agents`, `get_agent`, and `pull_agent` call `listAgents(ownerId)` /
   `getAgentFull(id, ownerId)` / `exportAgentMarkdown(id, ownerId)`. Shared agents are invisible
-  over MCP with no MCP code changed (D8).
+  over MCP with no MCP code changed.~~ **Stale — D8 resolved 2026-08-29 to fold MCP visibility
+  into this plan.** These three tools now DO need to change, to the viewer-scoped functions —
+  see §6 step 8c and §8's D8 resolution. Struck rather than deleted so the reversal is visible.
 - **Chat.** `/api/chat` resolves its agent owner-scoped, so a recipient asking Prometheus to
   edit a shared agent gets the existing `404`. No new gate needed.
 - **Apply-proposal, sections, groups, delete, import.** Same — all already `404` for a
@@ -337,10 +386,11 @@ automatically — no new guard rule and no new bucket in that fitness table.
 | `GET` | `/api/agents/[id]/shares` | owner only | — | `{ publicCode: string \| null, publicCodeCreatedAt: string \| null, shares: [{ id, recipientEmail, grantedVia, createdAt }] }` | `401`, `404` (not found **or** not owned — indistinguishable, matching every other agent route) |
 | `POST` | `/api/agents/[id]/share-link` | owner only | — | `200 { publicCode, publicCodeCreatedAt }` | `401`, `404` |
 | `DELETE` | `/api/agents/[id]/share-link` | owner only | — | `200 { publicCode: null }` | `401`, `404` |
-| `POST` | `/api/agents/[id]/shares` | owner only | `{ recipientEmail: string }` | `200 { id, recipientEmail, grantedVia:'email', createdAt }` | `401`, `404`, `400 invalid_email`, `400 cannot_share_with_self`, `409 too_many_shares` |
+| `POST` | `/api/agents/[id]/shares` | owner only | `{ recipientEmail: string }` | `200 { id, recipientEmail, grantedVia:'email', createdAt }` | `401`, `404`, `400 invalid_email`, `400 cannot_share_with_self` (no cap error — **D7 resolved: no cap**) |
 | `DELETE` | `/api/agents/[id]/shares/[shareId]` | owner only | — | `204` | `401`, `404` |
-| `POST` | `/api/agents/redeem` | any session | `{ code: string }` | `200 { agentId, agentName, access: 'shared' \| 'owner', alreadyHadAccess: boolean }` | `401`, `400 invalid_body`, `404 invalid_code`, `429` (D4) |
-| `POST` | `/api/agents/[id]/copy` | owner **or** share-holder | `{ name?: string }` | `201 AgentDTO` (the new copy) | `401`, `404`, `409 name_exists` |
+| `POST` | `/api/agents/redeem` | any session | `{ code: string }` | `200 { agentId, agentName, access: 'shared' \| 'owner', alreadyHadAccess: boolean }` | `401`, `400 invalid_body`, `404 invalid_code` (no `429` — **D4 resolved: no rate limit**) |
+| `POST` | `/api/agents/[id]/copy` | share-holder in practice — owner gets `400` (see §4.6) | `{ name?: string }` | `201 AgentDTO` (the new copy, `source:'copied'` — **D3 resolved**) | `401`, `404`, `400 cannot_copy_own_agent` (added during implementation, §4.6), `409 name_exists` |
+| `GET` | `/api/agents/[id]/export` | owner **or** share-holder (**D2 resolved: yes**) | — | `.md` text via `exportAgentMarkdownForViewer` | `401`, `404` |
 
 Route-level rules, each of which is a real requirement:
 
@@ -373,6 +423,26 @@ Route-level rules, each of which is a real requirement:
   Accepting both would be an obvious confused-deputy hole.
 
 ### 4.6 "Copy to me" — what is reused, what is built, and why
+
+> **Added during implementation, not in the original draft (2026-08-29):** the route's auth
+> ("owner OR share-holder") means an owner CAN reach `copyAgentForOwner` on their own agent —
+> but this plan never designs an owner-facing "Duplicate" feature (§4.9's Copy-to-me action
+> lives only in the recipient's read-only `SharedAgentView`), so that was an accidental
+> capability of reusing one access check for both viewer kinds. Left alone, omitting `newName`
+> would always 409 `name_exists` (the default target name is the source's own name, which the
+> owner already holds — the source itself), with no indication of *why*. **Now explicitly
+> blocked:** `copyAgentForOwner` throws `CannotCopyOwnAgentError` → the route returns `400
+> cannot_copy_own_agent` whenever `getAgentFullForViewer` resolves `access === 'owner'`, checked
+> before the name pre-check so it fires even with an explicit, non-colliding name. This is robust
+> across both grant mechanisms by construction, not just by the other guards happening to hold:
+> `getAgentFullForViewer` checks true ownership (`agent.ownerId === viewerId`) **before** ever
+> looking at `agent_share` rows, so it reports `'owner'` regardless of whether the owner also
+> holds a redeemed code or an email grant for their own agent — and neither grant path can create
+> such a row to begin with (constraint 6 on the shares route refuses `cannot_share_with_self`;
+> the redeem route never writes a row when redeeming your own agent's code, see §4.5). Verified
+> directly: a repository test throws via a plain `owner.id` call, and two route tests confirm the
+> block still holds after redeeming the owner's own share-link code, and after a self-share row
+> is (hypothetically, written directly to bypass the other guard) present.
 
 **Investigated first, per the brief.** §2 records the finding: `lib/db/repository/agents.ts`
 has no copy/duplicate/fork function; both import modes require a billed Anthropic call; and the
@@ -473,16 +543,21 @@ agent" line should prefer an owned agent, falling back to a shared one.
 
 **Policies (tunable, but set here):**
 
-9. Max share rows per agent: a hard constant, `MAX_SHARES_PER_AGENT = 50`, typed error →
-   `409 too_many_shares` — the shape `createApiToken()`'s cap-of-10 already uses. **D7.**
-10. Shared agents are not exposed over MCP. **D8.**
-11. Redeem is rate-limited per user. **D4.**
+9. ~~Max share rows per agent~~ — **D7 resolved: no cap.** Bounded only by owner effort.
+10. ~~Shared agents are not exposed over MCP~~ — **D8 resolved: they ARE exposed over MCP**,
+    read-only, via the same viewer-scoped functions the web routes use (§8 D8). `push_agent`
+    still refuses to write a non-owned agent.
+11. ~~Redeem is rate-limited per user~~ — **D4 resolved: no rate limit.** Entropy alone is the
+    defense (constraint 7).
 
 **State transitions:**
 
-12. **Link:** `null` → `code` (enable) → `null` (disable) → `code'` (re-enable). Re-enabling
-    generates a *fresh* code; the previous one is permanently dead. There is no rotate-in-place
-    step and no code history.
+12. **Link:** `null` → `code` (enable) → `null` (disable) → `code` (re-enable). **D9 resolved:
+    enable is idempotent** — re-enabling while a code already exists returns that same code
+    unchanged; a *fresh* code is produced only by `DELETE` (disable) followed by a new `POST`
+    (enable). There is no rotate-in-place step and no code history. (Corrects an internal
+    inconsistency in the original draft, which said re-enabling generates a fresh code — §4.5's
+    route rule and D9 always said idempotent; this line is now aligned with both.)
 13. **Access:** none → granted (`'email'` or `'code'`) → revoked (row deleted). There is no
     pending, invited, or accepted state — by design, an email grant is live the instant it is
     written, and simply has no one to apply to until an account with that address exists.
@@ -500,7 +575,7 @@ it in a browser.
 | Surface | Where | Mockup first? |
 |---|---|---|
 | **A. "Shared with me" library section** — its own zone-label separator below the owned list and above `Manage`, with a read-only row variant (no delete, no drag handle, no group `×`) showing a `shared` tag and the owner's email in place of the `imported`/`created` source tag. | `LibraryPanel.tsx`, `AgentListItem.tsx` | **Yes** — dispatch 1. |
-| **B. Owner Access zone** — a third zone in `AgentView`, after `[Sections] Body`, with the identical label pattern (`[Share] Access ▾`). Contains: link state (the code, a copy button, Enable/Disable), the people list with a per-row `×`, and an add-by-email input. Owner-only. | `AgentView.tsx` | **Yes** — dispatch 2. This is the surface the design specifically called out as needing the mockup pass. |
+| **B. Owner Access zone** — ~~a third zone in `AgentView`, after `[Sections] Body`, with the identical label pattern (`[Share] Access ▾`)~~ **superseded 2026-08-31**: the `Share` tab of a new two-tab right-panel dock (`RightDockPanel.tsx`, alongside `Raw`), not an `AgentView` zone. Contains: link state (the code, a copy button, Enable/Disable), the people list with a per-row remove icon, and an add-by-email input. Owner-only. | `RightDockPanel.tsx` + `AccessZone.tsx` (was `AgentView.tsx`) | **Done** — the mockup pass (dispatch 2) grew into a full canvas-reviewed redesign of this surface; the React version (`AccessZone.tsx`) is built and wired to the live API. |
 | **C. Read-only shared agent view** — what a recipient sees at `/agents/[id]`: name, description, config, sections, and exactly two actions (**Copy to me**, and Export if D2 says yes). No edit affordances at all. | new component | **Yes** — dispatch 3. |
 | **D. Redeem dialog** — a `⇱ Redeem share code` action row in the Library's `Manage` zone alongside `+ New agent` / `⇪ Import agent`, opening a one-field dialog modelled on `ImportDialog`. | `LibraryPanel.tsx`, new dialog | **Yes** — dispatch 4, though it is small enough to fold into dispatch 1 if the user prefers. |
 | Copy-collision prompt (reuse the existing `409 name_exists` inline-error pattern) | wherever **Copy to me** lives | **No** — an existing error pattern, no new visual concept. |
@@ -535,10 +610,10 @@ The existing route-guard assertion ("every non-auth, non-mcp `route.ts` contains
 
 | File | New/Mod | Role |
 |---|---|---|
-| `lib/db/schema.ts` | mod | `agent.publicCode`, `agent.publicCodeCreatedAt`, the `agentShare` table + 2 indexes. |
+| `lib/db/schema.ts` | mod | `agent.publicCode`, `agent.publicCodeCreatedAt`, the `agentShare` table + 2 indexes, plus **`'copied'` added to the `agent.source` enum and `section_revision.author` enum (D3 resolved, new scope)**. |
 | `lib/db/migrations/00NN_*.sql` | **new** | 2 `ALTER TABLE ADD COLUMN`, `CREATE TABLE agent_share`, 3 indexes. `drizzle-kit`-generated; **verify the journal entry lands** (a real Plan 13 bug). Number depends on Plan 14 — §7 risk 5. |
 | `lib/db/repository/agentShares.ts` | **new** | Sole owner of `agent_share`: `createShare`, `listSharesForAgent`, `deleteShare`, `deleteSharesForAgent`, `findShare`. Plus the `agent.publicCode` accessors (`setPublicCode`, `clearPublicCode`, `findAgentIdByPublicCode`) — they live here rather than in `agents.ts` because they are share-feature state, and keeping them together means one file to read to understand access granting. |
-| `lib/db/repository/agents.ts` | mod | `getAgentFullForViewer`, `listSharedWithViewer`, `copyAgentForOwner`; `deleteAgent` gains the share cascade. **No existing function's signature or body changes otherwise.** |
+| `lib/db/repository/agents.ts` | mod | `getAgentFullForViewer`, `listSharedWithViewer`, `copyAgentForOwner`, **`exportAgentMarkdownForViewer` (D2 resolved, new scope — sits next to `exportAgentMarkdown`)**; `deleteAgent` gains the share cascade. **No existing function's signature or body changes otherwise.** |
 | `lib/db/repository/index.ts` | mod | Barrel re-exports — the only import surface outside `lib/db/`. |
 | `lib/auth/shareCode.ts` | **new** | `generateShareCode()`. ~20 lines, pure, no `server-only`. |
 | `app/api/agents/[id]/shares/route.ts` | **new** | `GET` (list) + `POST` (grant by email). |
@@ -551,11 +626,17 @@ The existing route-guard assertion ("every non-auth, non-mcp `route.ts` contains
 | `app/components/Library/LibraryPanel.tsx` | mod | "Shared with me" section + the redeem action row. |
 | `app/components/Library/AgentListItem.tsx` | mod | Read-only variant. |
 | `app/components/Library/RedeemShareDialog.tsx` | **new** | Modelled on `ImportDialog.tsx`. |
-| `app/components/CustomViz/AgentView.tsx` | mod | Zone 3 — `[Share] Access`. |
-| `app/components/CustomViz/SharedAgentView.tsx` | **new** (D1) | The read-only presentation. |
-| `reference/layout/Layout-Workbench.html` | mod | Four mockup dispatches (§4.9) — **before** any of the four React files above. |
+| `app/components/CustomViz/AgentView.tsx` | mod (**structural refactor**, D1 resolved, new scope) — **done** | Split into per-zone sub-components (`ConfigZone`, `SectionsZone`) with shared render logic pulled into hooks/helpers. **No `AccessZone` here** — superseded 2026-08-31 (see §8 D1's "Refactor sequence" note): Access shipped as a right-panel dock tab instead, not a fourth `AgentView` zone. |
+| `app/components/CustomViz/AccessZone.tsx` | **new** — **done, 2026-08-31** | The `Share` tab's content: link enable/disable, copy, the people list, add-by-email, wired live to the six §4.5 routes. Owner-only; safe as unconditional today because `WorkbenchShell`/`AgentView` have no shared/read-only branch yet (page.tsx's viewer-scoped read is still step 10, below). |
+| `app/components/shell/RightDockPanel.tsx` | **new** — **done, 2026-08-31** | Replaces the old single-purpose Raw `Panel` in `WorkbenchShell.tsx`'s right slot with a two-tab dock (`Raw` \| `Share`); owns tab state, always mounts on `Raw` (remounts fresh every fold/unfold, so no explicit reset logic is needed). |
+| `app/components/CustomViz/SharedAgentView.tsx` | **new** (D1) — not started | The read-only presentation, built on the refactored shared pieces. |
+| `lib/mcp/*` (whichever files own `list_agents`, `get_agent`, `pull_agent`) | mod (D8 resolved, new scope) | Switch to `getAgentFullForViewer` / `listSharedWithViewer` / `exportAgentMarkdownForViewer`, resolving the MCP token's own user as viewer. |
+| `lib/mcp/resources.ts` | mod (D8 resolved, new scope) | Equivalent viewer-scoped change wherever it enumerates/resolves agents. |
+| `lib/mcp/*` (`push_agent`'s handler) | mod (D8 resolved, new scope) | Re-verify write-surface containment still refuses a share-holder's write; add the MCP-token equivalent of §5.5's 404-on-non-owner assertion. |
+| `lib/mcp/__tests__/architecture.test.ts` | mod (D8 resolved, new scope) | Re-verify the four existing fitness assertions hold once the read tools are share-aware. |
+| `reference/layout/Layout-Workbench.html` | mod | Four mockup dispatches (§4.9) — **before** any of the four React files above, and **after** the `AgentView` structural refactor (D1) for dispatches 2 and 3. |
 | tests | **new/mod** | §5. |
-| `docs/system-about.md`, `docs/user-guide.md`, `docs/roadmap.md`, `lib/db/CLAUDE.md`, `lib/auth/CLAUDE.md`, `README.md`, `CHANGELOG.md`, `plans/roadmap.md`, `app/privacy/page.tsx` | mod | §10. |
+| `docs/system-about.md`, `docs/user-guide.md`, `docs/roadmap.md`, `lib/db/CLAUDE.md`, `lib/auth/CLAUDE.md`, `lib/mcp/CLAUDE.md` (its "MCP reads exclusively through owner-scoped functions" claim is now false — D8), `README.md`, `CHANGELOG.md`, `plans/roadmap.md`, `app/privacy/page.tsx` | mod | §10. |
 
 ---
 
@@ -627,8 +708,13 @@ on A's agent, then assert:
 - **B (no share) is unchanged** — every existing `tenancy.test.ts` expectation, including
   `GET → 404`, still holds. The existing suite must keep passing untouched; do not edit it to
   accommodate this feature.
-- **MCP:** with C's MCP token, `list_agents` / `get_agent` / `pull_agent` do not return A's
-  agent (D8).
+- ~~**MCP:** with C's MCP token, `list_agents` / `get_agent` / `pull_agent` do not return A's
+  agent (D8).~~ **Superseded — D8 resolved 2026-08-29 to fold MCP visibility into this plan
+  (§6 step 8c, landed).** With C's MCP token, `list_agents` / `get_agent` / `pull_agent` now DO
+  return A's agent (`access:'shared'`); `push_agent` still cannot write to it — verified
+  specifically in `lib/mcp/__tests__/tools.test.ts`'s "shared-agent visibility over MCP" block,
+  reusing the exact reasoning `app/api/agents/import/route.ts` already relies on (writes are
+  always scoped to the caller's own `userId`, never the shared agent's actual owner).
 
 ### 5.6 Routes (`app/api/agents/__tests__/shares.test.ts`)
 - Full matrix from §4.5's table: each status code, each error body.
@@ -655,18 +741,21 @@ on A's agent, then assert:
 
 | # | Step | Depends on | Notes / risk |
 |---|---|---|---|
-| 0 | Confirm D1–D9 (§8). | — | **Does not block step 1 or step 2.** D1/D2/D5 shape UI only; D3/D6/D7/D9 are one-line calls; D4/D8 are yes/no. |
-| 1 | Schema + migration + `agentShares.ts` + barrel + `deleteAgent` cascade + §5.2/§5.7 tests | — | Behaviour-preserving: a new table nothing reads yet, two nullable columns nothing writes. Verify the journal entry. |
-| 2 | `lib/auth/shareCode.ts` + §5.1 tests | — | **Parallel with 1** — pure, no dependencies. |
-| 3 | `getAgentFullForViewer` + `listSharedWithViewer` + §5.3 tests | 1 | The access predicate. Still no route reads it. |
-| 4 | Owner-side routes: `shares` GET/POST, `shares/[shareId]` DELETE, `share-link` POST/DELETE + their §5.6 tests | 1, 2 | First user-visible behaviour, but only via the API. |
-| 5 | `POST /api/agents/redeem` + §5.6 tests | 1, 2, 3 | |
-| 6 | `copyAgentForOwner` + `POST /api/agents/[id]/copy` + §5.4 tests | 3 | **Parallel with 4–5.** The name pre-check is the part to get right first. |
-| 7 | **§5.5 tenancy regression suite** | 3, 4, 5, 6 | **Must land in the same batch as 3–6, not after.** Plan 11 found exactly this gap for `lib/ai`'s DB rule: a boundary documented but unenforced is a boundary already broken. |
-| 8 | §4.10 fitness functions | 6 | Same batch as 7. |
-| 9 | **Mockup pass** — four separate dispatches (§4.9), one concept each, sanity check waived | — | **Parallel with 1–8** — it is a static HTML file with no dependency on any code here. Starting it early is the single biggest schedule win in this plan. |
-| 10 | React migration: `LibraryPanel`, `AgentListItem`, `RedeemShareDialog`, `AgentView` Zone 3, `SharedAgentView`, `app/agents/[id]/page.tsx`, `app/page.tsx` | 4, 5, 6, 9 | Do the page/server-component wiring (§4.7) first — the empty-state and first-agent-redirect conditions are easy to miss and produce a confusing "you have no agents" for a shared-only user. |
-| 11 | Docs (§10) | 1–10 | Restate rules inline at every citation site; never a bare section number (standing rule 6). |
+| 0 | ✅ **DONE** (`2198aea`). Confirm D1–D9 (§8). | — | **Does not block step 1 or step 2.** D1/D2/D5 shape UI only; D3/D6/D7/D9 are one-line calls; D4/D8 are yes/no. |
+| 1 | ✅ **DONE** (`b07e914`). Schema + migration + `agentShares.ts` + barrel + `deleteAgent` cascade + §5.2/§5.7 tests | — | Behaviour-preserving: a new table nothing reads yet, two nullable columns nothing writes. Verify the journal entry. |
+| 2 | ✅ **DONE** (`b07e914`). `lib/auth/shareCode.ts` + §5.1 tests | — | **Parallel with 1** — pure, no dependencies. |
+| 3 | ✅ **DONE** (`b07e914`). `getAgentFullForViewer` + `listSharedWithViewer` + §5.3 tests | 1 | The access predicate. Still no route reads it. |
+| 4 | ✅ **DONE** (`b07e914`). Owner-side routes: `shares` GET/POST, `shares/[shareId]` DELETE, `share-link` POST/DELETE + their §5.6 tests | 1, 2 | First user-visible behaviour, but only via the API. |
+| 5 | ✅ **DONE** (`b07e914`). `POST /api/agents/redeem` + §5.6 tests | 1, 2, 3 | |
+| 6 | ✅ **DONE** (`b07e914`). `copyAgentForOwner` + `POST /api/agents/[id]/copy` + §5.4 tests | 3 | **Parallel with 4–5.** The name pre-check is the part to get right first. |
+| 7 | ✅ **DONE** (`b07e914`). **§5.5 tenancy regression suite** | 3, 4, 5, 6 | **Must land in the same batch as 3–6, not after.** Plan 11 found exactly this gap for `lib/ai`'s DB rule: a boundary documented but unenforced is a boundary already broken. |
+| 8 | ✅ **DONE** (`b07e914`). §4.10 fitness functions | 6 | Same batch as 7. |
+| 8b | ✅ **DONE** (`b07e914`). **`exportAgentMarkdownForViewer(agentId, viewerId)`** (D2) + route wiring + tests | 3 | Viewer-scoped sibling to `exportAgentMarkdown`. Reused directly by D8's MCP `pull_agent` change (8c), so this must land first. |
+| 8c | ✅ **DONE** (`b07e914`). **MCP share-visibility** (D8, folded-in scope): `list_agents`/`get_agent`/`pull_agent` switch to the viewer-scoped read functions; `resources.ts` equivalent change; `push_agent` write-surface containment re-checked against a share-holder's token (still refuses non-owner writes); `lib/mcp/__tests__/architecture.test.ts` fitness assertions re-verified; new MCP-token assertion added alongside §5.5. | 3, 8b | New scope, not in the original plan — see D8 resolution in §8. Correct §4.4's "MCP" bullet, which is now stale. |
+| 8.5 | ✅ **DONE** (`04f10d7`). **`AgentView.tsx` structural refactor** (D1, folded-in scope): split into per-zone sub-components (`ConfigZone`, `SectionsZone`, `ModelEffortControl`) with shared render logic extracted to hooks/helpers. Confirmed working in the browser before proceeding. **No `AccessZone` produced here** — that placement was superseded before it was built (see §8 D1's "Refactor sequence" note and step 10 below). | — | New scope, not in the original plan — see D1 resolution in §8. Independent of 1–8c; ran in parallel with them. |
+| 9 | ✅ **DONE (uncommitted).** **Mockup pass** — originally four dispatches (§4.9); dispatch 2 (Owner Access) grew into a full redesign via a Claude Design canvas review (2026-08-31): the Access zone was pulled out of the main panel entirely and rebuilt as a `Share` tab on a two-tab right-panel dock (`Raw` \| `Share`), with real editor-tab styling, inline SVG icons replacing text glyphs, and one generic access-footer instead of a link-specific hint. `Layout-Workbench.html` reflects the finished design. | — | **Parallel with 1–8c** — it is a static HTML file with no dependency on any code here. Starting it early is the single biggest schedule win in this plan. |
+| 10 | ✅ **DONE (uncommitted).** React migration. The right-panel dock (`RightDockPanel.tsx`) and its `Share` tab (`AccessZone.tsx`, wired live to all four owner-facing share/link routes) replaced `WorkbenchShell.tsx`'s old single-purpose Raw `Panel`; `RawAgentView.tsx`'s toolbar icons restyled to match. `LibraryPanel` gained a "Shared with me" zone-label section (read-only `AgentListItem` rows via a new `sharedOwnerEmail` prop) and a "⇱ Redeem share code" action row opening `RedeemShareDialog.tsx` (new). `SharedAgentView.tsx` (new) is the recipient's read-only card — header, read-only Config/Sections, Copy-to-me + Export — rendered by `WorkbenchShell` in place of `AgentView` when `access === 'shared'`. `app/agents/[id]/page.tsx` now calls `getAgentFullForViewer` and passes `access`/`ownerEmail` through; `app/page.tsx`'s empty-state condition and redirect now account for a shared-only user. One small backend addition needed along the way: `getAgentFullForViewer` now also returns an optional `ownerEmail` (populated only when `access === 'shared'`) — additive, no existing `{ agent, access }` call site broke. **Revised same day, live-testing feedback:** the first pass also dropped the Chat panel and the whole right dock for a shared viewer — rejected ("should be same view... shared and owner should show after custom visualization panel title"). Reverted: `WorkbenchShell` now renders Chat and the right dock identically for both access types; the only visible difference is the Custom Visualization panel's `role` label (`owner` vs `shared`), and `RightDockPanel` takes a new `access` prop that hides just its `Share` tab (still owner-only) while `Raw` stays present for both. | 4, 5, 6, 8.5, 9 | Not yet run through `npx tsc` (standing rule 5 — ask first); the user is live-testing the dev server themselves. |
+| 11 | ✅ **DONE (uncommitted).** Docs (§10): `plans/roadmap.md`'s Share agent description rewritten (was "hand an agent... to fork a copy," now names live read-only access as the primary mechanism); `docs/system-about.md` §2/§4/§10/§13 (domain model gains `AgentShare`, the per-user-isolation sentence gets its read-widening qualifier, the MCP tool table corrected to viewer-scoped reads); `docs/user-guide.md` gains a full "Sharing an agent" section (also fixed two now-stale details in "Exporting an agent" — the dock is two tabs now, not one, and the Download icon is no longer a text glyph); `docs/roadmap.md` moved Share agent from "Coming Next" to "Available Today" with an accurate description; `lib/db/CLAUDE.md` qualified its "no function could return another user's data" claim (true for writes, not quite for the two new viewer-scoped reads), added `agentShares.ts`, corrected the migration count (0000–0009, ten not nine); `lib/auth/CLAUDE.md` added a `shareCode.ts` section; `lib/mcp/CLAUDE.md` corrected its architecture diagram and file table (the three read tools are viewer-scoped now, not owner-scoped as originally documented — the exact stale claim §4.4 warned about); `CHANGELOG.md` and `README.md`'s layout summary both updated; `app/privacy/page.tsx` — checked, not a no-op: §2/§6 gained a real disclosure that sharing exposes agent content and an email address to another user, dated 2026-08-31. | 1–10, 8b, 8c | Citations restate the rule inline rather than a bare section number, per standing rule 6. |
 
 **Rollback.** There is no kill switch and none is proposed: with no code generated and no share
 row written, the feature is inert, so a bad deploy degrades to "nobody has shared anything."
@@ -700,7 +789,63 @@ Each already has a call baked into §4 so implementation is unblocked; changing 
 localized edit.
 
 **D1 — How is the read-only view built?**
-**Recommendation: a separate `SharedAgentView.tsx` presentation component**, rather than
+**Resolved 2026-08-29: a separate `SharedAgentView.tsx`, AND a full structural refactor of
+`AgentView.tsx` first, as its own preliminary step before any share-feature UI code.** The
+1899-line file (§2) gets split into sub-components per zone (`ConfigZone`, `SectionsZone`, and
+the new `AccessZone`) with shared render logic extracted into hooks/helpers, so `AgentView` and
+the new `SharedAgentView` both consume the same underlying pieces instead of duplicating layout.
+This is **new work not in the original scope** — see the added sequence step in §6 and the new
+row in §4.11. It must land, and be confirmed working by inspection in the browser, before
+dispatch 2 (Owner Access zone mockup) and dispatch 3 (read-only view) are built in React,
+since both depend on the post-refactor shape.
+
+**Refactor analysis (2026-08-29) — the file is lopsided, not evenly bloated.** Read in full
+before any code moved. Breakdown: module-level constants/helpers (lines 1–238, already
+decoupled) — component state/effects/business-logic closures (239–897, ~35 `useState` + 8
+`useEffect` + ~15 closures) — **render-helper closures (898–1727, ~830 lines, 44% of the whole
+file: `renderScalarRow`, `renderItemPill`, `renderToolPicker`, `renderListRow`,
+`renderInitialPromptBlock`, `renderCustomBlock`, `renderModelEffort`, `renderAddKeyButton`,
+`renderAddSectionButton`)** — the actual JSX return (1728–1899, ~170 lines, deceptively small
+since it just calls the closures above. Of the ~35 state vars and ~830 render-closure lines,
+roughly 25 state vars and ~730 render lines belong to Zone 1 (Config) alone; Zone 2 (Sections)
+is already nearly self-contained (3 state vars, ~50 render lines, delegates real work to the
+already-separate `SectionBlock`). The Model+Effort control is a further wrinkle worth naming:
+it's Config-zone *data* (`model`/`effort` config keys) rendered in the *header*, not inside
+Zone 1's body — pre-existing, not introduced by this refactor. Also found: 7 of the 8
+`useEffect`s are the identical "close this popover on outside click" pattern hand-rolled 7
+times (~90 lines of near-duplicate code).
+
+**Refactor sequence, agreed:**
+1. Extract a `useOutsideClick(active, selector, onOutside)` hook — pure, zero behavior change,
+   collapses the 7 duplicated effects, de-risks everything after. Do this first.
+2. Extract `SectionsZone` — small, nearly self-contained already; proves the extraction pattern
+   at low risk before the real work.
+3. Extract `ConfigZone`, itself decomposed into focused pieces (`ModelEffortControl`,
+   `ScalarRow`, `ListRow` + `ToolPicker` + `ItemPill`, `InitialPromptBlock`, `CustomJsonBlock`)
+   rather than one second monolith — this is 80%+ of the file's actual complexity.
+4. `AgentView` becomes a thin shell: header + `<ConfigZone/>` + `<SectionsZone/>`. ~~(later)
+   `<AccessZone/>`~~ — struck, see below: Access never became a third zone here.
+5. ~~Build `AccessZone` as a new Zone 3 component, matching the existing zone-label/collapse
+   convention.~~ **Superseded 2026-08-31**, before this step was ever executed: a layout
+   debate concluded Access belongs neither in `AgentView`'s scrolling stack nor merged into
+   Raw's identity. It shipped instead as the **`Share` tab of a new two-tab right-panel dock**
+   (`RightDockPanel.tsx`, replacing the old single-purpose Raw `Panel` in
+   `WorkbenchShell.tsx`) — `AccessZone.tsx` is that tab's content, a sibling of `RawAgentView`,
+   not a fourth `AgentView` sub-component. `AgentView.tsx` therefore stays exactly the thin
+   shell step 4 produced: header + `ConfigZone` + `SectionsZone`, nothing more. This also
+   means D1's original constraint ("Access zone… never rendered in the shared/read-only
+   view") is enforced by `RightDockPanel` simply not existing on whatever future
+   `SharedAgentView` route renders, rather than by a branch inside `AgentView`.
+
+**Reuse decision (2026-08-29, confirmed with the user):** once `ConfigZone`/`SectionsZone` are
+small, focused components — not the 1899-line monolith the original D1 reasoning was about —
+`SharedAgentView` **reuses them via a `readOnly` prop** rather than duplicating their JSX from
+scratch. At this smaller grain, a missed branch means one control fails to hide, not a
+1899-line surface to audit — the risk D1 originally flagged is specific to component *size*,
+not to the read-only/editable split existing at all. A test asserting no editable element
+renders when `readOnly` is required wherever this lands (§5, when `SharedAgentView` is built).
+
+**Original recommendation (superseded): a separate `SharedAgentView.tsx` presentation component**, rather than
 threading a `readOnly` prop through `AgentView.tsx` (1899 lines, with edit affordances woven
 into a dozen render helpers and into `SectionBlock`). Reasons: a missed branch in the prop
 approach is a live edit control that 404s, whereas a missed feature in a separate component is
@@ -718,18 +863,22 @@ withholding a download is an arbitrary hole rather than a protection. **If no:**
 `GET /api/agents/[id]/export` is owner-scoped today and stays that way.
 
 **D3 — What `source` does a copy get?**
-**Recommendation: leave it `'imported'`** — a copy *is* an import of someone else's agent, and
-the alternative (adding `'copied'` to the `agent.source` enum) costs a schema change and a new
-vocabulary word in the library's source tag for a cosmetic gain. **If the user wants the
-distinction visible**, note it also affects `section_revision.author`, whose enum would want a
-matching value.
+**Resolved 2026-08-29: add a distinct `'copied'` value** to the `agent.source` enum in
+`lib/db/schema.ts`, and a matching `'copied'` value on `section_revision.author`. Applied in
+`copyAgentForOwner()` (§4.6): after `upsertAgentFromImport()` writes `source:'imported'` /
+`author:'import'` (its own fixed contract), the copy function does one follow-up update setting
+`agent.source = 'copied'` and rewriting `author` on the just-created `section_revision` rows for
+that agent to `'copied'`. Library source-tag rendering (wherever `imported`/`created` is shown
+today, per §2's `AgentListItem.tsx` note) gains a third tag for this value. This is schema scope
+beyond the original recommendation — reflected in §4.11's files table.
+
+*(Original recommendation, superseded: leave it `'imported'` — a copy is an import of someone
+else's agent, and adding a new enum value costs a schema change for a cosmetic gain.)*
 
 **D4 — Rate-limit `POST /api/agents/redeem`?**
-**Recommendation: yes** — `checkRateLimitByKey(('share-redeem', session.userId))`, one line
-against an existing primitive. It buys nothing against guessing a 256-bit code (nothing does)
-but bounds an authenticated user's ability to hammer the endpoint. Note this is a small addition
-*beyond* the design as agreed, which said no rate limit backs the code; say no and the entropy
-argument still stands on its own.
+**Resolved 2026-08-29: no.** Matches the design as originally agreed — 256 bits of entropy is
+the sole defense (constraint 7), and no rate limit is added on top. No code change needed for
+this decision; it is the absence of one.
 
 **D5 — Where does the recipient paste a code, and what does the owner copy?**
 **Recommendation: a `⇱ Redeem share code` action row in the Library's `Manage` zone**, opening
@@ -739,32 +888,48 @@ copies the **bare code**, not a URL, because no absolute base URL exists in the 
 follow-up and belongs to whichever plan lands second.
 
 **D6 — Keep `granted_via` and `public_code_created_at`?**
-**Recommendation: keep both.** Each is one nullable/small column backing one real line of UI
-("added by you" vs. "redeemed the link"; "link active since …"), and both facts are
-unrecoverable if not stored. Neither creates a second source of truth. **If the user prefers the
-absolute minimum table**, drop both — nothing in the access logic reads them, so this is a pure
-UI-richness call.
+**Resolved 2026-08-29: keep both**, as recommended. Each is one nullable/small column backing
+one real line of UI ("added by you" vs. "redeemed the link"; "link active since …"), and both
+facts are unrecoverable if not stored. Neither creates a second source of truth. No change from
+§4.2.
 
 **D7 — Per-agent share cap: how, and how many?**
-**Recommendation: a hard constant `MAX_SHARES_PER_AGENT = 50` with a typed error → `409`**,
-matching `createApiToken()`'s cap-of-10 pattern. Deliberately **not** a `SETTING_DEFS` entry:
-nothing operational needs to tune it, and every setting is a permanent piece of admin UI. **If
-no cap:** the table is bounded only by owner effort, which for a closed beta is arguably fine.
+**Resolved 2026-08-29: no cap.** The table is bounded only by owner effort — acceptable for a
+closed beta. This removes the cap check from the write path entirely: `POST
+/api/agents/[id]/shares` never returns `409 too_many_shares`, invariant 9 in §4.8 is dropped, and
+§5.6's "51st share → 409" test is not written. **Scope reduction vs. the original plan** — flag
+this in §4.5's route table and §4.8 when implementing (remove the `409 too_many_shares` row from
+`POST /api/agents/[id]/shares`).
 
 **D8 — Should shared agents be visible over MCP?**
-**Recommendation: no, not in this plan.** They are excluded for free today (§4.4), and including
-them would mean touching all three MCP read tools plus `resources.ts`, re-examining
-`push_agent`'s write-surface containment against a read-only agent, and re-verifying the four
-fitness assertions in `lib/mcp/__tests__/architecture.test.ts`. That is a plan-sized change of
-its own and belongs in a roadmap item, not bolted on here. **The user should know this means a
-shared agent is web-only.**
+**Resolved 2026-08-29: yes, folded into this plan.** Overrides the plan's own recommendation
+(which called this "a plan-sized change of its own" and suggested a separate roadmap item) —
+confirmed as a deliberate scope expansion, not an oversight. This adds real implementation
+weight: `lib/mcp/`'s three read tools (`list_agents`, `get_agent`, `pull_agent`) must switch from
+`listAgents(ownerId)` / `getAgentFull(id, ownerId)` / `exportAgentMarkdown(id, ownerId)` to the
+viewer-scoped siblings (`listSharedWithViewer` composed alongside the owner list;
+`getAgentFullForViewer`; a new `exportAgentMarkdownForViewer`, which D2 already requires for the
+web export path, so this reuses that function rather than adding a second one) — resolving the
+MCP caller's own user id as the viewer. `resources.ts` needs the equivalent change wherever it
+enumerates or resolves agents. `push_agent`'s write-surface containment must be re-examined
+against a share-holder's MCP token: it must still refuse to write a shared (non-owned) agent, the
+same 404-on-non-owner behavior §5.5 already asserts on the web routes — add the MCP-token
+equivalent of that assertion. The four existing fitness assertions in
+`lib/mcp/__tests__/architecture.test.ts` need re-verification that they still hold once these
+functions are share-aware. **This turns D8 from a documented exclusion (§4.4's "what this leaves
+untouched, and therefore correct for free") into active new-code scope** — §4.4's "MCP" bullet
+point is now inaccurate and must be corrected when this is implemented, and new rows are needed
+in §4.11's files table for `lib/mcp/resources.ts`, `lib/mcp/tools/*.ts` (whichever files own
+`list_agents`/`get_agent`/`pull_agent`/`push_agent`), and
+`lib/mcp/__tests__/architecture.test.ts`. Invariant 10 in §4.8 ("Shared agents are not exposed
+over MCP") is dropped/inverted.
 
 **D9 — Does re-`POST`ing `share-link` return the existing code or rotate it?**
-**Recommendation: return the existing code** (idempotent enable). Rotation is a distinct
-intent — "I think this leaked" — and conflating it with enable means a double-clicked button
-silently invalidates a link the owner already distributed. An explicit **Regenerate** action is
-listed in §9 as deliberately out of scope; disable-then-enable already achieves it in two
-clicks.
+**Resolved 2026-08-29: return the existing code** (idempotent enable), as recommended. Rotation
+is a distinct intent — "I think this leaked" — and conflating it with enable means a
+double-clicked button silently invalidates a link the owner already distributed. An explicit
+**Regenerate** action stays out of scope (§9); disable-then-enable already achieves it in two
+clicks. No change from §4.5.
 
 ---
 
@@ -791,7 +956,8 @@ clicks.
 - **Code rotation in place** (D9), and **code expiry**.
 - **Provenance on a copy** — no `copiedFrom`, no "the original has changed, re-copy?" prompt,
   no diff against the source (constraint 9).
-- **Shared agents over MCP** (D8).
+- ~~Shared agents over MCP~~ — **D8 resolved 2026-08-29: this IS now in scope** (§6 step 8c).
+  Struck rather than removed so the reversal is visible against the original draft.
 - **Any change to `getAgentFull`, `listAgents`, or any mutating repository function**
   (constraints 1–2). If the build finds itself editing one of those, the design has been
   misread — stop.

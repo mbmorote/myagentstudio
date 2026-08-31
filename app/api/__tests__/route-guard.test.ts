@@ -439,3 +439,57 @@ describe('Route-guard fitness — Phase 4 (apiFetch migration)', () => {
     expect(relPaths).toEqual([]);
   });
 });
+
+describe('Plan 15 fitness — Share agent (§4.10)', () => {
+  /** Non-test source files under lib/, app/, scripts/ — mirrors the Phase 1 helper above. */
+  function collectPlan15SourceFiles(dir: string): string[] {
+    const results: string[] = [];
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (['node_modules', '.next', 'generated', '__tests__'].includes(entry)) continue;
+      const stat = statSync(full);
+      if (stat.isDirectory()) {
+        results.push(...collectPlan15SourceFiles(full));
+      } else if (/\.(ts|tsx)$/.test(entry)) {
+        results.push(full);
+      }
+    }
+    return results;
+  }
+  const PLAN15_SOURCE_DIRS = ['lib', 'app', 'scripts'].map((d) => join(ROOT, d));
+  const plan15SourceFiles = PLAN15_SOURCE_DIRS.flatMap(collectPlan15SourceFiles);
+
+  /** Matches an import whose module specifier has '/ai/' or '/import/' as a path
+   *  segment — catches both relative ('../../ai/gateway.js') and '@/'-aliased
+   *  ('@/lib/ai/gateway') forms. */
+  const IMPORTS_AI_OR_IMPORT = /^\s*import\s[^;]+from\s+['"][^'"]*\/(ai|import)\/[^'"]*['"]/m;
+
+  it('the copy route imports nothing from lib/ai/ or lib/import/ (zero AI calls on the copy path)', () => {
+    const src = readFileSync(join(ROOT, 'app', 'api', 'agents', '[id]', 'copy', 'route.ts'), 'utf8');
+    expect(IMPORTS_AI_OR_IMPORT.test(src)).toBe(false);
+  });
+
+  it('agents.ts (owner of copyAgentForOwner) imports nothing from lib/ai/ or lib/import/', () => {
+    const src = readFileSync(join(ROOT, 'lib', 'db', 'repository', 'agents.ts'), 'utf8');
+    expect(IMPORTS_AI_OR_IMPORT.test(src)).toBe(false);
+  });
+
+  it("the identifier 'agentShare' appears only in its owning files (schema.ts, agentShares.ts, agents.ts) and test files", () => {
+    const ALLOWED = new Set([
+      join(ROOT, 'lib', 'db', 'schema.ts'),
+      join(ROOT, 'lib', 'db', 'repository', 'agentShares.ts'),
+      join(ROOT, 'lib', 'db', 'repository', 'agents.ts'),
+    ]);
+    const AGENT_SHARE_IDENTIFIER = /\bagentShare\b/;
+
+    // plan15SourceFiles already excludes __tests__ directories (see the
+    // collector above), so no separate .test.ts filter is needed here.
+    const violations = plan15SourceFiles.filter((f) => {
+      if (ALLOWED.has(f)) return false;
+      return AGENT_SHARE_IDENTIFIER.test(readFileSync(f, 'utf8'));
+    });
+
+    const relPaths = violations.map((f) => relative(ROOT, f).replaceAll('\\', '/'));
+    expect(relPaths).toEqual([]);
+  });
+});

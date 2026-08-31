@@ -15,6 +15,13 @@
  * Selected/current agent gets the .sel highlight.
  * R9: dragging adds membership; it never removes existing ones.
  * R4: deleting an agent deletes its membership rows (A.1 fix — regression tested).
+ *
+ * Read-only variant (Plan 15, §4.9 surface A, 2026-08-31) — pass `sharedOwnerEmail`
+ * for a "Shared with me" row: no delete button, no group ×, no drag handle, and the
+ * source tag is replaced by the owner's email. The row is still a plain `Link` to
+ * `/agents/[id]` — nothing here enforces read-only, that's structural on the server
+ * (constraint 1, plans/15-share-agent.md §3); this only hides affordances that would
+ * 404 anyway.
  */
 
 import Link from 'next/link';
@@ -44,6 +51,10 @@ interface AgentListItemProps {
   groupId?: string;
   onRemoveFromGroup?: (agentId: string, groupId: string) => void;
   onDeleted: (agentId: string) => void;
+  /** Present for a "Shared with me" row — switches to the read-only variant (no
+   *  delete, no drag handle, no group ×) and shows this address instead of the
+   *  source tag. `onDeleted`/`groupId`/`onRemoveFromGroup` are ignored when set. */
+  sharedOwnerEmail?: string;
 }
 
 export function AgentListItem({
@@ -52,13 +63,15 @@ export function AgentListItem({
   groupId,
   onRemoveFromGroup,
   onDeleted,
+  sharedOwnerEmail,
 }: AgentListItemProps) {
   const router = useRouter();
+  const isShared = sharedOwnerEmail !== undefined;
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: agent.id,
     data: { agentId: agent.id },
-    disabled: !DRAG_ENABLED,
+    disabled: !DRAG_ENABLED || isShared,
   });
 
   async function handleDelete(e: React.MouseEvent) {
@@ -107,8 +120,9 @@ export function AgentListItem({
           : 'hover:bg-[var(--bg)]'
       } ${isDragging ? 'opacity-50' : ''}`}
     >
-      {/* Drag handle — hidden while DRAG_ENABLED is false, see top of file */}
-      {DRAG_ENABLED && (
+      {/* Drag handle — hidden while DRAG_ENABLED is false, see top of file, or for a
+          shared row (nothing to drag into a group you don't own membership of) */}
+      {DRAG_ENABLED && !isShared && (
         <span
           {...listeners}
           {...attributes}
@@ -119,8 +133,14 @@ export function AgentListItem({
         </span>
       )}
 
-      {/* Monogram avatar — .av */}
-      <Link href={`/agents/${agent.id}`} className="contents">
+      {/* Avatar + name + source tag — ONE Link covering the whole flexible middle of
+          the row (2026-08-31 live-testing feedback: clicking the tag or the empty
+          space between name and tag did nothing — those weren't part of either of
+          the two separate Links this used to be, so a click there could land on a
+          bare text node and trigger the browser's/an extension's text-selection UI
+          instead of navigating). Merged into one Link so every pixel of this middle
+          section — avatar, name, empty flex space, tag — navigates the same way. */}
+      <Link href={`/agents/${agent.id}`} className="flex-1 min-w-0 flex items-center gap-2">
         <span
           className={`w-5 h-5 rounded-[5px] grid place-items-center text-[10px] font-bold flex-none border border-[var(--border)] ${
             isCurrent
@@ -130,18 +150,19 @@ export function AgentListItem({
         >
           {monogram(agent.name)}
         </span>
-      </Link>
-
-      {/* Name */}
-      <Link href={`/agents/${agent.id}`} className="flex-1 min-w-0 flex items-center gap-2">
         <span className="font-medium text-[var(--text)] truncate text-[13px]">{agent.name}</span>
+        {/* Source tag — omitted entirely for a shared row (2026-08-31 live-testing
+            feedback: the "shared · email" tag truncated badly in the narrow Library
+            panel and was removed; the "SHARED WITH ME" section header already gives
+            that context, and the owner's email is shown in full once the agent is
+            open — §4.9 surface A still applies there, just not here). */}
+        {!isShared && (
+          <span className="ml-auto text-[9px] text-[var(--faint)] flex-none">{agent.source}</span>
+        )}
       </Link>
 
-      {/* Source tag */}
-      <span className="ml-auto text-[9px] text-[var(--faint)] flex-none">{agent.source}</span>
-
-      {/* Remove from group (×) — only shown inside a GroupSection */}
-      {groupId && onRemoveFromGroup && (
+      {/* Remove from group (×) — only shown inside a GroupSection, never for a shared row */}
+      {!isShared && groupId && onRemoveFromGroup && (
         <button
           onClick={handleRemoveFromGroup}
           title={`Remove from group`}
@@ -151,14 +172,16 @@ export function AgentListItem({
         </button>
       )}
 
-      {/* Delete button */}
-      <button
-        onClick={handleDelete}
-        title={`Delete ${agent.name}`}
-        className="flex-none text-[10px] text-[var(--faint)] hover:text-[var(--err)] opacity-0 group-hover/row:opacity-100 transition-opacity"
-      >
-        🗑
-      </button>
+      {/* Delete button — never shown for a shared row (a recipient cannot delete the owner's agent) */}
+      {!isShared && (
+        <button
+          onClick={handleDelete}
+          title={`Delete ${agent.name}`}
+          className="flex-none text-[10px] text-[var(--faint)] hover:text-[var(--err)] opacity-0 group-hover/row:opacity-100 transition-opacity"
+        >
+          🗑
+        </button>
+      )}
     </div>
   );
 }

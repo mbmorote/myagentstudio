@@ -34,11 +34,13 @@ vi.mock('../../../../lib/auth/session.js', () => ({
 // ── Imports after mock ─────────────────────────────────────────────────────────
 import * as schema from '../../../../lib/db/schema.js';
 import { testDb } from '../../../../lib/db/__tests__/test-db.js';
+import { createTestUser } from '../../../../lib/db/__tests__/test-users.js';
 import { CONFIG_DEFS } from '../../../../lib/blueprint/catalog.js';
 import { SECTION_DEFS } from '../../../../lib/db/sectionDefsSeed.js';
 
 import { GET as exportGET } from '../[id]/export/route.js';
 import { POST as createAgentPOST } from '../route.js';
+import { POST as sharesPOST } from '../[id]/shares/route.js';
 
 // ── Seed catalog tables ────────────────────────────────────────────────────────
 beforeAll(() => {
@@ -143,6 +145,63 @@ describe('GET /api/agents/[id]/export', () => {
       .filter((s) => s.agentId === id);
 
     expect(snapshotsAfter.length).toBe(snapshotsBefore.length);
+  });
+});
+
+// ── Plan 15 (D2 resolved): a share-holder may also export ──────────────────
+
+describe('GET /api/agents/[id]/export — share-holder access (D2)', () => {
+  it('a share-holder gets 200 text/plain, same content as the owner', async () => {
+    const owner = createTestUser('user');
+    currentSession = { userId: owner.id, email: owner.email, role: 'user' };
+    const createRes = await createAgentPOST(
+      new Request('http://localhost/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `export-shared-${crypto.randomUUID()}`, description: 'D2 export test' }),
+      }),
+    );
+    const { id } = (await createRes.json()) as { id: string };
+
+    const recipient = createTestUser('user');
+    await sharesPOST(
+      new Request(`http://localhost/api/agents/${id}/shares`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipientEmail: recipient.email }),
+      }),
+      makeParamsContext({ id }),
+    );
+
+    const ownerExport = await exportGET(new Request(`http://localhost/api/agents/${id}/export`), makeParamsContext({ id }));
+    const ownerBody = await ownerExport.text();
+
+    currentSession = { userId: recipient.id, email: recipient.email, role: 'user' };
+    const sharedRes = await exportGET(new Request(`http://localhost/api/agents/${id}/export`), makeParamsContext({ id }));
+    expect(sharedRes.status).toBe(200);
+    expect(await sharedRes.text()).toBe(ownerBody);
+
+    currentSession = { userId: BOOTSTRAP_USER_ID, email: 'bootstrap@example.test', role: 'user' };
+  });
+
+  it('a stranger (no owner, no share) still gets 404', async () => {
+    const owner = createTestUser('user');
+    currentSession = { userId: owner.id, email: owner.email, role: 'user' };
+    const createRes = await createAgentPOST(
+      new Request('http://localhost/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `export-stranger-${crypto.randomUUID()}`, description: 'D2 export test' }),
+      }),
+    );
+    const { id } = (await createRes.json()) as { id: string };
+
+    const stranger = createTestUser('user');
+    currentSession = { userId: stranger.id, email: stranger.email, role: 'user' };
+    const res = await exportGET(new Request(`http://localhost/api/agents/${id}/export`), makeParamsContext({ id }));
+    expect(res.status).toBe(404);
+
+    currentSession = { userId: BOOTSTRAP_USER_ID, email: 'bootstrap@example.test', role: 'user' };
   });
 });
 

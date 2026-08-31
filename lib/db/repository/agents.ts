@@ -54,7 +54,7 @@ export type AgentDTO = {
   id: string;
   name: string;
   description: string;
-  source: 'created' | 'imported';
+  source: 'created' | 'imported' | 'copied';
   platform: string;
   splitLevel: number;
   /** ISO 8601 — bumped on every write to the agent or its sections/config (2026-08-11,
@@ -341,6 +341,156 @@ export function listAgents(ownerId: string): AgentLiteDTO[] {
     updatedAt: r.updatedAt.toISOString(),
     groupIds: groupIdsByAgent.get(r.id) ?? [],
   }));
+}
+
+// ─────────────────────────────  Viewer-scoped reads (Plan 15)  ─────────────
+// Owner OR share-holder. A separate function rather than an includeShared flag
+// on getAgentFull/listAgents (constraint 2, plans/15-share-agent.md §3): an
+// optional parameter would put every one of getAgentFull's ~30 existing call
+// sites one wrong default away from leaking. getAgentFull and listAgents are
+// NOT modified by this plan — their bodies above are untouched.
+
+/**
+ * Lite DTO shape returned by listSharedWithViewer(). Same as AgentLiteDTO minus
+ * groupIds (groups are owner-scoped; a shared agent is in none of the viewer's
+ * groups and never can be), plus ownerEmail so the library row can say who
+ * shared it. Showing the owner's address to the recipient is safe and intended
+ * — the owner deliberately granted them access; this is not the
+ * account-existence oracle constraint 6 forbids, which is about probing
+ * addresses the owner did NOT already choose to share with.
+ */
+export type SharedAgentLiteDTO = Omit<AgentLiteDTO, 'groupIds'> & {
+  ownerEmail: string;
+};
+
+/**
+ * Returns the full AgentDTO for a given agent ID if the viewer is either the
+ * owner OR holds a share grant on it — and which one, so callers can branch
+ * explicitly (constraint 1: a 'shared' access value is never treated as
+ * ownership by any caller). Returns null if neither applies.
+ *
+ * Constraint 4: the viewer's email is resolved HERE, from the authoritative
+ * user row, by viewerId — never accepted as a parameter and never read from
+ * session.email. No authorization decision in this function trusts anything
+ * the caller asserts about who they are beyond their own user id.
+ */
+export function getAgentFullForViewer(
+  agentId: string,
+  viewerId: string,
+): { agent: AgentDTO; access: 'owner' | 'shared'; ownerEmail?: string } | null {
+  const agentRow = db
+    .select()
+    .from(schema.agent)
+    .where(eq(schema.agent.id, agentId))
+    .get();
+
+  if (!agentRow) return null;
+
+  if (agentRow.ownerId === viewerId) {
+    return { agent: buildAgentDTO(agentRow), access: 'owner' };
+  }
+
+  const viewer = db
+    .select({ email: schema.user.email })
+    .from(schema.user)
+    .where(eq(schema.user.id, viewerId))
+    .get();
+  if (!viewer) return null;
+
+  const share = db
+    .select({ id: schema.agentShare.id })
+    .from(schema.agentShare)
+    .where(and(eq(schema.agentShare.agentId, agentId), eq(schema.agentShare.recipientEmail, viewer.email)))
+    .get();
+  if (!share) return null;
+
+  // ownerEmail (added 2026-08-31, not in the original §4.4 signature) — SharedAgentView's
+  // "shared by <owner>" banner needs it and there was no other viewer-scoped path to get
+  // it; safe to add since this function has no existing caller depending on the shape
+  // NOT carrying an extra optional field (every call site destructures `{ agent, access }`).
+  const owner = db
+    .select({ email: schema.user.email })
+    .from(schema.user)
+    .where(eq(schema.user.id, agentRow.ownerId))
+    .get();
+
+  return { agent: buildAgentDTO(agentRow), access: 'shared', ownerEmail: owner?.email };
+}
+
+/**
+ * Returns every agent shared WITH this viewer — never an agent they own
+ * (§4.4's stated invariant, enforced explicitly below rather than assumed from
+ * "you can't hold a share on your own agent," since that's a route-layer rule,
+ * not a database constraint).
+ *
+ * Same constraint-4 resolution as getAgentFullForViewer: the viewer's email is
+ * read from the user table by viewerId, not accepted as an argument.
+ */
+export function listSharedWithViewer(viewerId: string): SharedAgentLiteDTO[] {
+  const viewer = db
+    .select({ email: schema.user.email })
+    .from(schema.user)
+    .where(eq(schema.user.id, viewerId))
+    .get();
+  if (!viewer) return [];
+
+  const shareRows = db
+    .select({ agentId: schema.agentShare.agentId })
+    .from(schema.agentShare)
+    .where(eq(schema.agentShare.recipientEmail, viewer.email))
+    .all();
+  if (shareRows.length === 0) return [];
+
+  const agentIds = shareRows.map((r) => r.agentId);
+  const agentRows = db
+    .select()
+    .from(schema.agent)
+    .where(inArray(schema.agent.id, agentIds))
+    .all();
+
+  // Excludes any agent the viewer owns — see the doc comment above.
+  const notOwned = agentRows.filter((a) => a.ownerId !== viewerId);
+  if (notOwned.length === 0) return [];
+
+  const ownerIds = [...new Set(notOwned.map((a) => a.ownerId))];
+  const ownerRows = db
+    .select({ id: schema.user.id, email: schema.user.email })
+    .from(schema.user)
+    .where(inArray(schema.user.id, ownerIds))
+    .all();
+  const ownerEmailById = new Map(ownerRows.map((o) => [o.id, o.email]));
+
+  return notOwned
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      source: r.source,
+      platform: r.platform,
+      splitLevel: r.splitLevel,
+      updatedAt: r.updatedAt.toISOString(),
+      ownerEmail: ownerEmailById.get(r.ownerId) ?? '',
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Returns an agent's ownerId and name with NO viewer scoping — the one
+ * deliberate exception to "every read takes an ownerId/viewerId." Used only by
+ * the redeem flow (POST /api/agents/redeem): that route has already authorized
+ * itself by resolving a caller-supplied publicCode to this exact agentId via
+ * findAgentIdByPublicCode() (lib/db/repository/agentShares.ts) BEFORE ever
+ * calling this — knowing the code IS the grant, so nothing here decides access,
+ * it only reads two display fields. Not a general-purpose unscoped lookup;
+ * do not reuse this for any other route.
+ */
+export function getAgentOwnerAndName(agentId: string): { ownerId: string; name: string } | null {
+  const row = db
+    .select({ ownerId: schema.agent.ownerId, name: schema.agent.name })
+    .from(schema.agent)
+    .where(eq(schema.agent.id, agentId))
+    .get();
+  return row ?? null;
 }
 
 /**
@@ -809,10 +959,159 @@ export function upsertAgentFromImport(ownerId: string, data: ImportedAgentData):
   return buildAgentDTO(finalAgentRow);
 }
 
+// ─────────────────────────────  Copy ("Copy to me", Plan 15)  ──────────────
+
+/**
+ * Forks an independent copy of sourceAgentId into viewerId's own library.
+ * viewerId must be the source's owner OR a share-holder (resolved through
+ * getAgentFullForViewer — never a bare id lookup); no access, no copy —
+ * returns null (the route 404s).
+ *
+ * Reads the source's agent/config/section rows DIRECTLY, not through
+ * exportAgentMarkdown()/parse() — that round trip is lossy: parse() does not
+ * recover sectionKey after a heading has been hand-edited away from its
+ * defaultHeading (§2 of plans/15-share-agent.md). Delegates the actual write
+ * to upsertAgentFromImport() rather than hand-inserting rows, reusing its
+ * three invariants (a SectionRevision per section, one config transaction, an
+ * always-written post-import AgentSnapshot) instead of risking a second writer
+ * that could drift from them — the same reasoning lib/mcp's push_agent tool
+ * uses for the identical reason.
+ *
+ * Step 2 (the name pre-check) is not optional and is the whole reason this
+ * isn't a one-liner: upsertAgentFromImport's documented contract is
+ * update-in-place on a name collision — "never a duplicate, never an error."
+ * That's right for re-importing your own file and catastrophic for copying
+ * someone else's: unchecked, it would silently overwrite the copier's own
+ * unrelated agent that happens to share a name. So this pre-checks and
+ * refuses with NameExistsError, writing nothing, before any source row is
+ * even read.
+ *
+ * D3 resolved (plans/15-share-agent.md §8): after upsertAgentFromImport writes
+ * its own fixed source:'imported' / author:'import', this function rewrites
+ * BOTH to 'copied' — on the agent row, and on the section_revision rows this
+ * exact call just created (scoped by the copy's own fresh section ids, so it
+ * can never touch another agent's revision history).
+ *
+ * Owner self-copy is blocked (added during implementation, not in the
+ * original draft): the route's own auth is "owner or share-holder", so an
+ * owner CAN reach this function on their own agent — but Plan 15 never
+ * designs an owner-facing "Duplicate" feature (§4.9's Copy-to-me action lives
+ * only in the recipient's read-only SharedAgentView), so this is an
+ * accidental capability of reusing one access check for both viewer kinds,
+ * not an intended one. Throws CannotCopyOwnAgentError rather than falling
+ * through to the generic name-collision path, which would otherwise trigger
+ * ANY time an owner omits newName (the default target name is always the
+ * source's own name, which the owner already holds — the source itself) and
+ * give a confusing 409 with no indication of why. This check is robust
+ * against both share mechanisms by construction: getAgentFullForViewer checks
+ * true ownership (agent.ownerId === viewerId) BEFORE ever looking at
+ * agent_share rows, so it reports 'owner' regardless of whether the owner
+ * also holds a redeemed code or an email grant for their own agent — and
+ * neither grant path can create such a row in the first place (constraint 6
+ * on the shares route; the redeem route never writes a row for the agent's
+ * own owner).
+ */
+export class CannotCopyOwnAgentError extends Error {
+  override name = 'CannotCopyOwnAgentError';
+  constructor() {
+    super('cannot_copy_own_agent');
+  }
+}
+
+export function copyAgentForOwner(
+  sourceAgentId: string,
+  viewerId: string,
+  newName?: string,
+): AgentDTO | null {
+  const resolved = getAgentFullForViewer(sourceAgentId, viewerId);
+  if (!resolved) return null;
+
+  if (resolved.access === 'owner') {
+    throw new CannotCopyOwnAgentError();
+  }
+
+  const targetName = newName ?? resolved.agent.name;
+
+  // Pre-check BEFORE any source row is read or any write happens (see doc
+  // comment above). getAgentSnapshotInfo is already owner-scoped.
+  const collision = getAgentSnapshotInfo(targetName, viewerId);
+  if (collision) {
+    const err = new Error('name_exists');
+    err.name = 'NameExistsError';
+    throw err;
+  }
+
+  const sourceAgentRow = db
+    .select()
+    .from(schema.agent)
+    .where(eq(schema.agent.id, sourceAgentId))
+    .get();
+  if (!sourceAgentRow) return null;
+
+  const sourceConfigRows = db
+    .select()
+    .from(schema.agentConfig)
+    .where(eq(schema.agentConfig.agentId, sourceAgentId))
+    .all();
+
+  const sourceSectionRows = db
+    .select()
+    .from(schema.agentSection)
+    .where(eq(schema.agentSection.agentId, sourceAgentId))
+    .orderBy(schema.agentSection.order)
+    .all();
+
+  const data: ImportedAgentData = {
+    name: targetName,
+    description: sourceAgentRow.description,
+    platform: sourceAgentRow.platform,
+    splitLevel: sourceAgentRow.splitLevel,
+    // The exact export bytes at copy time — not a live re-export later.
+    rawSourceSnapshot: serializeAgentSnapshot(sourceAgentRow, sourceSectionRows),
+    config: sourceConfigRows.map((c) => ({ propKey: c.propKey, value: c.value })),
+    sections: sourceSectionRows.map((s) => ({
+      sectionKey: s.sectionKey,
+      heading: s.heading,
+      content: s.content,
+      order: s.order,
+    })),
+  };
+
+  const dto = upsertAgentFromImport(viewerId, data);
+
+  db.transaction((tx) => {
+    tx.update(schema.agent).set({ source: 'copied' }).where(eq(schema.agent.id, dto.id)).run();
+
+    const newSectionIds = tx
+      .select({ id: schema.agentSection.id })
+      .from(schema.agentSection)
+      .where(eq(schema.agentSection.agentId, dto.id))
+      .all()
+      .map((s) => s.id);
+
+    if (newSectionIds.length > 0) {
+      tx
+        .update(schema.sectionRevision)
+        .set({ author: 'copied' })
+        .where(
+          and(
+            inArray(schema.sectionRevision.sectionId, newSectionIds),
+            eq(schema.sectionRevision.author, 'import'),
+          ),
+        )
+        .run();
+    }
+  });
+
+  const finalRow = db.select().from(schema.agent).where(eq(schema.agent.id, dto.id)).get();
+  if (!finalRow) throw new Error(`Agent row not found after copy: ${dto.id}`);
+  return buildAgentDTO(finalRow);
+}
+
 // ─────────────────────────────  Delete  ────────────────────────────────────
 
 /**
- * Deletes an agent and its config/sections/memberships.
+ * Deletes an agent and its config/sections/memberships/shares.
  * SectionRevision and AgentSnapshot rows are intentionally retained (rule 4).
  *
  * ownerId is required and enforced in the same DELETE statement (constraint 1, §6.2).
@@ -822,6 +1121,14 @@ export function upsertAgentFromImport(ownerId: string, data: ImportedAgentData):
  * R3 (Plan 03): membership rows are NOT historical — they are a pure index.
  * Deleting an agent must also delete its membership rows so group queries
  * never return ghost agents (Plan 03 §0 R3 / §5 rule 4).
+ *
+ * Plan 15 (§4.2): agent_share rows are likewise a pure access index, not
+ * history — deleted here for the identical stated reason as membership, so a
+ * deleted agent's shares don't outlive it. (Clearing publicCode is implicit —
+ * the row is gone.) This is the one place agents.ts writes to the agentShare
+ * table directly rather than through agentShares.ts, mirroring how membership
+ * is deleted directly here rather than through groups.ts — both are the
+ * "cascade must be in this transaction" exception to the sole-owner convention.
  */
 export function deleteAgent(agentId: string, ownerId: string): boolean {
   // Pre-check for existence + ownership (returns false on either miss)
@@ -837,6 +1144,7 @@ export function deleteAgent(agentId: string, ownerId: string): boolean {
     tx.delete(schema.agentConfig).where(eq(schema.agentConfig.agentId, agentId)).run();
     tx.delete(schema.agentSection).where(eq(schema.agentSection.agentId, agentId)).run();
     tx.delete(schema.membership).where(eq(schema.membership.agentId, agentId)).run();
+    tx.delete(schema.agentShare).where(eq(schema.agentShare.agentId, agentId)).run();
     tx.delete(schema.agent)
       .where(and(eq(schema.agent.id, agentId), eq(schema.agent.ownerId, ownerId)))
       .run();
@@ -945,6 +1253,21 @@ export function updateAgent(
 
 // ─────────────────────────────  Read-only export helper  ──────────────────
 
+/** Shared by exportAgentMarkdown and exportAgentMarkdownForViewer — builds the
+ *  exported .md text from an already-access-checked agent row. Extracted so
+ *  the viewer-scoped sibling below doesn't duplicate the section-read + serialize
+ *  logic; does not change exportAgentMarkdown's signature or behavior. */
+function exportFromAgentRow(agentRow: typeof schema.agent.$inferSelect): string {
+  const sections = db
+    .select()
+    .from(schema.agentSection)
+    .where(eq(schema.agentSection.agentId, agentRow.id))
+    .orderBy(schema.agentSection.order)
+    .all();
+
+  return serializeAgentSnapshot(agentRow, sections);
+}
+
 /**
  * Returns the current exported .md text for an agent — read-only, no snapshot
  * row written. Used by GET /api/agents/[id]/export (R11, Plan 03 A.4).
@@ -961,14 +1284,28 @@ export function exportAgentMarkdown(agentId: string, ownerId: string): string | 
     .get();
   if (!agentRow) return null;
 
-  const sections = db
-    .select()
-    .from(schema.agentSection)
-    .where(eq(schema.agentSection.agentId, agentId))
-    .orderBy(schema.agentSection.order)
-    .all();
+  return exportFromAgentRow(agentRow);
+}
 
-  return serializeAgentSnapshot(agentRow, sections);
+/**
+ * Viewer-scoped sibling (D2 resolved, Plan 15 §8) — owner OR share-holder.
+ * "Copy to me" already gives a recipient the entire content in a form they
+ * fully control, so withholding a download would be an arbitrary hole rather
+ * than a protection. Reuses getAgentFullForViewer for the access check rather
+ * than duplicating the predicate; exportAgentMarkdown itself is untouched.
+ */
+export function exportAgentMarkdownForViewer(agentId: string, viewerId: string): string | null {
+  const resolved = getAgentFullForViewer(agentId, viewerId);
+  if (!resolved) return null;
+
+  const agentRow = db
+    .select()
+    .from(schema.agent)
+    .where(eq(schema.agent.id, agentId))
+    .get();
+  if (!agentRow) return null;
+
+  return exportFromAgentRow(agentRow);
 }
 
 // ─────────────────────────────  Internal helpers  ──────────────────────────

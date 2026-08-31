@@ -65,8 +65,10 @@ import { createTestUser } from '../../db/__tests__/test-users.js';
 import { CONFIG_DEFS } from '../../blueprint/catalog.js';
 import { SECTION_DEFS } from '../../db/sectionDefsSeed.js';
 import { listAgents } from '../../db/repository/agents.js';
+import { createShare } from '../../db/repository/agentShares.js';
 
 import { handleImportAgent } from '../tools/importAgent.js';
+import { handleGetAgent } from '../tools/getAgent.js';
 import type { McpPrincipal } from '../../auth/mcpGuard.js';
 
 function setSetting(key: string, value: string): void {
@@ -258,6 +260,43 @@ describe('handleImportAgent — cross-owner safety', () => {
     expect(aAgents).toHaveLength(1);
     expect(aAgents[0].description).toBe("A's version");
   });
+
+  it(
+    "Plan 15 (D8, §6 step 8c): C 'pushing' a document named after a SHARED agent's name creates " +
+    "C's own agent, never touches the shared agent — write-surface containment re-verified for " +
+    'the shared case specifically, not assumed to carry over from cross-owner safety above',
+    async () => {
+      const owner = createTestUser('user');
+      const recipient = createTestUser('user');
+
+      const ownerResult = await handleImportAgent(principalFor(owner.id), { md: agentMd('c-push-shared-agent', "owner's version") });
+      expect(ownerResult.ok).toBe(true);
+      if (!ownerResult.ok) return;
+
+      createShare(ownerResult.agent.id, recipient.email, 'email');
+
+      // Confirm C can actually see it first (the interesting case: it's not
+      // just "unknown to C", it's "known to C, but still can't be written").
+      const readBefore = handleGetAgent(principalFor(recipient.id, 'read'), { agentId: ownerResult.agent.id });
+      expect(readBefore.ok).toBe(true);
+
+      const pushResult = await handleImportAgent(
+        principalFor(recipient.id),
+        { md: agentMd('c-push-shared-agent', "recipient's attempted overwrite") },
+      );
+      expect(pushResult.ok).toBe(true);
+      if (!pushResult.ok) return;
+
+      // The owner's agent is completely untouched.
+      const ownerAgents = listAgents(owner.id).filter((a) => a.name === 'c-push-shared-agent');
+      expect(ownerAgents).toHaveLength(1);
+      expect(ownerAgents[0].description).toBe("owner's version");
+
+      // The recipient got their OWN new agent, a distinct row.
+      expect(pushResult.agent.id).not.toBe(ownerResult.agent.id);
+      expect(pushResult.agent.description).toBe("recipient's attempted overwrite");
+    },
+  );
 });
 
 // ── Dry-run ──────────────────────────────────────────────────────────────────────

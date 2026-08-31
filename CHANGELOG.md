@@ -7,6 +7,32 @@ status. For full blow-by-blow detail behind any entry below, see the referenced 
 
 ---
 
+## 2026-08-31 — Share agent: live read-only access by link or email, plus copy-to-me (Plan 15)
+
+An owner can now grant another user live, read-only access to an agent — via a reusable
+256-bit public link code (`shr_…`), or by adding the recipient's email directly, even before
+that person has an account. The recipient always sees the owner's current version, never a
+stale snapshot; their only available mutation is **Copy to me**, which forks an independent
+agent into their own library with no back-reference to the source. Read-only is structural,
+not a permission flag: every mutating repository function keeps its required `ownerId`
+parameter unchanged, so a share-holder has no code path that could edit, chat about, or
+delete the owner's agent — it 404s exactly like a stranger's request would. Two new,
+separate, viewer-scoped repository functions (`getAgentFullForViewer`,
+`listSharedWithViewer`) are the only read paths that cross the ownership boundary;
+`getAgentFull`/`listAgents` and every mutating function are untouched.
+
+Shipped read-only over MCP too (`list_agents`/`get_agent`/`pull_agent` now viewer-scoped;
+`push_agent` still strictly owner-scoped) — a scope originally deferred as "a plan-sized
+change of its own," folded in after all.
+
+UI: the right-hand panel became a two-tab dock (`Raw` | `Share`) instead of a single-purpose
+Raw panel; the Library gained a "Shared with me" section and a redeem-code action; a
+recipient's `/agents/[id]` renders a dedicated read-only view (name, description, config,
+sections, Copy-to-me) instead of the owner's editable one, decided server-side, never by a
+client toggle.
+
+See `plans/15-share-agent.md` for the full design record.
+
 ## 2026-08-27 — CI/CD: skip deploy on docs-only pushes; auto-merge item removed
 
 Merging to `master` no longer redeploys identical app code when only documentation changed. A

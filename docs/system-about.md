@@ -32,9 +32,11 @@ app/
 ├── page.tsx, layout.tsx        the 4-pane workbench shell
 ├── login/, signup/, account/, settings/   auth + settings pages
 ├── components/
-│   ├── shell/                  Topbar, Panel, Gutter, Rail — the 4-pane frame
-│   ├── Library/                agent list, groups, import dialog
-│   ├── CustomViz/               the structured agent view (AgentView, SectionBlock)
+│   ├── shell/                  Topbar, Panel, Gutter, Rail, RightDockPanel (Raw|Share
+│   │                             dock, Plan 15) — the 4-pane frame
+│   ├── Library/                agent list, groups, import dialog, RedeemShareDialog (Plan 15)
+│   ├── CustomViz/               the structured agent view (AgentView, SectionBlock),
+│   │                             AccessZone/SharedAgentView/SharedAgentActions (Plan 15)
 │   ├── Chat/                    ChatPanel — the Prometheus chat + proposal card
 │   ├── Raw/                     RawAgentView — read-only export preview
 │   ├── Auth/                    Login/Signup forms, GoogleButton, ConsentPopup
@@ -45,7 +47,8 @@ app/
 │   └── Account/                 AccountView (rendered inside PreferencesModal's
 │                                 Account category, and still backs /account directly)
 └── api/
-    ├── agents/                  CRUD, import, export, sections, apply-proposal, groups
+    ├── agents/                  CRUD, import, export, sections, apply-proposal, groups,
+    │                             shares/share-link/copy/redeem (Plan 15)
     ├── groups/                  group CRUD
     ├── chat/                    Prometheus — proposes, writes nothing
     ├── auth/                    login, signup, logout, oauth/[provider]/{start,callback}
@@ -57,11 +60,13 @@ app/
 
 lib/
 ├── db/                          Drizzle schema, migrations, seed, repository/*
+│                                 (incl. repository/agentShares.ts — Plan 15)
 ├── blueprint/                   the Agent Blueprint (catalog + rule functions)
 ├── serialize/                   deterministic import-parse (Stage 1) + export
 ├── import/                      Stage-2 assembly (Strict + Structural), coverage check
 ├── ai/                          the LLM gateway, the three system agents, prompt compiler
-├── auth/                        session, JWT, password hashing, OAuth, rate limiting
+├── auth/                        session, JWT, password hashing, OAuth, rate limiting,
+│                                 shareCode.ts (Plan 15)
 ├── mcp/                         MCP tool/resource layer (Plan 13, §13) — see lib/mcp/CLAUDE.md
 ├── apiFetch.ts, proposalStore.ts, settings.ts, env.ts, utils.ts
 
@@ -124,6 +129,8 @@ Group ──< Membership >── Agent ──< AgentConfig >·· ConfigDef    (�
   │                        └──< AgentSection >·· SectionDef  (·· = soft lookup by key, no FK)
   │                        └──< AgentSnapshot            (whole-agent import/export capture)
   │                        └── AgentSection ──< SectionRevision   (append-only edit history)
+  │                        └──< AgentShare (recipientEmail)     (Plan 15 — read grants, by email)
+  │                        └── publicCode, publicCodeCreatedAt  (Plan 15 — read grant, by link)
   └─ parentId (self, nullable — flat today, nestable later)
 
 User ──< Agent, Group (ownerId)
@@ -207,6 +214,25 @@ time, tagged `pre-import` / `post-import` / `export`. Every import writes a `pre
 snapshot of the agent's prior state (if any existed) and a `post-import` snapshot of the
 result; the `export` kind is reserved for a capture point that isn't wired up yet (no diff
 view exists over these pairs today — see `roadmap.md`).
+
+### AgentShare — read-only access grants (Plan 15)
+
+Two grant mechanisms write into the same place, so one query covers both: `agent.publicCode`
+(nullable, unique — `null` means link-sharing is off) is a 256-bit bearer credential the owner
+can enable/disable/copy; `AgentShare` is a table of `(agentId, recipientEmail)` rows for
+direct email grants, with `grantedVia: 'email' | 'code'` recording how a row came to exist.
+Neither path stores a `userId` — a share is granted against an email address, which lets an
+owner share with someone who hasn't signed up yet; the grant simply starts applying once an
+account with that address exists and loads its library. A recipient's access is **read-only
+because no mutating repository function accepts anything but a real owner's `ownerId`** — not
+because of a permission flag anywhere. The only two functions that read across this boundary,
+`getAgentFullForViewer` and `listSharedWithViewer`, are new, separate, viewer-scoped
+functions; every existing owner-scoped function (`getAgentFull`, `listAgents`, and every
+mutation) is untouched. A recipient's one available mutation is **"Copy to me"**
+(`copyAgentForOwner`), which forks an independent agent with no back-reference to the
+original in either direction. Deleting an agent deletes its `AgentShare` rows in the same
+transaction (a share is a pure access index, not history, unlike `SectionRevision`/
+`AgentSnapshot`, which deliberately outlive the rows they describe).
 
 ### Group / Membership
 
@@ -411,6 +437,16 @@ no per-domain restriction or admin kill switch today.
 A login/signup rate limiter (in-process, per IP and route) and a per-user rolling-hourly
 LLM call cap round out the abuse controls — see §11.
 
+**Per-user isolation, read-widened by an explicit grant (Plan 15).** The tenancy model above
+— every `agent`/`group` row scoped to one owner, enforced in the same statement that touches
+it — still describes every **write** path without exception. Reads are the one place this is
+now deliberately widened: two new, separate, viewer-scoped functions
+(`getAgentFullForViewer`, `listSharedWithViewer`) also return an agent to a user holding an
+explicit `AgentShare` grant or the agent's public link code. `getAgentFull`/`listAgents`
+themselves are unmodified, so every pre-existing caller (MCP tools historically excepted —
+see §13) keeps its exact owner-only behavior; the widening exists only in the two new
+functions, and only for reads.
+
 ## 11. LLM gateway, providers, and cost controls
 
 Every AI call in the app — import or chat, any provider — passes through one function,
@@ -520,14 +556,17 @@ clients send none, so a present `Origin` is the DNS-rebinding signature the spec
 
 **The tool layer is a consumer of the repository, not a new trust boundary.** Four tools,
 all resolving to the same repository functions the web routes already use, scoped by the
-token's `userId` exactly like a route scopes by session `userId`:
+token's `userId` exactly like a route scopes by session `userId`. The three read tools are
+**viewer-scoped** (Plan 15, D8, §6 step 8c) — a token's holder sees the same owned-plus-
+shared agent set over MCP that they'd see in the browser, read-only for anything they don't
+own; the write tool stays strictly owner-scoped, unchanged:
 
 | Tool | Scope | Backed by | Calls a model? |
 |---|---|---|---|
-| `list_agents` | read | `listAgents(ownerId)` | no |
-| `get_agent` | read | `getAgentFull(id, ownerId)` — same `AgentDTO` the UI uses | no |
-| `pull_agent` | read | `exportAgentMarkdown(id, ownerId)` — deterministic, no AI | no |
-| `push_agent` | **write** | the *existing* import pipeline (`parse` → `callDaedalus`/`callHermes` → `assembleStructural`/`assemble` → `checkCoverage` → `upsertAgentFromImport`) | yes |
+| `list_agents` | read | `listAgents(ownerId)` + `listSharedWithViewer(viewerId)`, merged into one list distinguished by `access` | no |
+| `get_agent` | read | `getAgentFullForViewer(id, viewerId)` — same `AgentDTO` the UI uses, owner OR share-holder | no |
+| `pull_agent` | read | `exportAgentMarkdownForViewer(id, viewerId)` — deterministic, no AI, owner OR share-holder | no |
+| `push_agent` | **write** | the *existing* import pipeline (`parse` → `callDaedalus`/`callHermes` → `assembleStructural`/`assemble` → `checkCoverage` → `upsertAgentFromImport`) — still strictly `getAgentFull(id, ownerId)`-scoped; a share-holder's token gets the same refusal a non-owner always got | yes |
 
 (Named `pull_agent`/`push_agent` for the CLI/git mental model — renamed 2026-08-24 from
 `export_agent`/`import_agent`. The underlying repository functions, the web UI's own

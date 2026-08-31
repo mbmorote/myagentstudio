@@ -25,6 +25,7 @@ import { createTestUser } from '../../db/__tests__/test-users.js';
 import { CONFIG_DEFS } from '../../blueprint/catalog.js';
 import { SECTION_DEFS } from '../../db/sectionDefsSeed.js';
 import { createAgent } from '../../db/repository/agents.js';
+import { createShare } from '../../db/repository/agentShares.js';
 
 import { listResourcesForPrincipal, readAgentResource } from '../resources.js';
 import { handleListAgents } from '../tools/listAgents.js';
@@ -95,5 +96,39 @@ describe('readAgentResource', () => {
 
   it('returns null for an unknown agent id', () => {
     expect(readAgentResource(principalFor(userA.id), 'does-not-exist')).toBeNull();
+  });
+});
+
+// ── Plan 15 (D8 resolved, §6 step 8c) — shared-agent visibility ─────────────
+
+describe('shared-agent visibility over resources', () => {
+  let userC: ReturnType<typeof createTestUser>;
+
+  beforeAll(() => {
+    userC = createTestUser('user');
+    createShare(agentA.id, userC.email, 'email');
+  });
+
+  it("listResourcesForPrincipal includes A's shared agent for C, still matching list_agents' set exactly", () => {
+    const resources = listResourcesForPrincipal(principalFor(userC.id));
+    const toolResult = handleListAgents(principalFor(userC.id));
+    expect(resources.map((r) => r.uri).sort()).toEqual(
+      toolResult.agents.map((a) => `myagentstudio://agent/${a.id}`).sort(),
+    );
+    expect(resources.some((r) => r.uri === `myagentstudio://agent/${agentA.id}`)).toBe(true);
+  });
+
+  it("readAgentResource returns A's agent content for C, byte-identical to pull_agent", () => {
+    const resourceText = readAgentResource(principalFor(userC.id), agentA.id);
+    const exportResult = handleExportAgent(principalFor(userC.id), { agentId: agentA.id });
+    expect(exportResult.ok).toBe(true);
+    if (!exportResult.ok) return;
+    expect(resourceText).toBe(exportResult.markdown);
+  });
+
+  it('a stranger with no share still gets nothing (unaffected baseline)', () => {
+    const strangerResources = listResourcesForPrincipal(principalFor(userB.id));
+    expect(strangerResources.some((r) => r.uri === `myagentstudio://agent/${agentA.id}`)).toBe(false);
+    expect(readAgentResource(principalFor(userB.id), agentA.id)).toBeNull();
   });
 });
