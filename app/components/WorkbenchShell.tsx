@@ -49,6 +49,7 @@ import { Gutter } from '@/app/components/shell/Gutter';
 import { GuidedTour, type GuidedTourHandle } from '@/app/components/shell/GuidedTour';
 import { RightDockPanel } from '@/app/components/shell/RightDockPanel';
 import { LibraryPanel } from '@/app/components/Library/LibraryPanel';
+import { SiteFooter } from '@/app/components/shell/SiteFooter';
 import { ConsentPopup } from '@/app/components/Auth/ConsentPopup';
 import { SIGNUP_CONSENT_FLAG_KEY, NEW_ACCOUNT_QUERY_PARAM } from '@/lib/auth/consentPopupFlag';
 
@@ -424,6 +425,9 @@ export function WorkbenchShell({
                     onNameSaved={(name) => {
                       setAgent((prev) => (prev ? { ...prev, name } : prev));
                     }}
+                    onDescriptionSaved={(description) => {
+                      setAgent((prev) => (prev ? { ...prev, description } : prev));
+                    }}
                     onAgentUpdated={(newAgent) => {
                       setAgent(newAgent);
                     }}
@@ -558,12 +562,13 @@ export function WorkbenchShell({
           folded this into a chip-legend footer bar explaining panel color-coding —
           that legend was mockup-only explanatory UI for design review, never a real
           product feature, so it wasn't ported. This bar carries just the branding
-          line the legend used to host. */}
-      <div className="flex-none flex items-center justify-end gap-2 px-4 py-[6px] bg-[var(--panel)] border-t border-[var(--border)] text-[11px] text-[var(--faint)]">
+          line the legend used to host. Content is SiteFooter — same author/copyright/
+          version/Guide-Terms-Privacy links as every logged-out page, just laid out
+          into this slim bottom bar instead of a roomier centered footer. */}
+      <div className="flex-none flex items-center px-4 py-[6px] bg-[var(--panel)] border-t border-[var(--border)] text-[11px] text-[var(--faint)]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/processmind-mark.png" alt="" className="w-4 h-4 object-contain" />
-        <span>Produced by ProcessMind Solutions</span>
-        <span>· v{process.env.NEXT_PUBLIC_APP_VERSION}</span>
+        <img src="/processmind-mark.png" alt="" className="w-4 h-4 object-contain mr-2" />
+        <SiteFooter className="flex-1" />
       </div>
       </div>
     </>

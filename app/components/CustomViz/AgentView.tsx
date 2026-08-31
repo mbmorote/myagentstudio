@@ -77,6 +77,7 @@ interface AgentViewProps {
   onEditEnd: () => void;
   onSectionSaved: (sectionId: string, content: string, newVersion: number) => void;
   onNameSaved: (name: string) => void;
+  onDescriptionSaved: (description: string) => void;
   /** Called after any config PATCH — provides the full updated DTO from the server. */
   onAgentUpdated: (agent: AgentDTO) => void;
 }
@@ -95,6 +96,7 @@ export function AgentView({
   onEditEnd,
   onSectionSaved,
   onNameSaved,
+  onDescriptionSaved,
   onAgentUpdated,
 }: AgentViewProps) {
   const agentGroups = groups.filter((g) => g.memberAgentIds.includes(agent.id));
@@ -110,6 +112,15 @@ export function AgentView({
   const [nameDraft, setNameDraft] = useState(agent.name);
   const [nameSaving, setNameSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+
+  // ── Description editing state — same click-to-edit pattern as name above,
+  // except an empty description is a valid save (not a cancel): the header
+  // already renders "description missing" as a flagged-but-legal state, so
+  // clearing it via this editor must reach the server, not silently revert. ──
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState(agent.description);
+  const [descriptionSaving, setDescriptionSaving] = useState(false);
+  const [descriptionError, setDescriptionError] = useState<string | null>(null);
 
   // ── Cross-editor coordination ref (passed to every SectionBlock and to
   // ConfigZone, which resolves it before opening the initial-prompt / a
@@ -170,6 +181,51 @@ export function AgentView({
     }
   }
 
+  // ── Description editing ─────────────────────────────────────────────────
+
+  function startDescriptionEdit() {
+    if (!canEdit || isEditingDescription) return;
+    setDescriptionDraft(agent.description);
+    setDescriptionError(null);
+    setIsEditingDescription(true);
+    onEditStart();
+  }
+
+  function cancelDescriptionEdit() {
+    setIsEditingDescription(false);
+    setDescriptionDraft(agent.description);
+    setDescriptionError(null);
+    onEditEnd();
+  }
+
+  async function saveDescriptionEdit() {
+    const trimmed = descriptionDraft.trim();
+    if (trimmed === agent.description) {
+      cancelDescriptionEdit();
+      return;
+    }
+    setDescriptionSaving(true);
+    setDescriptionError(null);
+    try {
+      const response = await apiFetch(`/api/agents/${agent.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: trimmed }),
+      });
+      if (response.ok) {
+        onDescriptionSaved(trimmed);
+        setIsEditingDescription(false);
+        onEditEnd();
+      } else {
+        setDescriptionError('Save failed. Please try again.');
+      }
+    } catch {
+      setDescriptionError('Network error. Please try again.');
+    } finally {
+      setDescriptionSaving(false);
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="p-[14px_16px_20px] space-y-0">
@@ -212,9 +268,39 @@ export function AgentView({
             </h1>
           )}
           <div className="text-[var(--muted)] text-[12px] mt-[2px]">
-            {agent.description || <span className="italic text-[var(--err)]">description missing</span>}
-            {' · '}
-            <span>{agent.source === 'imported' ? 'imported into platform' : 'created in platform'}</span>
+            {isEditingDescription ? (
+              <div className="block w-full">
+                <input
+                  autoFocus
+                  value={descriptionDraft}
+                  disabled={descriptionSaving}
+                  onChange={(e) => setDescriptionDraft(e.target.value)}
+                  onBlur={() => void saveDescriptionEdit()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void saveDescriptionEdit();
+                    if (e.key === 'Escape') cancelDescriptionEdit();
+                  }}
+                  className="w-full text-[12px] text-[var(--text)] bg-[var(--bg)] border border-[var(--accent)] rounded-[6px] px-[6px] py-[1px] outline-none"
+                />
+                {descriptionError && (
+                  <p className="text-[11px] text-[var(--err)] mt-[3px]">{descriptionError}</p>
+                )}
+              </div>
+            ) : (
+              <span
+                onClick={startDescriptionEdit}
+                title={canEdit ? 'Click to edit description' : (interactionLock === 'proposal' ? 'A proposal is pending — apply or discard it first' : 'Chat is in progress — edit disabled')}
+                className={`rounded-[4px] px-[4px] py-[1px] -mx-[4px] ${canEdit ? 'cursor-text hover:bg-[var(--bg)]' : ''}`}
+              >
+                {agent.description || <span className="italic text-[var(--err)]">description missing</span>}
+              </span>
+            )}
+            {!isEditingDescription && (
+              <>
+                {' · '}
+                <span>{agent.source === 'imported' ? 'imported into platform' : 'created in platform'}</span>
+              </>
+            )}
           </div>
           {/* Group membership pills */}
           {agentGroups.length > 0 && (

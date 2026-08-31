@@ -18,10 +18,11 @@
  * The feature grid and roadmap teaser use real content (not the mock's Lorem-Ipsum filler
  * cards / generic "Feature N" teaser items) — see docs/roadmap.md for the roadmap source.
  *
- * Footer author identity (name/LinkedIn/GitHub/email) is read from NEXT_PUBLIC_AUTHOR_*
- * env vars rather than hardcoded here, so it's a one-line .env.local edit instead of a
- * code change — see .env.example. Falls back to a visible placeholder when unset, never
- * to blank/broken links.
+ * Footer content lives in shared SiteFooter.tsx (author identity read from
+ * NEXT_PUBLIC_AUTHOR_* env vars, falls back to a visible placeholder when unset,
+ * never to blank/broken links — see .env.example) — the same component the
+ * logged-in WorkbenchShell, /privacy, /terms, and /guide all render, so the
+ * footer's content never diverges by login state.
  *
  * Sizing (2026-08-17): every dimension below (font sizes, padding, gaps, widths, radii,
  * shadow offsets) is the mock's own Layout-Landing.html value multiplied by 1.1 and
@@ -43,11 +44,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { LoginForm } from '@/app/components/Auth/LoginForm';
 import { SignupForm } from '@/app/components/Auth/SignupForm';
-
-const AUTHOR_NAME = process.env.NEXT_PUBLIC_AUTHOR_NAME || 'the user';
-const AUTHOR_LINKEDIN = process.env.NEXT_PUBLIC_AUTHOR_LINKEDIN || '#';
-const AUTHOR_GITHUB = process.env.NEXT_PUBLIC_AUTHOR_GITHUB || '#';
-const AUTHOR_EMAIL = process.env.NEXT_PUBLIC_AUTHOR_EMAIL || '#';
+import { SiteFooter } from '@/app/components/shell/SiteFooter';
 
 interface WalkStep {
   kicker: string;
@@ -378,17 +375,7 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}
       <div className="sticky bottom-0 z-[5] bg-[var(--panel)] border-t border-[var(--border)] text-[12.65px] text-[var(--faint)]">
-        <div className="flex items-center gap-[19.8px] max-w-[1078px] mx-auto px-[30.8px] py-[11px]">
-          <div className="flex items-center gap-[13.2px] text-[var(--muted)] font-semibold">
-            <span>Built by {AUTHOR_NAME}</span>
-            <a href={AUTHOR_LINKEDIN} className="ml-[8.8px] text-[var(--muted)] no-underline hover:text-[var(--accent-ink)]">LinkedIn</a>
-            <a href={AUTHOR_GITHUB} className="text-[var(--muted)] no-underline hover:text-[var(--accent-ink)]">GitHub</a>
-            <a href={AUTHOR_EMAIL} className="text-[var(--muted)] no-underline hover:text-[var(--accent-ink)]">Email</a>
-          </div>
-          <div className="flex-1 min-w-[242px] text-right">
-            © {new Date().getFullYear()} ProcessMind Solutions. All rights reserved. · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a>
-          </div>
-        </div>
+        <SiteFooter className="max-w-[1078px] mx-auto px-[30.8px] py-[11px]" />
       </div>
 
       {/* ── Fullscreen walkthrough modal ────────────────────────────────── */}
