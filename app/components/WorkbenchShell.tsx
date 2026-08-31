@@ -425,6 +425,9 @@ export function WorkbenchShell({
                     onNameSaved={(name) => {
                       setAgent((prev) => (prev ? { ...prev, name } : prev));
                     }}
+                    onDescriptionSaved={(description) => {
+                      setAgent((prev) => (prev ? { ...prev, description } : prev));
+                    }}
                     onAgentUpdated={(newAgent) => {
                       setAgent(newAgent);
                     }}
