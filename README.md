@@ -1,6 +1,37 @@
 # MyAgentStudio — Agent Workbench
 
-A local-first workbench for building and managing AI agents. An **agent-aware AI chat** sits next to an **always-visible structured view** of the agent it is editing, so you never edit blind. The platform targets Claude Code's `.claude/agents/*.md` subagent format and runs entirely on your machine using your own Anthropic API key.
+<p align="center">
+  <img src="docs/images/workbench-overview.jpg" alt="MyAgentStudio four-pane workbench: Library, structured agent view, AI chat, and Raw/Share dock" width="880" />
+</p>
+
+**Stop editing AI agents blind.** MyAgentStudio keeps a structured, always-visible view of your agent next to an agent-aware AI chat — the chat proposes changes, you see exactly what would change side-by-side with what's there today, and nothing is written until you click Apply.
+
+![License](https://img.shields.io/badge/license-AGPL--3.0-22c55e?style=flat-square)
+![CI](https://github.com/mbmorote/myagentstudio/actions/workflows/ci.yml/badge.svg)
+
+- **Structured, not blind** — Role, Behavior, Guardrails, Output (and any custom sections) stay visible on screen at all times, not buried in a chat transcript.
+- **AI proposes, you approve** — every chat-suggested change renders as a diff card; nothing lands until you review it and click Apply.
+- **Lossless import** — anything the importer can't confidently classify becomes its own visible custom section, never silently dropped.
+- **Beyond the browser** — an MCP server lets Claude Code (or any MCP client) list, pull, and push your own agents from the terminal.
+
+**🔗 [Try it live](https://myagentstudio.dev)** — invite-gated beta; no code yet? use the **Request access** form on the landing page. Full source below, [AGPL-3.0](#license) — operated by ProcessMind Solutions.
+
+## See it in action
+
+![Demo: import an agent, ask the chat to tighten its guardrails, review the proposal, apply it, see the raw .md update live](docs/images/myagentstudio-demo.gif)
+
+*Import → chat edit → proposal card → apply → raw preview, all in one pass.*
+
+<details>
+<summary>A reviewed proposal, applied</summary>
+
+![A chat-proposed guardrails change, shown as a diff card, after Apply](docs/images/guardrails-output-applied.jpg)
+
+</details>
+
+---
+
+A local-first workbench for building and managing AI agents. An **agent-aware AI chat** sits next to an **always-visible structured view** of the agent it is editing, so you never edit blind. The platform targets Claude Code's `.claude/agents/*.md` subagent format and runs entirely on your machine using your own Anthropic API key — or use the hosted beta above with no setup at all.
 
 ## Quick start
 
