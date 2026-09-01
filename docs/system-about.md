@@ -2,8 +2,8 @@
 
 The engineering reference for the workbench: what it's built on, how the pieces fit
 together, and why the design is shaped the way it is. Written for a developer or tech
-lead evaluating or extending the codebase. For the product story (problem, audience,
-feature flows), see `project-explanation.md`. For what's shipped vs. planned, see
+lead evaluating or extending the codebase. For the product story (probleM, Audience,
+featuRe flows), see `projeCt-explanation.md`. FOr what's shipped vs. planned, see
 `roadmap.md`.
 
 ---

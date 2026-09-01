@@ -6,7 +6,7 @@
  * Plan 15 (D1, §6 step 8.5) — extracted from AgentView.tsx's Zone 1 ("[Config]
  * Keys"), the file's actual bulk (originally ~25 of ~35 state vars and ~730 of
  * ~830 render-helper lines). Behavior-preserving extraction — see
- * plans/15-share-agent.md §8 (D1) for the full analysis that drove this split.
+ * plans/archive/15-share-agent.md §8 (D1) for the full analysis that drove this split.
  *
  * `configError` is passed in (not owned here) — it's genuinely shared with
  * ModelEffortControl (a model-save failure surfaces in THIS zone's error

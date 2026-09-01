@@ -376,7 +376,7 @@ export function listAgents(ownerId: string): AgentLiteDTO[] {
 
 // ─────────────────────────────  Viewer-scoped reads (Plan 15)  ─────────────
 // Owner OR share-holder. A separate function rather than an includeShared flag
-// on getAgentFull/listAgents (constraint 2, plans/15-share-agent.md §3): an
+// on getAgentFull/listAgents (constraint 2, plans/archive/15-share-agent.md §3): an
 // optional parameter would put every one of getAgentFull's ~30 existing call
 // sites one wrong default away from leaking. getAgentFull and listAgents are
 // NOT modified by this plan — their bodies above are untouched.
@@ -1001,7 +1001,7 @@ export function upsertAgentFromImport(ownerId: string, data: ImportedAgentData):
  * Reads the source's agent/config/section rows DIRECTLY, not through
  * exportAgentMarkdown()/parse() — that round trip is lossy: parse() does not
  * recover sectionKey after a heading has been hand-edited away from its
- * defaultHeading (§2 of plans/15-share-agent.md). Delegates the actual write
+ * defaultHeading (§2 of plans/archive/15-share-agent.md). Delegates the actual write
  * to upsertAgentFromImport() rather than hand-inserting rows, reusing its
  * three invariants (a SectionRevision per section, one config transaction, an
  * always-written post-import AgentSnapshot) instead of risking a second writer
@@ -1017,7 +1017,7 @@ export function upsertAgentFromImport(ownerId: string, data: ImportedAgentData):
  * refuses with NameExistsError, writing nothing, before any source row is
  * even read.
  *
- * D3 resolved (plans/15-share-agent.md §8): after upsertAgentFromImport writes
+ * D3 resolved (plans/archive/15-share-agent.md §8): after upsertAgentFromImport writes
  * its own fixed source:'imported' / author:'import', this function rewrites
  * BOTH to 'copied' — on the agent row, and on the section_revision rows this
  * exact call just created (scoped by the copy's own fresh section ids, so it

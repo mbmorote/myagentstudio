@@ -8,7 +8,7 @@
  * 1899-line component into a thin shell (this file: header + name editing) plus
  * three focused pieces — ModelEffortControl (header, config-owned data),
  * ConfigZone (Zone 1), SectionsZone (Zone 2) — sharing config-save logic through
- * the useAgentConfigSave hook. Behavior-preserving: see plans/15-share-agent.md
+ * the useAgentConfigSave hook. Behavior-preserving: see plans/archive/15-share-agent.md
  * §8 (D1) for the full analysis and each extracted file's own doc comment for
  * what moved and why. AccessZone (Zone 3, Plan 15's actual new feature) is not
  * part of this step — this step only prepares the ground for it.

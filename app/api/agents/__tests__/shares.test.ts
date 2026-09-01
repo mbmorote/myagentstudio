@@ -7,7 +7,7 @@
  *   POST/DELETE  /api/agents/[id]/share-link
  *
  * Covers the §4.5 route matrix (adjusted for D4 — no rate limit — and D7 — no
- * per-agent cap, both resolved in plans/15-share-agent.md §8):
+ * per-agent cap, both resolved in plans/archive/15-share-agent.md §8):
  *   - Grant by email: 200, idempotent-grant, invalid_email, cannot_share_with_self
  *   - Revoke: 204, unknown shareId → 404
  *   - Link enable: idempotent (D9) — re-POST returns the SAME code

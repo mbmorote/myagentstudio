@@ -364,7 +364,7 @@ describe('B (no share at all) — unchanged baseline', () => {
 
 // ── MCP: shared agents ARE now visible over MCP (Step 8c landed) ────────────
 //
-// D8 (plans/15-share-agent.md §8) resolved to fold MCP share-visibility INTO
+// D8 (plans/archive/15-share-agent.md §8) resolved to fold MCP share-visibility INTO
 // this plan as its own later step (§6 step 8c). That step has now landed —
 // list_agents/get_agent/pull_agent are viewer-scoped (owner OR share-holder),
 // so C's token DOES see A's shared agent. This inverts what this test

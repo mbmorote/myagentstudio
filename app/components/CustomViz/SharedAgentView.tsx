@@ -5,7 +5,7 @@
  *
  * Plan 15 — Share Agent, §4.9 surface C / §8 D1. What a recipient sees at
  * `/agents/[id]` — a SEPARATE root from AgentView, not the owner's view with edit
- * affordances hidden by CSS (D1's real decision, plans/15-share-agent.md §8): a missed
+ * affordances hidden by CSS (D1's real decision, plans/archive/15-share-agent.md §8): a missed
  * branch here is a control that simply doesn't exist, never a live edit control that
  * 404s. Read-only: name, description, config, sections. No banner here (2026-08-31
  * live-testing feedback: "no alert... should not exist") — who shared it, and the

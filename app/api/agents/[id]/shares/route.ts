@@ -88,7 +88,7 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
   }
 
   // Resolved from the DB by userId, not session.email — constraint 4
-  // (plans/15-share-agent.md §3): no authorization/validation decision here
+  // (plans/archive/15-share-agent.md §3): no authorization/validation decision here
   // trusts the session's own, display-only email claim.
   const caller = getUserById(session.userId);
   if (caller && normalizedEmail === caller.email) {

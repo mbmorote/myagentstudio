@@ -35,7 +35,7 @@ listed here stay until closed.
 
 ## Stats
 
-**45 open items** — TODO: 0 · NEXT: 14 · FUTURE: 28 · IDEA: 3
+**44 open items** — TODO: 0 · NEXT: 13 · FUTURE: 28 · IDEA: 3
 
 ---
 
@@ -47,7 +47,6 @@ listed here stay until closed.
 | **Delete or disconnect user (admin)** | NEXT | High | Medium | Behavior | Not started | Admin-initiated deletion, plus a lighter session-disconnect option |
 | **Email-sending provider** | NEXT | High | Medium | Infra | On-going — plan drafted at `plans/14-email-sending-provider.md` | Covers invite-code delivery and general account notifications |
 | **Landing page mobile/responsive support** | NEXT | High | Medium | UX | Not started | Real conversion-risk gap on `/welcome`, not cosmetic |
-| **Share agent** | NEXT | High | Medium | UX | On-going — plan drafted at `plans/15-share-agent.md` | Live reference (code + email grant), owner keeps a "copy to me" fork option |
 | **User-configured LLM key (BYOK)** | NEXT | High | High | Behavior | On-going — plan drafted at `plans/17-byok-llm-key.md` | Bring-your-own-key; absorbs per-user quota/spend-cap questions |
 | **Improve the guided tour** | NEXT | Medium | Medium | UX | Not started | True anchored coach-marks, more trigger conditions |
 | **Surface `applied`/`skipped` from apply-proposal in the UI** | NEXT | Medium | Low | UX | Not started | Data already exists server-side; UI-only work |
@@ -134,18 +133,6 @@ narrower-viewport fallback, rendering as cramped, illegible columns on a phone. 
 the single best piece of proof-of-product on the whole page, a `ux` agent review called this
 a real conversion-risk gap for an invite-request landing page, not cosmetic polish. Needs its
 own design pass before implementation — mock-first per standing rule 4.
-
-### Share agent
-
-Lets an owner grant another user **live, read-only access** to an agent — via a reusable
-public link code, or by adding the recipient's email directly — so the recipient always sees
-the owner's current version, never a stale snapshot. A recipient's only mutation is
-**"Copy to me,"** which forks an independent copy into their own library. Sharing-with-edit-
-access (both people working on the same underlying agent) was the open scoping question this
-item originally raised — it's decided: **not built**, since two people editing one agent
-needs a concurrency/attribution story this doesn't have yet. True ownership transfer (same
-agent, same identity, just a different owner) is also deliberately not built — re-pointing
-access control, API tokens, and MCP references is hidden complexity a copy avoids entirely.
 
 ### User-configured LLM key (BYOK)
 
@@ -456,7 +443,7 @@ genuinely undecided territory, not just unscheduled.
 
 ## Reference
 
-- **`plans/archive/`** — completed plans 01–10, kept for history.
+- **`plans/archive/`** — completed plans, kept for history.
 - **`CLAUDE.md`** — standing project rules and folder map.
 - **`docs/roadmap.md`** — the friendly, capability-only public roadmap.
 - **`CHANGELOG.md`** — project history by date.

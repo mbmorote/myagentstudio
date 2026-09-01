@@ -89,7 +89,7 @@ an outbound side effect.
 | Env vars follow an **all-or-nothing group** pattern with call-time throws | `lib/env.ts` (`isOAuthConfigured()`, `_assertOAuthEnv()`, `getAnthropicApiKey()`) | Partial config refuses to boot; a fully absent group just disables the feature. Keys are never logged. |
 | A ~20-line registry is the established "second provider later" seam | `lib/auth/oauth/providers.ts` (per `lib/auth/CLAUDE.md`: "adding a second provider later is one new file plus one new branch here, no changes to any route") | Directly reusable shape for email. |
 | `llm_call_log` is the append-only-audit template | `lib/db/schema.ts:221`, `repository/llmCallLog.ts` | Also the cap counter (`llm_call_log_user_created_idx`). Note it **does** store request/response payloads; §4.4 deliberately diverges. |
-| Migrations run `0000`–`0008` | `lib/db/migrations/` | This plan adds `0009`. |
+| Migrations run `0000`–`0009`; `0009_share_agent.sql` (Plan 15, shipped 2026-08-31) is newest | `lib/db/migrations/` | This plan's own `0009` claim below is now stale — Plan 15 landed first and took it. Re-check `lib/db/migrations/` immediately before generating; whatever `drizzle-kit` produces next (likely `0010`) is the real number, not a hand-picked one. |
 | Deployment is a single EC2 instance behind `https://myagentstudio.dev`, deployed by merging to `master` | `CHANGELOG.md` 2026-08-26, `.github/workflows/ci.yml` | The domain that would carry SPF/DKIM records. Single instance → an in-process anything is viable, but §4.4 uses the DB as the counter anyway, matching the LLM cap. |
 | Node 22 in CI | `.github/workflows/ci.yml` | Global `fetch`, `AbortSignal.timeout()` available — no polyfill, no dependency. |
 | `maxUsers` defaults to 5 | `lib/settings.ts` | Real volume is a handful of emails a month. Any free tier covers it; see D1. |
@@ -157,7 +157,7 @@ an outbound side effect.
 | `lib/email/__tests__/templates.test.ts` | **new** | Rendering + escaping (§5.4). |
 | `lib/email/__tests__/architecture.test.ts` | **new** | Fitness function (§4.10). |
 | `lib/db/schema.ts` | mod | Add the `emailLog` table (§4.4). |
-| `lib/db/migrations/0009_*.sql` | **new** | `CREATE TABLE email_log` + two indexes. `drizzle-kit`-generated; **its journal entry must be present** (a hand-written migration missing its journal entry was a real bug found during Plan 13). |
+| `lib/db/migrations/00XX_*.sql` (`0009` is now taken by Plan 15 — this plan takes whatever's next when implemented) | **new** | `CREATE TABLE email_log` + two indexes. `drizzle-kit`-generated; **its journal entry must be present** (a hand-written migration missing its journal entry was a real bug found during Plan 13). |
 | `lib/db/repository/emailLog.ts` | **new** | `writeEmailLog()`, `countBillableEmailsInWindow()`, `listEmailLog()`, `getLastEmailForInviteCode()`. Append-only: no `UPDATE`/`DELETE` exported. |
 | `lib/db/repository/index.ts` | mod | Barrel re-export — the only import surface outside `lib/db/`. |
 | `lib/settings.ts` | mod | `liveEmailSends` (bool) + `maxEmailsPerHour` (int) defs and typed accessors (§4.6). |
@@ -253,7 +253,7 @@ type EmailSendResult =
 `EmailContext` carries `kind`, `relatedType`/`relatedId` (soft references — see §4.4), and
 `triggeredBy` (the acting admin's user id, or `null` for a system-triggered send).
 
-### 4.4 Data model — `email_log` (migration `0009`)
+### 4.4 Data model — `email_log` (migration `00XX` — `0009` now taken by Plan 15, see §2)
 
 Append-only, one row per send *attempt*, in the same spirit as `llm_call_log` and with the same
 soft-reference convention (no Drizzle `references()` — deletion cascades are handled in the
@@ -533,7 +533,7 @@ the user says so:
 | # | Step | Depends on | Notes / risk |
 |---|---|---|---|
 | 0 | **Answer D1–D6.** Then the user performs §4.11 Phase 0 (account, DNS, key). | — | Only D1/D2 need Phase 0; D3–D6 are code-shape decisions. **Blocks live verification only** — steps 1–7 are fully developable and testable with no provider account at all. |
-| 1 | Schema + migration `0009` + `emailLog` repository + barrel export + §5.1 tests | — | Behavior-preserving on its own: a new table nothing reads yet. Verify the migration journal entry exists (a real Plan 13 bug). |
+| 1 | Schema + migration (whatever `drizzle-kit` generates next — `0009` is now taken by Plan 15) + `emailLog` repository + barrel export + §5.1 tests | — | Behavior-preserving on its own: a new table nothing reads yet. Verify the migration journal entry exists (a real Plan 13 bug). |
 | 2 | `lib/email/` — `provider.ts`, `registry.ts`, `gateway.ts`, env getters, the two settings + §5.2/§5.3 tests | 1 | The subsystem, still with no caller. Ships and tests standalone. |
 | 3 | Templates + §5.4 tests | — | **Parallelizable with 1–2** (pure functions, no dependencies). |
 | 4 | Wire trigger 1: generate-code route change + the manual send route + §5.5 tests | 2, 3 | The first behavior change a user could notice. |

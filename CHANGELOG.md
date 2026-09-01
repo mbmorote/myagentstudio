@@ -31,7 +31,7 @@ recipient's `/agents/[id]` renders a dedicated read-only view (name, description
 sections, Copy-to-me) instead of the owner's editable one, decided server-side, never by a
 client toggle.
 
-See `plans/15-share-agent.md` for the full design record.
+See `plans/archive/15-share-agent.md` for the full design record.
 
 ## 2026-08-27 — CI/CD: skip deploy on docs-only pushes; auto-merge item removed
 

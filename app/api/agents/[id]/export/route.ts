@@ -18,7 +18,7 @@
  *   already gives them the full content in a form they fully control, so withholding a
  *   download would be an arbitrary hole rather than a protection. Switched from the
  *   owner-scoped exportAgentMarkdown() to its viewer-scoped sibling; exportAgentMarkdown()
- *   itself is untouched (constraint 1/2 of plans/15-share-agent.md).
+ *   itself is untouched (constraint 1/2 of plans/archive/15-share-agent.md).
  */
 
 import { NextResponse } from 'next/server';

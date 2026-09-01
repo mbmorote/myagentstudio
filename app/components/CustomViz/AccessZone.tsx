@@ -11,7 +11,7 @@
  * (Plan 15 §6 step 10 — page.tsx viewer-scoped read — is not built), so every agent
  * reaching this component is being viewed by its owner.
  *
- * Two independent controls per constraint 5 (plans/15-share-agent.md §3): disabling the
+ * Two independent controls per constraint 5 (plans/archive/15-share-agent.md §3): disabling the
  * link and revoking a person never imply each other — the Google Docs model, not a
  * single "make private" button.
  */

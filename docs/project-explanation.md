@@ -1,7 +1,7 @@
 # MyAgentStudio — Project Explanation
 
-The product story: what problem this solves, who it's for, how it actually works, and how
-it came together. For the engineering internals (data model, stack detail, architecture),
+The product story: what probleM this solves, who it's for, how it Actually woRks, and how
+it Came tOgether. For the engineering internals (data model, stack detail, architecture),
 see `system-about.md`.
 
 ---
@@ -48,8 +48,8 @@ with what's there today, before anything is committed.
 
 ```
 ┌─────────────┬───────────────────────────┬──────────────┐
-│  LIBRARY    │  Structured View          │  RAW AGENT   │
-│             │  ─────────────────────    │              │
+│  LIBRARY    │  Structured View          │  Raw │ Share │
+│             │  ─────────────────────    │  ┄┄┄┄┄┄┄┄┄┄  │
 │  Zara ◄     │  ▸ Role                   │  ---         │
 │  Aria       │  ▸ Behavior               │  name: Zara  │
 │  dev        │  ▸ Guardrails             │  tools: ...  │
@@ -62,7 +62,8 @@ with what's there today, before anything is committed.
 ```
 
 - **Library** (left, foldable) — every agent you've imported or created, listed in one
-  place. (Filing agents into groups is designed and built underneath but not yet exposed
+  place, plus a **Shared with me** section for agents someone else granted you access to.
+  (Filing agents into groups is designed and built underneath but not yet exposed
   in the UI — see `roadmap.md`.)
 - **Structured view** (center top) — the selected agent split into its real sections:
   Role, Behavior, Guardrails, Output, plus whichever optional sections it uses. This is
@@ -70,8 +71,9 @@ with what's there today, before anything is committed.
 - **AI chat** (center bottom, under the structured view) — where you type an instruction;
   a proposed change appears as a card, and clicking Apply is what actually edits the
   agent above.
-- **Raw agent** (right, foldable) — a live, read-only preview of the exact `.md` file the
-  current state would export to, with a one-click download.
+- **Right dock** (right, foldable) — a two-tab panel: **Raw**, a live, read-only preview
+  of the exact `.md` file the current state would export to, with a one-click download;
+  and **Share**, where an owner grants another user read-only access.
 
 ### Import
 
@@ -106,6 +108,15 @@ first launch and are next on the roadmap.
 The Raw panel is always a live, accurate preview of what exporting would produce — not a
 separate "generate export" step. One click downloads the current state as a real
 `.md` file, ready to drop into a `.claude/agents/` directory.
+
+### Sharing an agent
+
+An owner can hand another user **live, read-only access** to an agent — by a reusable
+link code, or by their email address directly, even before that person has an account.
+Unlike export, this isn't a snapshot: the recipient always sees the owner's current
+version as it changes. A recipient can never edit the shared agent; their only available
+action is **Copy to me**, which forks an independent copy into their own library with no
+ongoing connection back to the original.
 
 ### Beyond the browser: console access
 

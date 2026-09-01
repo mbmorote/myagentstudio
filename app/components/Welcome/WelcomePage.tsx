@@ -152,22 +152,30 @@ const FEATURES = [
 ];
 
 // Trimmed from docs/roadmap.md (the curated, plain-language capability list) — not
-// generic "Feature N short example" filler. One shipped + one in-progress + two planned,
-// matching the wave line's Shipped/Building/Planned/Planned rhythm.
+// generic "Feature N short example" filler.
+//
+// Revised 2026-08-31 (Plan 15 — Share agent — shipped, content review with the user):
+// "Sharing & forking agents" promoted from Building now to Shipped. "MCP / console
+// access" relabeled "MCP CLI" (it's console/CLI-only by design, never a GUI connector —
+// see plans/roadmap.md's Claude Desktop MCP support item — so the plainer name avoids
+// implying broader client support than exists) and kept as a second Shipped headline
+// rather than demoted, since it's already usable today. "Mobile access" promoted from
+// Planned to Building now — the user's pick; still an open idea in plans/roadmap.md's
+// IDEA bucket ("Mobile access to the workbench" — not decided-if or decided-how), so this
+// page is ahead of that file's own status and worth reconciling once real work starts
+// there. "A Skill module" kept as the sole remaining Planned item, moved last.
 //
 // Revised 2026-08-18 (Plans 11/13 shipped, content review with the user): "AI chat
 // editing" retired from this slot — it's already the hero card's whole story, so MCP
-// takes the "Shipped" spotlight instead since it hasn't been told anywhere else on the
+// took the "Shipped" spotlight instead since it hadn't been told anywhere else on the
 // page. "A second AI provider" removed (shipped — now FEATURES card #1, "Multiple AI
 // providers"). "Group organization" swapped out of Planned for "A Skill module" and
-// "Mobile access" — the user's picks; mobile access is deliberately an open idea, not a
-// commitment (see plans/roadmap.md IDEA bucket "Mobile access to the workbench" — not
-// decided-if or decided-how yet).
+// "Mobile access".
 const ROADMAP_TEASER = [
-  { status: 'Shipped', title: 'MCP / console access', down: false, open: false },
-  { status: 'Building now', title: 'Sharing & forking agents', down: true, open: true },
-  { status: 'Planned', title: 'A Skill module', down: false, open: true },
-  { status: 'Planned', title: 'Mobile access', down: true, open: true },
+  { status: 'Shipped', title: 'MCP CLI', down: false, open: false },
+  { status: 'Shipped', title: 'Sharing & forking agents', down: true, open: false },
+  { status: 'Building now', title: 'Mobile access', down: false, open: true },
+  { status: 'Planned', title: 'A Skill module', down: true, open: true },
 ];
 
 interface WelcomePageProps {

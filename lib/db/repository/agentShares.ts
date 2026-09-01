@@ -13,7 +13,7 @@ import 'server-only';
  * caller owns that agent, via the existing owner-scoped functions in
  * agents.ts (e.g. getAgentFull(agentId, ownerId)). This mirrors the schema:
  * agent_share has no ownerId column of its own — ownership lives on the agent
- * row, not here (plans/15-share-agent.md §4.2).
+ * row, not here (plans/archive/15-share-agent.md §4.2).
  */
 
 import { eq, and } from 'drizzle-orm';

@@ -284,7 +284,7 @@ export const apiToken = sqliteTable('api_token', {
 
 // ─────────────────────────────  Agent shares (Plan 15)  ─────────────────────
 // Read-only access grants on an agent, held against an email address — never a
-// userId (constraint 3, §4.2 of plans/15-share-agent.md): a row may legitimately
+// userId (constraint 3, §4.2 of plans/archive/15-share-agent.md): a row may legitimately
 // pre-date the recipient's account, and storing a userId would create a second
 // identity path to reconcile. Two mechanisms write the same row shape:
 // granted_via:'email' (owner types an address directly) and granted_via:'code'

@@ -6,7 +6,7 @@
  * Plan 15 (2026-08-31, §6 step 10) — switched from the owner-scoped getAgentFull() to
  * the viewer-scoped getAgentFullForViewer(): the caller may now be the owner OR a
  * share-holder, and WorkbenchShell branches its whole layout on which (constraint 1,
- * plans/15-share-agent.md §3 — a 'shared' access value is never treated as ownership).
+ * plans/archive/15-share-agent.md §3 — a 'shared' access value is never treated as ownership).
  * getAgentFull() itself is untouched (constraint 2) — every other still-owner-only
  * caller is unaffected.
  *

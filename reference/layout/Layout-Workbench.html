@@ -362,7 +362,7 @@
         convention as Config/Sections above.
      3. Read-only shared-agent view — a SEPARATE render path (buildSharedView), not a
         readOnly flag threaded through the editable one — matching the real D1 decision
-        in plans/15-share-agent.md (a missed branch in a separate component is merely
+        in plans/archive/15-share-agent.md (a missed branch in a separate component is merely
         something the recipient can't see, not a live edit control that 404s). Toggled
         here via a mockup-only "viewing as" control since one file has to demonstrate
         both audiences without real navigation.
@@ -933,7 +933,7 @@
 
     <!-- Plan 15 dispatch 3 — the read-only shared-agent view. A SEPARATE root, not the
          owner root above with edit affordances hidden by CSS — matching the real D1
-         decision (plans/15-share-agent.md §8): a missed branch here is a control that
+         decision (plans/archive/15-share-agent.md §8): a missed branch here is a control that
          simply isn't rendered, never a live edit control that 404s. Populated by
          buildSharedView(); hidden unless vizState.viewAs === 'shared'. -->
     <div id="vizSharedRoot" hidden></div>
@@ -941,7 +941,7 @@
 </template>
 
 <!-- Right-panel dock — Raw and Share as sibling tabs, one panel, one fold (2026-08-31 debate,
-     see plans/15-share-agent.md §8 D1 / §4.9). Neither tab implies or borrows the other's
+     see plans/archive/15-share-agent.md §8 D1 / §4.9). Neither tab implies or borrows the other's
      identity: phead + rband swap per active tab, each tab's content is its own subtree.
      Always opens on Raw (user's explicit call) — see setFold()'s 'right' branch. -->
 <template id="tpl-dock-right">
@@ -1224,7 +1224,7 @@ or any tool that modifies files — intentionally excluded.</pre>
 <!-- ── Redeem share-code modal (Plan 15 dispatch 4) ── one field, modeled on the Import
      modal above almost verbatim. Reuses .modal-* verbatim — no new modal CSS needed.
      Real app: the owner's copy button copies a bare code, not a URL (no APP_BASE_URL
-     exists yet — see D5 in plans/15-share-agent.md), so this dialog is the recipient's
+     exists yet — see D5 in plans/archive/15-share-agent.md), so this dialog is the recipient's
      only entry point, opened from the Library's Manage zone (see "⇱ Redeem share code"
      below). -->
 <div class="modal-overlay" id="redeemModal" hidden>
@@ -1659,7 +1659,7 @@ or any tool that modifies files — intentionally excluded.</pre>
   // Plan 15 dispatch 1 — agents someone else shared with this user. Deliberately a
   // SEPARATE list from LIB_AGENTS/LIB_GROUPS (never merged in) — a shared agent is
   // never in any of the viewer's own groups (SharedAgentLiteDTO has no groupIds) and
-  // this list excludes anything the viewer owns, per plans/15-share-agent.md §4.4.
+  // this list excludes anything the viewer owns, per plans/archive/15-share-agent.md §4.4.
   const LIB_SHARED = {
     'incident-runbook': { av: 'ir', ownerEmail: 'priya@example.com' },
     'onboarding-buddy': { av: 'ob', ownerEmail: 'devon@example.com' },
@@ -2502,7 +2502,7 @@ or any tool that modifies files — intentionally excluded.</pre>
   }
 
   // ---------- Share tab content (Plan 15 dispatch 2) ----------
-  // Owner-only. Two independent controls per constraint 5 (plans/15-share-agent.md §3):
+  // Owner-only. Two independent controls per constraint 5 (plans/archive/15-share-agent.md §3):
   // disabling the link and revoking a person never imply each other — this is the Google
   // Docs model, not a single "make private" button. No zone-label/collapse header here —
   // that made sense when this was a third zone competing with Config/Sections for space

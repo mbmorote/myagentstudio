@@ -20,7 +20,7 @@
  * for a "Shared with me" row: no delete button, no group ×, no drag handle, and the
  * source tag is replaced by the owner's email. The row is still a plain `Link` to
  * `/agents/[id]` — nothing here enforces read-only, that's structural on the server
- * (constraint 1, plans/15-share-agent.md §3); this only hides affordances that would
+ * (constraint 1, plans/archive/15-share-agent.md §3); this only hides affordances that would
  * 404 anyway.
  */
 
