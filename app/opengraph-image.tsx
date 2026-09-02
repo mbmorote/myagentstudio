@@ -1,11 +1,19 @@
 import { ImageResponse } from 'next/og';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-export const runtime = 'edge';
+// Node.js runtime (not edge) — needed to read the screenshot off disk.
 export const alt = 'MyAgentStudio — AI-Agent Workbench';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
+const BAR_HEIGHT = 95;
+const SHOT_HEIGHT = size.height - BAR_HEIGHT;
+
 export default async function Image() {
+  const screenshotPath = join(process.cwd(), 'docs/images/workbench-overview.jpg');
+  const screenshot = readFileSync(screenshotPath).toString('base64');
+
   return new ImageResponse(
     (
       <div
@@ -14,80 +22,32 @@ export default async function Image() {
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'flex-start',
-          padding: '80px',
-          background: 'linear-gradient(135deg, #0b1622 0%, #0b4f85 55%, #1479c9 100%)',
-          fontFamily: 'system-ui, sans-serif',
+          background: '#0b1622',
         }}
       >
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            fontSize: 28,
-            color: '#8ecbf2',
-            letterSpacing: 2,
-            marginBottom: 28,
+            justifyContent: 'space-between',
+            height: BAR_HEIGHT,
+            padding: '0 40px',
+            background: 'linear-gradient(90deg, #0b1622 0%, #0b4f85 100%)',
           }}
         >
-          MYAGENTSTUDIO.DEV
+          <div style={{ display: 'flex', fontSize: 34, fontWeight: 700, color: '#ffffff' }}>
+            MyAgentStudio
+          </div>
+          <div style={{ display: 'flex', fontSize: 22, color: '#8ecbf2' }}>
+            AI-Agent Workbench · myagentstudio.dev
+          </div>
         </div>
-        <div
-          style={{
-            display: 'flex',
-            fontSize: 96,
-            fontWeight: 700,
-            color: '#ffffff',
-            lineHeight: 1.05,
-          }}
-        >
-          MyAgentStudio
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            fontSize: 42,
-            color: '#dbe9f5',
-            marginTop: 20,
-            maxWidth: 900,
-          }}
-        >
-          AI-Agent Workbench
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            fontSize: 26,
-            color: '#a9c9e2',
-            marginTop: 44,
-          }}
-        >
-          Review-before-apply AI editing · Lossless import · MCP console access
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            marginTop: 48,
-          }}
-        >
-          {['Next.js', 'Claude', 'MCP', 'AWS', 'CI/CD'].map((tag, i) => (
-            <div
-              key={tag}
-              style={{
-                display: 'flex',
-                fontSize: 24,
-                color: '#0b1622',
-                background: '#ffffff',
-                padding: '10px 22px',
-                borderRadius: 999,
-                marginRight: i === 4 ? 0 : 16,
-              }}
-            >
-              {tag}
-            </div>
-          ))}
-        </div>
+        <img
+          src={`data:image/jpeg;base64,${screenshot}`}
+          width={size.width}
+          height={SHOT_HEIGHT}
+          style={{ objectFit: 'cover' }}
+        />
       </div>
     ),
     { ...size }
