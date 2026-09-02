@@ -4,11 +4,27 @@ import './globals.css';
 import { isOAuthConfigured } from '@/lib/env';
 import { ReauthModal } from '@/app/components/Auth/ReauthModal';
 
+const description =
+  'A guided AI-agent workbench for Claude Code and Copilot agent files — review-before-apply AI editing, lossless import, and MCP console access.';
+
 export const metadata: Metadata = {
+  metadataBase: new URL('https://myagentstudio.dev'),
   title: 'MyAgentStudio',
-  description: 'Agent workbench',
+  description,
   icons: {
     icon: '/processmind-mark.png',
+  },
+  openGraph: {
+    title: 'MyAgentStudio — AI-Agent Workbench',
+    description,
+    url: 'https://myagentstudio.dev',
+    siteName: 'MyAgentStudio',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'MyAgentStudio — AI-Agent Workbench',
+    description,
   },
 };
 

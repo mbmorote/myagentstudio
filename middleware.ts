@@ -53,6 +53,12 @@ const PUBLIC_PATHS = new Set([
   '/api/auth/signup',
   '/api/auth/logout',
   '/api/auth/request-access',
+  // Next.js's file-convention route for the site-wide OG/Twitter preview image
+  // (app/opengraph-image.tsx). Social-card crawlers (LinkedIn, Twitter, etc.) fetch
+  // this with no session cookie — same class of bug as the /welcome/ prefix above:
+  // without this entry the crawler gets 307-redirected to /login instead of PNG bytes,
+  // and every link preview on the web renders with no image.
+  '/opengraph-image',
 ]);
 
 // Plan 13 (2026-08-15) — MCP server. NOT unauthenticated: a console MCP client
