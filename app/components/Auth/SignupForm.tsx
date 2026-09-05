@@ -235,34 +235,9 @@ export function SignupForm({
           </span>
         </div>
 
-        <h1 className="text-[20px] font-semibold text-[var(--text)] mb-1">
+        <h1 className="text-[20px] font-semibold text-[var(--text)] mb-6">
           {mode === 'signup' ? 'Create an account' : 'Request access'}
         </h1>
-        <p className="text-[12px] text-[var(--muted)] mb-6">
-          {mode === 'signup' ? (
-            <>
-              Don&apos;t have an invite code?{' '}
-              <button
-                type="button"
-                onClick={() => setMode('request')}
-                className="text-[var(--accent)] hover:underline bg-transparent border-none p-0 font-[inherit] cursor-pointer"
-              >
-                Request access
-              </button>
-            </>
-          ) : (
-            <>
-              Have an invite code?{' '}
-              <button
-                type="button"
-                onClick={() => setMode('signup')}
-                className="text-[var(--accent)] hover:underline bg-transparent border-none p-0 font-[inherit] cursor-pointer"
-              >
-                Sign up
-              </button>
-            </>
-          )}
-        </p>
 
         {/* OAuth callback error (from ?error= query param — closed vocabulary only) */}
         {mode === 'signup' && oauthErrorMessage && (
@@ -430,22 +405,50 @@ export function SignupForm({
         </form>
         )}
 
-        <p className="mt-6 text-[12px] text-[var(--muted)] text-center">
-          Already have an account?{' '}
+        {/* Bottom button pair — the two "not this" paths off whichever sub-form is
+            showing. Tinted-fill, no border: a real tappable button shape (2026-09-04)
+            colored like the original text-link pair (muted question + accent-blue
+            action word) rather than a solid blue outline — see LoginForm.tsx's Sign
+            In screen for the same pattern and reasoning. */}
+        <div className="mt-6 flex flex-col gap-2">
+          {mode === 'signup' ? (
+            <button
+              type="button"
+              onClick={() => setMode('request')}
+              className="w-full py-2 text-[13px] rounded-[7px] bg-[var(--accent-wash)] hover:opacity-80 transition-opacity"
+            >
+              <span className="text-[var(--muted)]">Don&apos;t have an invite code? </span>
+              <span className="text-[var(--accent)] font-medium">Request access</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMode('signup')}
+              className="w-full py-2 text-[13px] rounded-[7px] bg-[var(--accent-wash)] hover:opacity-80 transition-opacity"
+            >
+              <span className="text-[var(--muted)]">Have an invite code? </span>
+              <span className="text-[var(--accent)] font-medium">Sign up</span>
+            </button>
+          )}
           {onSwitchToLogin ? (
             <button
               type="button"
               onClick={onSwitchToLogin}
-              className="text-[var(--accent)] hover:underline bg-transparent border-none p-0 font-[inherit] cursor-pointer"
+              className="w-full py-2 text-[13px] rounded-[7px] bg-[var(--accent-wash)] hover:opacity-80 transition-opacity"
             >
-              Sign in
+              <span className="text-[var(--muted)]">Already have an account? </span>
+              <span className="text-[var(--accent)] font-medium">Sign in</span>
             </button>
           ) : (
-            <Link href="/login" className="text-[var(--accent)] hover:underline">
-              Sign in
+            <Link
+              href="/login"
+              className="block w-full py-2 text-[13px] text-center rounded-[7px] bg-[var(--accent-wash)] hover:opacity-80 transition-opacity"
+            >
+              <span className="text-[var(--muted)]">Already have an account? </span>
+              <span className="text-[var(--accent)] font-medium">Sign in</span>
             </Link>
           )}
-        </p>
+        </div>
       </div>
   );
 
