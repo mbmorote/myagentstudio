@@ -21,6 +21,8 @@ import {
   getMaxLlmCallsPerUserPerHour,
   getChatHistoryTurns,
   getChatMaxTokens,
+  getLiveEmailSends,
+  getMaxEmailsPerHour,
 } from '../settings.js';
 
 beforeEach(() => {
@@ -141,5 +143,49 @@ describe('getChatMaxTokens', () => {
   it('falls back to the catalog minimum on an unparseable value', () => {
     getSettingMock.mockReturnValue('nope');
     expect(getChatMaxTokens()).toBe(1024);
+  });
+});
+
+describe('getLiveEmailSends', () => {
+  it('fails open (true) when the row is absent', () => {
+    getSettingMock.mockReturnValue(null);
+    expect(getLiveEmailSends()).toBe(true);
+  });
+
+  it('returns true for "true"', () => {
+    getSettingMock.mockReturnValue('true');
+    expect(getLiveEmailSends()).toBe(true);
+  });
+
+  it('returns false for "false"', () => {
+    getSettingMock.mockReturnValue('false');
+    expect(getLiveEmailSends()).toBe(false);
+  });
+
+  it('fails closed (false) on garbage, never fails open', () => {
+    getSettingMock.mockReturnValue('not-a-bool');
+    expect(getLiveEmailSends()).toBe(false);
+  });
+});
+
+describe('getMaxEmailsPerHour', () => {
+  it('returns the catalog default (50) when the row is absent', () => {
+    getSettingMock.mockReturnValue(null);
+    expect(getMaxEmailsPerHour()).toBe(50);
+  });
+
+  it('returns the stored value when valid', () => {
+    getSettingMock.mockReturnValue('100');
+    expect(getMaxEmailsPerHour()).toBe(100);
+  });
+
+  it('falls back to 1 (minimum) on an unparseable value', () => {
+    getSettingMock.mockReturnValue('abc');
+    expect(getMaxEmailsPerHour()).toBe(1);
+  });
+
+  it('falls back to 1 on a value below the minimum', () => {
+    getSettingMock.mockReturnValue('0');
+    expect(getMaxEmailsPerHour()).toBe(1);
   });
 });

@@ -337,3 +337,32 @@ export const agentSnapshot = sqliteTable('agent_snapshot', {
 }, (t) => ({
   byAgent: index('agent_snapshot_agent_idx').on(t.agentId),
 }));
+
+// ─────────────────────  Email log (append-only audit — Plan 14)  ─────────────
+// Every outbound email attempt (live, dry-run, blocked, or unconfigured) writes one
+// row — same append-only spirit as llm_call_log, but the rendered body is NEVER
+// stored: a future password-reset email's body would carry a live reset token, and
+// this table must not become a credential store (see lib/email/CLAUDE.md).
+// `kind` and `provider` are plain text, not Drizzle enums — unlike llm_call_log.kind,
+// new email kinds are expected to be added by OTHER plans later (password reset,
+// deletion notice) with no schema change; the union type lives in TypeScript instead.
+export const emailLog = sqliteTable('email_log', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  kind: text('kind').notNull(),                     // 'invite_code' | 'access_request_notice' | … (open-ended, see above)
+  provider: text('provider').notNull(),             // 'resend' — present from row one (Plan 11 had to retrofit this on llm_call_log)
+  toEmail: text('to_email').notNull(),               // stored lowercased + trimmed
+  subject: text('subject').notNull(),                // rendered subject — the body is never stored
+  status: text('status', {
+    enum: ['sent', 'failed', 'dry_run', 'blocked_cap', 'not_configured'],
+  }).notNull(),
+  providerMessageId: text('provider_message_id'),   // non-null only when status='sent'
+  error: text('error'),                              // '<Name>: <message>', ≤2000 chars, credential-free
+  durationMs: integer('duration_ms').notNull(),      // 0 for every non-network path
+  relatedType: text('related_type'),                 // 'invite_code' | 'user' | 'access_request' — soft ref
+  relatedId: text('related_id'),                     // e.g. the invite code itself — lets the codes table show per-row status with no join table
+  triggeredBy: text('triggered_by'),                 // soft ref → user.id; NULL = system-triggered
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+}, (t) => ({
+  byCreated: index('email_log_created_idx').on(t.createdAt),
+  byRelated: index('email_log_related_idx').on(t.relatedType, t.relatedId),
+}));

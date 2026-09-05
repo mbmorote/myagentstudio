@@ -22,7 +22,22 @@ import {
   PAGE_SIZE, Pager, formatTs, formatExpiry, IntSettingInput, type SettingEntry,
 } from './prefsShared';
 
-const ADMIN_KEYS = new Set(['maxUsers', 'accessRequestCodeExpiryHours', 'mcpWrites']);
+const ADMIN_KEYS = new Set([
+  'maxUsers', 'accessRequestCodeExpiryHours', 'mcpWrites',
+  'liveEmailSends', 'maxEmailsPerHour',
+]);
+
+/** Plan 14, D6 — inline flags only. Maps an email_log status (or null = never attempted) to a short label + color. */
+function emailStatusLabel(status: string | null): { text: string; className: string } {
+  switch (status) {
+    case 'sent': return { text: 'Sent', className: 'text-[var(--ok)]' };
+    case 'failed': return { text: 'Failed', className: 'text-[var(--err)]' };
+    case 'dry_run': return { text: 'Disabled', className: 'text-[var(--faint)]' };
+    case 'blocked_cap': return { text: 'Rate-limited', className: 'text-[var(--faint)]' };
+    case 'not_configured': return { text: 'Not configured', className: 'text-[var(--faint)]' };
+    default: return { text: 'Not sent', className: 'text-[var(--faint)]' };
+  }
+}
 
 /**
  * DD/MM hh:mm — compact date format for the invite-codes "Created" column only
@@ -59,6 +74,8 @@ type InviteCodeRow = {
   redeemedAt: string | null;
   boundEmail: string | null;
   expiresAt: string | null;
+  /** Plan 14 — the most recent email_log status for this code, or null if never attempted. */
+  lastEmailStatus: string | null;
 };
 
 type AccessRequestRow = {
@@ -166,7 +183,9 @@ export function AdminSettingsPane() {
   const [newCodeNote, setNewCodeNote] = useState('');
   const [generatingCode, setGeneratingCode] = useState(false);
   const [newCode, setNewCode] = useState<string | null>(null);
+  const [newCodeEmailStatus, setNewCodeEmailStatus] = useState<string | null>(null);
   const [codesPage, setCodesPage] = useState(1);
+  const [sendingCode, setSendingCode] = useState<string | null>(null);
 
   useEffect(() => {
     setCodesLoading(true);
@@ -209,6 +228,7 @@ export function AdminSettingsPane() {
   async function handleGenerateCode() {
     setGeneratingCode(true);
     setNewCode(null);
+    setNewCodeEmailStatus(null);
     try {
       const res = await apiFetch('/api/settings/invite-codes', {
         method: 'POST',
@@ -216,9 +236,10 @@ export function AdminSettingsPane() {
         body: JSON.stringify({ note: newCodeNote.trim() || undefined }),
       });
       if (res.ok) {
-        const row = await res.json() as InviteCodeRow;
-        setNewCode(row.code);
-        setCodes((prev) => [row, ...prev]);
+        const body = await res.json() as InviteCodeRow & { emailStatus?: string };
+        setNewCode(body.code);
+        setNewCodeEmailStatus(body.emailStatus ?? null);
+        setCodes((prev) => [{ ...body, lastEmailStatus: body.emailStatus ?? null }, ...prev]);
         setNewCodeNote('');
       } else {
         setCodesError('Failed to generate code.');
@@ -246,6 +267,40 @@ export function AdminSettingsPane() {
     }
   }
 
+  /** Plan 14 — Send/Resend action on the invite-codes table (the recovery path for a failed
+   *  or never-attempted send). Prompts for a recipient only when the code has no boundEmail. */
+  async function handleSendCode(code: InviteCodeRow) {
+    let to: string | undefined;
+    if (!code.boundEmail) {
+      const typed = window.prompt(`Send invite code ${code.code} to which email address?`);
+      if (!typed || !typed.trim()) return;
+      to = typed.trim();
+    }
+    setSendingCode(code.code);
+    setCodesError(null);
+    try {
+      const res = await apiFetch(`/api/settings/invite-codes/${encodeURIComponent(code.code)}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(to ? { to } : {}),
+      });
+      if (res.ok) {
+        const body = await res.json() as { emailStatus: string };
+        setCodes((prev) => prev.map((c) => (c.code === code.code ? { ...c, lastEmailStatus: body.emailStatus } : c)));
+      } else if (res.status === 400) {
+        setCodesError('No recipient address is on file for this code.');
+      } else if (res.status === 409) {
+        setCodesError('This code has already been redeemed or has expired.');
+      } else {
+        setCodesError('Failed to send this code.');
+      }
+    } catch {
+      setCodesError('Network error sending code.');
+    } finally {
+      setSendingCode(null);
+    }
+  }
+
   async function handleGenerateCodeFromRequest(id: string) {
     setBusyRequestId(id);
     setAccessRequestsError(null);
@@ -254,9 +309,10 @@ export function AdminSettingsPane() {
         method: 'POST',
       });
       if (res.ok) {
-        const row = await res.json() as InviteCodeRow;
-        setNewCode(row.code);
-        setCodes((prev) => [row, ...prev]);
+        const body = await res.json() as InviteCodeRow & { emailStatus?: string };
+        setNewCode(body.code);
+        setNewCodeEmailStatus(body.emailStatus ?? null);
+        setCodes((prev) => [{ ...body, lastEmailStatus: body.emailStatus ?? null }, ...prev]);
         setAccessRequests((prev) => prev.filter((r) => r.id !== id));
       } else {
         setAccessRequestsError('Failed to generate a code for this request.');
@@ -344,8 +400,9 @@ export function AdminSettingsPane() {
         <h2 className="text-[15px] font-semibold text-[var(--text)] mb-4">Access requests</h2>
         <p className="text-[12px] text-[var(--muted)] mb-3">
           From &quot;Request access&quot; on the signup form. Generate a code to offer a spot (bound
-          to their email, expires per the setting above); the code isn&apos;t emailed
-          automatically yet, so copy it and send it to them yourself.
+          to their email, expires per the setting above); the code is emailed to them
+          automatically if email is configured — copy it and send it yourself as a fallback if
+          that fails.
         </p>
 
         {accessRequestsError && <p className="text-[12px] text-[var(--err)] mb-3">{accessRequestsError}</p>}
@@ -414,14 +471,34 @@ export function AdminSettingsPane() {
             used once. The code will appear here so you can copy it again if needed.
           </p>
           {newCode && (
-            <div className="mb-3 flex items-center gap-2 bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[7px] px-3 py-2">
-              <code className="flex-1 font-mono text-[13px] text-[var(--text)] tracking-wider">{newCode}</code>
-              <button
-                onClick={() => navigator.clipboard.writeText(newCode)}
-                className="text-[11px] text-[var(--accent-ink)] hover:underline flex-none"
-              >
-                Copy
-              </button>
+            <div className="mb-3">
+              <div className="flex items-center gap-2 bg-[var(--accent-wash)] border border-[var(--accent)] rounded-[7px] px-3 py-2">
+                <code className="flex-1 font-mono text-[13px] text-[var(--text)] tracking-wider">{newCode}</code>
+                <button
+                  onClick={() => navigator.clipboard.writeText(newCode)}
+                  className="text-[11px] text-[var(--accent-ink)] hover:underline flex-none"
+                >
+                  Copy
+                </button>
+              </div>
+              {/* Plan 14 — status line for the code just generated; only present when a
+                  send was actually attempted (auto-send from an access request). A plain
+                  "+ Generate code" with no recipient shows nothing here. */}
+              {newCodeEmailStatus === 'sent' && (
+                <p className="text-[11px] text-[var(--ok)] mt-1">Emailed to the requester.</p>
+              )}
+              {newCodeEmailStatus === 'failed' && (
+                <p className="text-[11px] text-[var(--err)] mt-1">Couldn&apos;t email this code — copy it and send it manually.</p>
+              )}
+              {newCodeEmailStatus === 'blocked_cap' && (
+                <p className="text-[11px] text-[var(--err)] mt-1">Email is rate-limited right now — copy it and send it manually.</p>
+              )}
+              {newCodeEmailStatus === 'dry_run' && (
+                <p className="text-[11px] text-[var(--faint)] mt-1">Live email sends are turned off — copy it and send it manually.</p>
+              )}
+              {newCodeEmailStatus === 'not_configured' && (
+                <p className="text-[11px] text-[var(--faint)] mt-1">Email isn&apos;t configured on this deployment — copy it and send it manually.</p>
+              )}
             </div>
           )}
           <div className="flex gap-2">
@@ -460,12 +537,15 @@ export function AdminSettingsPane() {
                   <th className="px-3 py-2 text-[var(--muted)] font-medium">Created</th>
                   <th className="px-3 py-2 text-[var(--muted)] font-medium">Expires</th>
                   <th className="px-3 py-2 text-[var(--muted)] font-medium">Status</th>
+                  <th className="px-3 py-2 text-[var(--muted)] font-medium">Email</th>
                   <th className="px-3 py-2 text-[var(--muted)] font-medium">Label</th>
                 </tr>
               </thead>
               <tbody>
                 {pagedUnredeemedCodes.map((c) => {
                   const expiry = formatExpiry(c.expiresAt);
+                  const emailStatus = emailStatusLabel(c.lastEmailStatus);
+                  const isSending = sendingCode === c.code;
                   return (
                     <tr key={c.code} className="border-b border-[var(--border)] hover:bg-[var(--bg)]">
                       <td className="px-3 py-2">
@@ -499,6 +579,21 @@ export function AdminSettingsPane() {
                       <td className={expiry.expired ? 'px-3 py-2 text-[var(--err)] whitespace-nowrap' : 'px-3 py-2 text-[var(--ok)] whitespace-nowrap'}>
                         {expiry.expired ? 'Expired' : 'Unused'}
                       </td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className={emailStatus.className}>{emailStatus.text}</span>
+                          {!expiry.expired && (
+                            <button
+                              onClick={() => handleSendCode(c)}
+                              disabled={isSending}
+                              className="text-[11px] text-[var(--accent-ink)] hover:underline disabled:opacity-50 disabled:cursor-not-allowed flex-none"
+                              title={c.boundEmail ? `Send to ${c.boundEmail}` : "Send — you'll be asked for an address"}
+                            >
+                              {isSending ? 'Sending…' : c.lastEmailStatus === 'sent' ? 'Resend' : 'Send'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-3 py-2 text-[var(--muted)]">
                         <span className="block max-w-[110px] truncate" title={c.note ?? undefined}>{c.note ?? '—'}</span>
                       </td>
@@ -515,6 +610,9 @@ export function AdminSettingsPane() {
                     <td className="px-3 py-2 text-[var(--muted)] whitespace-nowrap">{formatShortDate(c.createdAt)}</td>
                     <td className="px-3 py-2 text-[var(--faint)] whitespace-nowrap">—</td>
                     <td className="px-3 py-2 text-[var(--faint)] whitespace-nowrap">Redeemed {c.redeemedAt ? formatShortDate(c.redeemedAt) : ''}</td>
+                    <td className={`px-3 py-2 whitespace-nowrap ${emailStatusLabel(c.lastEmailStatus).className}`}>
+                      {emailStatusLabel(c.lastEmailStatus).text}
+                    </td>
                     <td className="px-3 py-2 text-[var(--muted)]">
                       <span className="block max-w-[110px] truncate" title={c.note ?? undefined}>{c.note ?? '—'}</span>
                     </td>

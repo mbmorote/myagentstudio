@@ -14,11 +14,19 @@ import {
   isOAuthConfigured,
   getOAuthConfig,
   _assertOAuthEnv,
+  isEmailConfigured,
+  getResendApiKey,
+  getEmailFrom,
+  getAppBaseUrl,
+  getEmailReplyTo,
+  getAdminNotificationEmail,
+  _assertEmailEnv,
 } from '../env.js';
 
 const OAUTH_KEYS = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'OAUTH_REDIRECT_BASE_URL'] as const;
+const EMAIL_KEYS = ['RESEND_API_KEY', 'EMAIL_FROM', 'APP_BASE_URL', 'EMAIL_REPLY_TO', 'ADMIN_NOTIFICATION_EMAIL'] as const;
 const OTHER_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_MODEL', 'JWT_SECRET', 'NODE_ENV'] as const;
-const ALL_KEYS = [...OAUTH_KEYS, ...OTHER_KEYS] as const;
+const ALL_KEYS = [...OAUTH_KEYS, ...EMAIL_KEYS, ...OTHER_KEYS] as const;
 
 const originalValues: Partial<Record<(typeof ALL_KEYS)[number], string | undefined>> = {};
 
@@ -208,5 +216,127 @@ describe('_assertOAuthEnv', () => {
     process.env.OAUTH_REDIRECT_BASE_URL = 'https://example.com';
     setEnv('NODE_ENV', 'production');
     expect(() => _assertOAuthEnv()).not.toThrow();
+  });
+});
+
+// ── Email (Resend) — Plan 14 ──────────────────────────────────────────────────
+
+describe('isEmailConfigured', () => {
+  it('is false when no email env vars are set', () => {
+    expect(isEmailConfigured()).toBe(false);
+  });
+
+  it('is false when only some are set', () => {
+    process.env.RESEND_API_KEY = 're_test';
+    expect(isEmailConfigured()).toBe(false);
+  });
+
+  it('is true when all three required vars are set', () => {
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.EMAIL_FROM = 'MyAgentStudio <noreply@myagentstudio.dev>';
+    process.env.APP_BASE_URL = 'https://myagentstudio.dev';
+    expect(isEmailConfigured()).toBe(true);
+  });
+});
+
+describe('getResendApiKey / getEmailFrom / getAppBaseUrl', () => {
+  it('each throws when unset', () => {
+    expect(() => getResendApiKey()).toThrow(/RESEND_API_KEY is not set/);
+    expect(() => getEmailFrom()).toThrow(/EMAIL_FROM is not set/);
+    expect(() => getAppBaseUrl()).toThrow(/APP_BASE_URL is not set/);
+  });
+
+  it('each returns the configured value when set', () => {
+    process.env.RESEND_API_KEY = 're_test_123';
+    process.env.EMAIL_FROM = 'MyAgentStudio <noreply@myagentstudio.dev>';
+    process.env.APP_BASE_URL = 'https://myagentstudio.dev';
+    expect(getResendApiKey()).toBe('re_test_123');
+    expect(getEmailFrom()).toBe('MyAgentStudio <noreply@myagentstudio.dev>');
+    expect(getAppBaseUrl()).toBe('https://myagentstudio.dev');
+  });
+});
+
+describe('getEmailReplyTo / getAdminNotificationEmail', () => {
+  it('both return null when unset — never throw (optional)', () => {
+    expect(getEmailReplyTo()).toBeNull();
+    expect(getAdminNotificationEmail()).toBeNull();
+  });
+
+  it('both return the configured value when set', () => {
+    process.env.EMAIL_REPLY_TO = 'support@myagentstudio.dev';
+    process.env.ADMIN_NOTIFICATION_EMAIL = 'admin@myagentstudio.dev';
+    expect(getEmailReplyTo()).toBe('support@myagentstudio.dev');
+    expect(getAdminNotificationEmail()).toBe('admin@myagentstudio.dev');
+  });
+});
+
+describe('_assertEmailEnv', () => {
+  it('does not throw when none of the three are set (email disabled)', () => {
+    expect(() => _assertEmailEnv()).not.toThrow();
+  });
+
+  it('throws when only some are set (partial config)', () => {
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.EMAIL_FROM = 'MyAgentStudio <noreply@myagentstudio.dev>';
+    expect(() => _assertEmailEnv()).toThrow(/partially configured/);
+  });
+
+  it('does not throw for a valid, fully-configured https APP_BASE_URL', () => {
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.EMAIL_FROM = 'MyAgentStudio <noreply@myagentstudio.dev>';
+    process.env.APP_BASE_URL = 'https://myagentstudio.dev';
+    expect(() => _assertEmailEnv()).not.toThrow();
+  });
+
+  it('throws when APP_BASE_URL is not a valid absolute URL', () => {
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.EMAIL_FROM = 'MyAgentStudio <noreply@myagentstudio.dev>';
+    process.env.APP_BASE_URL = 'not-a-url';
+    expect(() => _assertEmailEnv()).toThrow(/valid absolute URL/);
+  });
+
+  it('throws for a non-http(s) scheme', () => {
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.EMAIL_FROM = 'MyAgentStudio <noreply@myagentstudio.dev>';
+    process.env.APP_BASE_URL = 'ftp://myagentstudio.dev';
+    expect(() => _assertEmailEnv()).toThrow(/http or https scheme/);
+  });
+
+  it('throws when the URL has a path/query/fragment', () => {
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.EMAIL_FROM = 'MyAgentStudio <noreply@myagentstudio.dev>';
+    process.env.APP_BASE_URL = 'https://myagentstudio.dev/app';
+    expect(() => _assertEmailEnv()).toThrow(/no path, query, or fragment/);
+  });
+
+  it('throws when the URL has a trailing slash', () => {
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.EMAIL_FROM = 'MyAgentStudio <noreply@myagentstudio.dev>';
+    process.env.APP_BASE_URL = 'https://myagentstudio.dev/';
+    expect(() => _assertEmailEnv()).toThrow(/trailing slash/);
+  });
+
+  it('allows http in non-production', () => {
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.EMAIL_FROM = 'MyAgentStudio <noreply@myagentstudio.dev>';
+    process.env.APP_BASE_URL = 'http://localhost:3000';
+    setEnv('NODE_ENV', 'development');
+    expect(() => _assertEmailEnv()).not.toThrow();
+  });
+
+  it('rejects http in production', () => {
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.EMAIL_FROM = 'MyAgentStudio <noreply@myagentstudio.dev>';
+    process.env.APP_BASE_URL = 'http://myagentstudio.dev';
+    setEnv('NODE_ENV', 'production');
+    expect(() => _assertEmailEnv()).toThrow(/must use https in production/);
+  });
+
+  it('allows https in production', () => {
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.EMAIL_FROM = 'MyAgentStudio <noreply@myagentstudio.dev>';
+    process.env.APP_BASE_URL = 'https://myagentstudio.dev';
+    setEnv('NODE_ENV', 'production');
+    expect(() => _assertEmailEnv()).not.toThrow();
   });
 });
