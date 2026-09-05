@@ -36,6 +36,7 @@ Live and ready to use.
 | **Beta & sensitive-data notice** | Fix | Minor | A one-time popup after signup, plus a persistent reminder near the chat and import inputs, that this is an early, unencrypted-at-rest beta — don't paste passwords, API keys, or other sensitive data. |
 | **A second AI provider** | Resource | Major | An additional, non-Anthropic model option behind the same interface — so the platform isn't locked to one vendor. Live-verified against a real NVIDIA NIM account. |
 | **Share an agent** | Feature | Major | Grant another user live, read-only access to an agent — by a reusable link code or by their email — so they always see your current version. They can copy it to their own library, but never edit yours. |
+| **Account email delivery** | Resource | Minor | Invite codes generated from an access request are emailed to the requester automatically; a status line and a one-click resend cover the case where that fails. An optional notice also alerts the admin when a new access request comes in. |
 
 ## Coming Next
 
@@ -46,7 +47,6 @@ Starting in the next release — decided and ready to build.
 | **Console MCP access** | Feature | Major | Lets a console/CLI AI tool (like Claude Code) list, read, pull, and — with permission — push your own agents from the terminal, authenticated by a personal access token you generate yourself. Built; pending final verification. |
 | **AI chat history that survives a reload** | Feature | Major | Conversations currently live only in the browser tab for the current session. |
 | **Export to other platforms** | Feature | Major | Translating an agent to formats beyond Claude's, starting with Copilot. |
-| **Account email delivery** | Resource | Minor | Automated emails for account actions — an admin-generated invite code, and account-related notifications — instead of being sent or handled by hand. |
 
 ## Planned
 

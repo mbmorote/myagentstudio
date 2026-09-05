@@ -113,3 +113,16 @@ export {
   getPublicCodeInfo,
 } from './agentShares.js';
 export type { AgentShareRow } from './agentShares.js';
+
+export {
+  writeEmailLog,
+  countBillableEmailsInWindow,
+  getLastEmailForInviteCode,
+  listEmailLog,
+} from './emailLog.js';
+export type {
+  EmailLogStatus,
+  WriteEmailLogInput,
+  EmailLogRow,
+  ListEmailLogOptions,
+} from './emailLog.js';

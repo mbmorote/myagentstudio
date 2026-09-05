@@ -7,6 +7,38 @@ status. For full blow-by-blow detail behind any entry below, see the referenced 
 
 ---
 
+## 2026-09-04 — Email-sending provider: Resend, invite-code delivery, admin access-request notice (Plan 14)
+
+MyAgentStudio can now actually send email — previously the access-request endpoint promised
+"we'll email your invite code soon" while the admin pane admitted the opposite, and neither
+was true. Built in the same shape as the LLM gateway: one provider interface, one transport
+implementation (`lib/email/resendProvider.ts`, plain `fetch`, zero new dependency), one
+gateway (`lib/email/gateway.ts`) that gates (kill switch, hourly cap) and logs every send
+attempt, and a small registry hiding which provider is active. The gateway deliberately never
+throws — an email is a side effect of someone else's action, so failing it would violate this
+app's "flag, don't block" principle; every outcome comes back as a typed result instead, and
+no caller's HTTP status ever changes because a send failed. `email_log` is append-only, one
+row per attempt, and — unlike `llm_call_log` — never stores the rendered body, since a future
+password-reset email's body will carry a live token.
+
+Two triggers wired: generating an invite code from an access request now auto-emails it to the
+requester (falling back to the existing copy/paste flow, now surfaced as a status line, on any
+failure); an admin-only manual (re)send route
+(`POST /api/settings/invite-codes/[code]/send`) covers the recovery case, so the plan needs no
+retry queue. An optional admin-notification email (D4) fires — fire-and-forget, deliberately
+unawaited — when a new access request is filed, without disturbing that endpoint's
+byte-identical anti-enumeration response across every branch. UI: an `Email` column plus
+Send/Resend action on the invite-codes table, and a status line under a freshly generated
+code. Live-verified against a real Resend account and a real inbox — both triggers, including
+one deliberate induced failure.
+
+Also retired the standing project rule that required prototyping UI changes in
+`reference/layout/Layout-Workbench.html` before touching live code — no longer needed; UI work
+now goes directly into the real components.
+
+See `plans/archive/14-email-sending-provider.md` for the full design record (D1–D6 decisions, Phase 0
+DNS/domain-verification steps, and what's explicitly out of scope).
+
 ## 2026-08-31 — Share agent: live read-only access by link or email, plus copy-to-me (Plan 15)
 
 An owner can now grant another user live, read-only access to an agent — via a reusable

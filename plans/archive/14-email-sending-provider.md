@@ -1,25 +1,20 @@
 # Plan 14 — Email-Sending Provider
 
-> **Status: 🔴 Drafted 2026-08-27, not started. Six decisions (D1–D6) are OPEN and must be
-> answered before implementation begins** — D1 (which provider) and D2 (sender identity)
-> additionally require the user to perform out-of-band account/DNS work that no agent can do
-> for them (§4.11 Phase 0). Every decision below carries a recommendation with reasoning; none
-> is settled.
+> **Status: 🟢 Built and live-verified, 2026-09-04.** All six decisions were made and
+> implemented; Phase 0 (Resend account, domain verification, API key) is done on
+> `myagentstudio.dev`. Both wired triggers were confirmed against a real Resend account and a
+> real inbox, including one deliberate induced failure. Decided:
 >
-> - **D1 (provider):** recommendation is **Resend over plain `fetch`, behind a one-file
->   `EmailProvider` seam** — no new npm dependency, same posture Plan 11 took for the second
->   LLM provider (implement the transport, don't vendor-lock the codebase). **Not confirmed** —
->   it commits the user to a third-party account and DNS records on `myagentstudio.dev`.
-> - **D2 (sender identity):** which `From:` address, on which (sub)domain, and whether replies
->   go anywhere. Blocks Phase 0; nothing else.
-> - **D3 (which codes get emailed, and when):** auto-send on "Generate code" from an access
->   request vs. an explicit "Send" click; what happens for unbound codes with no known
->   recipient.
-> - **D4 (admin notification on a new access request):** wanted or not — it is the only
->   proposed trigger fired by an *unauthenticated* endpoint.
-> - **D5 (HTML + plain text, or text only).**
-> - **D6 (where failures surface):** inline flag only, or a full Email log pane mirroring the
->   Activity log.
+> - **D1 (provider):** **Resend**, over plain `fetch`, behind the `EmailProvider` seam.
+> - **D2 (sender identity):** apex domain (`myagentstudio.dev`, not a subdomain — no
+>   infrastructure reason to isolate it); `EMAIL_REPLY_TO`/`ADMIN_NOTIFICATION_EMAIL` both set
+>   to the admin's own address initially.
+> - **D3:** auto-send for a code generated from an access request; the admin's plain
+>   "+ Generate code" sends only when an optional `sendTo` is supplied.
+> - **D4:** yes — an admin-notification email fires (fire-and-forget) on a new access request.
+> - **D5:** HTML + plain text.
+> - **D6:** inline flags only (a status line + a Send/Resend action on the invite-codes table)
+>   — no Email log pane was built.
 >
 > **Scale note — Medium, and deliberately narrow.** This plan builds the *infrastructure* plus
 > exactly **one** real trigger (invite-code delivery), because a gateway with no caller cannot
@@ -36,9 +31,9 @@
 >
 > Standing project rules apply in full: **no commit without an explicit ask**, **no real billed
 > API call without an explicit ask**, **dev server off after any verification session**, and
-> **ask before running any test/build/tsc check** (`CLAUDE.md` standing rules 1, 2, 3, 5). UI
-> work prototypes in `reference/layout/Layout-Workbench.html` first (standing rule 4) — §4.9
-> marks which parts that applies to.
+> **ask before running any test/build/tsc check** (`CLAUDE.md` standing rules 1, 2, 3, 4). The
+> mockup-first UI rule §4.9 refers to was retired 2026-09-04 — UI work goes straight to the
+> real components now.
 >
 > Addresses `plans/roadmap.md` NEXT item **Email-sending provider**. Unblocks two other roadmap
 > items without building either of them — **Delete or disconnect user (admin)** and **Review
@@ -395,15 +390,17 @@ the manual send route. That is the correct failure mode: a lost email, never a l
 
 ### 4.9 UI (admin Settings only)
 
-Nothing about the workbench, the chat, or any non-admin surface changes.
+Nothing about the workbench, the chat, or any non-admin surface changes. (The mockup-first
+rule this section originally required for the two new visual concepts below was retired
+2026-09-04 — built directly in the real components instead.)
 
-| Change | Mockup first? |
+| Change | New visual concept? |
 |---|---|
-| Two new rows in System settings (`liveEmailSends`, `maxEmailsPerHour`) | **No** — existing `bool`/`int` renderers, no new visual concept (standing rule 4 exists for iteration efficiency, and a trivial addition through an existing renderer doesn't need the detour). |
-| Status line under the generated-code box: "Emailed to alice@example.com" / "Couldn't email this code — copy it and send it manually." | **Yes** — new visual element. |
-| `Email` column + `Send`/`Resend` action in the invite-codes table | **Yes** — new column and new row action; prototype in `reference/layout/Layout-Workbench.html` first, **one concept per dispatch**, and waive the build-equivalent sanity check for that file (there is no compiler for it; a human looking at it in a browser is the gate). |
-| Corrected copy in the Access requests + Invite codes sections | **No** — text only. |
-| Email log pane (D6) | **Yes**, if built — mirror `ActivityLogPane.tsx`. |
+| Two new rows in System settings (`liveEmailSends`, `maxEmailsPerHour`) | No — existing `bool`/`int` renderers. |
+| Status line under the generated-code box: "Emailed to alice@example.com" / "Couldn't email this code — copy it and send it manually." | Yes. |
+| `Email` column + `Send`/`Resend` action in the invite-codes table | Yes — new column and new row action. |
+| Corrected copy in the Access requests + Invite codes sections | No — text only. |
+| Email log pane (D6) | Not building — D6 was decided as inline flags only. |
 
 The failure copy must always keep the code visible and copyable: the existing `setNewCode(...)`
 box already does this, so the "email failed" state is a *label added next to a working
@@ -538,7 +535,7 @@ the user says so:
 | 3 | Templates + §5.4 tests | — | **Parallelizable with 1–2** (pure functions, no dependencies). |
 | 4 | Wire trigger 1: generate-code route change + the manual send route + §5.5 tests | 2, 3 | The first behavior change a user could notice. |
 | 5 | Fitness function (§4.10) | 2 | Must land in the same batch as 2/4 or the boundaries are documented but unenforced — the exact gap Plan 11 found for `lib/ai`'s DB rule. |
-| 6 | UI: mockup first for the two new visual concepts, then the pane changes + corrected copy | 4 | Standing rule 4; one concept per dispatch. |
+| 6 | UI: the two new visual concepts, the pane changes, and corrected copy — built directly in the real components | 4 | No mockup step (retired). |
 | 7 | Docs: `lib/email/CLAUDE.md`, root `CLAUDE.md` folder map, `docs/system-about.md`, `docs/user-guide.md:45`, `docs/roadmap.md`, **`app/privacy/page.tsx` §4+§6**, `.env.example`, `README.md`, `CHANGELOG.md`, `plans/roadmap.md` | 1–6 | **The privacy edit is a correctness fix, not documentation polish** — the page currently asserts data goes to no third party besides the AI provider. Restate rules inline; never cite a bare section number (standing rule 6). |
 | 8 | **Live verification — ask first** | 0, 7 | §5.6. |
 | 9 | *Optional, D4:* admin notice on a new access request | 2, 3 | Parallelizable with 4–6. Keep the endpoint's response identical in every branch. |
