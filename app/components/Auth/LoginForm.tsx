@@ -222,38 +222,50 @@ export function LoginForm({ oauthConfigured, embedded = false, onSwitchToSignup,
           </p>
         )}
 
-        <p className="mt-4 text-[12px] text-[var(--muted)] text-center">
-          Have an invite code?{' '}
-          {onSwitchToSignup ? (
-            <button
-              type="button"
-              onClick={() => onSwitchToSignup('signup')}
-              className="text-[var(--accent)] hover:underline bg-transparent border-none p-0 font-[inherit] cursor-pointer"
-            >
-              Sign up
-            </button>
-          ) : (
-            <Link href="/signup" className="text-[var(--accent)] hover:underline">
-              Sign up
-            </Link>
-          )}
-        </p>
-        <p className="mt-1 text-[12px] text-[var(--muted)] text-center">
-          Don&apos;t have one?{' '}
+        {/* Bottom button pair — the two "not this" paths off Sign In. Tinted-fill, no
+            border: a real tappable button shape (2026-09-04) but colored like the
+            original text-link pair (muted question + accent-blue action word) rather
+            than a solid blue outline, which read as too loud/primary-looking next to
+            the actual Sign In button above. Same pattern across Sign In / Create
+            account / Request access. */}
+        <div className="mt-6 flex flex-col gap-2">
           {onSwitchToSignup ? (
             <button
               type="button"
               onClick={() => onSwitchToSignup('request')}
-              className="text-[var(--accent)] hover:underline bg-transparent border-none p-0 font-[inherit] cursor-pointer"
+              className="w-full py-2 text-[13px] rounded-[7px] bg-[var(--accent-wash)] hover:opacity-80 transition-opacity"
             >
-              Request access
+              <span className="text-[var(--muted)]">Don&apos;t have one? </span>
+              <span className="text-[var(--accent)] font-medium">Request access</span>
             </button>
           ) : (
-            <Link href="/signup?mode=request" className="text-[var(--accent)] hover:underline">
-              Request access
+            <Link
+              href="/signup?mode=request"
+              className="block w-full py-2 text-[13px] text-center rounded-[7px] bg-[var(--accent-wash)] hover:opacity-80 transition-opacity"
+            >
+              <span className="text-[var(--muted)]">Don&apos;t have one? </span>
+              <span className="text-[var(--accent)] font-medium">Request access</span>
             </Link>
           )}
-        </p>
+          {onSwitchToSignup ? (
+            <button
+              type="button"
+              onClick={() => onSwitchToSignup('signup')}
+              className="w-full py-2 text-[13px] rounded-[7px] bg-[var(--accent-wash)] hover:opacity-80 transition-opacity"
+            >
+              <span className="text-[var(--muted)]">Have an invite code? </span>
+              <span className="text-[var(--accent)] font-medium">Sign up</span>
+            </button>
+          ) : (
+            <Link
+              href="/signup"
+              className="block w-full py-2 text-[13px] text-center rounded-[7px] bg-[var(--accent-wash)] hover:opacity-80 transition-opacity"
+            >
+              <span className="text-[var(--muted)]">Have an invite code? </span>
+              <span className="text-[var(--accent)] font-medium">Sign up</span>
+            </Link>
+          )}
+        </div>
       </div>
   );
 
