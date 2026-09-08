@@ -124,6 +124,18 @@ To enable it:
 
 Google is told nothing beyond the standard OpenID Connect `openid email profile` scopes — no ongoing access, no refresh token is requested, and nothing Google issues is ever stored.
 
+### Email delivery setup (optional)
+
+MyAgentStudio can email an invite code to whoever requested access, instead of the admin copying and sending it by hand. It's entirely optional — leave `RESEND_API_KEY`/`EMAIL_FROM`/`APP_BASE_URL` unset and codes are generated and copied exactly as before email existed.
+
+To enable it:
+
+1. Create a free account at [resend.com](https://resend.com), add your sending domain, and publish the SPF/DKIM (and recommended DMARC) DNS records it gives you. Disable open/click tracking in the dashboard — this app sends transactional email only.
+2. Create an API key scoped to sending only.
+3. Set `RESEND_API_KEY`, `EMAIL_FROM`, and `APP_BASE_URL` in `.env.local`. All three are required together — see `.env.example` for the exact shape and the two independently-optional `EMAIL_REPLY_TO`/`ADMIN_NOTIFICATION_EMAIL` vars.
+
+A failed or not-yet-configured send never blocks the underlying action — the invite code is always created and shown, with a status line and a one-click resend for the fallback path.
+
 ## Settings
 
 Configurable from **System Settings** (`/settings`, admin only):
@@ -137,6 +149,8 @@ Configurable from **System Settings** (`/settings`, admin only):
 | `chatMaxTokens` | `8192` | Max tokens Prometheus may generate per chat reply. |
 | `chatHistoryTurns` | `10` | How many prior chat messages Prometheus sees for context. |
 | `mcpWrites` | `false` | When on, write-scoped MCP tokens can call `push_agent` (see "Console MCP access" below). Off by default — a deployment that never touches this setting behaves exactly as if the MCP server didn't exist. |
+| `liveEmailSends` | `true` | When off, every outbound email is blocked and logged before any network request is made. Only matters once email is configured at all — see "Email delivery setup" below. |
+| `maxEmailsPerHour` | `50` | Deployment-wide cap on outbound emails per rolling 60-minute window, counting only attempts that reached the provider. |
 
 ## The workbench layout
 

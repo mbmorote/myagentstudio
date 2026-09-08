@@ -169,6 +169,87 @@ export function getJwtSecret(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
+// ── Email (Resend) — Plan 14 ──────────────────────────────────────────────────
+
+/**
+ * Returns true when the required email env-var group (RESEND_API_KEY, EMAIL_FROM,
+ * APP_BASE_URL) is fully set. All-or-nothing, like OAuth (§4.6): a fresh install
+ * with none of these set behaves exactly as today — codes are copied by hand,
+ * nothing errors, nothing warns at boot.
+ */
+export function isEmailConfigured(): boolean {
+  return Boolean(
+    process.env.RESEND_API_KEY &&
+    process.env.EMAIL_FROM &&
+    process.env.APP_BASE_URL,
+  );
+}
+
+/**
+ * Returns the Resend API key. Throws at call-time if unset — never logged, never
+ * returned in an error message. Read at call time (not module load) so a
+ * deployment with no email configured still boots and still runs everything else.
+ */
+export function getResendApiKey(): string {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) {
+    throw new Error(
+      'RESEND_API_KEY is not set. Add it to .env.local and restart the dev server.',
+    );
+  }
+  return key;
+}
+
+/**
+ * Returns the configured From: address, e.g. "MyAgentStudio <noreply@myagentstudio.dev>".
+ * Throws at call-time if unset.
+ */
+export function getEmailFrom(): string {
+  const from = process.env.EMAIL_FROM;
+  if (!from) {
+    throw new Error(
+      'EMAIL_FROM is not set. Add it to .env.local and restart the dev server.',
+    );
+  }
+  return from;
+}
+
+/**
+ * Returns the absolute app origin used to build links inside emails (e.g.
+ * https://myagentstudio.dev). Throws at call-time if unset.
+ *
+ * A separate variable from OAUTH_REDIRECT_BASE_URL (§4.6) — that one is optional
+ * and OAuth-scoped, and quietly overloading it would make disabling OAuth
+ * silently break email links.
+ */
+export function getAppBaseUrl(): string {
+  const url = process.env.APP_BASE_URL;
+  if (!url) {
+    throw new Error(
+      'APP_BASE_URL is not set. Add it to .env.local and restart the dev server.',
+    );
+  }
+  return url;
+}
+
+/**
+ * Returns the Reply-To address, or null when unset (D2 — optional; absent means
+ * no reply-to header is sent).
+ */
+export function getEmailReplyTo(): string | null {
+  return process.env.EMAIL_REPLY_TO || null;
+}
+
+/**
+ * Returns the fixed admin-notification recipient, or null when unset (D4 —
+ * optional, required only if the admin-notice trigger is built). Deliberately
+ * env-configured rather than read from the admin user's own row, so a role
+ * change never silently redirects operational mail.
+ */
+export function getAdminNotificationEmail(): string | null {
+  return process.env.ADMIN_NOTIFICATION_EMAIL || null;
+}
+
 /**
  * Eagerly validates required server-side environment variables.
  *
@@ -189,6 +270,10 @@ export function assertServerEnv(): void {
   // some set → throw, because a partial config produces a "Continue with Google"
   // button that leads to a provider error page (§3.4).
   _assertOAuthEnv();
+  // Email is all-or-nothing too (§4.6): none set → disabled (fine); all set →
+  // validated; some set → throw, because a partial config produces a "we'll
+  // email you" promise that silently never fires.
+  _assertEmailEnv();
 }
 
 /**
@@ -254,6 +339,76 @@ export function _assertOAuthEnv(): void {
   if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') {
     throw new Error(
       `OAUTH_REDIRECT_BASE_URL must use https in production (got: ${raw}).`,
+    );
+  }
+}
+
+/**
+ * Validates the required email env-var group.
+ *
+ * Rules (§4.6), same all-or-nothing shape as _assertOAuthEnv:
+ *   - None of RESEND_API_KEY / EMAIL_FROM / APP_BASE_URL set → email disabled;
+ *     app runs exactly as today. No error.
+ *   - Some but not all set → throw (a partial config produces a "we'll email
+ *     you" promise that silently never fires).
+ *   - All set → APP_BASE_URL must be an absolute URL, scheme http/https, no
+ *     path/query/fragment, no trailing slash. In production it must be https.
+ *
+ * EMAIL_REPLY_TO and ADMIN_NOTIFICATION_EMAIL are deliberately NOT part of this
+ * group — both are optional (D2, D4) and read via their own getters, which
+ * return null rather than throw when unset.
+ *
+ * @internal
+ */
+export function _assertEmailEnv(): void {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM;
+  const appBaseUrl = process.env.APP_BASE_URL;
+
+  const setCount = [apiKey, from, appBaseUrl].filter((v) => v && v !== '').length;
+
+  if (setCount === 0) return; // Email disabled — fine
+
+  if (setCount > 0 && setCount < 3) {
+    throw new Error(
+      'Email is partially configured — set all three of RESEND_API_KEY, ' +
+      'EMAIL_FROM, and APP_BASE_URL, or none of them.',
+    );
+  }
+
+  // All three set — validate APP_BASE_URL
+  const raw = appBaseUrl!;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(
+      `APP_BASE_URL must be a valid absolute URL (got: ${raw}).`,
+    );
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(
+      `APP_BASE_URL must use the http or https scheme (got: ${url.protocol}).`,
+    );
+  }
+
+  if (url.pathname !== '/' || url.search !== '' || url.hash !== '') {
+    throw new Error(
+      'APP_BASE_URL must be scheme+host+optional-port only — ' +
+      `no path, query, or fragment (got: ${raw}).`,
+    );
+  }
+
+  if (raw.endsWith('/')) {
+    throw new Error(
+      `APP_BASE_URL must not have a trailing slash (got: ${raw}).`,
+    );
+  }
+
+  if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') {
+    throw new Error(
+      `APP_BASE_URL must use https in production (got: ${raw}).`,
     );
   }
 }

@@ -131,12 +131,18 @@ export default function PrivacyPage() {
           </section>
 
           <section className="mb-8">
-            <h2 className="text-[17px] font-semibold mb-2 tracking-[-0.01em]">4. Third-Party AI Providers</h2>
-            <p className="text-[var(--muted)]">
+            <h2 className="text-[17px] font-semibold mb-2 tracking-[-0.01em]">4. Third-Party AI &amp; Email Providers</h2>
+            <p className="text-[var(--muted)] mb-3">
               Content you submit through the chat and import interfaces is sent to whichever AI provider
               this deployment is currently configured to use — Anthropic, and/or an OpenAI-compatible
               vendor (e.g. NVIDIA), depending on an admin setting. Their own privacy policies govern how
               they handle that content once it reaches them, not this one.
+            </p>
+            <p className="text-[var(--muted)]">
+              When the Service emails you — an invite code, for example — it does so through a
+              transactional email provider (Resend). That provider receives the recipient email address
+              and the message content (e.g. your invite code) solely to deliver it; it is not used for
+              anything else, and no marketing or tracking is sent through it.
             </p>
           </section>
 
@@ -158,13 +164,14 @@ export default function PrivacyPage() {
             <h2 className="text-[17px] font-semibold mb-2 tracking-[-0.01em]">6. Data Sharing</h2>
             <p className="text-[var(--muted)]">
               We do not sell your data. It is shared with the AI provider processing your request (§4),
-              according to your own consent choice with the admin (§5), and — only when you choose to use
-              the Service&apos;s agent-sharing feature — with another user of the Service. Sharing an agent
-              gives that other person read-only access to the agent&apos;s content (name, description,
-              configuration, and sections) and shows them your email address; if someone shares an agent
-              with you, you see the same about them. This is a feature you or another user actively
-              chooses to use, not something we do on your data automatically. We do not share your data
-              with any other third party.
+              with the email provider when the Service sends you an email (§4), according to your own
+              consent choice with the admin (§5), and — only when you choose to use the Service&apos;s
+              agent-sharing feature — with another user of the Service. Sharing an agent gives that other
+              person read-only access to the agent&apos;s content (name, description, configuration, and
+              sections) and shows them your email address; if someone shares an agent with you, you see
+              the same about them. This is a feature you or another user actively chooses to use, not
+              something we do on your data automatically. We do not share your data with any other third
+              party beyond what is described above.
             </p>
           </section>
 

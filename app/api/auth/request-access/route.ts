@@ -12,6 +12,15 @@
  * tells a visitor whether an email is already registered or already has a pending
  * request, matching the anti-enumeration posture the rest of this auth system already
  * uses (see LoginForm/SignupForm's closed-vocabulary OAuth error messages).
+ *
+ * D4 (Plan 14): on the "new request created" branch only, fires an admin-notification
+ * email — fixed to ADMIN_NOTIFICATION_EMAIL, never a request-supplied address
+ * (constraint 5). Deliberately NOT awaited: awaiting it would make this branch
+ * measurably slower than the branches above, reopening exactly the timing side-channel
+ * the identical response body already closes (§7 risk 10). This process runs
+ * continuously (not a serverless function), so the unawaited send still completes in
+ * the background. A dropped or failed send here can never affect this endpoint's
+ * response — nothing about `GENERIC_RESPONSE` or its status ever depends on it.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -23,6 +32,9 @@ import {
   hasActiveInviteCodeForEmail,
   createAccessRequest,
 } from '@/lib/db/repository';
+import { getEmailGateway } from '@/lib/email/gateway';
+import { renderAccessRequestNoticeEmail } from '@/lib/email/templates/accessRequestNotice';
+import { getAdminNotificationEmail, isEmailConfigured, getAppBaseUrl } from '@/lib/env';
 
 const GENERIC_RESPONSE = {
   message: "Thanks — if we can offer you a spot, we'll email your invite code soon.",
@@ -80,11 +92,33 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json(GENERIC_RESPONSE, { status: 201 });
     }
 
-    createAccessRequest({
+    const created = createAccessRequest({
       name: trimmedName,
       email: normalizedEmail,
       referralSource: normalizedSource,
     });
+
+    // D4 — see file header for why this is fire-and-forget, not awaited.
+    try {
+      const adminEmail = getAdminNotificationEmail();
+      if (adminEmail && isEmailConfigured()) {
+        const rendered = renderAccessRequestNoticeEmail({
+          requesterName: trimmedName,
+          requesterEmail: normalizedEmail,
+          appBaseUrl: getAppBaseUrl(),
+        });
+        void getEmailGateway()
+          .sendEmail(
+            { to: adminEmail, subject: rendered.subject, text: rendered.text, html: rendered.html },
+            { kind: 'access_request_notice', relatedType: 'access_request', relatedId: created.id, triggeredBy: null },
+          )
+          .catch((sendErr) => {
+            console.error('[request-access] admin notice send threw unexpectedly:', String(sendErr));
+          });
+      }
+    } catch (err) {
+      console.error('[request-access] failed to prepare admin notice:', String(err));
+    }
 
     return NextResponse.json(GENERIC_RESPONSE, { status: 201 });
   } catch (err) {

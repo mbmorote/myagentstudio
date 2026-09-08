@@ -23,9 +23,6 @@ it drops out of here entirely rather than accumulating as a closure log. The his
 something got built lives in `CHANGELOG.md`; the current-state facts about how the system
 works live in `docs/system-about.md`. One fact, one home.
 
-**Layout work still prototypes first** — `reference/layout/Layout-Workbench.html` before
-live code (see `CLAUDE.md` standing rule 4).
-
 **This file no longer takes new intake** — it only drains as existing items ship. New work
 items (bugs, small features) go on the repo's GitHub Issues instead — 18 were filed during
 the 2026-08-27 review pass that produced this version of the file. Existing items already
@@ -44,8 +41,7 @@ listed here stay until closed.
 | Item | Bucket | Priority | Effort | Kind | Status | Obs |
 |---|---|---|---|---|---|---|
 | **Claude Desktop MCP support (OAuth 2.1)** | NEXT | High | High | Infra | On-going — plan drafted at `plans/16-oauth21-mcp.md` | Needs a real OAuth 2.1 authorization server in front of the existing MCP endpoint |
-| **Delete or disconnect user (admin)** | NEXT | High | Medium | Behavior | Not started | Admin-initiated deletion, plus a lighter session-disconnect option |
-| **Email-sending provider** | NEXT | High | Medium | Infra | On-going — plan drafted at `plans/14-email-sending-provider.md` | Covers invite-code delivery and general account notifications |
+| **Delete or disconnect user (admin)** | NEXT | High | Medium | Behavior | Not started | Admin-initiated deletion, plus a lighter session-disconnect option; email transport now exists (Plan 14) |
 | **Landing page mobile/responsive support** | NEXT | High | Medium | UX | Not started | Real conversion-risk gap on `/welcome`, not cosmetic |
 | **User-configured LLM key (BYOK)** | NEXT | High | High | Behavior | On-going — plan drafted at `plans/17-byok-llm-key.md` | Bring-your-own-key; absorbs per-user quota/spend-cap questions |
 | **Improve the guided tour** | NEXT | Medium | Medium | UX | Not started | True anchored coach-marks, more trigger conditions |
@@ -111,19 +107,17 @@ CLI/console already covers the portfolio use case.
 ### Delete or disconnect user (admin)
 
 Admin-initiated account deletion with a confirmation step, plus a notification email to the
-affected user (depends on Email-sending provider for that email). Also covers a lighter
-"disconnect" option — force-revoking just one user's active session without deleting the
-account, filling a real gap where today the only way to kill any session is rotating the
-global `JWT_SECRET`, which logs out *everyone* at once. Distinct from the self-service
-GDPR-style export/deletion workflow (that one is user-initiated on their own account) — both
-stay, this isn't a merge.
-
-### Email-sending provider
-
-Covers two purposes: sending invite-code emails, and general account/notification messages
-to a user. Provider itself undecided (e.g. Resend). Unblocks two other items at once —
-Delete/disconnect user's confirmation email, and Review user account management's password
-reset — same missing piece of infrastructure, worth solving once.
+affected user. The email transport, gateway, kill switch/cap, log, and template layer now
+exist (Plan 14) — this item's own work is a `password_reset_token`-style narrow addition: one
+new template, one new `email_log.kind` string (no schema change), and one `sendEmail()` call
+placed after the deletion commits (a failed notification can never leave the account
+half-deleted, since the send happens after the write and cannot fail it; the recipient comes
+from the stored `user.email`, already covered by the gateway's recipient-source rule). Also
+covers a lighter "disconnect" option — force-revoking just one user's active session without
+deleting the account, filling a real gap where today the only way to kill any session is
+rotating the global `JWT_SECRET`, which logs out *everyone* at once. Distinct from the
+self-service GDPR-style export/deletion workflow (that one is user-initiated on their own
+account) — both stay, this isn't a merge.
 
 ### Landing page mobile/responsive support
 
@@ -132,7 +126,7 @@ works" walkthrough's two-column grid and the "Full view" modal's fixed width hav
 narrower-viewport fallback, rendering as cramped, illegible columns on a phone. Since this is
 the single best piece of proof-of-product on the whole page, a `ux` agent review called this
 a real conversion-risk gap for an invite-request landing page, not cosmetic polish. Needs its
-own design pass before implementation — mock-first per standing rule 4.
+own design pass before implementation.
 
 ### User-configured LLM key (BYOK)
 
@@ -289,10 +283,17 @@ confirm-click ever proves to be real friction.
 
 Merges three pieces of the same `/account` self-service surface, same actor (a user managing
 their own account — distinct from an admin acting on someone else's via Delete/disconnect
-user): password reset / forgot-password (needs an email transport — same blocker as
-Email-sending provider), user self-service (change your own email/password, delete your own
-account — none of it exists today), and session management (viewing/logging out your own
-other active sessions).
+user): password reset / forgot-password, user self-service (change your own email/password,
+delete your own account — none of it exists today), and session management (viewing/logging
+out your own other active sessions). The email transport, kill switch/cap, log, and template
+layer this item's password-reset piece needs now exist (Plan 14) — what's left is genuinely
+its own: a `password_reset_token` table (hashed token, short TTL, single use, bound to a
+user), a public request endpoint that must return an identical response whether or not the
+email exists (the same anti-enumeration posture `request-access` already implements), a reset
+form, and an invalidation rule for existing sessions. Two things Plan 14 set matter directly
+here: the log never stores a message body, so a live reset token can't leak into the audit
+table; and the gateway never throws, so a mail failure surfaces as "we couldn't send it, try
+again" rather than a 500 that tells an attacker something.
 
 ### `AgentSnapshot(kind:'export')` diff-view UI
 

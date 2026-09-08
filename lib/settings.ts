@@ -110,6 +110,21 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     label: 'MCP writes',
     hint: 'When on, write-scoped MCP tokens can call import_agent, which runs the import pipeline and may spend LLM budget. When off, all MCP import attempts are refused with a clear error — read tools are unaffected. Defaults to off: a deployment that never configures this behaves exactly as before MCP existed. Note: import_agent is the first path where an automated client in a loop can trigger billed AI calls unattended — the shared per-user hourly cap (Max LLM calls per user per hour) is the metering layer, but this toggle is the primary on/off switch.',
   },
+  {
+    key: 'liveEmailSends',
+    datatype: 'bool',
+    default: true,
+    label: 'Live email sends',
+    hint: 'When off, outbound emails are recorded and blocked before any network request is made — nothing is delivered. Turning this off does not stop invite codes from being created; the admin just copies and sends them by hand, as before email existed.',
+  },
+  {
+    key: 'maxEmailsPerHour',
+    datatype: 'int',
+    default: 50,
+    min: 1,
+    label: 'Max emails per hour',
+    hint: 'Deployment-wide ceiling on outbound emails in a rolling 60-minute window, counting only attempts that actually reached the provider. A blocked send is recorded and flagged, never silently dropped. Exists so a loop or a burst of access requests cannot exhaust the provider quota or damage the sending domain\'s reputation.',
+  },
 ] as const;
 
 // ─────────────────────────────  Parsing  ──────────────────────────────────────
@@ -327,6 +342,58 @@ export function getMcpWrites(): boolean {
  * selection must follow the same rule so a setting change takes effect on the next call
  * without a restart).
  */
+/**
+ * Returns the current effective value of `liveEmailSends`.
+ *
+ * Semantics (§4.6), same asymmetric fail-safe as getLiveLlmCalls:
+ *   - Row absent (post-migration / pre-seed / fresh clone) → TRUE (fail-open,
+ *     preserves the intended behavior of a configured deployment).
+ *   - `'true'`  → true
+ *   - `'false'` → false
+ *   - Anything else (garbage, manual DB edit) → FALSE (fail-closed) + console.warn
+ *
+ * Note the real safety layer is the env group: with no RESEND_API_KEY set, a
+ * deployment cannot send regardless of this toggle's value.
+ *
+ * No cache — fresh read on every call, same rule as getLiveLlmCalls.
+ */
+export function getLiveEmailSends(): boolean {
+  const raw = getSetting('liveEmailSends');
+
+  if (raw === null) return true;
+
+  const parsed = parseSettingValue(raw, 'bool');
+  if (parsed === null) {
+    console.warn(
+      `[settings] liveEmailSends has unparseable value "${raw}" — treating as false (fail-closed)`,
+    );
+    return false;
+  }
+
+  return parsed as boolean;
+}
+
+/**
+ * Returns the current effective value of `maxEmailsPerHour`.
+ *
+ * Row absent → returns the SETTING_DEFS default (50).
+ * Unparseable or < 1 → returns 1 (minimum, most restrictive) + console.warn.
+ */
+export function getMaxEmailsPerHour(): number {
+  const def = SETTING_DEFS.find((d) => d.key === 'maxEmailsPerHour')!;
+  const raw = getSetting('maxEmailsPerHour');
+  if (raw === null) return def.default as number;
+
+  const parsed = parseSettingValue(raw, 'int');
+  if (parsed === null || (parsed as number) < 1) {
+    console.warn(
+      `[settings] maxEmailsPerHour has invalid value "${raw}" — using minimum of 1`,
+    );
+    return 1;
+  }
+  return parsed as number;
+}
+
 export function getActiveProviderId(): string {
   const def = SETTING_DEFS.find((d) => d.key === 'llmProvider')!;
   const raw = getSetting('llmProvider');

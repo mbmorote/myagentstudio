@@ -42,7 +42,7 @@ Only the admin can generate invite codes. Open **⚙ Settings** in the Topbar, p
 
 A code can only be redeemed once. Once redeemed or once the `maxUsers` cap is reached, the code is inert. You can revoke an unredeemed code from the same panel.
 
-**Or let them ask first.** A visitor without a code can use "Request access" on `/login`, `/signup`, or `/welcome` instead of you generating one unprompted — they submit their name, email, and (optionally) how they heard about the platform. Their request shows up in the same **Admin** sidebar category's **Access requests** grid; **Generate code** there creates a code scoped to that email (it expires after the configured window, default 5 hours, and only that email can redeem it) and clears the request, or **Dismiss** just clears it without creating a code. Nothing is emailed automatically yet — copy the code and send it yourself, same as above.
+**Or let them ask first.** A visitor without a code can use "Request access" on `/login`, `/signup`, or `/welcome` instead of you generating one unprompted — they submit their name, email, and (optionally) how they heard about the platform. Their request shows up in the same **Admin** sidebar category's **Access requests** grid; **Generate code** there creates a code scoped to that email (it expires after the configured window, default 5 hours, and only that email can redeem it) and clears the request, or **Dismiss** just clears it without creating a code. If email is configured on this deployment, the code is emailed to the requester automatically; a status line and a Send/Resend action on the Invite codes table cover the case where that fails, so you can always fall back to copying the code and sending it yourself.
 
 ---
 
@@ -210,6 +210,17 @@ When you hit the cap, the import dialog or chat panel shows two options instead 
 - **Wait** — dismisses the message and shows how many seconds until your oldest in-window call ages out and a slot frees up.
 
 Nothing was sent and nothing was charged either way.
+
+### Live email sends toggle
+
+The **Live email sends** toggle (Admin category) controls whether the deployment actually sends
+outbound email — currently just the invite-code delivery on generating a code from an access
+request. Off means every send is recorded and blocked before any network request is made,
+same dry-run semantics as Live LLM calls; the code itself is still created and shown, so the
+admin can copy and send it by hand. This only matters once an email provider is configured at
+all — with none configured, the deployment behaves exactly as before email existed, toggle or
+not. A **Max emails per hour** setting (default 50) caps how many can go out in a rolling
+60-minute window; a blocked send is recorded and flagged, never silently dropped.
 
 ### Chat history turns
 

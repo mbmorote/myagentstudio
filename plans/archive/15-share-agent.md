@@ -144,7 +144,7 @@ is an architectural property here, not a permission check that a future refactor
 | `LibraryPanel` renders the owned list, then a `Manage` zone-label separator, then action rows (`+ New agent`, `+ New group` (flag-off), `⇪ Import agent`) | `app/components/Library/LibraryPanel.tsx:217-325` | Both new library surfaces (a "Shared with me" section and a redeem action row) have an exact existing pattern to follow. |
 | `AgentListItem` hard-codes a delete button and a group-remove `×` | `app/components/Library/AgentListItem.tsx` | Needs a read-only variant for shared rows (§4.9). |
 | Migrations run `0000`–`0008`; `drizzle-kit` generates the filenames | `lib/db/migrations/` | This plan added the next one, shipped as `0009_share_agent.sql` — **Plan 14 also claimed `0009`; that claim is now stale, since this plan landed first**; see §7 risk 5. |
-| A hand-written migration missing its journal entry was a real bug found during Plan 13 | `plans/archive/13-mcp-server-exposing-agents.md`, restated in `plans/14-email-sending-provider.md` §4.1 | Verify `lib/db/migrations/meta/` is updated with the new migration. |
+| A hand-written migration missing its journal entry was a real bug found during Plan 13 | `plans/archive/13-mcp-server-exposing-agents.md`, restated in `plans/archive/14-email-sending-provider.md` §4.1 | Verify `lib/db/migrations/meta/` is updated with the new migration. |
 | `plans/roadmap.md`'s own summary of this item will be **wrong** on ship | roadmap Overview row: *"Hand an agent to another user to fork their own copy"* | That describes only half of what gets built. §10 lists the doc edits. |
 
 ---

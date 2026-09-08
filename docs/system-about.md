@@ -608,4 +608,51 @@ repository function other than `upsertAgentFromImport`, and none may import a pr
 or read the session cookie — the two auth models (browser session, MCP bearer token) must
 never cross-contaminate.
 
+## 14. Email gateway (Plan 14)
+
+Outbound email — currently just invite-code delivery and an admin notice on a new access
+request — goes through the same shape as the LLM gateway (§11): one provider interface, one
+transport implementation, one gateway (`lib/email/gateway.ts`) that gates and logs every
+attempt, and a small registry (`lib/email/registry.ts`) that hides which provider is active
+from everything else.
+
+**The gateway never throws** — a deliberate divergence from `lib/ai/gateway.ts`, which
+re-throws a provider error. An AI call is the user's requested action, so failing it is
+correct; an email is a side effect of someone else's action (an invite code being generated, an
+access request being filed), so failing that action would violate this app's "flag, don't
+block" principle (§3). Every outcome — success, not-configured, kill-switch-off, cap-reached,
+provider error, timeout — comes back as a discriminated result, never a throw. The triggering
+write (the invite code, the access-request row) is always committed before `sendEmail()` is
+ever called, and no caller's HTTP status changes because an email failed.
+
+**Provider:** `lib/email/resendProvider.ts` is the one implementation — plain `fetch` against
+Resend's API, zero new npm dependency, the sole owner of the string `api.resend.com`
+(fitness-function enforced, same pattern as `lib/ai`'s per-provider isolation). All-or-nothing
+env config (`RESEND_API_KEY`, `EMAIL_FROM`, `APP_BASE_URL`) — none set → email disabled, the
+app behaves exactly as before email existed; some but not all set → refuses to boot.
+`EMAIL_REPLY_TO` and `ADMIN_NOTIFICATION_EMAIL` are independently optional.
+
+**Two settings** (`lib/settings.ts`, same generic catalog as every other setting): `liveEmailSends`
+(bool, default on, dry-run semantics identical to "Live LLM calls" — off means every send is
+recorded and blocked before any network request) and `maxEmailsPerHour` (int, default 50, a
+rolling-60-minute cap counted only from attempts that actually reached the provider, so a
+denial can never inflate the count that produced it).
+
+**`email_log`** is append-only, one row per send attempt, in the same spirit as `llm_call_log`
+— but the rendered body is **never stored**: a future password-reset email's body would carry
+a live reset token, and this table must not become a credential store. `kind` and `provider`
+are plain `text` columns (not Drizzle enums), since new email kinds are expected to be added
+by other plans later (password reset, account-deletion notice) with no schema change.
+
+**The one wired trigger today:** generating an invite code from an access request
+auto-sends it to the requester (an admin's plain "+ Generate code" only sends if the admin
+supplies a recipient). A manual (re)send route (`POST /api/settings/invite-codes/[code]/send`)
+covers the recovery case — the reason this plan needs no retry queue: a lost send is a
+one-click resend, not an automated retry against a provider that may be rejecting for a
+permanent reason. An optional admin-notification email fires (fire-and-forget, unawaited) when
+a new access request is filed — deliberately not awaited, so it can never introduce a timing
+side-channel into that endpoint's anti-enumeration response (every branch already returns an
+identical body; a slow awaited send on only one branch would leak which branch fired via
+response latency).
+
 See `lib/mcp/CLAUDE.md` for the file-by-file layout.

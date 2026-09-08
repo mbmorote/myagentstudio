@@ -39,21 +39,7 @@ follow these even though you have no memory of when they were agreed:
    app bug until traced back to the stray processes. Before starting a fresh one, check
    `netstat -ano | grep LISTENING` (or equivalent) for leftover Node processes on 3000+ and
    kill them first.
-4. **Prototype layout/UI changes in `reference/layout/Layout-Workbench.html` before
-   touching live code.** Reason: it's a self-contained static file — no dev server, no DB, no
-   build step — so iterating on a visual change there is faster to test and safer to throw
-   away than iterating directly in the real React components. Once a change is settled in the
-   mockup, migrate it into the real app. This rule is about efficiency of iteration, not
-   process for its own sake — a trivial one-line style tweak doesn't need a mockup detour.
-   Open layout items are tracked in `plans/roadmap.md`, tagged Layout — there is no separate
-   hand-off file for this. **When dispatching this prototyping step to `@dev` or any
-   subagent:** scope each dispatch to one visual concept, not several bundled together, and
-   explicitly waive Mode A's build-equivalent sanity check in the prompt — there is no
-   compiler for this file, so requiring one invites the agent to invent substitute
-   verification (counting balanced tags, etc.) that spends real time proving something a
-   human confirms by eye in seconds. The gate for this file is always a human looking at it in
-   a browser, never an automated check.
-5. **🔶 PROVISIONAL — ask before running any sanity/build/test check, in any task.** This
+4. **🔶 PROVISIONAL — ask before running any sanity/build/test check, in any task.** This
    covers `npm test`, `npx tsc --noEmit`, `npm run build`, `npm run dev` started only to
    smoke-test something, or any equivalent verification command — whether about to be run
    directly, or as part of `@dev`'s Mode A step 3 ("Run a Sanity Check") or `@qa`'s testing
@@ -66,7 +52,7 @@ follow these even though you have no memory of when they were agreed:
    API call without ask) and rule 3 (dev server off by default) already covered the two
    costliest/riskiest categories; this widens the same ask-first posture to ordinary
    test/build runs too.
-6. **Comments and citations must be self-contained — state the rule, don't just point at
+5. **Comments and citations must be self-contained — state the rule, don't just point at
    one.** A code comment or doc cross-reference that only says `(Rules Index #41)` or
    `(§3.7)`, with no restatement of what that rule actually *is*, has zero value the moment
    its target moves — which is exactly what happened 2026-08-12 when `TechDesign.md` retired
@@ -78,7 +64,7 @@ follow these even though you have no memory of when they were agreed:
    `project-explanation.md` / `roadmap.md`, each owning one audience): a fact lives in
    exactly one place, but anywhere else it's *mentioned in passing*, say what it says, not
    just where to go look it up.
-7. **Retiring, renaming, or moving any file means finding every reference to it in the same
+6. **Retiring, renaming, or moving any file means finding every reference to it in the same
    pass — not as a deferred follow-up.** Before considering a move done, grep the whole
    repo — docs and code comments both — for the old filename/path and fix or drop what turns
    up. Concrete example: `plans/01`–`09` moving to `plans/archive/` and `Concept.md`/
@@ -87,7 +73,7 @@ follow these even though you have no memory of when they were agreed:
    separate, dedicated pass to actually find — do the grep as part of the move itself, not
    after. Same pattern repeated 2026-08-24: `architecture/` renamed to `reference/` once its
    last non-`layout/` content (`audits/`) moved out of the repo entirely.
-8. **The GitHub repo is public — nothing in it can be selectively hidden.** GitHub gives no
+7. **The GitHub repo is public — nothing in it can be selectively hidden.** GitHub gives no
    partial-visibility control on a public repo: every commit, every PR (open, closed, or
    merged), every PR comment, and the full history are visible to any visitor. Closing a PR
    only changes its state label — it does not hide it. Before any commit or PR (docs-only
@@ -96,7 +82,7 @@ follow these even though you have no memory of when they were agreed:
    pushed, removing it cleanly means deleting/rewriting history, not just closing something.
    Reason this rule exists: on a public repo, review has to happen before the push — there
    is no later step that can undo or hide what's already visible.
-9. **The GitHub Issues workflow: branch → work → commit → push → PR → merge — and merge is
+8. **The GitHub Issues workflow: branch → work → commit → push → PR → merge — and merge is
    the deploy trigger.** Standard flow for working a tracked issue (`gh issue list` on
    `mbmorote/myagentstudio` — a separate list from `plans/roadmap.md`, not reconciled against
    it by default):
@@ -143,7 +129,9 @@ follow these even though you have no memory of when they were agreed:
   gitignored content — `audits/`, the historical archive of retired design docs and
   past point-in-time reviews — moved out of the repo entirely.)
   - **`reference/layout/`** — the layout mockup (`Layout-Workbench.html`) + its original
-    source sketch (`LayoutModel1.png`). See standing rule 4.
+    source sketch (`LayoutModel1.png`), kept as a design reference. UI changes no longer
+    require prototyping here first (the standing rule that required it was retired
+    2026-09-04) — go straight to the real components.
   - **`reference/Agent-Full-Reference.md`** — field-by-field annotated reference for the
     full Claude Code subagent frontmatter schema. Source for the Tier 1 Config zone's `hint`
     text in the app.
@@ -159,8 +147,8 @@ follow these even though you have no memory of when they were agreed:
   source code, not documentation** — `scripts/build-prompts.ts` compiles it into
   `lib/ai/prompts/generated/*.ts` at build time; it lives next to that generated output
   rather than in a folder meant for passive reference material. See `lib/ai/CLAUDE.md`.
-- **`lib/ai/`, `lib/import/`, `lib/serialize/`, `lib/auth/`, `lib/db/`, `lib/mcp/`** — each has
-  its own `CLAUDE.md`; see Files below.
+- **`lib/ai/`, `lib/import/`, `lib/serialize/`, `lib/auth/`, `lib/db/`, `lib/mcp/`,
+  `lib/email/`** — each has its own `CLAUDE.md`; see Files below.
 - **`lib/blueprint/`** — the Agent Blueprint (`ConfigDef`/`SectionDef` catalogs + rule
   functions), derived data driving the UI, AI import, and validation from one definition.
   Small enough (4 files) to fold in here rather than carry its own `CLAUDE.md`. One gotcha
@@ -188,11 +176,11 @@ follow these even though you have no memory of when they were agreed:
 - **`reference/Agent-Full-Reference.md`** — field-by-field annotated reference for the
   full Claude Code subagent frontmatter schema.
 - **`reference/layout/Layout-Workbench.html`** — the *look*. Interactive, self-contained
-  mockup of the 4-pane UI. Authoritative behavior spec for any UI detail that needs
-  re-checking, per standing rule 4.
+  mockup of the 4-pane UI. Useful as a reference for an existing UI detail, but no longer a
+  required prototyping step before touching live code.
 - **`reference/layout/LayoutModel1.png`** — the original hand-annotated layout sketch.
 - **`plans/roadmap.md`** — the living technical backlog and status tracker.
-- **`plans/archive/`** — completed numbered plans (01–09), kept for history.
+- **`plans/archive/`** — completed numbered plans, kept for history.
 - **`lib/ai/CLAUDE.md`** — the gateway architecture (single choke point, one-SDK-importer
   rule), the three AI callers, and build-time prompt compilation.
 - **`lib/import/CLAUDE.md`** — the import pipeline (Stage 1 deterministic split, Strict vs.
@@ -204,6 +192,10 @@ follow these even though you have no memory of when they were agreed:
 - **`lib/mcp/CLAUDE.md`** — the MCP server exposing a user's agents to console/CLI clients
   (Plan 13): tool/resource layer, the SDK-isolation and write-surface-containment fitness
   functions, and the `push_agent` write path (renamed from `import_agent` 2026-08-24).
+- **`lib/email/CLAUDE.md`** — the outbound email gateway (Plan 14): the Resend provider (sole
+  owner of `api.resend.com`), the gateway's kill-switch/cap gates and never-throws contract,
+  the append-only `email_log` table, and the two wired triggers (invite-code delivery, the
+  optional admin notice on a new access request).
 
 ## Notes
 

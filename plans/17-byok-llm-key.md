@@ -840,21 +840,20 @@ Route-level rules, each a real requirement rather than boilerplate:
   not recognise them falls through to its generic error rendering — degraded, not broken. **No
   API versioning is needed.**
 
-### 4.11 UI — mockup-first per standing rule 4
+### 4.11 UI
 
-Per this repo's standing rule that layout/UI changes prototype in
-`reference/layout/Layout-Workbench.html` before touching live React — because that file is
-self-contained (no dev server, no DB, no build step), so iterating there is faster to test and
-safer to throw away — and per its dispatch guidance: **one visual concept per dispatch**, and
-**explicitly waive the build-equivalent sanity check** in the dispatch prompt, since there is no
-compiler for that file and the gate is a human looking at it in a browser.
+The mockup-first rule this section originally planned around (prototype in
+`reference/layout/Layout-Workbench.html` before touching live React) was retired 2026-09-04 —
+build directly in the real components. The surface-by-surface breakdown below still matters for
+sequencing (which pieces are genuinely new interaction vs. a one-line addition through an
+existing renderer), just without a mockup gate in front of any of them.
 
-| Surface | Where | Mockup first? |
+| Surface | Where | New visual concept? |
 |---|---|---|
 | **A. "Your LLM key" section** — one row per configurable provider: which provider is active, a masked field showing `…last4`, a status badge, the enable toggle, **Re-enter**, **Try again** (only when `rejected`), **Use the platform key instead**, **Remove**; plus the paste field with its shape-warning line. | `app/components/Account/AccountView.tsx` + new `app/components/Account/AccountLlmKeys.tsx` | **Yes — dispatch 1.** A secret-entry field with a four-state machine is a genuinely new visual concept; the API-tokens list next to it is a *create-once, display-prefix, revoke* pattern and does not cover a re-enterable, re-validatable secret. |
 | **B. The failure banners** — the `unreadable` banner (§4.3 step 5) and the `rejected` banner (§4.8), plus the deployment-wide "BYOK is turned off here, your saved key is not being used" notice (§4.3 Case A). | same components | **Yes — dispatch 2**, small; foldable into dispatch 1 if the user prefers fewer round trips. These three messages are the entire recovery UX and are worth seeing side by side. |
 | **C. Per-user cap override in the admin Users grid** — the first editable cell in a grid whose own copy currently reads *"Read-only here — role and log-sharing changes aren't editable from this grid yet"* (`AdminSettingsPane.tsx:531-534`). | `app/components/Settings/AdminSettingsPane.tsx` | **Yes — dispatch 3.** Turning a read-only table into an editable one is a new interaction for that pane, and it needs an answer for the empty/NULL state ("uses global: 15") that does not read as "0". |
-| **D. Activity Log: `key_source` badge + cost estimate** beside the existing `Tokens: N in / N out` line (`ActivityLogPane.tsx:279`). | `app/components/Settings/ActivityLogPane.tsx` | **No.** A badge and one line in an existing expanded-row layout, using the visual that pane already ships. Re-prototyping a shipped table is the detour standing rule 4 warns against, not the discipline it asks for. |
+| **D. Activity Log: `key_source` badge + cost estimate** beside the existing `Tokens: N in / N out` line (`ActivityLogPane.tsx:279`). | `app/components/Settings/ActivityLogPane.tsx` | **No.** A badge and one line in an existing expanded-row layout, using the visual that pane already ships. |
 | **E. Two new settings rows** (spend cap; and D3's optional exemption if the user takes that branch) | `app/components/Settings/SettingsView.tsx` | **No.** One `SETTING_DEFS` entry each through the existing `int`/`bool` renderers (`SettingsView.tsx:593-620`) — zero UI work, exactly like `mcpWrites`. |
 | **F. Admin BYOK status line** (`{ counts }` from `/api/settings/byok-status`) | `AdminSettingsPane.tsx` | **No.** One line of text in an existing pane. |
 
