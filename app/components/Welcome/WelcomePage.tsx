@@ -252,21 +252,9 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
         <h1 className="font-bold text-[37.4px] leading-[1.2] mx-auto mb-[11px] tracking-[-0.02em] max-w-[792px]">
           Your agent library, now visual
         </h1>
-        <p className="text-[17.05px] text-[var(--muted)] mx-auto mb-[8.8px] max-w-[704px]">
+        <p className="text-[17.05px] text-[var(--muted)] mx-auto max-w-[704px]">
           One workbench to see, edit, organize, and share every agent you maintain — by hand
           or by chat, with nothing hidden and nothing written until you approve it.
-        </p>
-        {/* Declarative vs. programmatic callout (issue #34) — "agent" already means a
-            code-orchestrated thing (tool loops, custom logic, frameworks/SDKs) to a lot of
-            first-time visitors. Naming what this app builds up front, in plain language,
-            heads off that mismatch instead of letting someone assume this is a code-agent
-            builder and get confused once it isn't. Landing page only — everyday in-app
-            copy still just says "agent" (see issue #34's scope notes). */}
-        <p className="text-[12.65px] text-[var(--faint)] mx-auto max-w-[660px]">
-          <span className="font-semibold text-[var(--accent-ink)]">Declarative agents, not code</span> — you
-          configure what your agent knows and how it behaves; no scripting or orchestration
-          logic required. That&apos;s different from a <em>programmatic</em> agent you&apos;d
-          build with a code framework or SDK.
         </p>
       </div>
 
@@ -326,7 +314,7 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
         </div>
       </div>
 
-      <div className="flex justify-center py-[34.1px] pb-[24.2px]">
+      <div className="flex flex-col items-center gap-[11px] py-[34.1px] pb-[24.2px]">
         {/* TODO: copy could still use a pass */}
         <button
           type="button"
@@ -335,6 +323,18 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
         >
           Get started — ask for an invite
         </button>
+        {/* Declarative vs. programmatic note (issue #34) — moved here from directly under
+            the hero subhead (2026-09-11 feedback): it read too prominent competing for
+            attention right at the top of the page. Under the CTA it's a quiet footnote
+            for someone who's already decided to look closer, not the first thing every
+            visitor has to read past. "Agent" already means a code-orchestrated thing
+            (tool loops, custom logic, frameworks/SDKs) to a lot of first-time visitors —
+            this heads off that assumption without demanding attention. */}
+        <p className="text-[12.1px] text-[var(--faint)] max-w-[480px] text-center">
+          <span className="font-semibold text-[var(--accent-ink)]">Declarative agents</span> —
+          lightweight, instruction-driven agents defined in a plain .md file through
+          configuration and natural-language instructions, not code.
+        </p>
       </div>
 
       {/* ── Trust strip ─────────────────────────────────────────────────── */}
