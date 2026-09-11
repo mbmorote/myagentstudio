@@ -24,6 +24,12 @@ sits right next to that view — it edits those specific sections in place, and 
 appears in the structured view instantly. The point isn't chat *or* structure; it's chat
 *with* structure, so you never edit an agent blind.
 
+Every agent here is **declarative, not programmatic**: it's entirely typed frontmatter
+plus structured body sections (Role, Behavior, Guardrails, Output) — see §4-5 of
+`docs/system-about.md` — never custom code or orchestration logic. Worth naming explicitly
+since "agent" elsewhere in the AI space often means a code-driven thing built with a
+framework or SDK; that's not what's being edited here.
+
 ## Who it's for
 
 Serious Claude Code / Copilot agent users who already maintain a working library of agent

@@ -242,12 +242,31 @@ export function WelcomePage({ oauthConfigured }: WelcomePageProps) {
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}
       <div className="px-[30.8px] pt-[39.6px] pb-[8.8px] max-w-[1078px] mx-auto text-center">
+        {/* Eyebrow kicker (issue #34) — names "declarative agent" once, briefly, above the
+            fold; deliberately NOT baked into the H1 itself, since the headline is the very
+            first thing a cold visitor reads with zero context yet — the full explanation
+            lives in the callout paragraph below the subhead instead. */}
+        <div className="text-[11px] tracking-[.1em] uppercase text-[var(--accent)] mb-[8.8px]">
+          Declarative Agent Workbench
+        </div>
         <h1 className="font-bold text-[37.4px] leading-[1.2] mx-auto mb-[11px] tracking-[-0.02em] max-w-[792px]">
           Your agent library, now visual
         </h1>
         <p className="text-[17.05px] text-[var(--muted)] mx-auto mb-[8.8px] max-w-[704px]">
-          One workbench to see, edit, and organize every agent you maintain — by hand or by
-          chat, with nothing hidden and nothing written until you approve it.
+          One workbench to see, edit, organize, and share every agent you maintain — by hand
+          or by chat, with nothing hidden and nothing written until you approve it.
+        </p>
+        {/* Declarative vs. programmatic callout (issue #34) — "agent" already means a
+            code-orchestrated thing (tool loops, custom logic, frameworks/SDKs) to a lot of
+            first-time visitors. Naming what this app builds up front, in plain language,
+            heads off that mismatch instead of letting someone assume this is a code-agent
+            builder and get confused once it isn't. Landing page only — everyday in-app
+            copy still just says "agent" (see issue #34's scope notes). */}
+        <p className="text-[12.65px] text-[var(--faint)] mx-auto max-w-[660px]">
+          <span className="font-semibold text-[var(--accent-ink)]">Declarative agents, not code</span> — you
+          configure what your agent knows and how it behaves; no scripting or orchestration
+          logic required. That&apos;s different from a <em>programmatic</em> agent you&apos;d
+          build with a code framework or SDK.
         </p>
       </div>
 
