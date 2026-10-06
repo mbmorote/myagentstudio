@@ -646,7 +646,11 @@ by other plans later (password reset, account-deletion notice) with no schema ch
 
 **The one wired trigger today:** generating an invite code from an access request
 auto-sends it to the requester (an admin's plain "+ Generate code" only sends if the admin
-supplies a recipient). A manual (re)send route (`POST /api/settings/invite-codes/[code]/send`)
+supplies a recipient). That generation happens either from the admin's **Generate code**
+button or automatically at submission time, while the user count is below the
+`autoApproveAccessRequestsBelowUsers` setting (int, default 20, 0 = off) — both go through
+`lib/auth/accessRequestCode.ts`. On the automatic path the send is unawaited, for the same
+timing-side-channel reason as the admin notice below. A manual (re)send route (`POST /api/settings/invite-codes/[code]/send`)
 covers the recovery case — the reason this plan needs no retry queue: a lost send is a
 one-click resend, not an automated retry against a provider that may be rejecting for a
 permanent reason. An optional admin-notification email fires (fire-and-forget, unawaited) when

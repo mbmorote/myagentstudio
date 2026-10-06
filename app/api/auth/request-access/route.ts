@@ -21,6 +21,13 @@
  * continuously (not a serverless function), so the unawaited send still completes in
  * the background. A dropped or failed send here can never affect this endpoint's
  * response — nothing about `GENERIC_RESPONSE` or its status ever depends on it.
+ *
+ * Auto-approval: while the total user count is below the
+ * `autoApproveAccessRequestsBelowUsers` setting (default 20, 0 = off), no request row is
+ * logged — a bound, expiring invite code is created and emailed to the requester right
+ * away instead, with no admin review. The email is fire-and-forget for the same timing
+ * reason as the admin notice above, and the response is still GENERIC_RESPONSE. Once the
+ * count reaches the threshold, requests fall back to the manual-review flow.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -32,6 +39,9 @@ import {
   hasActiveInviteCodeForEmail,
   createAccessRequest,
 } from '@/lib/db/repository';
+import { getUserCount } from '@/lib/db/repository';
+import { createAccessRequestInviteCode, sendAccessRequestInviteEmail } from '@/lib/auth/accessRequestCode';
+import { getAutoApproveAccessRequestsBelowUsers } from '@/lib/settings';
 import { getEmailGateway } from '@/lib/email/gateway';
 import { renderAccessRequestNoticeEmail } from '@/lib/email/templates/accessRequestNotice';
 import { getAdminNotificationEmail, isEmailConfigured, getAppBaseUrl } from '@/lib/env';
@@ -89,6 +99,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json(GENERIC_RESPONSE, { status: 201 });
     }
     if (hasOpenAccessRequest(normalizedEmail) || hasActiveInviteCodeForEmail(normalizedEmail)) {
+      return NextResponse.json(GENERIC_RESPONSE, { status: 201 });
+    }
+
+    if (getUserCount() < getAutoApproveAccessRequestsBelowUsers()) {
+      const row = createAccessRequestInviteCode({
+        name: trimmedName,
+        email: normalizedEmail,
+        referralSource: normalizedSource,
+      });
+      // Not awaited — see file header. sendAccessRequestInviteEmail never throws.
+      void sendAccessRequestInviteEmail(row, null);
       return NextResponse.json(GENERIC_RESPONSE, { status: 201 });
     }
 

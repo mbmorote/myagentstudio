@@ -7,6 +7,21 @@ status. For full blow-by-blow detail behind any entry below, see the referenced 
 
 ---
 
+## 2026-10-05 — Auto-approve access requests while the user base is small
+
+Every "Request access" submission used to wait for the admin to click **Generate code**,
+which is pure overhead while the platform is still taking almost everyone. New setting
+`autoApproveAccessRequestsBelowUsers` (default 20, 0 = off): while the total account count
+is below it, the request route creates the email-bound, expiring invite code and emails it
+immediately — no request row, no admin step. At or above it, requests fall back to the
+manual-review grid. The response stays the identical generic body on every branch and the
+send is unawaited, so the endpoint's anti-enumeration posture is unchanged. Code creation +
+send moved into `lib/auth/accessRequestCode.ts`, shared with the admin's Generate code route.
+The default code expiry (`accessRequestCodeExpiryHours`) also went from 5 hours to 120 (5
+days) — 5 hours was too short for someone who doesn't check email the same afternoon. Note
+`maxUsers` still caps signups independently, so it must be at least the auto-approve
+threshold for auto-sent codes to be redeemable.
+
 ## 2026-10-05 — Prometheus topic-scope guardrail + chat size limits
 
 Closed a real abuse gap: Prometheus's prompt only said "you are not a general-purpose

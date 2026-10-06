@@ -628,7 +628,7 @@ export function SettingsView({
         <p className="text-[12px] text-[var(--muted)] mb-3">
           From &quot;Request access&quot; on the signup form. Generate a code to offer a spot (bound
           to their email, expires per the setting above — currently{' '}
-          {localSettings.find((s) => s.key === 'accessRequestCodeExpiryHours')?.value ?? 5}h); the
+          {localSettings.find((s) => s.key === 'accessRequestCodeExpiryHours')?.value ?? 120}h); the
           code isn&apos;t emailed automatically yet, so copy it and send it to them yourself.
         </p>
 
