@@ -21,6 +21,7 @@ import {
   getMaxLlmCallsPerUserPerHour,
   getChatHistoryTurns,
   getChatMaxTokens,
+  getChatMaxInstructionChars,
   getLiveEmailSends,
   getMaxEmailsPerHour,
 } from '../settings.js';
@@ -143,6 +144,28 @@ describe('getChatMaxTokens', () => {
   it('falls back to the catalog minimum on an unparseable value', () => {
     getSettingMock.mockReturnValue('nope');
     expect(getChatMaxTokens()).toBe(1024);
+  });
+});
+
+describe('getChatMaxInstructionChars', () => {
+  it('returns the catalog default (12000) when the row is absent', () => {
+    getSettingMock.mockReturnValue(null);
+    expect(getChatMaxInstructionChars()).toBe(12000);
+  });
+
+  it('returns the stored value when valid', () => {
+    getSettingMock.mockReturnValue('10000');
+    expect(getChatMaxInstructionChars()).toBe(10000);
+  });
+
+  it('falls back to the catalog minimum (200) below that floor', () => {
+    getSettingMock.mockReturnValue('5');
+    expect(getChatMaxInstructionChars()).toBe(200);
+  });
+
+  it('falls back to the catalog minimum on an unparseable value', () => {
+    getSettingMock.mockReturnValue('nope');
+    expect(getChatMaxInstructionChars()).toBe(200);
   });
 });
 

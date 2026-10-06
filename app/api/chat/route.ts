@@ -19,7 +19,8 @@
  *   - The API key is never in the response body or any log statement.
  *
  * Error codes (plans/archive/08-prometheus-apply.md §8):
- *   400  malformed request body
+ *   400  malformed request body; instruction_too_long (over chatMaxInstructionChars);
+ *        history_too_long (a turn in the used history window over its length bound)
  *   401  unauthorized
  *   404  agentId not found or not owned by caller
  *   429  per-user LLM cap reached (§3.9)
@@ -39,6 +40,11 @@ import {
 } from '@/lib/ai/prometheus';
 import { LlmDryRunBlockedError, LlmUserCapReachedError } from '@/lib/ai/gateway';
 import { authenticate } from '@/lib/auth/guard';
+import {
+  getChatMaxInstructionChars,
+  getChatMaxTokens,
+  getChatHistoryTurns,
+} from '@/lib/settings';
 
 export async function POST(request: Request): Promise<NextResponse> {
   const auth = await authenticate();
@@ -105,6 +111,51 @@ export async function POST(request: Request): Promise<NextResponse> {
     )
       ? (rawHistory as { role: 'user' | 'assistant'; message: string }[])
       : undefined;
+
+  // ── Size limits — deterministic, checked before any AI call or DB read ────
+  // Purely length-based (never keyword matching on content): stops the chat being
+  // used as a free general-purpose AI by pasting large unrelated content into it.
+  // The topic-scope rule in Prometheus's own prompt is the other half of that guard.
+  const maxInstructionChars = getChatMaxInstructionChars();
+  if (instruction.length > maxInstructionChars) {
+    return NextResponse.json(
+      {
+        error: 'instruction_too_long',
+        limit: maxInstructionChars,
+        length: instruction.length,
+        message: `Your message is ${instruction.length} characters; the limit is ${maxInstructionChars}. Shorten it and try again.`,
+      },
+      { status: 400 },
+    );
+  }
+
+  // History is client-supplied, so its turns are bounded too — only the window that
+  // will actually reach the model (last chatHistoryTurns entries, same slice
+  // callPrometheus takes), so an old long turn outside that window never blocks a send.
+  // User turns get the instruction limit (each was an instruction once). Assistant
+  // turns get a bound derived from chatMaxTokens: a real reply can never be longer
+  // than the model was allowed to generate, so anything over ~6 chars/token was not
+  // produced by Prometheus and is a forged turn.
+  if (history) {
+    const maxAssistantChars = getChatMaxTokens() * 6;
+    const turns = getChatHistoryTurns();
+    // turns === 0 must mean "no window": slice(-0) is slice(0), the whole array.
+    const window = turns > 0 ? history.slice(-turns) : [];
+    const oversized = window.some((t) =>
+      t.role === 'user'
+        ? t.message.length > maxInstructionChars
+        : t.message.length > maxAssistantChars,
+    );
+    if (oversized) {
+      return NextResponse.json(
+        {
+          error: 'history_too_long',
+          message: 'A message in this conversation is over the allowed length. Start a new chat and try again.',
+        },
+        { status: 400 },
+      );
+    }
+  }
 
   // ── Load whole agent server-side — never trust client-supplied content ──
   const agent = getAgentFull(agentId, session.userId);

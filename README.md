@@ -148,6 +148,7 @@ Configurable from **System Settings** (`/settings`, admin only):
 | `maxLlmCallsPerUserPerHour` | `15` | Per-user hourly LLM call cap (rolling 60-minute window). The admin is always exempt. |
 | `chatMaxTokens` | `8192` | Max tokens Prometheus may generate per chat reply. |
 | `chatHistoryTurns` | `10` | How many prior chat messages Prometheus sees for context. |
+| `chatMaxInstructionChars` | `12000` | Longest chat instruction a user may send; longer ones are rejected before any AI call. Keeps the chat from being used as a general-purpose AI by pasting large unrelated content. |
 | `mcpWrites` | `false` | When on, write-scoped MCP tokens can call `push_agent` (see "Console MCP access" below). Off by default — a deployment that never touches this setting behaves exactly as if the MCP server didn't exist. |
 | `liveEmailSends` | `true` | When off, every outbound email is blocked and logged before any network request is made. Only matters once email is configured at all — see "Email delivery setup" below. |
 | `maxEmailsPerHour` | `50` | Deployment-wide cap on outbound emails per rolling 60-minute window, counting only attempts that reached the provider. |
