@@ -7,6 +7,33 @@ status. For full blow-by-blow detail behind any entry below, see the referenced 
 
 ---
 
+## 2026-10-05 — Prometheus topic-scope guardrail + chat size limits
+
+Closed a real abuse gap: Prometheus's prompt only said "you are not a general-purpose
+assistant" with no rule for what to do about it, so a signed-in user could ask it to review
+unrelated code, answer general questions, or write documents — a free AI chat paid for by the
+platform. Two layers now, both outside any keyword matching on content (agents are about
+agents, so real agent content can legitimately contain any phrasing):
+
+- **Prompt (`lib/ai/prompts/system-agents/prometheus.md`)** — new `TOPIC SCOPE` section
+  defining what is in scope (this agent's content, agent/prompt design, subagent concepts,
+  using the workbench) and what is declined (doing the agent's job instead of editing it, any
+  unrelated task, and either of those disguised as agent work). Declines use the normal JSON
+  envelope with `modifications: {}`, a one-or-two-sentence redirect, and no partial answer;
+  the boundary explicitly can't be widened by the user's instruction, history, or text inside
+  the agent's own content. BEHAVIOR #2 now checks scope first and defines "review" as
+  reviewing the agent *as an agent*.
+- **Server size limits (`app/api/chat/route.ts`)** — a new admin setting,
+  `chatMaxInstructionChars` (default 12000 — sized so pasting a full ~5,000-char section to replace it still fits), rejects an over-long instruction with
+  `400 instruction_too_long` before any AI call. History turns in the window actually sent to
+  the model are bounded too (`400 history_too_long`): user turns by the same limit, assistant
+  turns by `chatMaxTokens × 6` characters, since a real reply can't be longer than the model
+  was allowed to generate. Chat errors now show the server's readable `message` when present,
+  and a rejected over-long instruction is taken back out of the chat (draft restored to the
+  input) so it can't ride along in history and block every later send.
+
+---
+
 ## 2026-09-04 — Email-sending provider: Resend, invite-code delivery, admin access-request notice (Plan 14)
 
 MyAgentStudio can now actually send email — previously the access-request endpoint promised

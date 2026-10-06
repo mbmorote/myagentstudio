@@ -9,7 +9,7 @@
  *
  * Scope: the subset of SETTING_DEFS that governs which vendor answers an AI call
  * and how much of it a caller may use — liveLlmCalls, llmProvider, chatMaxTokens,
- * chatHistoryTurns, maxLlmCallsPerUserPerHour. Everything else in SETTING_DEFS
+ * chatHistoryTurns, chatMaxInstructionChars, maxLlmCallsPerUserPerHour. Everything else in SETTING_DEFS
  * (maxUsers, accessRequestCodeExpiryHours, mcpWrites) lives in AdminSettingsPane.
  *
  * Self-contained fetch/save, same PATCH round-trip SettingsView.tsx already used —
@@ -25,6 +25,7 @@ const LLM_KEYS = new Set([
   'llmProvider',
   'chatMaxTokens',
   'chatHistoryTurns',
+  'chatMaxInstructionChars',
   'maxLlmCallsPerUserPerHour',
 ]);
 

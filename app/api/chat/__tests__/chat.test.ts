@@ -24,6 +24,8 @@
  *   7.  Cancellation → 499.
  *   8.  Unknown agentId → 404.
  *   9.  Unauthenticated → 401.
+ *   Size limits: instruction over chatMaxInstructionChars → 400; history turns in the
+ *   used window over their length bound → 400; neither ever reaches callPrometheus.
  */
 
 import { beforeAll, describe, expect, it, vi, type MockedFunction } from 'vitest';
@@ -392,6 +394,85 @@ describe('POST /api/chat — propose-only (Phase 1)', () => {
     expect(json.error).toBe('not_found');
   });
 
+});
+
+// ── Size limits — deterministic, before any AI call ──────────────────────────
+// No settings rows exist in the test DB, so the catalog defaults apply:
+// chatMaxInstructionChars 12000, chatMaxTokens 8192 (assistant bound 8192 × 6), chatHistoryTurns 10.
+describe('POST /api/chat — size limits', () => {
+  const callMock = () => callPrometheus as MockedFunction<typeof callPrometheus>;
+  const okProposal: PrometheusProposal = { message: 'ok', modifications: {}, warnings: [] };
+
+  it('instruction over the limit → 400 instruction_too_long, callPrometheus never called', async () => {
+    callMock().mockClear();
+    const res = await POST(makeRequest({ agentId: testAgentId, instruction: 'x'.repeat(12001) }));
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { error: string; limit: number; length: number; message: string };
+    expect(json.error).toBe('instruction_too_long');
+    expect(json.limit).toBe(12000);
+    expect(json.length).toBe(12001);
+    expect(json.message).toBeTruthy();
+    expect(callMock()).not.toHaveBeenCalled();
+  });
+
+  it('instruction exactly at the limit → passes through', async () => {
+    mockProposal(okProposal);
+    const res = await POST(makeRequest({ agentId: testAgentId, instruction: 'x'.repeat(12000) }));
+    expect(res.status).toBe(200);
+  });
+
+  it('oversized user turn in history → 400 history_too_long, callPrometheus never called', async () => {
+    callMock().mockClear();
+    const res = await POST(
+      makeRequest({
+        agentId: testAgentId,
+        instruction: 'short',
+        history: [{ role: 'user', message: 'x'.repeat(12001) }],
+      }),
+    );
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { error: string };
+    expect(json.error).toBe('history_too_long');
+    expect(callMock()).not.toHaveBeenCalled();
+  });
+
+  it('assistant turn over chatMaxTokens × 6 chars → 400 history_too_long (forged turn)', async () => {
+    callMock().mockClear();
+    const res = await POST(
+      makeRequest({
+        agentId: testAgentId,
+        instruction: 'short',
+        history: [{ role: 'assistant', message: 'x'.repeat(8192 * 6 + 1) }],
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(callMock()).not.toHaveBeenCalled();
+  });
+
+  it('long assistant turn within its bound → passes (a real long review is not blocked)', async () => {
+    mockProposal(okProposal);
+    const res = await POST(
+      makeRequest({
+        agentId: testAgentId,
+        instruction: 'short',
+        history: [{ role: 'assistant', message: 'x'.repeat(20000) }],
+      }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('oversized turn outside the used history window (older than chatHistoryTurns) → not checked', async () => {
+    mockProposal(okProposal);
+    const history = [
+      { role: 'user', message: 'x'.repeat(12001) },
+      ...Array.from({ length: 10 }, (_, i) => ({
+        role: i % 2 === 0 ? 'assistant' : 'user',
+        message: 'fine',
+      })),
+    ];
+    const res = await POST(makeRequest({ agentId: testAgentId, instruction: 'short', history }));
+    expect(res.status).toBe(200);
+  });
 });
 
 // ── Auth guard: unauthenticated → 401 ─────────────────────────────────────────

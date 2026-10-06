@@ -558,6 +558,7 @@ export function ChatPanel({
       // Parse body once — needed for dry-run check BEFORE !response.ok (§5.2, §7.2)
       const body = (await response.json().catch(() => ({ error: 'unknown' }))) as {
         error?: string;
+        message?: string;
         dryRun?: boolean;
         logId?: string | null;
         proposal?: {
@@ -597,10 +598,31 @@ export function ChatPanel({
         return;
       }
 
+      // Over-long instruction: take the user bubble back out (it was appended before
+      // the send) and restore the draft, so the rejected text never enters `history`
+      // — otherwise it would ride along on every later send and trip history_too_long.
+      if (response.status === 400 && body.error === 'instruction_too_long') {
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          const withoutBubble =
+            last && last.role === 'user' && !last.synthetic && last.text === text
+              ? prev.slice(0, -1)
+              : prev;
+          return [
+            ...withoutBubble,
+            { role: 'assistant', text: `Error: ${body.message ?? body.error}`, synthetic: true },
+          ];
+        });
+        setInstruction(text);
+        return;
+      }
+
       if (!response.ok) {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', text: `Error: ${body.error ?? response.statusText}`, synthetic: true },
+          // Prefer the server's human-readable message when it sends one (e.g.
+          // instruction_too_long), falling back to the bare error code.
+          { role: 'assistant', text: `Error: ${body.message ?? body.error ?? response.statusText}`, synthetic: true },
         ]);
         return;
       }

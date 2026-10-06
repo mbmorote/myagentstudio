@@ -87,6 +87,15 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     hint: 'Max tokens Prometheus may generate per reply. A response that hits this ceiling is truncated mid-generation (max_tokens) and rejected as chat_truncated (2026-08-12) rather than silently losing content — raise this if large rewrites keep getting cut off. The max here is a safety guard against a mistyped huge value, not a confirmed model limit.',
   },
   {
+    key: 'chatMaxInstructionChars',
+    datatype: 'int',
+    default: 12000,
+    min: 200,
+    max: 50000,
+    label: 'Chat max instruction length (chars)',
+    hint: 'Longest instruction a user may send to Prometheus in one chat message; anything longer is rejected before any AI call is made. Also bounds the user turns in the chat history sent with it. Keeps the chat from being used as a free general-purpose AI by pasting large unrelated content (code, documents) into it. Trade-off: it must stay large enough to paste a full section to replace it (real sections run ~5,000 characters) — lowering it much below the default blocks that workflow.',
+  },
+  {
     key: 'accessRequestCodeExpiryHours',
     datatype: 'int',
     default: 5,
@@ -269,6 +278,27 @@ export function getChatMaxTokens(): number {
   if (parsed === null || (parsed as number) < def.min!) {
     console.warn(
       `[settings] chatMaxTokens has invalid value "${raw}" — using minimum of ${def.min}`,
+    );
+    return def.min as number;
+  }
+  return parsed as number;
+}
+
+/**
+ * Returns the current effective value of `chatMaxInstructionChars`.
+ *
+ * Row absent → returns the SETTING_DEFS default (12000).
+ * Unparseable or below the def's min → returns that min (most restrictive) + console.warn.
+ */
+export function getChatMaxInstructionChars(): number {
+  const def = SETTING_DEFS.find((d) => d.key === 'chatMaxInstructionChars')!;
+  const raw = getSetting('chatMaxInstructionChars');
+  if (raw === null) return def.default as number;
+
+  const parsed = parseSettingValue(raw, 'int');
+  if (parsed === null || (parsed as number) < def.min!) {
+    console.warn(
+      `[settings] chatMaxInstructionChars has invalid value "${raw}" — using minimum of ${def.min}`,
     );
     return def.min as number;
   }
