@@ -47,6 +47,11 @@ beforeAll(() => {
   if (!process.env.JWT_SECRET) {
     process.env.JWT_SECRET = 'test-secret-that-is-at-least-32-chars-long!!';
   }
+  // These suites exercise the manual-review flow; turn auto-approval off (default 20
+  // would auto-approve every request against this near-empty test DB).
+  testDb.insert(schema.setting).values({ key: 'autoApproveAccessRequestsBelowUsers', value: '0' })
+    .onConflictDoUpdate({ target: schema.setting.key, set: { value: '0', updatedAt: new Date() } })
+    .run();
 });
 
 beforeEach(() => {

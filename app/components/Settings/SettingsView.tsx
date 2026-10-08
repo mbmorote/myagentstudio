@@ -628,8 +628,11 @@ export function SettingsView({
         <p className="text-[12px] text-[var(--muted)] mb-3">
           From &quot;Request access&quot; on the signup form. Generate a code to offer a spot (bound
           to their email, expires per the setting above — currently{' '}
-          {localSettings.find((s) => s.key === 'accessRequestCodeExpiryHours')?.value ?? 120}h); the
-          code isn&apos;t emailed automatically yet, so copy it and send it to them yourself.
+          {localSettings.find((s) => s.key === 'accessRequestCodeExpiryHours')?.value ?? 120}h). If
+          email is configured, the code is emailed to them automatically; otherwise copy it from
+          the Invite codes table and send it yourself. Requests only appear here once the user
+          count reaches the auto-approve threshold; below it, codes are generated and emailed on
+          submission.
         </p>
 
         {accessRequestsError && (

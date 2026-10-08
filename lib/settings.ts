@@ -110,7 +110,7 @@ export const SETTING_DEFS: readonly SettingDef[] = [
     default: 20,
     min: 0,
     label: 'Auto-approve access requests below (users)',
-    hint: 'While the total number of user accounts is below this number, a "Request access" submission is approved automatically: an invite code bound to the requester's email is generated and emailed right away, with no admin review. Once the user count reaches it, requests go back to the Access requests grid for manual review. 0 = always review manually. Signups are still limited by "Max users", so keep that at least this high or auto-sent codes will hit the cap.',
+    hint: 'While the total number of user accounts is below this number, a "Request access" submission is approved automatically: an invite code bound to the requester\'s email is generated and emailed right away, with no admin review. Once the user count reaches it, requests go back to the Access requests grid for manual review. 0 = always review manually. Signups are still limited by "Max users", so keep that at least this high or auto-sent codes will hit the cap.',
   },
   {
     key: 'llmProvider',
