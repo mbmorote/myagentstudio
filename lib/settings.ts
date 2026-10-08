@@ -98,11 +98,19 @@ export const SETTING_DEFS: readonly SettingDef[] = [
   {
     key: 'accessRequestCodeExpiryHours',
     datatype: 'int',
-    default: 5,
+    default: 120,
     min: 1,
     max: 168,
     label: 'Access-request code expiry (hours)',
     hint: 'How long an invite code generated from an access request ("Request access" on the signup form) stays valid before it expires. Only applies to those codes — one you create yourself via "+ Generate code" never expires.',
+  },
+  {
+    key: 'autoApproveAccessRequestsBelowUsers',
+    datatype: 'int',
+    default: 20,
+    min: 0,
+    label: 'Auto-approve access requests below (users)',
+    hint: 'While the total number of user accounts is below this number, a "Request access" submission is approved automatically: an invite code bound to the requester\'s email is generated and emailed right away, with no admin review. Once the user count reaches it, requests go back to the Access requests grid for manual review. 0 = always review manually. Signups are still limited by "Max users", so keep that at least this high or auto-sent codes will hit the cap.',
   },
   {
     key: 'llmProvider',
@@ -308,7 +316,7 @@ export function getChatMaxInstructionChars(): number {
 /**
  * Returns the current effective value of `accessRequestCodeExpiryHours`.
  *
- * Row absent → returns the SETTING_DEFS default (5).
+ * Row absent → returns the SETTING_DEFS default (120 = 5 days).
  * Unparseable or below the def's min → returns that min (most restrictive) + console.warn.
  */
 export function getAccessRequestCodeExpiryHours(): number {
@@ -322,6 +330,27 @@ export function getAccessRequestCodeExpiryHours(): number {
       `[settings] accessRequestCodeExpiryHours has invalid value "${raw}" — using minimum of ${def.min}`,
     );
     return def.min as number;
+  }
+  return parsed as number;
+}
+
+/**
+ * Returns the current effective value of `autoApproveAccessRequestsBelowUsers`.
+ *
+ * Row absent → returns the SETTING_DEFS default (20).
+ * Unparseable or negative → returns 0 (auto-approve off, most restrictive) + console.warn.
+ */
+export function getAutoApproveAccessRequestsBelowUsers(): number {
+  const def = SETTING_DEFS.find((d) => d.key === 'autoApproveAccessRequestsBelowUsers')!;
+  const raw = getSetting('autoApproveAccessRequestsBelowUsers');
+  if (raw === null) return def.default as number;
+
+  const parsed = parseSettingValue(raw, 'int');
+  if (parsed === null || (parsed as number) < 0) {
+    console.warn(
+      `[settings] autoApproveAccessRequestsBelowUsers has invalid value "${raw}" — auto-approve disabled`,
+    );
+    return 0;
   }
   return parsed as number;
 }

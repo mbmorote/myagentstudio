@@ -118,6 +118,15 @@ export class PrometheusTruncatedError extends Error {
 // ─────────────────────────────  Caller  ───────────────────────────────────────
 
 /**
+ * Returns the last `cap` turns of `history`; `cap` <= 0 returns none ("0 disables
+ * history", per the `chatHistoryTurns` setting hint). The guard matters because
+ * slice(-0) is slice(0), which would return the whole history instead of nothing.
+ */
+export function capHistory<T>(history: readonly T[], cap: number): T[] {
+  return cap > 0 ? history.slice(-cap) : [];
+}
+
+/**
  * Calls Prometheus with the agent content and the user's instruction and returns
  * a typed proposal — the model's chat message plus its proposed modifications.
  *
@@ -147,8 +156,7 @@ export async function callPrometheus(
   // dialogue only (message text), never re-derived content. Cap enforced server-side
   // regardless of how much history the client sent — client-supplied history is
   // never trusted at face value, same as every other client-supplied value here.
-  const historyCap = getChatHistoryTurns();
-  const cappedHistory = (input.history ?? []).slice(-historyCap);
+  const cappedHistory = capHistory(input.history ?? [], getChatHistoryTurns());
   const historyMessages = cappedHistory.map((turn) => ({
     role: turn.role,
     content: turn.message,

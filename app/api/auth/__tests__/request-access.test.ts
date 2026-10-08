@@ -15,9 +15,13 @@
  *     already-open request, and already-active bound invite code all return the exact
  *     same generic 201 without creating a duplicate/second row
  *   - rate limiter: 21st attempt from the same IP → 429
+ *   - auto-approval: while the user count is below `autoApproveAccessRequestsBelowUsers`,
+ *     a bound, expiring invite code is created instead of a request row; at/above it,
+ *     the manual-review flow applies. Every other suite pins the setting to 0 (manual
+ *     review) so it exercises the request-row path regardless of the default.
  */
 
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
 // ── Mock DB client ─────────────────────────────────────────────────────────────
@@ -58,6 +62,16 @@ function makeMalformedRequest(ip: string): NextRequest {
     body: '{not valid json',
   });
 }
+
+function setSetting(key: string, value: string): void {
+  testDb.insert(schema.setting).values({ key, value })
+    .onConflictDoUpdate({ target: schema.setting.key, set: { value } }).run();
+}
+
+// Manual-review flow by default for every suite; the auto-approval suite overrides it.
+beforeEach(() => {
+  setSetting('autoApproveAccessRequestsBelowUsers', '0');
+});
 
 function countAccessRequests(email?: string): number {
   const rows = testDb.select().from(schema.accessRequest).all();
@@ -255,5 +269,66 @@ describe('POST /api/auth/request-access — rate limiter', () => {
       lastStatus = res.status;
     }
     expect(lastStatus).toBe(429);
+  });
+});
+
+// ── auto-approval ─────────────────────────────────────────────────────────────
+
+describe('POST /api/auth/request-access — auto-approval', () => {
+  function inviteCodesFor(email: string) {
+    return testDb.select().from(schema.inviteCode).all().filter((r) => r.boundEmail === email);
+  }
+
+  it('user count below threshold → bound, expiring code created, no request row, same generic 201', async () => {
+    setSetting('autoApproveAccessRequestsBelowUsers', '100000');
+    setSetting('accessRequestCodeExpiryHours', '120');
+    const email = `auto-${crypto.randomUUID()}@example.com`;
+
+    const before = Date.now();
+    const res = await requestAccessPOST(makeRequest(
+      { name: 'Auto', email, referralSource: 'linkedin' },
+      nextIp(),
+    ));
+    expect(res.status).toBe(201);
+    const body = await res.json() as { message: string };
+    expect(body.message).toMatch(/if we can offer you a spot/i);
+
+    expect(countAccessRequests(email)).toBe(0);
+    const codes = inviteCodesFor(email);
+    expect(codes).toHaveLength(1);
+    expect(codes[0].redeemedBy).toBeNull();
+    expect(codes[0].createdBy).toBeNull();
+    expect(codes[0].note).toBe('Auto · via LinkedIn');
+
+    const expiresMs = codes[0].expiresAt instanceof Date
+      ? codes[0].expiresAt.getTime()
+      : (codes[0].expiresAt as unknown as number) * 1000;
+    const fiveDaysMs = 120 * 60 * 60 * 1000;
+    // expires_at is stored at second precision — allow a few seconds of slack.
+    expect(expiresMs).toBeGreaterThanOrEqual(before + fiveDaysMs - 5000);
+    expect(expiresMs).toBeLessThanOrEqual(Date.now() + fiveDaysMs + 5000);
+  });
+
+  it('auto-approved email submitting again → no second code (active-code dedupe still applies)', async () => {
+    setSetting('autoApproveAccessRequestsBelowUsers', '100000');
+    const email = `auto-again-${crypto.randomUUID()}@example.com`;
+
+    await requestAccessPOST(makeRequest({ name: 'Again', email }, nextIp()));
+    const res = await requestAccessPOST(makeRequest({ name: 'Again', email }, nextIp()));
+    expect(res.status).toBe(201);
+    expect(inviteCodesFor(email)).toHaveLength(1);
+    expect(countAccessRequests(email)).toBe(0);
+  });
+
+  it('user count at/above threshold → falls back to a request row, no code', async () => {
+    createTestUser();
+    const userCount = testDb.select().from(schema.user).all().length;
+    setSetting('autoApproveAccessRequestsBelowUsers', String(userCount));
+    const email = `manual-${crypto.randomUUID()}@example.com`;
+
+    const res = await requestAccessPOST(makeRequest({ name: 'Manual', email }, nextIp()));
+    expect(res.status).toBe(201);
+    expect(countAccessRequests(email)).toBe(1);
+    expect(inviteCodesFor(email)).toHaveLength(0);
   });
 });

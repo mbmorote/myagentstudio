@@ -23,7 +23,7 @@ import {
 } from './prefsShared';
 
 const ADMIN_KEYS = new Set([
-  'maxUsers', 'accessRequestCodeExpiryHours', 'mcpWrites',
+  'maxUsers', 'accessRequestCodeExpiryHours', 'autoApproveAccessRequestsBelowUsers', 'mcpWrites',
   'liveEmailSends', 'maxEmailsPerHour',
 ]);
 

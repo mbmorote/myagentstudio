@@ -18,6 +18,7 @@ vi.mock('../prompts/generated/prometheus.js', () => ({
 
 // ── Import the parser and error class under test ──────────────────────────────
 import {
+  capHistory,
   parsePrometheusResponse,
   PrometheusInvalidResponseError,
   repairNearMissJson,
@@ -556,5 +557,31 @@ describe('parsePrometheusResponse — drastic-shrink guard (currentSections, qua
       { sectionKey: 'behavior', content: 'A'.repeat(5000) },
     ]);
     expect(result.warnings.filter((w) => /dropped from/i.test(w))).toHaveLength(0);
+  });
+});
+
+// ─────────────────────────────  History cap (issue #38)  ──────────────────────
+
+describe('capHistory — chatHistoryTurns cap', () => {
+  const history = [
+    { role: 'user' as const, message: 'a' },
+    { role: 'assistant' as const, message: 'b' },
+    { role: 'user' as const, message: 'c' },
+  ];
+
+  it('cap = 0 sends no history (slice(-0) would return all of it)', () => {
+    expect(capHistory(history, 0)).toEqual([]);
+  });
+
+  it('a negative cap also sends no history', () => {
+    expect(capHistory(history, -1)).toEqual([]);
+  });
+
+  it('keeps only the most recent `cap` turns', () => {
+    expect(capHistory(history, 2).map((t) => t.message)).toEqual(['b', 'c']);
+  });
+
+  it('a cap larger than the history returns all of it', () => {
+    expect(capHistory(history, 10)).toEqual(history);
   });
 });
